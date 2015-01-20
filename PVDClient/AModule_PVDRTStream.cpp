@@ -51,10 +51,10 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 {
+	pvdnet_head *phead;
 	do {
-		if ((result < 0) && (rt->status != pvdnet_disconnected))
+		if (result < 0)
 			rt->status = pvdnet_closing;
-
 		switch (rt->status)
 		{
 		case pvdnet_connecting:
@@ -94,20 +94,56 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 			break;
 
 		case pvdnet_syn_login:
+			rt->status = pvdnet_ack_login;
 			SliceReset(&rt->outbuf);
 			result = 0;
-			rt->status = pvdnet_ack_login;
 
 		case pvdnet_ack_login:
 			SlicePush(&rt->outbuf, result);
-			result = PVDCmdDecode(rt->userid, SliceCurPtr(&rt->outbuf), SliceCurLen(&rt->outbuf));
-			if (result < 0)
-				break;
-			if (((result == 0) || (result > SliceCurLen(&rt->outbuf))) && !(rt->outmsg.type & AMsgType_Custom)) {
+			if (SliceCurLen(&rt->outbuf) < sizeof(pvdnet_head)) {
+				if (rt->outmsg.type & AMsgType_Custom)
+					SliceReset(&rt->outbuf);
 				AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
 				result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
 				break;
 			}
+			phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
+			if (phead->uFlag == NET_CMD_HEAD_FLAG) {
+				result = PVDCmdDecode(rt->userid, SliceCurPtr(&rt->outbuf), SliceCurLen(&rt->outbuf));
+				if (result < 0)
+					break;
+				if (result > SliceCurLen(&rt->outbuf)) {
+					if (rt->outmsg.type & AMsgType_Custom) {
+						result = -EFAULT;
+						break;
+					}
+					AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+					result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+					break;
+				}
+				SlicePop(&rt->outbuf, result);
+				if (!phead->uResult) {
+					result = -EFAULT;
+					break;
+				}
+			}
+			rt->status = pvdnet_con_stream;
+			return result;
+
+		case pvdnet_closing:
+			AMsgInit(&rt->outmsg, AMsgType_Unknown, NULL, 0);
+			rt->status = pvdnet_disconnected;
+			result = rt->io->close(rt->io, &rt->outmsg);
+			if (result == 0)
+				return 0;
+
+		case pvdnet_disconnected:
+			rt->status = pvdnet_invalid;
+			return -EFAULT;
+
+		default:
+			assert(FALSE);
+			return -EACCES;
 		}
 	} while (result != 0);
 	return result;

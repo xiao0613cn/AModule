@@ -59,8 +59,9 @@ enum ARequestIndex {
 	ARequest_Output,
 	ARequest_IndexMask = 0x00ffffff,
 
-	ARequest_MsgLoop   = 0x01000000,
-	ANotify_InQueue    = 0x02000000,
+	ARequest_MsgLoop     = 0x01000000,
+	ANotify_InQueueFront = 0x02000000,
+	ANotify_InQueueBack  = 0x03000000,
 };
 
 struct AObject {
@@ -131,6 +132,7 @@ extern AModule*
 AModuleFind(const char *class_name, const char *module_name);
 
 //////////////////////////////////////////////////////////////////////////
+#ifdef __cplusplus
 struct IObject {
 	AObject *object;
 	void init(AObject *object, bool ref) { this->object = object; if (ref) AObjectAddRef(object); }
@@ -153,5 +155,6 @@ struct IObject {
 	operator AObject** (void) { return &this->object; }
 	operator bool (void)      { return (this->object != NULL); }
 };
+#endif
 
 #endif

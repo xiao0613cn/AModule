@@ -80,7 +80,7 @@ int async_thread_begin(async_thread *at, HANDLE iocp)
 	if (at->thread != NULL)
 		return -1;
 
-	InitializeCriticalSectionEx(&at->ao_lock, 1000, 0);
+	InitializeCriticalSection(&at->ao_lock);
 	INIT_LIST_HEAD(&at->ao_waiting);
 	INIT_LIST_HEAD(&at->ao_pending);
 

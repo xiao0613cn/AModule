@@ -111,9 +111,8 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead;
 	do {
-		if ((result < 0) && (result != pvdnet_disconnected))
+		if (result < 0)
 			pvd->status = pvdnet_closing;
-
 		switch (pvd->status)
 		{
 		case pvdnet_connecting:
@@ -164,7 +163,6 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 
 		case pvdnet_reconnecting:
 			PVDOpenLogin(pvd);
-
 			pvd->status = pvdnet_syn_login;
 			result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
 			break;
@@ -199,6 +197,10 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 		case pvdnet_disconnected:
 			pvd->status = pvdnet_invalid;
 			return -EFAULT;
+
+		default:
+			assert(FALSE);
+			return -EACCES;
 		}
 	} while (result != 0);
 	return result;
@@ -271,7 +273,7 @@ static long PVDRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
 	if (reqix != ARequest_Output) {
-		if ((reqix == ARequest_Input) && (msg->type & AMsgType_Custom)) {
+		if (reqix == ARequest_Input) {
 			pvdnet_head *phead = (pvdnet_head*)msg->data;
 			phead->uUserId = pvd->userid;
 		}
@@ -287,9 +289,8 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead = NULL;
 	do {
-		if ((result < 0) && (pvd->status != pvdnet_disconnected))
+		if (result < 0)
 			pvd->status = pvdnet_closing;
-
 		switch (pvd->status)
 		{
 		case pvdnet_syn_logout:
@@ -331,7 +332,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 	PVDClient *pvd = from_outmsg(msg);
 	result = PVDCloseStatus(pvd, result);
 	if (result != 0)
-		result = pvd->outfrom->done(pvd->outfrom, 1);
+		result = pvd->outfrom->done(pvd->outfrom, result);
 	return result;
 }
 

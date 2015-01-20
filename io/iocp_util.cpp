@@ -22,7 +22,7 @@ iocp_getaddrinfo(const char *netaddr, const char *port)
 
 	struct addrinfo ai;
 	memset(&ai, 0, sizeof(ai));
-	ai.ai_flags    = AI_NUMERICSERV;
+	ai.ai_flags    = AI_NUMERICHOST;
 	ai.ai_family   = AF_UNSPEC;
 	ai.ai_socktype = 0;
 	ai.ai_protocol = 0;

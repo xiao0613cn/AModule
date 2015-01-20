@@ -359,7 +359,11 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 		result = -EINTR;
 	} else switch (flag)
 	{
-	case ANotify_InQueue:
+	case ANotify_InQueueFront:
+		list_add(&msg->entry, &req->notify_list);
+		result = 0;
+		break;
+	case ANotify_InQueueBack:
 		list_add_tail(&msg->entry, &req->notify_list);
 		result = 0;
 		break;
@@ -407,7 +411,7 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 		return -ENOENT;
 
 	struct list_head *head;
-	if (flag == ANotify_InQueue) {
+	if (flag == ANotify_InQueueFront) {
 		head = &req->notify_list;
 	} else {
 		head = &req->request_list;
