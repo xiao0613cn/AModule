@@ -131,7 +131,8 @@ AModule TCPModule = {
 	"tcp",
 	sizeof(TCPObject),
 	TCPInit, NULL,
-	&TCPCreate, &TCPRelease,
+	&TCPCreate,
+	&TCPRelease,
 	2,
 
 	&TCPOpen,

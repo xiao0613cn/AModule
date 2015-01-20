@@ -311,6 +311,10 @@
 			Name="operator"
 			>
 		</Filter>
+		<Filter
+			Name="base"
+			>
+		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"
 			>

@@ -7,29 +7,6 @@
 typedef struct PVDClient PVDClient;
 typedef struct PVDNetCmd PVDNetCmd;
 
-enum PVDStatus {
-	pvdnet_invalid,
-
-	pvdnet_connecting,
-	pvdnet_syn_md5id,
-	pvdnet_ack_md5id,
-
-	pvdnet_fin_md5id,
-	pvdnet_reconnecting,
-	pvdnet_syn_login,
-	pvdnet_ack_login,
-
-	pvdnet_con_devinfo,
-	pvdnet_con_devinfo2,
-	pvdnet_con_devinfox,
-	pvdnet_con_stream,
-
-	pvdnet_closing,
-	pvdnet_syn_logout,
-	pvdnet_ack_logout,
-	pvdnet_disconnected,
-};
-
 struct PVDClient {
 	AObject     object;
 	AObject    *io;
@@ -62,10 +39,13 @@ static long PVDCreate(AObject **object, AObject *parent, AOption *option)
 
 	extern AModule PVDClientModule;
 	AObjectInit(&pvd->object, &PVDClientModule);
+
 	pvd->io = NULL;
 	pvd->status = pvdnet_invalid;
 	pvd->userid = 0;
 	pvd->md5id = 0;
+
+	pvd->outfrom = NULL;
 	SliceInit(&pvd->outbuf);
 
 	AOption *io_option = AOptionFindChild(option, "io");
@@ -131,95 +111,95 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead;
 	do {
-	if ((result < 0) && (result != pvdnet_disconnected))
-		pvd->status = pvdnet_closing;
+		if ((result < 0) && (result != pvdnet_disconnected))
+			pvd->status = pvdnet_closing;
 
-	switch (pvd->status)
-	{
-	case pvdnet_connecting:
-		SliceReset(&pvd->outbuf);
-		if (SliceResize(&pvd->outbuf, 8*1024) < 0) {
-			result = -ENOMEM;
+		switch (pvd->status)
+		{
+		case pvdnet_connecting:
+			SliceReset(&pvd->outbuf);
+			if (SliceResize(&pvd->outbuf, 8*1024) < 0) {
+				result = -ENOMEM;
+				break;
+			}
+
+			pvd->outmsg.type = AMsgType_Custom|NET_SDVR_MD5ID_GET;
+			pvd->outmsg.data = SliceCurPtr(&pvd->outbuf);
+			pvd->outmsg.size = PVDCmdEncode(pvd->userid, pvd->outmsg.data, NET_SDVR_MD5ID_GET, 0);
+
+			pvd->status = pvdnet_syn_md5id;
+			result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
 			break;
+
+		case pvdnet_syn_md5id:
+			SliceReset(&pvd->outbuf);
+			result = 0;
+			pvd->status = pvdnet_ack_md5id;
+
+		case pvdnet_ack_md5id:
+			SlicePush(&pvd->outbuf, result);
+			result = PVDOutMsg(pvd, &phead);
+			if (phead == NULL)
+				break;
+			if ((phead->uCmd != NET_SDVR_MD5ID_GET) || (phead->uResult == 0)) {
+				result = -EFAULT;
+				break;
+			}
+
+			pvd->md5id = *(BYTE*)(phead+1);
+			AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+
+			pvd->status = pvdnet_fin_md5id;
+			result = pvd->io->close(pvd->io, &pvd->outmsg);
+			break;
+
+		case pvdnet_fin_md5id:
+			pvd->outmsg.type = AMsgType_Option;
+			pvd->outmsg.data = (char*)AOptionFindChild((AOption*)pvd->outfrom->data, "io");
+			pvd->outmsg.size = sizeof(AOption);
+
+			pvd->status = pvdnet_reconnecting;
+			result = pvd->io->open(pvd->io, &pvd->outmsg);
+			break;
+
+		case pvdnet_reconnecting:
+			PVDOpenLogin(pvd);
+
+			pvd->status = pvdnet_syn_login;
+			result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
+			break;
+
+		case pvdnet_syn_login:
+			SliceReset(&pvd->outbuf);
+			result = 0;
+			pvd->status = pvdnet_ack_login;
+
+		case pvdnet_ack_login:
+			SlicePush(&pvd->outbuf, result);
+			result = PVDOutMsg(pvd, &phead);
+			if (phead == NULL)
+				break;
+			if ((phead->uCmd != NET_SDVR_LOGIN) || (phead->uResult == 0)) {
+				result = -EFAULT;
+				break;
+			}
+
+			pvd->userid = phead->uUserId;
+			memcpy(&pvd->device2, phead+1, min(sizeof(STRUCT_SDVR_DEVICE_EX), result-sizeof(pvdnet_head)));
+			pvd->status = pvdnet_con_devinfo2;
+			return result;
+
+		case pvdnet_closing:
+			AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+			pvd->status = pvdnet_disconnected;
+			result = pvd->io->close(pvd->io, &pvd->outmsg);
+			if (result == 0)
+				break;
+
+		case pvdnet_disconnected:
+			pvd->status = pvdnet_invalid;
+			return -EFAULT;
 		}
-
-		pvd->outmsg.type = AMsgType_Custom|NET_SDVR_MD5ID_GET;
-		pvd->outmsg.data = SliceCurPtr(&pvd->outbuf);
-		pvd->outmsg.size = PVDCmdEncode(pvd->userid, pvd->outmsg.data, NET_SDVR_MD5ID_GET, 0);
-
-		pvd->status = pvdnet_syn_md5id;
-		result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
-		break;
-
-	case pvdnet_syn_md5id:
-		SliceReset(&pvd->outbuf);
-		result = 0;
-		pvd->status = pvdnet_ack_md5id;
-
-	case pvdnet_ack_md5id:
-		SlicePush(&pvd->outbuf, result);
-		result = PVDOutMsg(pvd, &phead);
-		if (phead == NULL)
-			break;
-		if ((phead->uCmd != NET_SDVR_MD5ID_GET) || (phead->uResult == 0)) {
-			result = -EFAULT;
-			break;
-		}
-
-		pvd->md5id = *(BYTE*)(phead+1);
-		AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
-
-		pvd->status = pvdnet_fin_md5id;
-		result = pvd->io->close(pvd->io, &pvd->outmsg);
-		break;
-
-	case pvdnet_fin_md5id:
-		pvd->outmsg.type = AMsgType_Option;
-		pvd->outmsg.data = (char*)AOptionFindChild((AOption*)pvd->outfrom->data, "io");
-		pvd->outmsg.size = sizeof(AOption);
-
-		pvd->status = pvdnet_reconnecting;
-		result = pvd->io->open(pvd->io, &pvd->outmsg);
-		break;
-
-	case pvdnet_reconnecting:
-		PVDOpenLogin(pvd);
-
-		pvd->status = pvdnet_syn_login;
-		result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
-		break;
-
-	case pvdnet_syn_login:
-		SliceReset(&pvd->outbuf);
-		result = 0;
-		pvd->status = pvdnet_ack_login;
-
-	case pvdnet_ack_login:
-		SlicePush(&pvd->outbuf, result);
-		result = PVDOutMsg(pvd, &phead);
-		if (phead == NULL)
-			break;
-		if ((phead->uCmd != NET_SDVR_LOGIN) || (phead->uResult == 0)) {
-			result = -EFAULT;
-			break;
-		}
-
-		pvd->userid = phead->uUserId;
-		memcpy(&pvd->device2, phead+1, min(sizeof(STRUCT_SDVR_DEVICE_EX), result-sizeof(pvdnet_head)));
-		pvd->status = pvdnet_con_devinfo2;
-		return result;
-
-	case pvdnet_closing:
-		AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
-		pvd->status = pvdnet_disconnected;
-		result = pvd->io->close(pvd->io, &pvd->outmsg);
-		if (result == 0)
-			break;
-
-	case pvdnet_disconnected:
-		pvd->status = pvdnet_invalid;
-		return -EFAULT;
-	}
 	} while (result != 0);
 	return result;
 }
@@ -307,41 +287,41 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead = NULL;
 	do {
-	if ((result < 0) && (pvd->status != pvdnet_disconnected))
-		pvd->status = pvdnet_closing;
+		if ((result < 0) && (pvd->status != pvdnet_disconnected))
+			pvd->status = pvdnet_closing;
 
-	switch (pvd->status)
-	{
-	case pvdnet_syn_logout:
-		pvd->status = pvdnet_ack_logout;
-		result = 0;
+		switch (pvd->status)
+		{
+		case pvdnet_syn_logout:
+			pvd->status = pvdnet_ack_logout;
+			result = 0;
 
-	case pvdnet_ack_logout:
-		if (phead == NULL)
-			SlicePush(&pvd->outbuf, result);
-		result = PVDOutMsg(pvd, &phead);
-		if (phead == NULL)
-			break;
-		if (phead->uCmd != NET_SDVR_LOGOUT)
-			break;
-		pvd->outfrom->type = AMsgType_Custom|NET_SDVR_LOGOUT;
-		pvd->outfrom->data = (char*)phead;
-		pvd->outfrom->size = result;
+		case pvdnet_ack_logout:
+			if (phead == NULL)
+				SlicePush(&pvd->outbuf, result);
+			result = PVDOutMsg(pvd, &phead);
+			if (phead == NULL)
+				break;
+			if (phead->uCmd != NET_SDVR_LOGOUT)
+				break;
+			pvd->outfrom->type = AMsgType_Custom|NET_SDVR_LOGOUT;
+			pvd->outfrom->data = (char*)phead;
+			pvd->outfrom->size = result;
 
-	case pvdnet_closing:
-		AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
-		pvd->status = pvdnet_disconnected;
-		result = pvd->io->close(pvd->io, &pvd->outmsg);
-		if (result == 0)
-			break;
+		case pvdnet_closing:
+			AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+			pvd->status = pvdnet_disconnected;
+			result = pvd->io->close(pvd->io, &pvd->outmsg);
+			if (result == 0)
+				break;
 
-	case pvdnet_disconnected:
-		pvd->status = pvdnet_invalid;
-		return result;
+		case pvdnet_disconnected:
+			pvd->status = pvdnet_invalid;
+			return result;
 
-	default:
-		return -EACCES;
-	}
+		default:
+			return -EACCES;
+		}
 	} while (result != 0);
 	return result;
 }
@@ -386,7 +366,8 @@ AModule PVDClientModule = {
 	"PVDClient",
 	sizeof(PVDClient),
 	NULL, NULL,
-	&PVDCreate, &PVDRelease,
+	&PVDCreate,
+	&PVDRelease,
 	2,
 
 	&PVDOpen,

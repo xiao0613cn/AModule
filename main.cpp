@@ -147,8 +147,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	//::Sleep(3000);
 	/*wake up the Output MsgLoop*/
 	result = pvd->request(pvd, ARequest_Input, &sm);
-	result = pvd->request(pvd, ARequest_Input, &sm);
-	result = pvd->request(pvd, ARequest_Input, &sm);
 
 	//::Sleep(3000);
 	sm.done = CloseDone;

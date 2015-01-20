@@ -54,5 +54,28 @@ inline int PVDCmdDecode(unsigned long user_id, void *data, int size)
 	return cmdlen;
 }
 
+enum PVDStatus {
+	pvdnet_invalid,
+
+	pvdnet_connecting,
+	pvdnet_syn_md5id,
+	pvdnet_ack_md5id,
+
+	pvdnet_fin_md5id,
+	pvdnet_reconnecting,
+	pvdnet_syn_login,
+	pvdnet_ack_login,
+
+	pvdnet_con_devinfo,
+	pvdnet_con_devinfo2,
+	pvdnet_con_devinfox,
+	pvdnet_con_stream,
+
+	pvdnet_closing,
+	pvdnet_syn_logout,
+	pvdnet_ack_logout,
+	pvdnet_disconnected,
+};
+
 
 #endif
