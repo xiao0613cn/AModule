@@ -5,6 +5,8 @@
 #include "NetCmdDef.h"
 #include "NetCmdStruct.h"
 #include "NetCmdIntelligentStruct.h"
+#include "mshead.h"
+#include "HBStreamHeaderV30.h"
 #pragma warning(default: 4200)
 
 

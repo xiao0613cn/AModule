@@ -44,6 +44,7 @@ static long PVDCreate(AObject **object, AObject *parent, AOption *option)
 	pvd->status = pvdnet_invalid;
 	pvd->userid = 0;
 	pvd->md5id = 0;
+	memset(&pvd->device2, 0, sizeof(pvd->device2));
 
 	pvd->outfrom = NULL;
 	SliceInit(&pvd->outbuf);
@@ -63,7 +64,7 @@ static long PVDOutMsg(PVDClient *pvd, pvdnet_head **phead)
 		return -EFAULT;
 
 	if ((result == 0) || (result > SliceCurLen(&pvd->outbuf))) {
-		if (result > SliceCapacity(&pvd->outbuf)) {
+		if (max(result,sizeof(pvdnet_head)) > SliceCapacity(&pvd->outbuf)) {
 			result = SliceResize(&pvd->outbuf, result);
 			if (result < 0)
 				return -ENOMEM;
@@ -237,6 +238,20 @@ static long PVDOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+static long PVDGetOption(AObject *object, AOption *option)
+{
+	PVDClient *pvd = to_pvd(object);
+	if (_stricmp(option->name, "version") == 0) {
+		_itoa_s(pvd->device2.byDVRType, option->value, 10);
+		return 1;
+	}
+	if (_stricmp(option->name, "session_id") == 0) {
+		_itoa_s(pvd->userid, option->value, 10);
+		return 1;
+	}
+	return -ENOSYS;
+}
+
 static long PVDOutputStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead;
@@ -373,7 +388,8 @@ AModule PVDClientModule = {
 	2,
 
 	&PVDOpen,
-	NULL, NULL,
+	NULL,
+	&PVDGetOption,
 	&PVDRequest,
 	NULL,
 	&PVDClose,

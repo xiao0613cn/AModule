@@ -253,6 +253,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PVDClient\HBStreamHeaderV30.h"
+				>
+			</File>
+			<File
 				RelativePath=".\io\iocp_util.h"
 				>
 			</File>

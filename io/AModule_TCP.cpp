@@ -76,7 +76,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
-
+	assert(msg->size != 0);
 	long result;
 	switch (reqix)
 	{
