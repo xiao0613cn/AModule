@@ -95,16 +95,16 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 
 		case pvdnet_syn_login:
 			rt->status = pvdnet_ack_login;
-			SliceReset(&rt->outbuf);
-			result = 0;
+			AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+			result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+			break;
 
 		case pvdnet_ack_login:
 			SlicePush(&rt->outbuf, result);
 			if (SliceCurLen(&rt->outbuf) < sizeof(pvdnet_head)) {
 				if (rt->outmsg.type & AMsgType_Custom)
 					SliceReset(&rt->outbuf);
-				AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-				result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+				rt->status = pvdnet_syn_login;
 				break;
 			}
 			phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
@@ -115,10 +115,9 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 				if (result > SliceCurLen(&rt->outbuf)) {
 					if (rt->outmsg.type & AMsgType_Custom) {
 						result = -EFAULT;
-						break;
+					} else {
+						rt->status = pvdnet_syn_login;
 					}
-					AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-					result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
 					break;
 				}
 				SlicePop(&rt->outbuf, result);

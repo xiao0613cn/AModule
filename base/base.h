@@ -44,7 +44,8 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	fputs(outbuf, stdout);
 	return outpos;
 }
-#define TRACE(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
+#define TRACE2(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
+#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
 #endif
 
 #ifndef ASSERT

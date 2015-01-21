@@ -14,7 +14,7 @@
 static const char *addr_path =
 	"PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.20.228,"
+	"		address: 192.168.20.37,"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -48,27 +48,45 @@ long RecvDone(AMessage *msg, long result)
 
 	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
 	if (result >= 0) {
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		return result;
+		// match test, for quit notify queue.
+		return -1;
 	}
-
-	/*rm->msg.done = CloseDone;
-	result = rm->pvd->close(rm->pvd, &rm->msg);
-	TRACE("do close = %d.\n", result);*/
-	//if (result != 0) {
+	if (rm->msg.size != 0) {
+		// quit notify queue, process this message
+		// ...
+		// ...
+		// re-register notify queue
+		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
+	} else {
+		TRACE("closed or release, result = %d.\n", result);
+	}
+	if (result < 0) {
 		AObjectRelease(rm->pvd);
 		free(rm);
-	//}
+	}
 	return result;
 }
 
 void RecvCB(async_operator *op, int result)
 {
 	RecvMsg *rm = CONTAINING_RECORD(op, RecvMsg, op);
-
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-	rm->msg.done = &RecvDone;
-	result = rm->pvd->request(rm->pvd, ARequest_MsgLoop|ARequest_Output, &rm->msg);
+	if (result >= 0) {
+		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		rm->msg.done = &RecvDone;
+		INIT_LIST_HEAD(&rm->msg.entry);
+#if 1
+		result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
+		rm->pvd->request(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
+#else
+		do {
+			AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+			result = rm->pvd->request(rm->pvd, ARequest_Output, &rm->msg);
+			TRACE("recv result = %d, msg type = %d, size = %d.\n",
+				result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+		} while (result > 0);
+#endif
+	}
 	if (result < 0) {
 		AObjectRelease(rm->pvd);
 		free(rm);
@@ -135,20 +153,20 @@ int _tmain(int argc, _TCHAR* argv[])
 	sm.data = (char*)&header;
 	sm.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
 	sm.done = NULL;
-	for (int ix = 0; ix < 20; ++ix) {
+	for (int ix = 0; ix < 10; ++ix) {
 		::Sleep(300);
 		result = pvd->request(pvd, ARequest_Input, &sm);
 	}
 
-	//::Sleep(3000);
-	result = pvd->cancel(pvd, ARequest_Output, &rm->msg);
-	TRACE("cancel output = %d.\n", result);
+	//::Sleep(300);
+	//result = pvd->cancel(pvd, ARequest_Output, NULL);
+	//TRACE("cancel output = %d.\n", result);
 
-	//::Sleep(3000);
-	/*wake up the Output MsgLoop*/
+	::Sleep(300);
+	// wake up the Output MsgLoop
 	result = pvd->request(pvd, ARequest_Input, &sm);
 
-	//::Sleep(3000);
+	//::Sleep(300);
 	sm.done = CloseDone;
 	result = pvd->close(pvd, &sm);
 	TRACE("do close = %d.\n", result);

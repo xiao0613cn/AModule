@@ -272,8 +272,9 @@ static long PVDOutputDone(AMessage *msg, long result)
 static long PVDRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
-	if (reqix != ARequest_Output) {
-		if (reqix == ARequest_Input) {
+	if (reqix != ARequest_Output)
+	{
+		if ((reqix == ARequest_Input) && (msg->type & AMsgType_Custom)) {
 			pvdnet_head *phead = (pvdnet_head*)msg->data;
 			phead->uUserId = pvd->userid;
 		}
@@ -305,12 +306,11 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 				break;
 			if (phead->uCmd != NET_SDVR_LOGOUT)
 				break;
-			pvd->outfrom->type = AMsgType_Custom|NET_SDVR_LOGOUT;
-			pvd->outfrom->data = (char*)phead;
-			pvd->outfrom->size = result;
 
+			AMsgInit(pvd->outfrom, AMsgType_Custom|NET_SDVR_LOGOUT, (char*)phead, result);
 		case pvdnet_closing:
 			AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+
 			pvd->status = pvdnet_disconnected;
 			result = pvd->io->close(pvd->io, &pvd->outmsg);
 			if (result == 0)
@@ -318,7 +318,7 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 
 		case pvdnet_disconnected:
 			pvd->status = pvdnet_invalid;
-			return result;
+			return (pvd->outfrom->type&AMsgType_Custom) ? result : -EFAULT;
 
 		default:
 			return -EACCES;
@@ -344,6 +344,7 @@ static long PVDClose(AObject *object, AMessage *msg)
 
 	pvd->outmsg.done = &PVDCloseDone;
 	pvd->outfrom = msg;
+	AMsgInit(pvd->outfrom, AMsgType_Unknown, NULL, 0);
 
 	long result;
 	if (pvd->status < pvdnet_con_devinfo) {
