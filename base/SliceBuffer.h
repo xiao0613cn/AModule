@@ -115,7 +115,7 @@ static inline int SliceResize(SliceBuffer *sb, int len) {
 	sb->buf = (char*)malloc(len);
 	if (sb->buf == NULL) {
 		sb->buf = ptr;
-		return -1;
+		return -ENOMEM;
 	}
 
 	sb->siz = len;

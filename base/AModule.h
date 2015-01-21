@@ -45,6 +45,19 @@ AMsgInit(AMessage *msg, long type, char *data, long size) {
 }
 
 static inline void
+AMsgCopy(AMessage *msg, long type, char *data, long size) {
+	msg->type = type;
+	if ((msg->data == NULL) || (msg->size == 0)) {
+		msg->data = data;
+		msg->size = size;
+	} else {
+		if (msg->size > size)
+			msg->size = size;
+		memcpy(msg->data, data, msg->size);
+	}
+}
+
+static inline void
 MsgListClear(struct list_head *head, long result) {
 	while (!list_empty(head)) {
 		AMessage *msg = list_first_entry(head, AMessage, entry);

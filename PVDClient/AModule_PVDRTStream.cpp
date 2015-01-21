@@ -212,6 +212,7 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+#define PROBE_SIZE  4
 static long PVDRTOutputStatus(PVDRTStream *rt, long result)
 {
 	do {
@@ -219,7 +220,7 @@ static long PVDRTOutputStatus(PVDRTStream *rt, long result)
 		pvdnet_head *phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
 		result = SliceCurLen(&rt->outbuf);
 
-		if (result < 4) {
+		if (result < PROBE_SIZE) {
 			result = 0;
 		} else if (ISMSHEAD(phead)) {
 			assert((rt->status == pvdnet_con_devinfo) || (rt->status == pvdnet_con_devinfo2));
@@ -242,38 +243,38 @@ static long PVDRTOutputStatus(PVDRTStream *rt, long result)
 			} else {
 				result = PVDCmdDecode(rt->userid, phead, result);
 				if (result < 0) {
-					TRACE("session(%d): id(%d) error.\n", rt->userid, phead->uUserId);
+					TRACE("session(%d): id(%d) error = %d.\n", rt->userid, phead->uUserId, result);
 					break;
 				}
 			}
 		} else {
 			TRACE("session(%d): unsupport format: 0x%p.\n", rt->userid, phead->uFlag);
 			result = -ENOSYS;
+			SlicePop(&rt->outbuf, 1);
 			break;
 		}
 		if ((result == 0) || (result > SliceCurLen(&rt->outbuf))) {
-			if (max(result,20) > SliceCapacity(&rt->outbuf)) {
+			if (max(result,PROBE_SIZE) > SliceCapacity(&rt->outbuf)) {
 				result = SliceResize(&rt->outbuf, result);
 				if (result < 0)
 					break;
 			}
 			if (rt->outmsg.type & AMsgType_Custom) {
-				SliceReset(&rt->outbuf);
+				if (result == 0)
+					SliceReset(&rt->outbuf);
+				else
+					result = SliceCurLen(&rt->outbuf);
+			} else {
+				result = 0;
 			}
-			AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-			result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
-			continue;
+			if (result == 0) {
+				AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+				result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+				continue;
+			}
 		}
+		AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, (char*)phead, result);
 		SlicePop(&rt->outbuf, result);
-
-		AMessage *msg = rt->outfrom;
-		msg->type = AMsgType_Custom|rt->status;
-		if ((msg->data != NULL) && (msg->size != 0)) {
-			memcpy(msg->data, phead, min(msg->size,result));
-		} else {
-			msg->data = (char*)phead;
-			msg->size = result;
-		}
 		break;
 	} while (result > 0);
 	return result;
@@ -293,7 +294,7 @@ static long PVDRTRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
 	if (reqix != 0)
-		return msg->size;
+		return -ENOSYS;
 
 	rt->outmsg.done = &PVDRTOutputDone;
 	rt->outfrom = msg;

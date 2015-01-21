@@ -156,11 +156,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (result >= 0)
 		result = pvd->open(pvd, &sm);
 	TRACE("%p: open result = %d.\n", pvd, result);
-	if (result < 0) {
+	/*if (result < 0) {
 		release_s(pvd, AObjectRelease, NULL);
 		release_s(option, AOptionRelease, NULL);
 		return result;
-	}
+	}*/
 
 	//extern int async_test(void);
 	//async_test();
@@ -198,7 +198,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	sm.data = (char*)&header;
 	sm.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
 	sm.done = NULL;
-	for (int ix = 0; ix < 10000000; ++ix) {
+	for (int ix = 0; ix < 3; ++ix) {
 		::Sleep(3000);
 		result = pvd->request(pvd, ARequest_Input, &sm);
 	}
