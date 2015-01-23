@@ -27,7 +27,7 @@ AOption* AOptionCreate(AOption *parent)
 
 	option->parent = parent;
 	if (parent != NULL) {
-		list_add(&option->brother_entry, &parent->children_list);
+		list_add_tail(&option->brother_entry, &parent->children_list);
 	} else {
 		INIT_LIST_HEAD(&option->brother_entry);
 	}
@@ -49,9 +49,12 @@ extern long AOptionDecode(AOption **option, const char *name)
 		return -ERROR_OUTOFMEMORY;
 	*option = current;
 
+	char ident = '\0';
 	long layer = 0;
 	for (const char *sep = name; ; ++sep)
 	{
+		if ((ident != '\0') && (*sep != '\0') && (*sep != ident))
+			continue;
 		switch (*sep)
 		{
 		case '\0':
@@ -98,6 +101,12 @@ extern long AOptionDecode(AOption **option, const char *name)
 			name = sep+1;
 			break;
 
+		case '\"':
+		case '\'':
+			if (ident == '\0')
+				ident = *sep;
+			else
+				ident = '\0';
 		case ' ':
 		case '\t':
 		case '\n':

@@ -14,15 +14,14 @@
 static const char *addr_path =
 	"PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.20.37,"
-	"		port: 8101,"
+	"		address: 192.168.10.21,"
+	"		port: 8000,"
 	"               timeout: 5,"
 	"	},"
-	"	rt: tcp,"
-	"	his: stream {"
-	"		async_tcp,"
-	"	main: udp  ,"
-	"}}";
+	"	username: ':18',"
+	"	channel: 0,"
+	"	linkmode: 0,"
+	"}";
 
 struct RecvMsg {
 	AMessage msg;
@@ -32,37 +31,27 @@ struct RecvMsg {
 
 long CloseDone(AMessage *msg, long result)
 {
-	TRACE("close result = %d, msg type = %d, size = %d.\n",
-		result, msg->type&~AMsgType_Custom, msg->size);
-	/*RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
+	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
+	TRACE("%p: close result = %d, msg type = %d, size = %d.\n",
+		rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
 
 	AObjectRelease(rm->pvd);
-	free(rm);*/
+	free(rm);
 	return result;
 }
+
+static BOOL g_abort = FALSE;
 
 long RecvDone(AMessage *msg, long result)
 {
 	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
 	if (result >= 0) {
-		// match test, for quit notify queue.
-		TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-			rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
-		return -1;
-	}
-	if (rm->msg.size != 0) {
-		// quit notify queue, process this message
-		// ...
-		// ...
-		// re-register notify queue
+		//TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
+		//	rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
+		// for next recv
 		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
 	} else {
-		TRACE("%p: closed or release, result = %d.\n", rm->pvd, result);
-	}
-	if (result < 0) {
-		AObjectRelease(rm->pvd);
-		free(rm);
+		CloseDone(msg, result);
 	}
 	return result;
 }
@@ -74,11 +63,15 @@ DWORD WINAPI RecvCB2(void *p)
 	rm->msg.done = &RecvDone;
 	INIT_LIST_HEAD(&rm->msg.entry);
 
-	long result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
-	rm->pvd->request(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
-	if (result < 0) {
-		AObjectRelease(rm->pvd);
-		free(rm);
+	//long result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
+	long result = rm->pvd->request(rm->pvd, ARequest_MsgLoop|ARequest_Output, &rm->msg);
+	if (result != 0) {
+		TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
+			rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+
+		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		rm->msg.done = CloseDone;
+		CloseDone(&rm->msg, result);
 	}
 	return result;
 }
@@ -88,24 +81,32 @@ void RecvCB(async_operator *op, int result)
 	if (result >= 0) {
 		RecvCB2(rm);
 	} else {
-		AObjectRelease(rm->pvd);
-		free(rm);
+		CloseDone(&rm->msg, result);
 	}
 }
-
-long StreamDone(AMessage *msg, long result)
+DWORD WINAPI SendHeart(void *p)
 {
-	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
-	//TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-	//	rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
-	if (result >= 0) {
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	RecvMsg *rm = (RecvMsg*)p;
+	INIT_LIST_HEAD(&rm->msg.entry);
+
+	pvdnet_head header;
+	rm->msg.type = AMsgType_Custom|NET_SDVR_SHAKEHAND;
+	rm->msg.data = (char*)&header;
+	rm->msg.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
+	rm->msg.done = NULL;
+
+	long result;
+	do {
+		::Sleep(3000);
 		result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
-	}
-	if (result < 0) {
-		TRACE("%p: closed or release, result = %d.\n", rm->pvd, result);
-		AObjectRelease(rm->pvd);
-		free(rm);
+	} while (!g_abort && (result > 0));
+
+	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	rm->msg.done = CloseDone;
+
+	result = rm->pvd->close(rm->pvd, &rm->msg);
+	if (result != 0) {
+		CloseDone(&rm->msg, result);
 	}
 	return result;
 }
@@ -113,22 +114,43 @@ long StreamDone(AMessage *msg, long result)
 DWORD WINAPI RecvStream(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
-	rm->msg.done = &StreamDone;
+	rm->msg.done = NULL;
 	INIT_LIST_HEAD(&rm->msg.entry);
 
 	long result = 0;
 	do {
 		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
+		result = rm->pvd->request(rm->pvd, 0, &rm->msg);
 		//TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
 		//	rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
-	} while (result > 0);
-	if (result < 0) {
-		TRACE("%p: closed or release, result = %d.\n", rm->pvd, result);
-		AObjectRelease(rm->pvd);
-		free(rm);
+	} while (!g_abort && (result > 0));
+	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
+		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+
+	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	rm->msg.done = CloseDone;
+	result = rm->pvd->close(rm->pvd, &rm->msg);
+	if (result != 0) {
+		CloseDone(&rm->msg, result);
 	}
 	return result;
+}
+
+void ResetOption(AOption *option)
+{
+	TRACE("%s[%s] = ", option->name, option->value);
+
+	char value[MAX_PATH];
+	value[0] = '\0';
+	if (gets_s(value) == NULL)
+		return;
+	if (value[0] != '\0')
+		strcpy_s(option->value, value);
+
+	AOption *child;
+	list_for_each_entry(child, &option->children_list, AOption, brother_entry) {
+		ResetOption(child);
+	}
 }
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -139,6 +161,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	REGISTER_MODULE(PVDRTModule);
 	AModuleInitAll();
 
+	//extern int async_test(void);
+	//async_test();
+	//async_thread at;
+	//memset(&at, 0, sizeof(at));
+	//async_thread_begin(&at, NULL);
+
 	long result;
 	AOption *option = NULL;
 	result = AOptionDecode(&option, addr_path);
@@ -147,37 +175,36 @@ int _tmain(int argc, _TCHAR* argv[])
 		return result;
 	}
 
+	AObject *pvd = NULL;
+	AObject *rt = NULL;
+	RecvMsg *rm;
 	AMessage sm;
+_retry:
 	AMsgInit(&sm, AMsgType_Option, (char*)option, sizeof(AOption));
 	sm.done = NULL;
 
-	AObject *pvd = NULL;
+	strcpy_s(option->value, PVDClientModule.module_name);
 	result = SyncControlModule.create(&pvd, NULL, option);
-	if (result >= 0)
+	if (result >= 0) {
 		result = pvd->open(pvd, &sm);
-	TRACE("%p: open result = %d.\n", pvd, result);
-	/*if (result < 0) {
-		release_s(pvd, AObjectRelease, NULL);
-		release_s(option, AOptionRelease, NULL);
-		return result;
-	}*/
+		TRACE("%p: open result = %d.\n", pvd, result);
+	}
+	if (result > 0) {
+		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
+		rm->pvd = pvd; AObjectAddRef(pvd);
+		QueueUserWorkItem(&RecvCB2, rm, 0);
+		rm = NULL;
 
-	//extern int async_test(void);
-	//async_test();
-	//async_thread at;
-	//memset(&at, 0, sizeof(at));
-	//async_thread_begin(&at, NULL);
-
-	RecvMsg *rm = (RecvMsg*)malloc(sizeof(RecvMsg));
-	rm->pvd = pvd; AObjectAddRef(pvd);
-	//rm->op.callback = &RecvCB;
-	//async_operator_post(&rm->op, &at, 0);
-	QueueUserWorkItem(&RecvCB2, rm, 0);
-	rm = NULL;
-
-	AObject *rt = NULL;
-	strcpy_s(option->value, PVDRTModule.module_name);
-	result = SyncControlModule.create(&rt, pvd, option);
+		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
+		rm->pvd = pvd; AObjectAddRef(pvd);
+		QueueUserWorkItem(&SendHeart, rm, 0);
+		rm = NULL;
+	}
+	if (result > 0) {
+		strcpy_s(option->value, PVDRTModule.module_name);
+		result = SyncControlModule.create(&rt, pvd, option);
+	}
+	//result = PVDRTModule.create(&rt, pvd, option);
 	if (result >= 0) {
 		result = rt->open(rt, &sm);
 		TRACE("%p: open result = %d.\n", rt, result);
@@ -185,50 +212,30 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = rt; AObjectAddRef(rt);
-		//rm->op.callback = &RecvCB;
-		//async_operator_post(&rm->op, &at, 0);
 		QueueUserWorkItem(&RecvStream, rm, 0);
 		rm = NULL;
-	} else {
-		release_s(rt, AObjectRelease, NULL);
 	}
 
-	pvdnet_head header;
-	sm.type = AMsgType_Custom|NET_SDVR_SHAKEHAND;
-	sm.data = (char*)&header;
-	sm.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
-	sm.done = NULL;
-	for (int ix = 0; ix < 3; ++ix) {
-		::Sleep(3000);
-		result = pvd->request(pvd, ARequest_Input, &sm);
-	}
-	if (rt != NULL) {
-		rt->close(rt, NULL);
-		AObjectRelease(rt);
-		rt = NULL;
-	}
-	//::Sleep(300);
-	result = pvd->cancel(pvd, ARequest_Output, NULL);
-	TRACE("cancel output = %d.\n", result);
-
-	//::Sleep(300);
-	// wake up the Output MsgLoop
-	result = pvd->request(pvd, ARequest_Input, &sm);
-
-	::Sleep(300);
-	sm.done = CloseDone;
-	result = pvd->close(pvd, &sm);
-	TRACE("do close = %d.\n", result);
-	if (result != 0)
-		CloseDone(&sm, result);
-
+	release_s(rt, AObjectRelease, NULL);
 	release_s(pvd, AObjectRelease, NULL);
-	release_s(option, AOptionRelease, NULL);
-	//result = pvd->close(pvd, &sm);
 
 	//async_thread_end(&at);
-	::Sleep(1000);
+	TRACE("input 'r' to retry...\n");
+	char str[256];
+	while (gets_s(str) != NULL) {
+		if (str[0] == '\0')
+			continue;
+		if (str[0] == 'r') {
+			ResetOption(option);
+			goto _retry;
+		}
+		if (strcmp(str, "quit") == 0)
+			break;
+	}
+	g_abort = TRUE;
+	::Sleep(3000);
 
+	release_s(option, AOptionRelease, NULL);
 	_CrtDumpMemoryLeaks();
 	return 0;
 }

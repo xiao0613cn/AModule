@@ -76,8 +76,9 @@ static long TCPOpen(AObject *object, AMessage *msg)
 static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
-	assert(msg->size != 0);
 	long result;
+
+	assert(msg->size != 0);
 	switch (reqix)
 	{
 	case ARequest_Input:
@@ -85,8 +86,6 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 			result = send(tcp->sock, msg->data, msg->size, 0);
 		else
 			result = tcp_send(tcp->sock, msg->data, msg->size, 0);
-		if (result <= 0)
-			result = -EIO;
 		break;
 
 	case ARequest_Output:
@@ -94,14 +93,16 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 			result = recv(tcp->sock, msg->data, msg->size, 0);
 		else
 			result = tcp_recv(tcp->sock, msg->data, msg->size, 0);
-		if (result <= 0)
-			result = -EIO;
 		break;
 
 	default:
-		result = -ENOSYS;
-		break;
+		return -ENOSYS;
 	}
+
+	if (result <= 0)
+		result = -EIO;
+	else
+		msg->size = result;
 	return result;
 }
 

@@ -18,6 +18,9 @@ struct PVDRTStream {
 #define to_rt(obj) container_of(obj, PVDRTStream, object)
 #define from_outmsg(msg) container_of(msg, PVDRTStream, outmsg)
 
+#define TAG_SIZE  4
+#define MAKE_TAG(ptr)  (BYTE(ptr[0])|(BYTE(ptr[1])<<8)|(BYTE(ptr[2])<<16)|(BYTE(ptr[3])<<24))
+
 static void PVDRTRelease(AObject *object)
 {
 	PVDRTStream *rt = to_rt(object);
@@ -66,11 +69,80 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 	return result;
 }
 
+static long PVDRTTryOutput(PVDRTStream *rt)
+{
+	rt->outmsg.data = SliceCurPtr(&rt->outbuf);
+	rt->outmsg.size = SliceCurLen(&rt->outbuf);
+
+	long result = MAKE_TAG(rt->outmsg.data);
+	if (rt->outmsg.size < TAG_SIZE) {
+		result = 0;
+	} else if (ISMSHEAD(rt->outmsg.data)) {
+		if (result == MSHDV2_FLAG) {
+			rt->status = pvdnet_con_devinfo2;
+		} else {
+			rt->status = pvdnet_con_devinfo;
+		}
+		if (rt->outmsg.size < sizeof(MSHEAD)) {
+			result = 0;
+		} else {
+			result = MSHEAD_GETFRAMESIZE(rt->outmsg.data);
+		}
+	} else if (result == STREAM_HEADER_FLAG) {
+		rt->status = pvdnet_con_devinfox;
+		if (rt->outmsg.size < sizeof(STREAM_HEADER)) {
+			result = 0;
+		} else {
+			STREAM_HEADER *p = (STREAM_HEADER*)rt->outmsg.data;
+			result = p->nHeaderSize + p->nEncodeDataSize;
+		}
+	} else if (result == NET_CMD_HEAD_FLAG) {
+		rt->status = pvdnet_con_stream;
+		result = PVDCmdDecode(rt->userid, rt->outmsg.data, rt->outmsg.size);
+		if (result < 0) {
+			TRACE("session(%d): PVDCmdDecode(%d) error = %d.\n", rt->userid, rt->outmsg.size, result);
+			return result;
+		}
+	} else {
+		TRACE("session(%d): unsupport format: 0x%p.\n", rt->userid, result);
+		assert(FALSE);
+		return -EAGAIN;
+	}
+
+	if ((result == 0) || (result > rt->outmsg.size)) {
+		if (max(result,8*1024) > SliceCapacity(&rt->outbuf)) {
+			long error = SliceResize(&rt->outbuf, ((result/4096)+1)*4096);
+			if (error < 0)
+				return error;
+			else if (error > 0)
+				TRACE("session(%d): resize buffer(%d) for data(%d - %d).\n",
+				rt->userid, SliceCapacity(&rt->outbuf), result, rt->outmsg.size);
+			rt->outmsg.data = SliceCurPtr(&rt->outbuf);
+		}
+		if (!(rt->outmsg.type & AMsgType_Custom)) {
+			return 0;
+		}
+		if (result == 0) {
+			SliceReset(&rt->outbuf);
+			return 0;
+		}
+		result = rt->outmsg.size;
+	} else {
+		rt->outmsg.size = result;
+	}
+	return result;
+}
+
+static inline long PVDRTDoOutput(PVDRTStream *rt)
+{
+	AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+	return rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+}
+
 static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 {
-	pvdnet_head *phead;
 	do {
-		if (result < 0)
+		if ((result < 0) && (rt->status != pvdnet_disconnected))
 			rt->status = pvdnet_closing;
 		switch (rt->status)
 		{
@@ -89,7 +161,7 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 			}
 
 			rt->outmsg.type = AMsgType_Custom|NET_SDVR_REAL_PLAY;
-			rt->outmsg.data = SliceCurPtr(&rt->outbuf);
+			rt->outmsg.data = SliceResPtr(&rt->outbuf);
 			rt->outmsg.size = PVDCmdEncode(rt->userid, rt->outmsg.data, NET_SDVR_REAL_PLAY, result);
 
 			memset(rt->outmsg.data+sizeof(pvdnet_head), 0, result);
@@ -109,56 +181,28 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 
 		case pvdnet_syn_login:
 			rt->status = pvdnet_ack_login;
-			AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-			result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
+			result = PVDRTDoOutput(rt);
 			break;
 
 		case pvdnet_ack_login:
-			SlicePush(&rt->outbuf, result);
-			if (SliceCurLen(&rt->outbuf) < sizeof(pvdnet_head)) {
-				if (rt->outmsg.type & AMsgType_Custom)
-					SliceReset(&rt->outbuf);
-				rt->status = pvdnet_syn_login;
+			SlicePush(&rt->outbuf, rt->outmsg.size);
+			result = PVDRTTryOutput(rt);
+			if (result < 0)
+				break;
+			if (result == 0) {
+				rt->status = pvdnet_ack_login;
+				result = PVDRTDoOutput(rt);
 				break;
 			}
-			phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
-			if (phead->uFlag == NET_CMD_HEAD_FLAG) {
-				result = PVDCmdDecode(rt->userid, SliceCurPtr(&rt->outbuf), SliceCurLen(&rt->outbuf));
-				if (result < 0)
-					break;
-				if (result > SliceCurLen(&rt->outbuf)) {
-					if (rt->outmsg.type & AMsgType_Custom) {
-						result = -EFAULT;
-					} else {
-						rt->status = pvdnet_syn_login;
-					}
-					break;
-				}
-				SlicePop(&rt->outbuf, result);
-				if (!phead->uResult) {
-					result = -EFAULT;
-					break;
-				}
-				if (SliceCurLen(&rt->outbuf) < sizeof(pvdnet_head)) {
-					rt->status = pvdnet_syn_login;
-					break;
-				}
-				phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
+			assert(rt->status != pvdnet_ack_login);
+			if (rt->status == pvdnet_con_stream) {
+				SlicePop(&rt->outbuf, rt->outmsg.size);
+				rt->outmsg.data = NULL;
+				rt->outmsg.size = 0;
+				rt->status = pvdnet_ack_login;
+				break;
 			}
-			if (phead->uFlag == MSHEAD_FLAG) {
-				rt->status = pvdnet_con_devinfo;
-				return result;
-			}
-			if (phead->uFlag == MSHDV2_FLAG) {
-				rt->status = pvdnet_con_devinfo2;
-				return result;
-			}
-			if (phead->uFlag == STREAM_HEADER_FLAG) {
-				rt->status = pvdnet_con_devinfox;
-				return result;
-			}
-			result = -ENOSYS;
-			break;
+			return result;
 
 		case pvdnet_closing:
 			AMsgInit(&rt->outmsg, AMsgType_Unknown, NULL, 0);
@@ -182,11 +226,10 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 static long PVDRTOpenDone(AMessage *msg, long result)
 {
 	PVDRTStream *rt = from_outmsg(msg);
-	msg = rt->outfrom;
 
 	result = PVDRTOpenStatus(rt, result);
 	if (result != 0)
-		result = msg->done(msg, result);
+		result = rt->outfrom->done(rt->outfrom, result);
 	return result;
 }
 
@@ -212,70 +255,22 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
-#define PROBE_SIZE  4
-static long PVDRTOutputStatus(PVDRTStream *rt, long result)
+static long PVDRTOutputStatus(PVDRTStream *rt)
 {
+	long result;
 	do {
-		SlicePush(&rt->outbuf, result);
-		pvdnet_head *phead = (pvdnet_head*)SliceCurPtr(&rt->outbuf);
-		result = SliceCurLen(&rt->outbuf);
-
-		if (result < PROBE_SIZE) {
-			result = 0;
-		} else if (ISMSHEAD(phead)) {
-			assert((rt->status == pvdnet_con_devinfo) || (rt->status == pvdnet_con_devinfo2));
-			if (result < sizeof(MSHEAD)) {
-				result = 0;
-			} else {
-				result = MSHEAD_GETFRAMESIZE(phead);
-			}
-		} else if (phead->uFlag == STREAM_HEADER_FLAG) {
-			assert(rt->status == pvdnet_con_devinfox);
-			if (result < sizeof(STREAM_HEADER)) {
-				result = 0;
-			} else {
-				STREAM_HEADER *p = (STREAM_HEADER*)phead;
-				result = p->nHeaderSize + p->nEncodeDataSize;
-			}
-		} else if (phead->uFlag == NET_CMD_HEAD_FLAG) {
-			if (result < sizeof(pvdnet_head)) {
-				result = 0;
-			} else {
-				result = PVDCmdDecode(rt->userid, phead, result);
-				if (result < 0) {
-					TRACE("session(%d): id(%d) error = %d.\n", rt->userid, phead->uUserId, result);
-					break;
-				}
-			}
-		} else {
-			TRACE("session(%d): unsupport format: 0x%p.\n", rt->userid, phead->uFlag);
-			result = -ENOSYS;
+		SlicePush(&rt->outbuf, rt->outmsg.size);
+		result = PVDRTTryOutput(rt);
+		if (result < 0) {
 			SlicePop(&rt->outbuf, 1);
 			break;
 		}
-		if ((result == 0) || (result > SliceCurLen(&rt->outbuf))) {
-			if (max(result,PROBE_SIZE) > SliceCapacity(&rt->outbuf)) {
-				result = SliceResize(&rt->outbuf, result);
-				if (result < 0)
-					break;
-			}
-			if (rt->outmsg.type & AMsgType_Custom) {
-				if (result == 0)
-					SliceReset(&rt->outbuf);
-				else
-					result = SliceCurLen(&rt->outbuf);
-			} else {
-				result = 0;
-			}
-			if (result == 0) {
-				AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-				result = rt->io->request(rt->io, ARequest_Output, &rt->outmsg);
-				continue;
-			}
+		if (result > 0) {
+			SlicePop(&rt->outbuf, rt->outmsg.size);
+			AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, rt->outmsg.data, rt->outmsg.size);
+			break;
 		}
-		AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, (char*)phead, result);
-		SlicePop(&rt->outbuf, result);
-		break;
+		result = PVDRTDoOutput(rt);
 	} while (result > 0);
 	return result;
 }
@@ -284,7 +279,7 @@ static long PVDRTOutputDone(AMessage *msg, long result)
 {
 	PVDRTStream *rt = from_outmsg(msg);
 	if (result >= 0)
-		result = PVDRTOutputStatus(rt, result);
+		result = PVDRTOutputStatus(rt);
 	if (result != 0)
 		result = rt->outfrom->done(rt->outfrom, result);
 	return result;
@@ -298,13 +293,16 @@ static long PVDRTRequest(AObject *object, long reqix, AMessage *msg)
 
 	rt->outmsg.done = &PVDRTOutputDone;
 	rt->outfrom = msg;
-	return PVDRTOutputStatus(rt, 0);
+
+	rt->outmsg.data = NULL;
+	rt->outmsg.size = 0;
+	return PVDRTOutputStatus(rt);
 }
 
 static long PVDRTClose(AObject *object, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
-	return rt->io->close(rt->io, NULL);
+	return rt->io->close(rt->io, msg);
 }
 
 AModule PVDRTModule = {
