@@ -49,9 +49,7 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 	if (parent != NULL) {
 		AOption opt;
-		memset(&opt, 0, sizeof(opt));
-		INIT_LIST_HEAD(&opt.children_list);
-		INIT_LIST_HEAD(&opt.brother_entry);
+		AOptionInit(&opt, NULL);
 
 		strcpy_s(opt.name, "session_id");
 		if (parent->getopt(parent, &opt) >= 0)
@@ -63,10 +61,10 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 	}
 
 	AOption *io_option = AOptionFindChild(option, "io");
-	long result = AObjectCreate(&rt->io, &rt->object, io_option, "tcp");
+	long result = AObjectCreate(&rt->io, &rt->object, io_option, NULL);
 
 	*object = &rt->object;
-	return result;
+	return 1;;//result;
 }
 
 static long PVDRTTryOutput(PVDRTStream *rt)
@@ -114,7 +112,7 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 			long error = SliceResize(&rt->outbuf, ((result/4096)+1)*4096);
 			if (error < 0)
 				return error;
-			else
+			else if (error > 0)
 				TRACE("%p: %s buffer(%d) for data(%d - %d).\n",
 					rt, (error?"resize":"rewind"), rt->outbuf.siz, result, rt->outmsg.size);
 			rt->outmsg.data = SliceCurPtr(&rt->outbuf);

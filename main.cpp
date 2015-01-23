@@ -12,13 +12,13 @@
 	AModuleRegister(&name);
 
 static const char *addr_path =
-	"PVDClient {"
+	"PVDClient: PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.20.37,"
-	"		port: 8101,"
+	"		address: 192.168.10.21,"
+	"		port: 8000,"
 	"               timeout: 5,"
 	"	},"
-	"	username: admin,"
+	"	username: ':18',"
 	"	password: 888888,"
 	"	channel: 0,"
 	"	linkmode: 0,"
@@ -187,14 +187,15 @@ int _tmain(int argc, _TCHAR* argv[])
 	RecvMsg *rm;
 	AMessage sm;
 _retry:
+	ResetOption(option);
 	AMsgInit(&sm, AMsgType_Option, (char*)option, sizeof(AOption));
 	sm.done = NULL;
 
-	if (_stricmp(option->value, PVDRTModule.module_name) == 0) {
-		result = -1;
-	} else {
+	if (_stricmp(option->value, PVDClientModule.module_name) == 0) {
 		release_s(pvd, AObjectRelease, NULL);
 		result = SyncControlModule.create(&pvd, NULL, option);
+	} else {
+		result = -1;
 	}
 	if (result >= 0) {
 		result = pvd->open(pvd, &sm);
@@ -236,7 +237,6 @@ _retry:
 		if (str[0] == '\0')
 			continue;
 		if (str[0] == 'r') {
-			ResetOption(option);
 			goto _retry;
 		}
 		if (strcmp(str, "quit") == 0)

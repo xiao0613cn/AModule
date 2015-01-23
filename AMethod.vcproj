@@ -191,6 +191,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_TcpProxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AOption.cpp"
 				>
 			</File>

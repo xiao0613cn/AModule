@@ -49,11 +49,11 @@ static long PVDCreate(AObject **object, AObject *parent, AOption *option)
 	pvd->outfrom = NULL;
 	SliceInit(&pvd->outbuf);
 
-	AOption *io_option = AOptionFindChild(option, "io");
-	long result = AObjectCreate(&pvd->io, &pvd->object, io_option, "tcp");
+	AOption *io_opt = AOptionFindChild(option, "io");
+	long result = AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
 
 	*object = &pvd->object;
-	return result;
+	return 1;//result;
 }
 
 static long PVDTryOutput(PVDClient *pvd)
@@ -261,6 +261,16 @@ static long PVDOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	PVDClient *pvd = to_pvd(object);
+	if (pvd->io == NULL) {
+		AOption *io_opt = AOptionFindChild((AOption*)pvd->outfrom->data, "io");
+		if (io_opt == NULL)
+			return -EINVAL;
+
+		long result = AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
+		if (result < 0)
+			return result;
+	}
+
 	pvd->outmsg.done = &PVDOpenDone;
 	pvd->outfrom = msg;
 
@@ -268,6 +278,21 @@ static long PVDOpen(AObject *object, AMessage *msg)
 	if (result != 0)
 		result = PVDOpenStatus(pvd, result);
 	return result;
+}
+
+static long PVDSetOption(AObject *object, AOption *option)
+{
+	PVDClient *pvd = to_pvd(object);
+	if (_stricmp(option->name, "io") == 0) {
+		release_s(pvd->io, AObjectRelease, NULL);
+		pvd->io = (AObject*)option->extend;
+		if (pvd->io != NULL) {
+			AObjectAddRef(pvd->io);
+			pvd->status = pvdnet_con_devinfo2;
+		}
+		return 1;
+	}
+	return -ENOSYS;
 }
 
 static long PVDGetOption(AObject *object, AOption *option)
@@ -392,6 +417,9 @@ static long PVDCloseDone(AMessage *msg, long result)
 static long PVDClose(AObject *object, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
+	if (pvd->io == NULL)
+		return -ENOENT;
+
 	if (msg == NULL)
 		return pvd->io->close(pvd->io, NULL);
 
@@ -421,7 +449,7 @@ AModule PVDClientModule = {
 	2,
 
 	&PVDOpen,
-	NULL,
+	&PVDSetOption,
 	&PVDGetOption,
 	&PVDRequest,
 	NULL,

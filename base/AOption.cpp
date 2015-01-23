@@ -14,12 +14,8 @@ void AOptionRelease(AOption *option)
 	free(option);
 }
 
-AOption* AOptionCreate(AOption *parent)
+void AOptionInit(AOption *option, AOption *parent)
 {
-	AOption *option = (AOption*)malloc(sizeof(AOption));
-	if (option == NULL)
-		return NULL;
-
 	option->name[0] = '\0';
 	option->value[0] = '\0';
 	option->extend = NULL;
@@ -31,6 +27,13 @@ AOption* AOptionCreate(AOption *parent)
 	} else {
 		INIT_LIST_HEAD(&option->brother_entry);
 	}
+}
+
+AOption* AOptionCreate(AOption *parent)
+{
+	AOption *option = (AOption*)malloc(sizeof(AOption));
+	if (option != NULL)
+		AOptionInit(option, parent);
 	return option;
 }
 

@@ -16,6 +16,9 @@ typedef struct AOption {
 	struct AOption  *parent;
 } AOption;
 
+extern void
+AOptionInit(AOption *option, AOption *parent);
+
 extern AOption*
 AOptionCreate(AOption *parent);
 

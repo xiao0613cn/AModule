@@ -73,6 +73,17 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+static long TCPSetOption(AObject *object, AOption *option)
+{
+	TCPObject *tcp = to_tcp(object);
+	if (_stricmp(option->name, "socket") == 0) {
+		release_s(tcp->sock, closesocket, NULL);
+		tcp->sock = (SOCKET)option->extend;
+		return 1;
+	}
+	return -ENOSYS;
+}
+
 static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
@@ -137,7 +148,7 @@ AModule TCPModule = {
 	2,
 
 	&TCPOpen,
-	NULL,
+	&TCPSetOption,
 	NULL,
 	&TCPRequest,
 	NULL,

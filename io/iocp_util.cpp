@@ -32,6 +32,33 @@ iocp_getaddrinfo(const char *netaddr, const char *port)
 	return res;
 }
 
+SOCKET
+bind_socket(int protocol, unsigned short port)
+{
+	int type;
+	if (protocol == IPPROTO_TCP)
+		type = SOCK_STREAM;
+	else
+		type = SOCK_DGRAM;
+
+	SOCKET sock = socket(AF_INET, type, protocol);
+	if (sock == INVALID_SOCKET)
+		return INVALID_SOCKET;
+
+	sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(port);
+
+	int result = bind(sock, (const sockaddr*)&addr, sizeof(sockaddr_in));
+	if (result != 0) {
+		closesocket(sock);
+		return INVALID_SOCKET;
+	}
+	return sock;
+}
+
 int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 {
