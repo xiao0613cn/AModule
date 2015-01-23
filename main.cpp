@@ -14,11 +14,12 @@
 static const char *addr_path =
 	"PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.10.21,"
-	"		port: 8000,"
+	"		address: 192.168.20.37,"
+	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
-	"	username: ':18',"
+	"	username: admin,"
+	"	password: 888888,"
 	"	channel: 0,"
 	"	linkmode: 0,"
 	"}";
@@ -50,6 +51,8 @@ long RecvDone(AMessage *msg, long result)
 		//	rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
 		// for next recv
 		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		if (g_abort)
+			result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
 	} else {
 		CloseDone(msg, result);
 	}
@@ -100,10 +103,14 @@ DWORD WINAPI SendHeart(void *p)
 		::Sleep(3000);
 		result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
 	} while (!g_abort && (result > 0));
+	TRACE("%p: send result = %d, msg type = %d, size = %d.\n",
+		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+
+	result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
+	result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
-
 	result = rm->pvd->close(rm->pvd, &rm->msg);
 	if (result != 0) {
 		CloseDone(&rm->msg, result);
@@ -183,8 +190,12 @@ _retry:
 	AMsgInit(&sm, AMsgType_Option, (char*)option, sizeof(AOption));
 	sm.done = NULL;
 
-	strcpy_s(option->value, PVDClientModule.module_name);
-	result = SyncControlModule.create(&pvd, NULL, option);
+	if (_stricmp(option->value, PVDRTModule.module_name) == 0) {
+		result = -1;
+	} else {
+		release_s(pvd, AObjectRelease, NULL);
+		result = SyncControlModule.create(&pvd, NULL, option);
+	}
 	if (result >= 0) {
 		result = pvd->open(pvd, &sm);
 		TRACE("%p: open result = %d.\n", pvd, result);
@@ -200,11 +211,11 @@ _retry:
 		QueueUserWorkItem(&SendHeart, rm, 0);
 		rm = NULL;
 	}
-	if (result > 0) {
+	if (pvd != NULL) {
 		strcpy_s(option->value, PVDRTModule.module_name);
 		result = SyncControlModule.create(&rt, pvd, option);
+		//result = PVDRTModule.create(&rt, pvd, option);
 	}
-	//result = PVDRTModule.create(&rt, pvd, option);
 	if (result >= 0) {
 		result = rt->open(rt, &sm);
 		TRACE("%p: open result = %d.\n", rt, result);
@@ -217,7 +228,6 @@ _retry:
 	}
 
 	release_s(rt, AObjectRelease, NULL);
-	release_s(pvd, AObjectRelease, NULL);
 
 	//async_thread_end(&at);
 	TRACE("input 'r' to retry...\n");
@@ -232,8 +242,10 @@ _retry:
 		if (strcmp(str, "quit") == 0)
 			break;
 	}
+	release_s(pvd, AObjectRelease, NULL);
 	g_abort = TRUE;
 	::Sleep(3000);
+	gets_s(str);
 
 	release_s(option, AOptionRelease, NULL);
 	_CrtDumpMemoryLeaks();

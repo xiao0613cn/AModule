@@ -102,7 +102,10 @@ static inline int SliceCapacity(SliceBuffer *sb) {
 }
 
 static inline int SliceResize(SliceBuffer *sb, int len) {
-	if (len < sb->siz) {
+	if (len <= sb->siz) {
+		if (sb->bgn == 0)
+			return 0;
+
 		memmove(sb->buf, SliceCurPtr(sb), SliceCurLen(sb));
 		sb->end = SliceCurLen(sb);
 		sb->bgn = 0;

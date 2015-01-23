@@ -75,6 +75,7 @@ static long PVDTryOutput(PVDClient *pvd)
 			return 0;
 		}
 		if (result == 0) {
+			TRACE("%p: reset buffer(%d), drop data(%d).\n", pvd, pvd->outbuf.siz, pvd->outmsg.size);
 			SliceReset(&pvd->outbuf);
 			return 0;
 		}

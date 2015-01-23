@@ -100,12 +100,12 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 		rt->status = pvdnet_con_stream;
 		result = PVDCmdDecode(rt->userid, rt->outmsg.data, rt->outmsg.size);
 		if (result < 0) {
-			TRACE("session(%d): PVDCmdDecode(%d) error = %d.\n", rt->userid, rt->outmsg.size, result);
+			TRACE("%p: PVDCmdDecode(%d) error = %d.\n", rt, rt->outmsg.size, result);
 			return result;
 		}
 	} else {
-		TRACE("session(%d): unsupport format: 0x%p.\n", rt->userid, result);
-		assert(FALSE);
+		//TRACE("%p: unsupport format: 0x%p.\n", rt, result);
+		//assert(FALSE);
 		return -EAGAIN;
 	}
 
@@ -114,15 +114,16 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 			long error = SliceResize(&rt->outbuf, ((result/4096)+1)*4096);
 			if (error < 0)
 				return error;
-			else if (error > 0)
-				TRACE("session(%d): resize buffer(%d) for data(%d - %d).\n",
-				rt->userid, SliceCapacity(&rt->outbuf), result, rt->outmsg.size);
+			else
+				TRACE("%p: %s buffer(%d) for data(%d - %d).\n",
+					rt, (error?"resize":"rewind"), rt->outbuf.siz, result, rt->outmsg.size);
 			rt->outmsg.data = SliceCurPtr(&rt->outbuf);
 		}
 		if (!(rt->outmsg.type & AMsgType_Custom)) {
 			return 0;
 		}
 		if (result == 0) {
+			TRACE("%p: reset buffer(%d), drop data(%d).\n", rt, rt->outbuf.siz, rt->outmsg.size);
 			SliceReset(&rt->outbuf);
 			return 0;
 		}
@@ -262,8 +263,12 @@ static long PVDRTOutputStatus(PVDRTStream *rt)
 		SlicePush(&rt->outbuf, rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
 		if (result < 0) {
+			if (result != -EAGAIN)
+				break;
 			SlicePop(&rt->outbuf, 1);
-			break;
+			rt->outmsg.size = 0;
+			result = 1;
+			continue;
 		}
 		if (result > 0) {
 			SlicePop(&rt->outbuf, rt->outmsg.size);
