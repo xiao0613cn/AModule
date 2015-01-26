@@ -138,7 +138,7 @@ AOption* AOptionClone(AOption *option)
 	{
 		AOption *child = AOptionClone(pos);
 		child->parent = current;
-		list_add(&child->brother_entry, &current->children_list);
+		list_add_tail(&child->brother_entry, &current->children_list);
 	}
 	return current;
 }

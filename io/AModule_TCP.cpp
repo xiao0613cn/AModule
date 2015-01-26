@@ -1,13 +1,8 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "iocp_util.h"
+#include "AModule_TCP.h"
 
-
-struct TCPObject {
-	AObject object;
-	SOCKET  sock;
-};
-#define to_tcp(object) CONTAINING_RECORD(object, TCPObject, object);
 
 static void TCPRelease(AObject *object)
 {
@@ -23,9 +18,10 @@ static long TCPCreate(AObject **object, AObject *parent, AOption *option)
 	if (tcp == NULL)
 		return -ENOMEM;
 
-	extern AModule TCPModule;
 	AObjectInit(&tcp->object, &TCPModule);
 	tcp->sock = INVALID_SOCKET;
+	tcp->recvsiz = 0;
+	tcp->peekpos = 0;
 
 	*object = &tcp->object;
 	return 1;
@@ -77,7 +73,7 @@ static long TCPSetOption(AObject *object, AOption *option)
 {
 	TCPObject *tcp = to_tcp(object);
 	if (_stricmp(option->name, "socket") == 0) {
-		release_s(tcp->sock, closesocket, NULL);
+		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 		tcp->sock = (SOCKET)option->extend;
 		return 1;
 	}
@@ -100,10 +96,30 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 		break;
 
 	case ARequest_Output:
-		if (msg->type == AMsgType_Unknown)
+		if (tcp->recvsiz != 0) {
+			result = min(tcp->recvsiz-tcp->peekpos, msg->size);
+			memcpy(msg->data, tcp->recvbuf+tcp->peekpos, result);
+
+			tcp->peekpos += result;
+			if (tcp->peekpos == tcp->recvsiz) {
+				tcp->recvsiz = 0;
+				tcp->peekpos = 0;
+			}
+			if ((msg->type == AMsgType_Unknown) || (result == msg->size)) {
+				break;
+			}
+			long ret = tcp_recv(tcp->sock, msg->data+result, msg->size-result, 0);
+			if (ret <= 0)
+				result = ret;
+			else
+				result += ret;
+			break;
+		}
+		if (msg->type == AMsgType_Unknown) {
 			result = recv(tcp->sock, msg->data, msg->size, 0);
-		else
+		} else {
 			result = tcp_recv(tcp->sock, msg->data, msg->size, 0);
+		}
 		break;
 
 	default:
@@ -145,6 +161,7 @@ AModule TCPModule = {
 	TCPInit, NULL,
 	&TCPCreate,
 	&TCPRelease,
+	NULL,
 	2,
 
 	&TCPOpen,

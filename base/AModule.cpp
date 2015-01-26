@@ -32,6 +32,17 @@ AModule* AModuleFind(const char *class_name, const char *module_name)
 	return NULL;
 }
 
+AModule* AModuleEnum(long(*comp)(void*,AModule*), void *param)
+{
+	AModule *module;
+	list_for_each_entry(module, &module_list, AModule, global_entry)
+	{
+		if (comp(param, module) == 0)
+			return module;
+	}
+	return NULL;
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 void AObjectInit(AObject *object, AModule *module)

@@ -72,9 +72,10 @@ enum ARequestIndex {
 	ARequest_Output,
 	ARequest_IndexMask = 0x00ffffff,
 
-	ARequest_MsgLoop     = 0x01000000,
-	ANotify_InQueueFront = 0x02000000,
-	ANotify_InQueueBack  = 0x03000000,
+	ARequest_MsgLoop      = 0x01000000,
+	ARequest_InQueueFront = 0x02000000,
+	ANotify_InQueueFront  = 0x03000000,
+	ANotify_InQueueBack   = 0x04000000,
 };
 
 struct AObject {
@@ -120,6 +121,7 @@ struct AModule {
 	void  (*exit)(void);
 	long  (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
+	long  (*probe)(AObject *other, const char *data, long size);
 	long    reqix_count;
 
 	long  (*open)(AObject *object, AMessage *msg);
@@ -143,6 +145,9 @@ AModuleInitAll(void);
 
 extern AModule*
 AModuleFind(const char *class_name, const char *module_name);
+
+extern AModule*
+AModuleEnum(long(*comp)(void*,AModule*), void *param);
 
 //////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus

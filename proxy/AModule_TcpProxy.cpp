@@ -1,49 +1,70 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "../io/iocp_util.h"
+#include "../io/AModule_TCP.h"
 
 
-static SOCKET proxy_socket = INVALID_SOCKET;
+struct TCPServer {
+	AObject  object;
+	SOCKET   sock;
+	HANDLE   listen_thread;
+	AOption *proxy_option;
+};
+#define to_tcpsvr(obj) container_of(obj, TCPServer, object)
 
-static DWORD WINAPI PVDProxyProcess(void *p)
+
+static long TCPClientFindProxy(void *p, AModule *module)
 {
-	SOCKET sock = (SOCKET)p;
-	AOption opt;
+	TCPObject *tcp = to_tcp(p);
+	if (module->probe == NULL)
+		return -1;
 
-	AObject *tcp = NULL;
-	long result = AObjectCreate(&tcp, NULL, NULL, "tcp");
-	if (result >= 0) {
-		AOptionInit(&opt, NULL);
-		strcpy_s(opt.name, "socket");
-		opt.extend = p;
+	if (_stricmp(module->class_name,"proxy") != 0)
+		return -1;
 
-		result = tcp->setopt(tcp, &opt);
-		if (result >= 0)
-			sock = NULL;
-	}
-
-	AObject *pvd = NULL;
-	if (result >= 0) {
-		AOptionInit(&opt, NULL);
-		strcpy_s(opt.name, "PVDClient");
-
-		extern AModule SyncControlModule;
-		result = SyncControlModule.create(&pvd, NULL, opt);
-	}
-	if (result >= 0) {
-		AOptionInit(&opt, NULL);
-		strcpy_s(opt.name, "io");
-		opt.extend = tcp;
-
-		result = pvd->setopt(pvd, &opt);
-	}
-
-	if (result >= 0) {
-	}
+	return module->probe(&tcp->object, tcp->recvbuf, tcp->recvsiz);
 }
 
-static DWORD WINAPI PVDProxyService(void*)
+static DWORD WINAPI TCPClientProcess(void *p)
 {
+	SOCKET sock = (SOCKET)p;
+
+	AObject *io = NULL;
+	long result = TCPModule.create(&io, NULL, NULL);
+	if (result < 0) {
+		closesocket(sock);
+		return result;
+	}
+
+	TCPObject *tcp = to_tcp(io);
+	tcp->sock = sock;
+	result = recv(sock, tcp->recvbuf, sizeof(tcp->recvbuf), 0);
+	if (result <= 0) {
+		AObjectRelease(&tcp->object);
+		return -EIO;
+	}
+
+	tcp->recvsiz = result;
+	tcp->peekpos = 0;
+	AModule *module = AModuleEnum(TCPClientFindProxy, &tcp->object);
+	if (module == NULL) {
+		AObjectRelease(&tcp->object);
+		return -EFAULT;
+	}
+
+	AObject *proxy = NULL;
+	result = module->create(&proxy, &tcp->object, NULL);
+	if (result >= 0) {
+		result = proxy->open(proxy, NULL);
+		AObjectRelease(proxy);
+	}
+	AObjectRelease(&tcp->object);
+	return result;
+}
+
+static DWORD WINAPI TCPServerProcess(void *p)
+{
+	TCPServer *svr = to_tcpsvr(p);
 	struct sockaddr addr;
 	int addrlen;
 	SOCKET sock;
@@ -52,62 +73,88 @@ static DWORD WINAPI PVDProxyService(void*)
 		memset(&addr, 0, sizeof(addr));
 		addrlen = sizeof(addr);
 
-		sock = accept(proxy_socket, &addr, &addrlen);
+		sock = accept(svr->sock, &addr, &addrlen);
 		if (sock == INVALID_SOCKET)
 			break;
 
-		QueueUserWorkItem(&PVDProxyProcess, sock, 0);
+		QueueUserWorkItem(&TCPClientProcess, (void*)sock, 0);
 	} while (1);
+	AObjectRelease(&svr->object);
 	return 0;
 }
 
-static long PVDProxyInit(void)
+static void TCPServerRelease(AObject *object)
 {
-	proxy_socket = bind_socket(IPPROTO_TCP, 8101);
-	if (proxy_socket == INVALID_SOCKET)
-		return -EIO;
+	TCPServer *svr = to_tcpsvr(object);
+	release_s(svr->sock, closesocket, INVALID_SOCKET);
+	release_s(svr->listen_thread, CloseHandle, NULL);
+	release_s(svr->proxy_option, AOptionRelease, NULL);
+	free(svr);
+}
 
-	QueueUserWorkItem(&PVDProxyService, NULL, 0);
+static long TCPServerCreate(AObject **object, AObject *parent, AOption *option)
+{
+	TCPServer *svr = (TCPServer*)malloc(sizeof(TCPServer));
+	if (svr == NULL)
+		return -ENOMEM;
+
+	extern AModule TCPServerModule;
+	AObjectInit(&svr->object, &TCPServerModule);
+	svr->sock = INVALID_SOCKET;
+	svr->listen_thread = NULL;
+	svr->proxy_option = NULL;
+
+	*object = &svr->object;
 	return 1;
 }
 
-static void PVDProxyExit(void)
+static long TCPServerOpen(AObject *object, AMessage *msg)
 {
-	if (proxy_socket == NULL)
-		return;
+	if ((msg->type != AMsgType_Option)
+	 || (msg->data == NULL)
+	 || (msg->size != sizeof(AOption)))
+		return -EINVAL;
 
-	closesocket(proxy_socket);
-	proxy_socket = NULL;
+	AOption *option = (AOption*)msg->data;
+	AOption *port_opt = AOptionFindChild(option, "port");
+	if (port_opt == NULL)
+		return -EINVAL;
+
+	TCPServer *svr = to_tcpsvr(object);
+	svr->sock = bind_socket(IPPROTO_TCP, (u_short)atol(port_opt->value));
+	if (svr->sock == INVALID_SOCKET)
+		return -EINVAL;
+
+	svr->proxy_option = AOptionFindChild(option, "proxy");
+	if (svr->proxy_option != NULL)
+		svr->proxy_option = AOptionClone(svr->proxy_option);
+
+	AObjectAddRef(&svr->object);
+	QueueUserWorkItem(&TCPServerProcess, &svr->object, 0);
+	return 1;
 }
 
-//////////////////////////////////////////////////////////////////////////
-struct PVDProxy {
-	AObject  object;
-	AObject *pvd;
+static long TCPServerClose(AObject *object, AMessage *msg)
+{
+	TCPServer *svr = to_tcpsvr(object);
+	release_s(svr->sock, closesocket, INVALID_SOCKET);
+	return 1;
+}
+
+AModule TCPServerModule = {
+	"server",
+	"tcp_server",
+	sizeof(TCPServer),
+	NULL, NULL,
+	&TCPServerCreate,
+	&TCPServerRelease,
+	NULL,
+	0,
+
+	&TCPServerOpen,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	&TCPServerClose,
 };
-#define to_pvd(obj) container_of(obj, PVDProxy, object)
-
-static void PVDProxyRelease(AObject *object)
-{
-	PVDProxy *pvd = to_pvd(object);
-	release_s(pvd->io, AObjectRelease, NULL);
-	free(pvd);
-}
-
-static long PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
-{
-	PVDProxy *pvd = (PVDProxy*)malloc(sizeof(PVDProxy));
-	if (pvd == NULL)
-		return -ENOMEM;
-
-	extern AModule PVDProxyModule;
-	AObjectInit(&pvd->object, &PVDProxyModule);
-	pvd->io = NULL;
-
-	AOption *io_opt = AOptionFindChild(option, "io");
-	long result = AObjectCreate(&pvd->io, pvd, io_opt, "tcp");
-
-	*object = &pvd->object;
-	return result;
-}
-

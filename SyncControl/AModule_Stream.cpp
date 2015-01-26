@@ -427,7 +427,10 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 			if (req->msgloop) {
 				result = -EBUSY;
 			} else if (req->from != NULL) {
-				list_add_tail(&msg->entry, &req->request_list);
+				if (flag == ARequest_InQueueFront)
+					list_add(&msg->entry, &req->request_list);
+				else
+					list_add_tail(&msg->entry, &req->request_list);
 				result = 0;
 			} else {
 				req->from = msg;
@@ -557,6 +560,7 @@ AModule SyncControlModule = {
 	NULL, NULL,
 	&SyncControlCreate,
 	&SyncControlRelease,
+	NULL,
 	0,
 
 	&SyncControlOpen,

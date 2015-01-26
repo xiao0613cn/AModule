@@ -315,6 +315,7 @@ AModule PVDRTModule = {
 	NULL, NULL,
 	&PVDRTCreate,
 	&PVDRTRelease,
+	NULL,
 	1,
 
 	&PVDRTOpen,

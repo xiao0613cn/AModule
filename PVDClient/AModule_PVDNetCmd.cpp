@@ -446,6 +446,7 @@ AModule PVDClientModule = {
 	NULL, NULL,
 	&PVDCreate,
 	&PVDRelease,
+	NULL,
 	2,
 
 	&PVDOpen,
