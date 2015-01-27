@@ -1,110 +1,159 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "../io/iocp_util.h"
-#include "../io/AModule_TCP.h"
 
 
 struct TCPServer {
 	AObject  object;
 	SOCKET   sock;
 	HANDLE   listen_thread;
-	AOption *proxy_option;
+	AOption *option;
 };
-#define to_tcpsvr(obj) container_of(obj, TCPServer, object)
+#define to_server(obj) container_of(obj, TCPServer, object)
 
+
+struct TCPClient {
+	TCPServer *server;
+	AModule   *module;
+	SOCKET     sock;
+	AObject   *tcp;
+	AObject   *proxy;
+	AMessage   probe_msg;
+	char       probe_data[BUFSIZ];
+	long       probe_size;
+};
+#define to_client(msg)  container_of(msg, TCPClient, probe_msg)
+
+
+static long TCPProxyOpenDone(AMessage *msg, long result)
+{
+	TCPClient *client = to_client(msg);
+	release_s(client->proxy, AObjectRelease, NULL);
+	release_s(client->tcp, AObjectRelease, NULL);
+	release_s(client->sock, closesocket, INVALID_SOCKET);
+	AObjectRelease(&client->server->object);
+	return result;
+}
 
 static long TCPClientFindProxy(void *p, AModule *module)
 {
-	TCPObject *tcp = to_tcp(p);
+	TCPClient *client = (TCPClient*)p;
 	if (module->probe == NULL)
 		return -1;
 
 	if (_stricmp(module->class_name,"proxy") != 0)
 		return -1;
 
-	return module->probe(&tcp->object, tcp->recvbuf, tcp->recvsiz);
+	return module->probe(client->tcp, client->probe_data, client->probe_size);
+}
+
+static long TCPClientRecvDone(AMessage *msg, long result)
+{
+	TCPClient *client = to_client(msg);
+	if (result >= 0) {
+		client->probe_size += msg->size;
+
+		AModule *module = AModuleEnum(TCPClientFindProxy, client);
+		if (module == NULL) {
+			result = -EFAULT;
+		} else {
+			AOption *proxy_opt = AOptionFindChild(client->server->option, module->module_name);
+			result = module->create(&client->proxy, client->tcp, proxy_opt);
+		}
+	}
+	if (result >= 0) {
+		client->probe_msg.done = &TCPProxyOpenDone;
+		result = client->proxy->open(client->proxy, &client->probe_msg);
+	}
+	if (result != 0)
+		result = TCPProxyOpenDone(&client->probe_msg, result);
+	return result;
 }
 
 static DWORD WINAPI TCPClientProcess(void *p)
 {
-	SOCKET sock = (SOCKET)p;
+	TCPClient *client = (TCPClient*)p;
 
-	AObject *io = NULL;
-	long result = TCPModule.create(&io, NULL, NULL);
-	if (result < 0) {
-		closesocket(sock);
-		return result;
-	}
-
-	TCPObject *tcp = to_tcp(io);
-	tcp->sock = sock;
-	result = recv(sock, tcp->recvbuf, sizeof(tcp->recvbuf), 0);
-	if (result <= 0) {
-		AObjectRelease(&tcp->object);
-		return -EIO;
-	}
-
-	tcp->recvsiz = result;
-	tcp->peekpos = 0;
-	AModule *module = AModuleEnum(TCPClientFindProxy, &tcp->object);
-	if (module == NULL) {
-		AObjectRelease(&tcp->object);
-		return -EFAULT;
-	}
-
-	AObject *proxy = NULL;
-	result = module->create(&proxy, &tcp->object, NULL);
+	long result = client->module->create(&client->tcp, NULL, NULL);
 	if (result >= 0) {
-		result = proxy->open(proxy, NULL);
-		AObjectRelease(proxy);
+		AMsgInit(&client->probe_msg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
+		client->probe_msg.done = NULL;
+		result = client->tcp->open(client->tcp, &client->probe_msg);
 	}
-	AObjectRelease(&tcp->object);
+	if (result >= 0) {
+		client->sock = INVALID_SOCKET;
+
+		AMsgInit(&client->probe_msg, AMsgType_Unknown, client->probe_data, sizeof(client->probe_data));
+		client->probe_msg.done = &TCPClientRecvDone;
+		result = client->tcp->request(client->tcp, ARequest_Output, &client->probe_msg);
+	}
+	if (result != 0) {
+		result = TCPClientRecvDone(&client->probe_msg, result);
+	}
 	return result;
 }
 
 static DWORD WINAPI TCPServerProcess(void *p)
 {
-	TCPServer *svr = to_tcpsvr(p);
+	TCPServer *server = to_server(p);
 	struct sockaddr addr;
 	int addrlen;
 	SOCKET sock;
+
+	AModule *io_module = NULL;
+	AOption *io_option = AOptionFindChild(server->option, "io");
+	if (io_option != NULL)
+		io_module = AModuleFind(NULL, io_option->value);
+	if (io_module == NULL)
+		io_module = AModuleFind(NULL, "tcp");
 
 	do {
 		memset(&addr, 0, sizeof(addr));
 		addrlen = sizeof(addr);
 
-		sock = accept(svr->sock, &addr, &addrlen);
+		sock = accept(server->sock, &addr, &addrlen);
 		if (sock == INVALID_SOCKET)
 			break;
 
-		QueueUserWorkItem(&TCPClientProcess, (void*)sock, 0);
+		TCPClient *client = (TCPClient*)malloc(sizeof(TCPClient));
+		if (client == NULL) {
+			closesocket(sock);
+			continue;
+		}
+
+		client->server = server; AObjectAddRef(&server->object);
+		client->module = io_module;
+		client->sock = sock;
+		client->tcp = NULL;
+		client->probe_size = 0;
+		QueueUserWorkItem(&TCPClientProcess, client, 0);
 	} while (1);
-	AObjectRelease(&svr->object);
+	AObjectRelease(&server->object);
 	return 0;
 }
 
 static void TCPServerRelease(AObject *object)
 {
-	TCPServer *svr = to_tcpsvr(object);
-	release_s(svr->sock, closesocket, INVALID_SOCKET);
-	release_s(svr->listen_thread, CloseHandle, NULL);
-	release_s(svr->proxy_option, AOptionRelease, NULL);
-	free(svr);
+	TCPServer *server = to_server(object);
+	release_s(server->sock, closesocket, INVALID_SOCKET);
+	release_s(server->listen_thread, CloseHandle, NULL);
+	release_s(server->option, AOptionRelease, NULL);
+	free(server);
 }
 
 static long TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
-	TCPServer *svr = (TCPServer*)malloc(sizeof(TCPServer));
-	if (svr == NULL)
+	TCPServer *server = (TCPServer*)malloc(sizeof(TCPServer));
+	if (server == NULL)
 		return -ENOMEM;
 
 	extern AModule TCPServerModule;
-	AObjectInit(&svr->object, &TCPServerModule);
-	svr->sock = INVALID_SOCKET;
-	svr->listen_thread = NULL;
-	svr->proxy_option = NULL;
+	AObjectInit(&server->object, &TCPServerModule);
+	server->sock = INVALID_SOCKET;
+	server->listen_thread = NULL;
+	server->option = NULL;
 
-	*object = &svr->object;
+	*object = &server->object;
 	return 1;
 }
 
@@ -115,29 +164,29 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	 || (msg->size != sizeof(AOption)))
 		return -EINVAL;
 
-	AOption *option = (AOption*)msg->data;
-	AOption *port_opt = AOptionFindChild(option, "port");
+	TCPServer *server = to_server(object);
+	release_s(server->option, AOptionRelease, NULL);
+	server->option = AOptionClone((AOption*)msg->data);
+	if (server->option == NULL)
+		return -ENOMEM;
+
+	AOption *port_opt = AOptionFindChild(server->option, "port");
 	if (port_opt == NULL)
 		return -EINVAL;
 
-	TCPServer *svr = to_tcpsvr(object);
-	svr->sock = bind_socket(IPPROTO_TCP, (u_short)atol(port_opt->value));
-	if (svr->sock == INVALID_SOCKET)
+	server->sock = bind_socket(IPPROTO_TCP, (u_short)atol(port_opt->value));
+	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
-	svr->proxy_option = AOptionFindChild(option, "proxy");
-	if (svr->proxy_option != NULL)
-		svr->proxy_option = AOptionClone(svr->proxy_option);
-
-	AObjectAddRef(&svr->object);
-	QueueUserWorkItem(&TCPServerProcess, &svr->object, 0);
+	AObjectAddRef(&server->object);
+	QueueUserWorkItem(&TCPServerProcess, &server->object, 0);
 	return 1;
 }
 
 static long TCPServerClose(AObject *object, AMessage *msg)
 {
-	TCPServer *svr = to_tcpsvr(object);
-	release_s(svr->sock, closesocket, INVALID_SOCKET);
+	TCPServer *server = to_server(object);
+	release_s(server->sock, closesocket, INVALID_SOCKET);
 	return 1;
 }
 

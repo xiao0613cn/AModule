@@ -245,10 +245,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\io\AModule_TCP.h"
-				>
-			</File>
-			<File
 				RelativePath=".\base\AOption.h"
 				>
 			</File>
