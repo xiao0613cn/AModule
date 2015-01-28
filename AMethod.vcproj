@@ -175,6 +175,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_HttpProxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
 				>
 			</File>

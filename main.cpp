@@ -7,11 +7,7 @@
 #include "PVDClient/PvdNetCmd.h"
 
 
-#define REGISTER_MODULE(name) \
-	extern AModule name; \
-	AModuleRegister(&name);
-
-static const char *addr_path =
+static const char *pvd_path =
 	"PVDClient: PVDClient {"
 	"       io: tcp {"
 	"		address: 192.168.10.21,"
@@ -145,7 +141,7 @@ DWORD WINAPI RecvStream(void *p)
 
 void ResetOption(AOption *option)
 {
-	TRACE("%s[%s] = ", option->name, option->value);
+	TRACE("\n%s[%s] = ", option->name, option->value);
 
 	char value[MAX_PATH];
 	value[0] = '\0';
@@ -160,38 +156,26 @@ void ResetOption(AOption *option)
 	}
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+extern AModule SyncControlModule;
+extern AModule TCPModule;
+extern AModule PVDClientModule;
+extern AModule PVDRTModule;
+extern AModule TCPServerModule;
+extern AModule HTTPProxyModule;
+
+void test_pvd(AOption *option)
 {
-	REGISTER_MODULE(TCPModule);
-	REGISTER_MODULE(PVDClientModule);
-	REGISTER_MODULE(SyncControlModule);
-	REGISTER_MODULE(PVDRTModule);
-	AModuleInitAll();
-
-	//extern int async_test(void);
-	//async_test();
-	//async_thread at;
-	//memset(&at, 0, sizeof(at));
-	//async_thread_begin(&at, NULL);
-
-	long result;
-	AOption *option = NULL;
-	result = AOptionDecode(&option, addr_path);
-	if (result != 0) {
-		release_s(option, AOptionRelease, NULL);
-		return result;
-	}
-
 	AObject *pvd = NULL;
 	AObject *rt = NULL;
 	RecvMsg *rm;
 	AMessage sm;
+	long result;
 _retry:
 	ResetOption(option);
 	AMsgInit(&sm, AMsgType_Option, (char*)option, sizeof(AOption));
 	sm.done = NULL;
 
-	if (_stricmp(option->value, PVDClientModule.module_name) == 0) {
+	if (_stricmp(option->value, "PVDClient") == 0) {
 		release_s(pvd, AObjectRelease, NULL);
 		result = SyncControlModule.create(&pvd, NULL, option);
 	} else {
@@ -213,7 +197,7 @@ _retry:
 		rm = NULL;
 	}
 	if (pvd != NULL) {
-		strcpy_s(option->value, PVDRTModule.module_name);
+		strcpy_s(option->value, "PVDRTStream");
 		result = SyncControlModule.create(&rt, pvd, option);
 		//result = PVDRTModule.create(&rt, pvd, option);
 	}
@@ -245,8 +229,76 @@ _retry:
 	release_s(pvd, AObjectRelease, NULL);
 	g_abort = TRUE;
 	::Sleep(3000);
+}
+
+static const char *proxy_path =
+	"tcp_server {"
+	"	port: 80,"
+	"	io: tcp,"
+	"	HTTPProxy {"
+	"		io: tcp,"
+	"		proxy: {"
+	"			address: 121.14.1.189,"
+	"			port: 80,"
+	"		},"
+	"	},"
+	"},";
+
+void test_proxy(AOption *option)
+{
+	AMessage msg;
+
+	AObject *tcp_server = NULL;
+	long result = AObjectCreate(&tcp_server, NULL, option, NULL);
+	if (result >= 0) {
+		AMsgInit(&msg, AMsgType_Option, (char*)option, sizeof(*option));
+		msg.done = NULL;
+		result = tcp_server->open(tcp_server, &msg);
+	}
+	TRACE("proxy(%s) open = %d.\n", option->name, result);
+	char str[256];
+	gets_s(str);
+	if (tcp_server != NULL)
+		tcp_server->close(tcp_server, NULL);
+	release_s(tcp_server, AObjectRelease, NULL);
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+	AModuleRegister(&TCPModule);
+	AModuleRegister(&PVDClientModule);
+	AModuleRegister(&SyncControlModule);
+	AModuleRegister(&PVDRTModule);
+	AModuleRegister(&TCPServerModule);
+	AModuleRegister(&HTTPProxyModule);
+	AModuleInitAll();
+
+	//extern int async_test(void);
+	//async_test();
+	//async_thread at;
+	//memset(&at, 0, sizeof(at));
+	//async_thread_begin(&at, NULL);
+
+	char str[256];
+	TRACE("input test module(pvd, ...)\n");
 	gets_s(str);
 
+	const char *path;
+	if (_strnicmp(str, "pvd", 3) == 0)
+		path = pvd_path;
+	else
+		path = proxy_path;
+
+	AOption *option = NULL;
+	long result = AOptionDecode(&option, path);
+	if (result == 0)
+	{
+		if (path == pvd_path)
+			test_pvd(option);
+		else
+			test_proxy(option);
+	}
+	gets_s(str);
 	release_s(option, AOptionRelease, NULL);
 	_CrtDumpMemoryLeaks();
 	return 0;

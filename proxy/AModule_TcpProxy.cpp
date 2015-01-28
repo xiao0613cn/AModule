@@ -32,6 +32,7 @@ static long TCPProxyOpenDone(AMessage *msg, long result)
 	release_s(client->tcp, AObjectRelease, NULL);
 	release_s(client->sock, closesocket, INVALID_SOCKET);
 	AObjectRelease(&client->server->object);
+	free(client);
 	return result;
 }
 
@@ -72,7 +73,7 @@ static long TCPClientRecvDone(AMessage *msg, long result)
 
 static DWORD WINAPI TCPClientProcess(void *p)
 {
-	TCPClient *client = (TCPClient*)p;
+	TCPClient *client = to_client(p);
 
 	long result = client->module->create(&client->tcp, NULL, NULL);
 	if (result >= 0) {
@@ -126,8 +127,9 @@ static DWORD WINAPI TCPServerProcess(void *p)
 		client->sock = sock;
 		client->tcp = NULL;
 		client->probe_size = 0;
-		QueueUserWorkItem(&TCPClientProcess, client, 0);
+		QueueUserWorkItem(&TCPClientProcess, &client->probe_msg, 0);
 	} while (1);
+	TRACE("quit.\n");
 	AObjectRelease(&server->object);
 	return 0;
 }
@@ -177,6 +179,14 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	server->sock = bind_socket(IPPROTO_TCP, (u_short)atol(port_opt->value));
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
+
+	long backlog = 8;
+	AOption *backlog_opt = AOptionFindChild(server->option, "backlog");
+	if (backlog_opt != NULL)
+		backlog = atol(backlog_opt->value);
+	long result = listen(server->sock, backlog);
+	if (result != 0)
+		return -EIO;
 
 	AObjectAddRef(&server->object);
 	QueueUserWorkItem(&TCPServerProcess, &server->object, 0);

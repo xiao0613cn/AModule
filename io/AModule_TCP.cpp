@@ -54,12 +54,14 @@ static long TCPOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *port = AOptionFindChild(option, "port");
-	if (port == NULL)
-		return -EINVAL;
+	//if (port == NULL)
+	//	return -EINVAL;
 
-	struct addrinfo *ai = iocp_getaddrinfo(addr->value, port->value);
-	if (ai == NULL)
+	struct addrinfo *ai = iocp_getaddrinfo(addr->value, port?port->value:NULL);
+	if (ai == NULL) {
+		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", WSAGetLastError());
 		return -EFAULT;
+	}
 
 	if (tcp->sock == INVALID_SOCKET) {
 		tcp->sock = socket(AF_INET, SOCK_STREAM, ai->ai_protocol);
