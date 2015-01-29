@@ -8,84 +8,238 @@ struct TCPServer {
 	SOCKET   sock;
 	HANDLE   listen_thread;
 	AOption *option;
+
+	AModule *io_module;
+	AOption *default_bridge;
 };
 #define to_server(obj) container_of(obj, TCPServer, object)
 
 
 struct TCPClient {
 	TCPServer *server;
-	AModule   *module;
 	SOCKET     sock;
-	AObject   *tcp;
+	AObject   *client;
 	AObject   *proxy;
-	AMessage   probe_msg;
-	char       probe_data[BUFSIZ];
+	long       probe_type;
+	long       probe_size;
+	AMessage   inmsg;
+	AMessage   outmsg;
+	char       indata[2048];
+	char       outdata[2048];
 };
-#define to_client(msg)  container_of(msg, TCPClient, probe_msg)
+#define from_inmsg(msg) container_of(msg, TCPClient, inmsg)
+#define from_outmsg(msg) container_of(msg, TCPClient, outmsg)
 
+
+static void TCPBridgeRelease(AObject *object)
+{
+	TCPClient *client = (TCPClient*)object->extend;
+	assert(object == client->client);
+	TRACE("proxy = %d, client = %d, server = %d.\n", client->proxy->count,
+		client->client->count, client->server->object.count);
+
+	release_s(client->proxy, AObjectRelease, NULL);
+	release_s(client->client, client->client->module->release, NULL);
+	release_s(client->sock, closesocket, INVALID_SOCKET);
+	AObjectRelease(&client->server->object);
+	free(client);
+}
+
+static long TCPClientSendDone(AMessage *msg, long result);
+static long TCPBridgeRecvDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_outmsg(msg);
+	while (result > 0)
+	{
+		msg->type |= AMsgType_Custom;
+		msg->done = &TCPClientSendDone;
+		result = client->client->request(client->client, ARequest_Input, msg);
+		if (result > 0)
+		{
+			AMsgInit(msg, AMsgType_Unknown, client->outdata, sizeof(client->outdata));
+			msg->done = &TCPBridgeRecvDone;
+			result = client->proxy->request(client->proxy, ARequest_Output, msg);
+		}
+	}
+	if (result < 0)
+		AObjectRelease(client->client);
+	return result;
+}
+static long TCPClientSendDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_outmsg(msg);
+	while (result > 0)
+	{
+		AMsgInit(msg, AMsgType_Unknown, client->outdata, sizeof(client->outdata));
+		msg->done = &TCPBridgeRecvDone;
+		result = client->proxy->request(client->proxy, ARequest_Output, msg);
+		if (result > 0)
+		{
+			//msg->data[msg->size] = '\0';
+			//OutputDebugStringA(msg->data);
+
+			msg->type |= AMsgType_Custom;
+			msg->done = &TCPClientSendDone;
+			result = client->client->request(client->client, ARequest_Input, msg);
+		}
+	}
+	if (result < 0)
+		AObjectRelease(client->client);
+	return result;
+}
+static DWORD WINAPI TCPBridgeProcess(void *p)
+{
+	TCPClient *client = (TCPClient*)p;
+	long result = TCPClientSendDone(&client->outmsg, 1);
+	return result;
+}
+
+static long TCPBridgeSendDone(AMessage *msg, long result);
+static long TCPClientRecvDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	while (result > 0)
+	{
+		msg->type |= AMsgType_Custom;
+		msg->done = &TCPBridgeSendDone;
+		result = client->proxy->request(client->proxy, ARequest_Input, msg);
+		if (result > 0)
+		{
+			AMsgInit(msg, AMsgType_Unknown, client->indata, sizeof(client->indata));
+			msg->done = &TCPClientRecvDone;
+			result = client->client->request(client->client, ARequest_Output, msg);
+		}
+	}
+	if (result < 0)
+		AObjectRelease(client->client);
+	return result;
+}
+static long TCPBridgeSendDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	while (result > 0)
+	{
+		AMsgInit(msg, AMsgType_Unknown, client->indata, sizeof(client->indata));
+		msg->done = &TCPClientRecvDone;
+		result = client->client->request(client->client, ARequest_Output, msg);
+		if (result > 0)
+		{
+			//msg->data[msg->size] = '\0';
+			//OutputDebugStringA(msg->data);
+
+			msg->type |= AMsgType_Custom;
+			msg->done = &TCPBridgeSendDone;
+			result = client->proxy->request(client->proxy, ARequest_Input, msg);
+		}
+	}
+	if (result < 0)
+		AObjectRelease(client->client);
+	return result;
+}
 
 static long TCPProxyOpenDone(AMessage *msg, long result)
 {
-	TCPClient *client = to_client(msg);
+	TCPClient *client = from_inmsg(msg);
 	release_s(client->proxy, AObjectRelease, NULL);
-	release_s(client->tcp, AObjectRelease, NULL);
+	release_s(client->client, AObjectRelease, NULL);
 	release_s(client->sock, closesocket, INVALID_SOCKET);
 	AObjectRelease(&client->server->object);
 	free(client);
 	return result;
 }
-
-static long TCPClientRecvDone(AMessage *msg, long result)
+static long TCPBridgeOpenDone(AMessage *msg, long result)
 {
-	TCPClient *client = to_client(msg);
-	if (result >= 0) {
-		client->probe_msg.done = NULL;
+	TCPClient *client = from_inmsg(msg);
+	if (result < 0) {
+		result = TCPProxyOpenDone(msg, result);
+		return result;
+	}
 
-		AModule *module = AModuleProbe(client->tcp, &client->probe_msg, "proxy");
-		if (module == NULL) {
+	client->client->extend = client;
+	client->client->release = TCPBridgeRelease;
+	AObjectAddRef(client->client);
+	QueueUserWorkItem(TCPBridgeProcess, client, 0);
+
+	AMsgInit(msg, AMsgType_Custom|client->probe_type, client->indata, client->probe_size);
+	msg->done = &TCPBridgeSendDone;
+	result = client->proxy->request(client->proxy, ARequest_Input, msg);
+	if (result != 0)
+		result = msg->done(msg, result);
+	return result;
+}
+
+static long TCPClientRecvProbe(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	if (result < 0) {
+		result = TCPProxyOpenDone(msg, result);
+		return result;
+	}
+
+	client->probe_type = msg->type;
+	client->probe_size = msg->size;
+	msg->data[msg->size] = '\0';
+	OutputDebugStringA(msg->data);
+
+	msg->done = NULL;
+	AModule *module = AModuleProbe("proxy", client->client, msg);
+
+	AOption *proxy_opt = NULL;
+	if (module != NULL)
+		proxy_opt = AOptionFindChild(client->server->option, module->module_name);
+	if ((proxy_opt == NULL) || (_stricmp(proxy_opt->value, "bridge") == 0))
+	{
+		if (proxy_opt == NULL)
+			proxy_opt = client->server->default_bridge;
+		if (proxy_opt == NULL) {
 			result = -EFAULT;
 		} else {
-			AOption *proxy_opt = AOptionFindChild(client->server->option, module->module_name);
-			result = module->create(&client->proxy, client->tcp, proxy_opt);
+			result = client->server->io_module->create(&client->proxy, client->client, proxy_opt);
 		}
+		AMsgInit(msg, AMsgType_Option, (char*)proxy_opt, sizeof(*proxy_opt));
+		msg->done = &TCPBridgeOpenDone;
+	}
+	else
+	{
+		result = module->create(&client->proxy, client->client, proxy_opt);
+		msg->done = &TCPProxyOpenDone;
 	}
 	if (result >= 0) {
-		client->probe_msg.done = &TCPProxyOpenDone;
-		result = client->proxy->open(client->proxy, &client->probe_msg);
+		result = client->proxy->open(client->proxy, msg);
 	}
 	if (result != 0)
-		result = TCPProxyOpenDone(&client->probe_msg, result);
+		result = msg->done(msg, result);
 	return result;
 }
 
 static long TCPClientOpenDone(AMessage *msg, long result)
 {
-	TCPClient *client = to_client(msg);
+	TCPClient *client = from_inmsg(msg);
 	if (result >= 0) {
 		client->sock = INVALID_SOCKET;
 
-		AMsgInit(&client->probe_msg, AMsgType_Unknown, client->probe_data, sizeof(client->probe_data));
-		client->probe_msg.done = &TCPClientRecvDone;
-		result = client->tcp->request(client->tcp, ARequest_Output, &client->probe_msg);
+		AMsgInit(msg, AMsgType_Unknown, client->indata, sizeof(client->indata));
+		msg->done = &TCPClientRecvProbe;
+		result = client->client->request(client->client, ARequest_Output, msg);
 	}
 	if (result != 0) {
-		result = TCPClientRecvDone(&client->probe_msg, result);
+		result = TCPClientRecvProbe(msg, result);
 	}
 	return result;
 }
 
 static DWORD WINAPI TCPClientProcess(void *p)
 {
-	TCPClient *client = to_client(p);
+	TCPClient *client = (TCPClient*)p;
 
-	long result = client->module->create(&client->tcp, NULL, NULL);
+	long result = client->server->io_module->create(&client->client, NULL, NULL);
 	if (result >= 0) {
-		AMsgInit(&client->probe_msg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
-		client->probe_msg.done = &TCPClientOpenDone;
-		result = client->tcp->open(client->tcp, &client->probe_msg);
+		AMsgInit(&client->inmsg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
+		client->inmsg.done = &TCPClientOpenDone;
+		result = client->client->open(client->client, &client->inmsg);
 	}
 	if (result != 0) {
-		result = TCPClientOpenDone(&client->probe_msg, result);
+		result = TCPClientOpenDone(&client->inmsg, result);
 	}
 	return result;
 }
@@ -97,12 +251,9 @@ static DWORD WINAPI TCPServerProcess(void *p)
 	int addrlen;
 	SOCKET sock;
 
-	AModule *io_module = NULL;
-	AOption *io_option = AOptionFindChild(server->option, "io");
-	if (io_option != NULL)
-		io_module = AModuleFind(NULL, io_option->value);
-	if (io_module == NULL)
-		io_module = AModuleFind(NULL, "tcp");
+	AOption *opt = AOptionFindChild(server->option, "io");
+	server->io_module = AModuleFind("io", opt?opt->value:"tcp");
+	server->default_bridge = AOptionFindChild(server->option, "default_bridge");
 
 	do {
 		memset(&addr, 0, sizeof(addr));
@@ -119,10 +270,10 @@ static DWORD WINAPI TCPServerProcess(void *p)
 		}
 
 		client->server = server; AObjectAddRef(&server->object);
-		client->module = io_module;
 		client->sock = sock;
-		client->tcp = NULL;
-		QueueUserWorkItem(&TCPClientProcess, &client->probe_msg, 0);
+		client->client = NULL;
+		client->proxy = NULL;
+		QueueUserWorkItem(&TCPClientProcess, client, 0);
 	} while (1);
 	TRACE("quit.\n");
 	AObjectRelease(&server->object);

@@ -117,7 +117,7 @@ struct AModule {
 	const char *class_name;
 	const char *module_name;
 	long        object_size;
-	long  (*init)(void);
+	long  (*init)(AOption *option);
 	void  (*exit)(void);
 	long  (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
@@ -139,16 +139,16 @@ extern void
 AModuleRegister(AModule *module);
 
 extern long
-AModuleInitAll(void);
+AModuleInitAll(AOption *option);
 
 extern AModule*
 AModuleFind(const char *class_name, const char *module_name);
 
 extern AModule*
-AModuleEnum(long(*comp)(void*,AModule*), void *param);
+AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param);
 
 extern AModule*
-AModuleProbe(AObject *other, AMessage *msg, const char *class_name);
+AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
 
 //////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus

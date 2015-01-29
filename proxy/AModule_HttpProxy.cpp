@@ -73,7 +73,7 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 	HTTPProxy *proxy = from_outmsg(msg);
 	while (result > 0)
 	{
-		proxy->outmsg.done = HTTPProxyOutputTo;
+		proxy->outmsg.done = &HTTPProxyOutputTo;
 		AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
 		result = proxy->to->request(proxy->to, ARequest_Output, &proxy->outmsg);
 		if (result > 0)
@@ -81,8 +81,8 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 			//proxy->outmsg.data[proxy->outmsg.size] = '\0';
 			//OutputDebugStringA(proxy->outmsg.data);
 
-			proxy->outmsg.done = HTTPProxyInputFrom;
-			proxy->outmsg.type = AMsgType_Custom;
+			proxy->outmsg.type |= AMsgType_Custom;
+			proxy->outmsg.done = &HTTPProxyInputFrom;
 			result = proxy->from->request(proxy->from, ARequest_Input, &proxy->outmsg);
 		}
 	}
@@ -95,12 +95,12 @@ static long HTTPProxyOutputTo(AMessage *msg, long result)
 	HTTPProxy *proxy = from_outmsg(msg);
 	while (result > 0)
 	{
-		proxy->outmsg.done = HTTPProxyInputFrom;
-		proxy->outmsg.type = AMsgType_Custom;
+		proxy->outmsg.type |= AMsgType_Custom;
+		proxy->outmsg.done = &HTTPProxyInputFrom;
 		result = proxy->from->request(proxy->from, ARequest_Input, &proxy->outmsg);
 		if (result > 0)
 		{
-			proxy->outmsg.done = HTTPProxyOutputTo;
+			proxy->outmsg.done = &HTTPProxyOutputTo;
 			AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
 			result = proxy->to->request(proxy->to, ARequest_Output, &proxy->outmsg);
 		}
@@ -128,8 +128,8 @@ static long HTTPProxyInputTo(AMessage *msg, long result)
 		result = proxy->from->request(proxy->from, ARequest_Output, &proxy->inmsg);
 		if (result > 0)
 		{
+			proxy->inmsg.type |= AMsgType_Custom;
 			proxy->inmsg.done = &HTTPProxyInputTo;
-			proxy->inmsg.type = AMsgType_Custom;
 			result = proxy->to->request(proxy->to, ARequest_Input, &proxy->inmsg);
 		}
 	}
@@ -146,8 +146,8 @@ static long HTTPProxyOutputFrom(AMessage *msg, long result)
 		//proxy->inmsg.data[proxy->inmsg.size] = '\0';
 		//OutputDebugStringA(proxy->inmsg.data);
 
+		proxy->inmsg.type |= AMsgType_Custom;
 		proxy->inmsg.done = &HTTPProxyInputTo;
-		proxy->inmsg.type = AMsgType_Custom;
 		result = proxy->to->request(proxy->to, ARequest_Input, &proxy->inmsg);
 		if (result > 0)
 		{

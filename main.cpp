@@ -241,6 +241,10 @@ static const char *proxy_path =
 	"			port: 80,"
 	"		},"
 	"	},"
+	"	default_bridge {"
+	"		address: 127.0.0.1,"
+	"		port: 8000,"
+	"	},"
 	"},";
 
 void test_proxy(AOption *option)
@@ -269,8 +273,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	AModuleRegister(&SyncControlModule);
 	AModuleRegister(&PVDRTModule);
 	AModuleRegister(&TCPServerModule);
-	AModuleRegister(&HTTPProxyModule);
-	AModuleInitAll();
+	//AModuleRegister(&HTTPProxyModule);
+	AModuleInitAll(NULL);
 
 	//extern int async_test(void);
 	//async_test();

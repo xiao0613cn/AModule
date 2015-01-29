@@ -7,9 +7,9 @@ void AModuleRegister(AModule *module)
 {
 	AModule *pos;
 	INIT_LIST_HEAD(&module->class_list);
-	list_for_each_entry(pos, &module_list, AModule, global_entry) {
-		if (_stricmp(pos->class_name,module->class_name) == 0)
-		{
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	{
+		if (_stricmp(module->class_name, pos->class_name) == 0) {
 			list_add(&module->class_list, &pos->class_list);
 			break;
 		}
@@ -17,42 +17,64 @@ void AModuleRegister(AModule *module)
 	list_add_tail(&module->global_entry, &module_list);
 }
 
-long AModuleInitAll(void)
+long AModuleInitAll(AOption *option)
 {
-	AModule *module;
-	list_for_each_entry(module, &module_list, AModule, global_entry) {
-		if (module->init != NULL)
-			module->init();
+	AModule *pos;
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	{
+		if (pos->init != NULL)
+			pos->init(option);
 	}
 	return 1;
 }
 
 AModule* AModuleFind(const char *class_name, const char *module_name)
 {
-	AModule *module = NULL;
-	list_for_each_entry(module, &module_list, AModule, global_entry)
+	AModule *pos;
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
 	{
-		if (((class_name == NULL)
-		  || (_stricmp(class_name, module->class_name) == 0))
-		 && ((module_name == NULL)
-		  || (_stricmp(module_name, module->module_name) == 0)))
-			return module;
+		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
+			continue;
+		if ((module_name == NULL) || (_stricmp(module_name, pos->module_name) == 0))
+			return pos;
+		if (class_name == NULL)
+			continue;
+
+		AModule *class_pos;
+		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		{
+			if (_stricmp(module_name, class_pos->module_name) == 0)
+				return class_pos;
+		}
+		break;
 	}
 	return NULL;
 }
 
-AModule* AModuleEnum(long(*comp)(void*,AModule*), void *param)
+AModule* AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 {
-	AModule *module;
-	list_for_each_entry(module, &module_list, AModule, global_entry)
+	AModule *pos;
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
 	{
-		if (comp(param, module) == 0)
-			return module;
+		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
+			continue;
+		if (comp(param, pos) == 0)
+			return pos;
+		if (class_name == NULL)
+			continue;
+
+		AModule *class_pos;
+		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		{
+			if (comp(param, class_pos) == 0)
+				return class_pos;
+		}
+		break;
 	}
 	return NULL;
 }
 
-AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
+AModule* AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
 	long score = -1;
@@ -61,9 +83,8 @@ AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
 	AModule *pos;
 	list_for_each_entry(pos, &module_list, AModule, global_entry)
 	{
-		if ((class_name != NULL) && (_stricmp(pos->class_name, class_name) != 0))
+		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
 			continue;
-
 		if (pos->probe != NULL) {
 			ret = pos->probe(other, msg);
 			if (ret > score) {
@@ -71,12 +92,12 @@ AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
 				module = pos;
 			}
 		}
-
 		if (class_name == NULL)
 			continue;
 
 		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list) {
+		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		{
 			if (pos->probe != NULL) {
 				ret = class_pos->probe(other, msg);
 				if (ret > score) {

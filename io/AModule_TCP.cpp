@@ -104,20 +104,17 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	switch (reqix)
 	{
 	case ARequest_Input:
-		if (msg->type == AMsgType_Unknown)
-			result = send(tcp->sock, msg->data, msg->size, 0);
-		else
+		if (msg->type & AMsgType_Custom)
 			result = tcp_send(tcp->sock, msg->data, msg->size, 0);
+		else
+			result = send(tcp->sock, msg->data, msg->size, 0);
 		break;
-
 	case ARequest_Output:
-		if (msg->type == AMsgType_Unknown) {
-			result = recv(tcp->sock, msg->data, msg->size, 0);
-		} else {
+		if (msg->type & AMsgType_Custom)
 			result = tcp_recv(tcp->sock, msg->data, msg->size, 0);
-		}
+		else
+			result = recv(tcp->sock, msg->data, msg->size, 0);
 		break;
-
 	default:
 		return -ENOSYS;
 	}
@@ -143,7 +140,7 @@ static long TCPClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-static long TCPInit(void)
+static long TCPInit(AOption *option)
 {
 	WSADATA wsadata;
 	WSAStartup(WINSOCK_VERSION, &wsadata);
