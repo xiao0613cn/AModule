@@ -14,7 +14,7 @@ void AModuleRegister(AModule *module)
 			break;
 		}
 	}
-	list_add(&module->global_entry, &module_list);
+	list_add_tail(&module->global_entry, &module_list);
 }
 
 long AModuleInitAll(void)
@@ -56,6 +56,7 @@ AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
 {
 	AModule *module = NULL;
 	long score = -1;
+	long ret;
 
 	AModule *pos;
 	list_for_each_entry(pos, &module_list, AModule, global_entry)
@@ -63,10 +64,12 @@ AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
 		if ((class_name != NULL) && (_stricmp(pos->class_name, class_name) != 0))
 			continue;
 
-		long ret = pos->probe(other, msg);
-		if (ret > score) {
-			score = ret;
-			module = pos;
+		if (pos->probe != NULL) {
+			ret = pos->probe(other, msg);
+			if (ret > score) {
+				score = ret;
+				module = pos;
+			}
 		}
 
 		if (class_name == NULL)
@@ -74,10 +77,12 @@ AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
 
 		AModule *class_pos;
 		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list) {
-			ret = class_pos->probe(other, msg);
-			if (ret > score) {
-				score = ret;
-				module = class_pos;
+			if (pos->probe != NULL) {
+				ret = class_pos->probe(other, msg);
+				if (ret > score) {
+					score = ret;
+					module = class_pos;
+				}
 			}
 		}
 		break;
