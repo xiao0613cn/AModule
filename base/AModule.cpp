@@ -5,6 +5,15 @@ static LIST_HEAD(module_list);
 
 void AModuleRegister(AModule *module)
 {
+	AModule *pos;
+	INIT_LIST_HEAD(&module->class_list);
+	list_for_each_entry(pos, &module_list, AModule, global_entry) {
+		if (_stricmp(pos->class_name,module->class_name) == 0)
+		{
+			list_add(&module->class_list, &pos->class_list);
+			break;
+		}
+	}
 	list_add(&module->global_entry, &module_list);
 }
 
@@ -43,6 +52,38 @@ AModule* AModuleEnum(long(*comp)(void*,AModule*), void *param)
 	return NULL;
 }
 
+AModule* AModuleProbe(AObject *other, AMessage *msg, const char *class_name)
+{
+	AModule *module = NULL;
+	long score = -1;
+
+	AModule *pos;
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	{
+		if ((class_name != NULL) && (_stricmp(pos->class_name, class_name) != 0))
+			continue;
+
+		long ret = pos->probe(other, msg);
+		if (ret > score) {
+			score = ret;
+			module = pos;
+		}
+
+		if (class_name == NULL)
+			continue;
+
+		AModule *class_pos;
+		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list) {
+			ret = class_pos->probe(other, msg);
+			if (ret > score) {
+				score = ret;
+				module = class_pos;
+			}
+		}
+		break;
+	}
+	return module;
+}
 
 //////////////////////////////////////////////////////////////////////////
 void AObjectInit(AObject *object, AModule *module)

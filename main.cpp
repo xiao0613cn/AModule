@@ -141,7 +141,7 @@ DWORD WINAPI RecvStream(void *p)
 
 void ResetOption(AOption *option)
 {
-	TRACE("\n%s[%s] = ", option->name, option->value);
+	TRACE("%s[%s] = ", option->name, option->value);
 
 	char value[MAX_PATH];
 	value[0] = '\0';
@@ -232,13 +232,12 @@ _retry:
 }
 
 static const char *proxy_path =
-	"tcp_server {"
-	"	port: 80,"
+	"tcp_server: tcp_server {"
+	"	port: 8080,"
 	"	io: tcp,"
 	"	HTTPProxy {"
-	"		io: tcp,"
-	"		proxy: {"
-	"			address: 121.14.1.189,"
+	"		io: tcp {"
+	"			address: 127.0.0.1,"
 	"			port: 80,"
 	"		},"
 	"	},"

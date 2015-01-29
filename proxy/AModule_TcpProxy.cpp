@@ -20,7 +20,6 @@ struct TCPClient {
 	AObject   *proxy;
 	AMessage   probe_msg;
 	char       probe_data[BUFSIZ];
-	long       probe_size;
 };
 #define to_client(msg)  container_of(msg, TCPClient, probe_msg)
 
@@ -36,25 +35,13 @@ static long TCPProxyOpenDone(AMessage *msg, long result)
 	return result;
 }
 
-static long TCPClientFindProxy(void *p, AModule *module)
-{
-	TCPClient *client = (TCPClient*)p;
-	if (module->probe == NULL)
-		return -1;
-
-	if (_stricmp(module->class_name,"proxy") != 0)
-		return -1;
-
-	return module->probe(client->tcp, client->probe_data, client->probe_size);
-}
-
 static long TCPClientRecvDone(AMessage *msg, long result)
 {
 	TCPClient *client = to_client(msg);
 	if (result >= 0) {
-		client->probe_size += msg->size;
+		client->probe_msg.done = NULL;
 
-		AModule *module = AModuleEnum(TCPClientFindProxy, client);
+		AModule *module = AModuleProbe(client->tcp, &client->probe_msg, "proxy");
 		if (module == NULL) {
 			result = -EFAULT;
 		} else {
@@ -71,16 +58,9 @@ static long TCPClientRecvDone(AMessage *msg, long result)
 	return result;
 }
 
-static DWORD WINAPI TCPClientProcess(void *p)
+static long TCPClientOpenDone(AMessage *msg, long result)
 {
-	TCPClient *client = to_client(p);
-
-	long result = client->module->create(&client->tcp, NULL, NULL);
-	if (result >= 0) {
-		AMsgInit(&client->probe_msg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
-		client->probe_msg.done = NULL;
-		result = client->tcp->open(client->tcp, &client->probe_msg);
-	}
+	TCPClient *client = to_client(msg);
 	if (result >= 0) {
 		client->sock = INVALID_SOCKET;
 
@@ -90,6 +70,22 @@ static DWORD WINAPI TCPClientProcess(void *p)
 	}
 	if (result != 0) {
 		result = TCPClientRecvDone(&client->probe_msg, result);
+	}
+	return result;
+}
+
+static DWORD WINAPI TCPClientProcess(void *p)
+{
+	TCPClient *client = to_client(p);
+
+	long result = client->module->create(&client->tcp, NULL, NULL);
+	if (result >= 0) {
+		AMsgInit(&client->probe_msg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
+		client->probe_msg.done = &TCPClientOpenDone;
+		result = client->tcp->open(client->tcp, &client->probe_msg);
+	}
+	if (result != 0) {
+		result = TCPClientOpenDone(&client->probe_msg, result);
 	}
 	return result;
 }
@@ -126,7 +122,6 @@ static DWORD WINAPI TCPServerProcess(void *p)
 		client->module = io_module;
 		client->sock = sock;
 		client->tcp = NULL;
-		client->probe_size = 0;
 		QueueUserWorkItem(&TCPClientProcess, &client->probe_msg, 0);
 	} while (1);
 	TRACE("quit.\n");

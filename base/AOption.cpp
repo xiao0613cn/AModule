@@ -80,13 +80,19 @@ extern long AOptionDecode(AOption **option, const char *name)
 		case '}':
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);
-
 			if (--layer < 0)
 				return -ERROR_INVALID_PARAMETER;
+
+			if ((current->name[0] == '\0') && list_empty(&current->children_list)) {
+				AOption *empty_option = current;
+				list_del_init(&current->brother_entry);
+				current = current->parent;
+				AOptionRelease(empty_option);
+			} else {
+				current = current->parent;
+			}
 			if (layer == 0)
 				return 0;
-
-			current = current->parent;
 			name = sep+1;
 			break;
 

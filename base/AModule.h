@@ -121,7 +121,7 @@ struct AModule {
 	void  (*exit)(void);
 	long  (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
-	long  (*probe)(AObject *other, const char *data, long size);
+	long  (*probe)(AObject *other, AMessage *msg);
 	long    reqix_count;
 
 	long  (*open)(AObject *object, AMessage *msg);
@@ -132,9 +132,7 @@ struct AModule {
 	long  (*close)(AObject *object, AMessage *msg);
 
 	struct list_head global_entry;
-	struct list_head children_list;
-	struct list_head brother_entry;
-	struct AModule  *parent;
+	struct list_head class_list;
 };
 
 extern void
@@ -148,6 +146,9 @@ AModuleFind(const char *class_name, const char *module_name);
 
 extern AModule*
 AModuleEnum(long(*comp)(void*,AModule*), void *param);
+
+extern AModule*
+AModuleProbe(AObject *other, AMessage *msg, const char *class_name);
 
 //////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus

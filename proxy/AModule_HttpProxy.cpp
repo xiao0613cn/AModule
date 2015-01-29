@@ -12,15 +12,15 @@ static struct HTTPRequest {
 	HTTPREQ("CONNECT"), HTTPREQ("PATCH"), { NULL, 0 }
 };
 
-static long HTTPProxyProbe(AObject *object, const char *data, long size)
+static long HTTPProxyProbe(AObject *object, AMessage *msg)
 {
-	if (size < 10)
+	if (msg->size < 10)
 		return -1;
 
 	for (int ix = 0; HTTPRequests[ix].method != NULL; ++ix) {
-		if ((_strnicmp(data,HTTPRequests[ix].method,HTTPRequests[ix].length) == 0)
-		 && (data[HTTPRequests[ix].length] == ' '))
-			return 0;
+		if ((_strnicmp(msg->data,HTTPRequests[ix].method,HTTPRequests[ix].length) == 0)
+		 && (msg->data[HTTPRequests[ix].length] == ' '))
+			return 60;
 	}
 	return -1;
 }
@@ -60,11 +60,10 @@ static long HTTPProxyCreate(AObject **object, AObject *parent, AOption *option)
 	AObjectInit(&proxy->object, &HTTPProxyModule);
 	proxy->from = parent; AObjectAddRef(parent);
 	proxy->to = NULL;
-	proxy->option = AOptionFindChild(option, "proxy");
+	proxy->option = AOptionFindChild(option, "io");
 	*object = &proxy->object;
 
-	AOption *io_opt = AOptionFindChild(option, "io");
-	long result = AObjectCreate(&proxy->to, &proxy->object, io_opt, "tcp");
+	long result = AObjectCreate(&proxy->to, &proxy->object, proxy->option, "tcp");
 	return result;
 }
 
@@ -79,6 +78,9 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 		result = proxy->to->request(proxy->to, ARequest_Output, &proxy->outmsg);
 		if (result > 0)
 		{
+			//proxy->outmsg.data[proxy->outmsg.size] = '\0';
+			//OutputDebugStringA(proxy->outmsg.data);
+
 			proxy->outmsg.done = HTTPProxyInputFrom;
 			proxy->outmsg.type = AMsgType_Custom;
 			result = proxy->from->request(proxy->from, ARequest_Input, &proxy->outmsg);
@@ -141,6 +143,9 @@ static long HTTPProxyOutputFrom(AMessage *msg, long result)
 	HTTPProxy *proxy = from_inmsg(msg);
 	while (result > 0)
 	{
+		//proxy->inmsg.data[proxy->inmsg.size] = '\0';
+		//OutputDebugStringA(proxy->inmsg.data);
+
 		proxy->inmsg.done = &HTTPProxyInputTo;
 		proxy->inmsg.type = AMsgType_Custom;
 		result = proxy->to->request(proxy->to, ARequest_Input, &proxy->inmsg);
@@ -166,8 +171,9 @@ static void HTTPProxy_OutputFrom_InputTo(HTTPProxy *proxy)
 
 	AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
 	AMsgCopy(&proxy->inmsg, msg->type, msg->data, msg->size);
-	msg->data[128] = '\0';
-	TRACE("request: %s\n", msg->data);
+
+	proxy->inmsg.data[proxy->inmsg.size] = '\0';
+	OutputDebugStringA(proxy->inmsg.data);
 
 	AObjectAddRef(&proxy->object);
 	HTTPProxyOutputFrom(&proxy->inmsg, 1);
