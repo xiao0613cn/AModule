@@ -56,35 +56,35 @@ static long PVDCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;//result;
 }
 
-static long PVDTryOutput(PVDClient *pvd)
+static long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg)
 {
-	pvd->outmsg.data = SliceCurPtr(&pvd->outbuf);
-	pvd->outmsg.size = SliceCurLen(&pvd->outbuf);
+	outmsg->data = SliceCurPtr(outbuf);
+	outmsg->size = SliceCurLen(outbuf);
 
-	long result = PVDCmdDecode(pvd->userid, pvd->outmsg.data, pvd->outmsg.size);
+	long result = PVDCmdDecode(userid, outmsg->data, outmsg->size);
 	if (result < 0)
 		return result;
 
-	if ((result == 0) || (result > pvd->outmsg.size)) {
-		if (max(result,1024) > SliceCapacity(&pvd->outbuf)) {
-			if (SliceResize(&pvd->outbuf, ((result/2048)+1)*2048) < 0)
+	if ((result == 0) || (result > outmsg->size)) {
+		if (max(result,1024) > SliceCapacity(outbuf)) {
+			if (SliceResize(outbuf, ((result/2048)+1)*2048) < 0)
 				return -ENOMEM;
-			pvd->outmsg.data = SliceCurPtr(&pvd->outbuf);
+			outmsg->data = SliceCurPtr(outbuf);
 		}
-		if (!(pvd->outmsg.type & AMsgType_Custom)) {
+		if (!(outmsg->type & AMsgType_Custom)) {
 			return 0;
 		}
 		if (result == 0) {
-			TRACE("%p: reset buffer(%d), drop data(%d).\n", pvd, pvd->outbuf.siz, pvd->outmsg.size);
-			SliceReset(&pvd->outbuf);
+			TRACE("%p: reset buffer(%d), drop data(%d).\n", userid, outbuf->siz, outmsg->size);
+			SliceReset(outbuf);
 			return 0;
 		}
-		result = pvd->outmsg.size;
+		result = outmsg->size;
 	} else {
-		pvd->outmsg.size = result;
+		outmsg->size = result;
 	}
 
-	SlicePop(&pvd->outbuf, pvd->outmsg.size);
+	SlicePop(outbuf, outmsg->size);
 	return result;
 }
 
@@ -170,7 +170,7 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 
 		case pvdnet_ack_md5id:
 			SlicePush(&pvd->outbuf, pvd->outmsg.size);
-			result = PVDTryOutput(pvd);
+			result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
 			if (result < 0)
 				break;
 			if (result == 0) {
@@ -202,7 +202,7 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 
 		case pvdnet_ack_login:
 			SlicePush(&pvd->outbuf, pvd->outmsg.size);
-			result = PVDTryOutput(pvd);
+			result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
 			if (result < 0)
 				break;
 			if (result == 0) {
@@ -261,6 +261,9 @@ static long PVDOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	PVDClient *pvd = to_pvd(object);
+	pvd->outmsg.done = &PVDOpenDone;
+	pvd->outfrom = msg;
+
 	if (pvd->io == NULL) {
 		AOption *io_opt = AOptionFindChild((AOption*)pvd->outfrom->data, "io");
 		if (io_opt == NULL)
@@ -270,9 +273,6 @@ static long PVDOpen(AObject *object, AMessage *msg)
 		if (result < 0)
 			return result;
 	}
-
-	pvd->outmsg.done = &PVDOpenDone;
-	pvd->outfrom = msg;
 
 	long result = PVDDoOpen(pvd, pvdnet_connecting);
 	if (result != 0)
@@ -314,7 +314,7 @@ static long PVDOutputStatus(PVDClient *pvd)
 	long result;
 	do {
 		SlicePush(&pvd->outbuf, pvd->outmsg.size);
-		result = PVDTryOutput(pvd);
+		result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
 		if (result < 0) {
 			break;
 		}
@@ -372,7 +372,7 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 
 		case pvdnet_ack_logout:
 			SlicePush(&pvd->outbuf, pvd->outmsg.size);
-			result = PVDTryOutput(pvd);
+			result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
 			if (result < 0)
 				break;
 			if (result == 0) {

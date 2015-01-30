@@ -109,7 +109,7 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 
 	if ((result == 0) || (result > rt->outmsg.size)) {
 		if (max(result,8*1024) > SliceCapacity(&rt->outbuf)) {
-			long error = SliceResize(&rt->outbuf, ((result/4096)+1)*4096);
+			long error = SliceResize(&rt->outbuf, ((result/4096)+2)*4096);
 			if (error < 0)
 				return error;
 			else if (error > 0)
@@ -234,18 +234,28 @@ static long PVDRTOpenDone(AMessage *msg, long result)
 
 static long PVDRTOpen(AObject *object, AMessage *msg)
 {
-	PVDRTStream *rt = to_rt(object);
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
 	 || (msg->size != sizeof(AOption)))
 		return -EINVAL;
 
+	PVDRTStream *rt = to_rt(object);
+	rt->outmsg.done = &PVDRTOpenDone;
+	rt->outfrom = msg;
+
+	if (rt->io == NULL) {
+		AOption *io_opt = AOptionFindChild((AOption*)rt->outfrom->data, "io");
+		if (io_opt == NULL)
+			return -EINVAL;
+
+		long result = AObjectCreate(&rt->io, &rt->object, io_opt, NULL);
+		if (result < 0)
+			return result;
+	}
+
 	rt->outmsg.type = AMsgType_Option;
 	rt->outmsg.data = (char*)AOptionFindChild((AOption*)msg->data, "io");
 	rt->outmsg.size = sizeof(AOption);
-
-	rt->outmsg.done = &PVDRTOpenDone;
-	rt->outfrom = msg;
 
 	rt->status = pvdnet_connecting;
 	long result = rt->io->open(rt->io, &rt->outmsg);

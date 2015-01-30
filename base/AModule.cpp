@@ -22,8 +22,21 @@ long AModuleInitAll(AOption *option)
 	AModule *pos;
 	list_for_each_entry(pos, &module_list, AModule, global_entry)
 	{
-		if (pos->init != NULL)
-			pos->init(option);
+		if ((pos->init != NULL) && (pos->init(option) < 0)) {
+			if (pos->exit != NULL)
+				pos->exit();
+		}
+	}
+	return 1;
+}
+
+long AModuleExitAll(void)
+{
+	AModule *pos;
+	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	{
+		if (pos->exit != NULL)
+			pos->exit();
 	}
 	return 1;
 }

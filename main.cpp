@@ -162,6 +162,7 @@ extern AModule PVDClientModule;
 extern AModule PVDRTModule;
 extern AModule TCPServerModule;
 extern AModule HTTPProxyModule;
+extern AModule PVDProxyModule;
 
 void test_pvd(AOption *option)
 {
@@ -241,6 +242,8 @@ static const char *proxy_path =
 	"			port: 80,"
 	"		},"
 	"	},"
+	"	PVDProxy {"
+	"	},"
 	"	default_bridge {"
 	"		address: 127.0.0.1,"
 	"		port: 8000,"
@@ -260,7 +263,12 @@ void test_proxy(AOption *option)
 	}
 	TRACE("proxy(%s) open = %d.\n", option->name, result);
 	char str[256];
-	gets_s(str);
+	while (gets_s(str) != NULL)
+	{
+		if (str[0] == 'q')
+			break;
+		TRACE("input 'q' for quit...\n");
+	}
 	if (tcp_server != NULL)
 		tcp_server->close(tcp_server, NULL);
 	release_s(tcp_server, AObjectRelease, NULL);
@@ -269,40 +277,26 @@ void test_proxy(AOption *option)
 int _tmain(int argc, _TCHAR* argv[])
 {
 	AModuleRegister(&TCPModule);
-	AModuleRegister(&PVDClientModule);
-	AModuleRegister(&SyncControlModule);
-	AModuleRegister(&PVDRTModule);
 	AModuleRegister(&TCPServerModule);
-	//AModuleRegister(&HTTPProxyModule);
-	AModuleInitAll(NULL);
-
-	//extern int async_test(void);
-	//async_test();
-	//async_thread at;
-	//memset(&at, 0, sizeof(at));
-	//async_thread_begin(&at, NULL);
-
-	char str[256];
-	TRACE("input test module(pvd, ...)\n");
-	gets_s(str);
-
-	const char *path;
-	if (_strnicmp(str, "pvd", 3) == 0)
-		path = pvd_path;
-	else
-		path = proxy_path;
+	AModuleRegister(&SyncControlModule);
+	AModuleRegister(&PVDClientModule);
+	AModuleRegister(&PVDRTModule);
+	AModuleRegister(&HTTPProxyModule);
+	AModuleRegister(&PVDProxyModule);
 
 	AOption *option = NULL;
-	long result = AOptionDecode(&option, path);
-	if (result == 0)
-	{
-		if (path == pvd_path)
-			test_pvd(option);
-		else
-			test_proxy(option);
-	}
-	gets_s(str);
+	long result = AOptionDecode(&option, pvd_path);
+	ResetOption(option);
+	AModuleInitAll(option);
 	release_s(option, AOptionRelease, NULL);
+
+	result = AOptionDecode(&option, proxy_path);
+	test_proxy(option);
+	AModuleExitAll();
+	release_s(option, AOptionRelease, NULL);
+
+	char str[256];
+	gets_s(str);
 	_CrtDumpMemoryLeaks();
 	return 0;
 }

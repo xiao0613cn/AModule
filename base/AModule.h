@@ -141,6 +141,9 @@ AModuleRegister(AModule *module);
 extern long
 AModuleInitAll(AOption *option);
 
+extern long
+AModuleExitAll(void);
+
 extern AModule*
 AModuleFind(const char *class_name, const char *module_name);
 
