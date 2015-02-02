@@ -16,6 +16,7 @@ struct PVDProxy {
 	AMessage    outmsg;
 	SliceBuffer outbuf;
 };
+#define from_outmsg(msg) container_of(msg, PVDProxy, outmsg)
 
 static void PVDProxyRelease(AObject *object)
 {
@@ -31,42 +32,88 @@ static void PVDProxyRelease(AObject *object)
 	SliceFree(&p->outbuf);
 	free(p);
 }
-
-static long PVDProxyTryOutput(PVDProxy *p)
+static long PVDProxyDispatch(PVDProxy *p);
+static long PVDProxySendDone(AMessage *msg, long result)
 {
+	PVDProxy *p = from_outmsg(msg);
+	if (result > 0)
+	{
+		p->outmsg.size = 0;
+		p->outmsg.done = &PVDProxyRecvDone;
+		result = PVDProxyDispatch(p);
+	}
+	return result;
 }
-
-static long PVDProxyOpen(AObject *object, AMessage *msg)
+static long PVDProxyRecvDone(AMessage *msg, long result)
 {
-	PVDProxy *p = (PVDProxy*)object->extend;
-	assert(p->client == object);
-
-	long result = SliceResize(&p->outbuf, max(8*1024,msg->size));
-	if (result < 0)
-		return -ENOMEM;
-
-	p->outmsg.type = msg->type;
-	p->outmsg.size = msg->size;
-	memcpy(SliceResPtr(&p->outbuf), msg->data, msg->size);
+	PVDProxy *p = from_outmsg(msg);
+	if (result > 0)
+	{
+		result = PVDProxyDispatch(p);
+	}
+	return result;
+}
+extern long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg);
+static long PVDProxyDispatch(PVDProxy *p)
+{
+	long result;
 	do {
-		SlicePush(&p->outbuf, p->outbuf.size);
-		result = PVDProxyTryOutput(p);
+		SlicePush(&p->outbuf, p->outmsg.size);
+		result = PVDTryOutput(0, &p->outbuf, &p->outmsg);
 		if (result < 0)
 			break;
 		if (result == 0) {
 			AMsgInit(&p->outmsg, AMsgType_Unknown, SliceResPtr(&p->outbuf), SliceResLen(&p->outbuf));
+			p->outmsg.done = &PVDProxyRecvDone;
 			result = p->client->request(p->client, ARequest_Output, &p->outmsg);
 			continue;
 		}
 
-		AMsgInit(&p->outmsg, AMsgType_Custom|p->outmsg.type, NULL, 0);
-		result = p->pvd->request(p->pvd, ANotify_InQueueBack|ARequest_Output, &p->outmsg);
-		if (result <= 0)
+		pvdnet_head *phead = (pvdnet_head*)p->outmsg.data;
+		p->outmsg.type = phead->uCmd;
+		switch (phead->uCmd)
+		{
+		case NET_SDVR_MD5ID_GET:
+			p->outmsg.size = 4;
 			break;
+		case NET_SDVR_LOGIN:
+			p->outmsg.size = sizeof(STRUCT_SDVR_DEVICE_EX);
+			break;
+		case NET_SDVR_SHAKEHAND:
+			p->outmsg.size = sizeof(STRUCT_SDVR_ALARM_EX);
+			break;
+		case NET_SDVR_LOGOUT:
+			p->outmsg.size = 0;
+			break;
+		case NET_SDVR_REAL_PLAY:
+			//TODO...
+			assert(FALSE);
+			break;
+		default:
+			break;
+		}
+		if (SliceResLen(&p->outbuf) < p->outmsg.size) {
+			result = SliceResize(&p->outbuf, max(p->outmsg.size,2048));
+			if (result < 0)
+				break;
+		}
 
-		memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, 
-			result = p->pvd->request(p->pvd, ARequest_Input, &p->outmsg);
+		p->outmsg.type |= AMsgType_Custom;
+		p->outmsg.data = SliceResPtr(&p->outbuf);
+		p->outmsg.size = PVDCmdEncode(0, p->outmsg.data, p->outmsg.type, p->outmsg.size);
+		p->outmsg.done = &PVDProxySendDone;
+
+		phead = (pvdnet_head*)p->outmsg.data;
+		phead->uResult = 1;
+		result = p->client->request(p->client, ARequest_Input, &p->outmsg);
+		if (result > 0)
+			p->outmsg.size = 0;
 	} while (result > 0);
+	return result;
+}
+static long PVDProxyOpen(AObject *object, AMessage *msg)
+{
+	object->module->open(
 	return result;
 }
 
@@ -76,20 +123,15 @@ static long PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 		return -EFAULT;
 	}
 
-	PVDProxy *p = (PVDProxy*)malloc(sizeof(PVDProxy));
-	if (p == NULL)
-		return -ENOMEM;
-
-	p->client = parent;
-	p->object = pvd; AObjectAddRef(pvd);
-	SliceInit(&p->outbuf);
-
-	p->extend = parent->extend; parent->extend = p;
-	p->release = parent->release; parent->release = &PVDProxyRelease;
-	p->open = parent->open; parent->open = &PVDProxyOpen;
-	AObjectAddRef(parent);
-	*object = parent;
-	return 1;
+	extern AModule PVDClientModule;
+	long result = PVDClientModule.create(object, NULL, NULL);
+	if (result > 0) {
+		AMessage msg;
+		AMsgInit(&msg, AMsgType_Object, parent, sizeof(*parent));
+		msg.done = NULL;
+		result = (*object)->open(*object, &msg);
+	}
+	return result;
 }
 
 //////////////////////////////////////////////////////////////////////////
