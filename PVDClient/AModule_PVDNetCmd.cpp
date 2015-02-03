@@ -56,7 +56,7 @@ static long PVDCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;//result;
 }
 
-static long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg)
+extern long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg)
 {
 	outmsg->data = SliceCurPtr(outbuf);
 	outmsg->size = SliceCurLen(outbuf);
@@ -83,8 +83,6 @@ static long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg)
 	} else {
 		outmsg->size = result;
 	}
-
-	SlicePop(outbuf, outmsg->size);
 	return result;
 }
 
@@ -177,6 +175,8 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 				result = PVDDoOutput(pvd);
 				break;
 			}
+			SlicePop(&pvd->outbuf, pvd->outmsg.size);
+
 			phead = (pvdnet_head*)pvd->outmsg.data;
 			if ((phead->uCmd != NET_SDVR_MD5ID_GET) || (phead->uResult == 0)) {
 				result = -EFAULT;
@@ -209,6 +209,8 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 				result = PVDDoOutput(pvd);
 				break;
 			}
+			SlicePop(&pvd->outbuf, pvd->outmsg.size);
+
 			phead = (pvdnet_head*)pvd->outmsg.data;
 			if ((phead->uCmd != NET_SDVR_LOGIN) || (phead->uResult == 0)) {
 				result = -EFAULT;
@@ -306,6 +308,11 @@ static long PVDGetOption(AObject *object, AOption *option)
 		_itoa_s(pvd->userid, option->value, 10);
 		return 1;
 	}
+	if (_stricmp(option->name, "login_data") == 0) {
+		if (option->extend != NULL)
+			memcpy(option->extend, &pvd->device2, sizeof(pvd->device2));
+		return 1;
+	}
 	return -ENOSYS;
 }
 
@@ -319,6 +326,8 @@ static long PVDOutputStatus(PVDClient *pvd)
 			break;
 		}
 		if (result > 0) {
+			SlicePop(&pvd->outbuf, pvd->outmsg.size);
+
 			pvdnet_head *phead = (pvdnet_head*)pvd->outmsg.data;
 			AMsgCopy(pvd->outfrom, AMsgType_Custom|phead->uCmd, pvd->outmsg.data, pvd->outmsg.size);
 			break;
@@ -379,6 +388,8 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 				result = PVDDoOutput(pvd);
 				break;
 			}
+			SlicePop(&pvd->outbuf, pvd->outmsg.size);
+
 			phead = (pvdnet_head*)pvd->outmsg.data;
 			if (phead->uCmd != NET_SDVR_LOGOUT) {
 				pvd->outmsg.data = NULL;

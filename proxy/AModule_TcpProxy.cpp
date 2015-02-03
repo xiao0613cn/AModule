@@ -31,6 +31,17 @@ struct TCPClient {
 #define from_outmsg(msg) container_of(msg, TCPClient, outmsg)
 
 
+static long TCPProxyRelease(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	TRACE("%p: result = %d.\n", client, result);
+	release_s(client->proxy, AObjectRelease, NULL);
+	release_s(client->client, AObjectRelease, NULL);
+	release_s(client->sock, closesocket, INVALID_SOCKET);
+	AObjectRelease(&client->server->object);
+	free(client);
+	return result;
+}
 static void TCPBridgeRelease(AObject *object)
 {
 	TCPClient *client = (TCPClient*)object->extend;
@@ -137,21 +148,11 @@ static long TCPBridgeSendDone(AMessage *msg, long result)
 	return result;
 }
 
-static long TCPProxyOpenDone(AMessage *msg, long result)
-{
-	TCPClient *client = from_inmsg(msg);
-	release_s(client->proxy, AObjectRelease, NULL);
-	release_s(client->client, AObjectRelease, NULL);
-	release_s(client->sock, closesocket, INVALID_SOCKET);
-	AObjectRelease(&client->server->object);
-	free(client);
-	return result;
-}
 static long TCPBridgeOpenDone(AMessage *msg, long result)
 {
 	TCPClient *client = from_inmsg(msg);
 	if (result < 0) {
-		result = TCPProxyOpenDone(msg, result);
+		result = TCPProxyRelease(msg, result);
 		return result;
 	}
 
@@ -168,18 +169,91 @@ static long TCPBridgeOpenDone(AMessage *msg, long result)
 	return result;
 }
 
+static long TCPProxyRecvDone(AMessage *msg, long result);
+static long TCPProxySendDone(AMessage *msg, long result);
+static DWORD WINAPI TCPProxyProcess(void *p)
+{
+	TCPClient *client = (TCPClient*)p;
+	long result;
+	do {
+		AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
+		client->inmsg.done = NULL;
+		result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+		if (result <= 0)
+			break;
+
+		client->inmsg.done = &TCPProxyRecvDone;
+		result = client->client->request(client->client, ARequest_Output, &client->inmsg);
+		if (result <= 0)
+			break;
+
+		if (client->server->sock == INVALID_SOCKET)
+			break;
+
+		client->inmsg.done = &TCPProxySendDone;
+		result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+	} while (result > 0);
+	if (result != 0) {
+		result = TCPProxyRelease(&client->inmsg, result);
+	}
+	return result;
+}
+static long TCPProxySendDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	if (result > 0) {
+		QueueUserWorkItem(TCPProxyProcess, client, 0);
+	} else {
+		result = TCPProxyRelease(&client->inmsg, result);
+	}
+	return result;
+}
+static long TCPProxyRecvDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	while (result > 0)
+	{
+		if (client->server->sock == INVALID_SOCKET)
+			break;
+
+		client->inmsg.done = &TCPProxySendDone;
+		result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+		if (result <= 0)
+			break;
+
+		AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
+		client->inmsg.done = NULL;
+		result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+		if (result <= 0)
+			break;
+
+		client->inmsg.done = &TCPProxyRecvDone;
+		result = client->client->request(client->client, ARequest_Output, &client->inmsg);
+	}
+	if (result != 0) {
+		result = TCPProxyRelease(&client->inmsg, result);
+	}
+	return result;
+}
+static long TCPProxyOpenDone(AMessage *msg, long result)
+{
+	TCPClient *client = from_inmsg(msg);
+	AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+	result = TCPProxyRecvDone(msg, result);
+	return result;
+}
 static long TCPClientRecvProbe(AMessage *msg, long result)
 {
 	TCPClient *client = from_inmsg(msg);
 	if (result < 0) {
-		result = TCPProxyOpenDone(msg, result);
+		result = TCPProxyRelease(&client->inmsg, result);
 		return result;
 	}
 
 	client->probe_type = msg->type;
 	client->probe_size = msg->size;
-	msg->data[msg->size] = '\0';
-	OutputDebugStringA(msg->data);
+	//msg->data[msg->size] = '\0';
+	//OutputDebugStringA(msg->data);
 
 	msg->done = NULL;
 	AModule *module = AModuleProbe("proxy", client->client, msg);
@@ -202,6 +276,7 @@ static long TCPClientRecvProbe(AMessage *msg, long result)
 	else
 	{
 		result = module->create(&client->proxy, client->client, proxy_opt);
+		AMsgInit(msg, AMsgType_Object, (char*)client->client, sizeof(AObject));
 		msg->done = &TCPProxyOpenDone;
 	}
 	if (result >= 0) {
@@ -275,7 +350,7 @@ static DWORD WINAPI TCPServerProcess(void *p)
 		client->proxy = NULL;
 		QueueUserWorkItem(&TCPClientProcess, client, 0);
 	} while (1);
-	TRACE("quit.\n");
+	TRACE("%p: quit.\n", &server->object);
 	AObjectRelease(&server->object);
 	return 0;
 }
@@ -335,7 +410,9 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 		return -EIO;
 
 	AObjectAddRef(&server->object);
-	QueueUserWorkItem(&TCPServerProcess, &server->object, 0);
+	DWORD flag = 0;
+	WT_SET_MAX_THREADPOOL_THREADS(flag, 8192);
+	QueueUserWorkItem(&TCPServerProcess, &server->object, flag);
 	return 1;
 }
 

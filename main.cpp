@@ -10,11 +10,11 @@
 static const char *pvd_path =
 	"PVDClient: PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.10.21,"
-	"		port: 8000,"
+	"		address: 192.168.20.37,"
+	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
-	"	username: ':18',"
+	"	username: 'admin',"
 	"	password: 888888,"
 	"	channel: 0,"
 	"	linkmode: 0,"
@@ -216,17 +216,15 @@ _retry:
 	release_s(rt, AObjectRelease, NULL);
 
 	//async_thread_end(&at);
-	TRACE("input 'r' to retry...\n");
 	char str[256];
-	while (gets_s(str) != NULL) {
-		if (str[0] == '\0')
-			continue;
-		if (str[0] == 'r') {
+	do {
+		TRACE("input 'r' for retry, input 'q' for quit...\n");
+		gets_s(str);
+		if (str[0] == 'r')
 			goto _retry;
-		}
-		if (strcmp(str, "quit") == 0)
+		if (str[0] == 'q')
 			break;
-	}
+	} while (1);
 	release_s(pvd, AObjectRelease, NULL);
 	g_abort = TRUE;
 	::Sleep(3000);
@@ -253,6 +251,7 @@ static const char *proxy_path =
 void test_proxy(AOption *option)
 {
 	AMessage msg;
+	ResetOption(option);
 
 	AObject *tcp_server = NULL;
 	long result = AObjectCreate(&tcp_server, NULL, option, NULL);
@@ -261,14 +260,16 @@ void test_proxy(AOption *option)
 		msg.done = NULL;
 		result = tcp_server->open(tcp_server, &msg);
 	}
+
 	TRACE("proxy(%s) open = %d.\n", option->name, result);
 	char str[256];
-	while (gets_s(str) != NULL)
-	{
+	do {
+		TRACE("input 'q' for quit...\n");
+		gets_s(str);
 		if (str[0] == 'q')
 			break;
-		TRACE("input 'q' for quit...\n");
-	}
+	} while (1);
+
 	if (tcp_server != NULL)
 		tcp_server->close(tcp_server, NULL);
 	release_s(tcp_server, AObjectRelease, NULL);
@@ -290,12 +291,30 @@ int _tmain(int argc, _TCHAR* argv[])
 	AModuleInitAll(option);
 	release_s(option, AOptionRelease, NULL);
 
-	result = AOptionDecode(&option, proxy_path);
-	test_proxy(option);
+	char str[256];
+	const char *path;
+	do {
+		TRACE("input test module: pvd, tcp_server ...\n");
+		gets_s(str);
+		if (_stricmp(str,"pvd") == 0)
+			path = pvd_path;
+		else if (_stricmp(str,"tcp_server") == 0)
+			path = proxy_path;
+		else
+			continue;
+		break;
+	} while (1);
+	result = AOptionDecode(&option, path);
+	if (result == 0)
+	{
+		if (path == pvd_path)
+			test_pvd(option);
+		else
+			test_proxy(option);
+	}
 	AModuleExitAll();
 	release_s(option, AOptionRelease, NULL);
 
-	char str[256];
 	gets_s(str);
 	_CrtDumpMemoryLeaks();
 	return 0;

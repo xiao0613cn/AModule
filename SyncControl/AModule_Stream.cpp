@@ -69,6 +69,7 @@ static SyncRequest* SyncRequestNew(SyncControl *sc, long reqix)
 	req->reqix = reqix;
 	list_add(&req->entry, &sc->syncreq_list);
 	req->msg.done = &SyncRequestDone;
+	INIT_LIST_HEAD(&req->msg.entry);
 
 	InitializeCriticalSection(&req->lock);
 	req->from = NULL;
@@ -302,14 +303,19 @@ static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
 			if ((msg->type == AMsgType_Unknown) || (msg->type == req->msg.type))
 			{
 				AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-				probe_ret = msg->done(msg, result);
+				probe_ret = msg->done(msg, 0);
 				if (probe_ret == 0)
 					continue;
-				if (probe_ret < 0) {
-					list_del_init(&msg->entry);
-					probe_msg = msg;
+
+				probe_msg = msg;
+				if (probe_ret > 0) {
+					list_del_init(&probe_msg->entry);
+					break;
 				}
-				break;
+
+				msg = list_entry(msg->entry.prev, AMessage, entry);
+				list_move(&probe_msg->entry, &req->msg.entry);
+				probe_msg = NULL;
 			}
 		} }
 		if (req->msgloop) {
@@ -340,8 +346,14 @@ static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
 		}
 		LeaveCriticalSection(&req->lock);
 
-		if (probe_msg != NULL)
+		if (probe_msg != NULL) {
 			probe_msg->done(probe_msg, probe_ret);
+		}
+		while (!list_empty(&req->msg.entry)) {
+			probe_msg = list_first_entry(&req->msg.entry, AMessage, entry);
+			list_del_init(&probe_msg->entry);
+			probe_msg->done(probe_msg, -1);
+		}
 		if (result <= 0)
 			break;
 
