@@ -309,6 +309,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\srsw.hpp"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.h"
 				>
 			</File>

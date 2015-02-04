@@ -316,7 +316,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	release_s(option, AOptionRelease, NULL);
 
 	gets_s(str);
+#ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
+#endif
 	return 0;
 }
 

@@ -13,7 +13,7 @@
 #include <Windows.h>
 
 
-#ifdef _DEBUG
+#if 1
 
 #ifndef TRACE
 #include <stdio.h>
@@ -63,6 +63,10 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #ifndef ASSERT
 #define ASSERT(x) (void)(0)
 #define VERIFY(x) (void)(x)
+#endif
+
+#ifndef assert
+#define assert(x) (void)(0)
 #endif
 
 #endif // _RELEASE

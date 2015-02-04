@@ -34,7 +34,7 @@ struct TCPClient {
 static long TCPProxyRelease(AMessage *msg, long result)
 {
 	TCPClient *client = from_inmsg(msg);
-	TRACE("%p: result = %d.\n", client, result);
+	//TRACE("%p: result = %d.\n", client, result);
 	release_s(client->proxy, AObjectRelease, NULL);
 	release_s(client->client, AObjectRelease, NULL);
 	release_s(client->sock, closesocket, INVALID_SOCKET);

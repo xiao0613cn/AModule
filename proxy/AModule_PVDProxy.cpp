@@ -2,7 +2,7 @@
 #include "../base/AModule.h"
 #include "../base/SliceBuffer.h"
 #include "../PVDClient/PvdNetCmd.h"
-#include "../../IBase/srsw.hpp"
+#include "../base/srsw.hpp"
 
 static AObject *pvd = NULL;
 static STRUCT_SDVR_DEVICE_EX login_data;
@@ -33,6 +33,7 @@ struct PVDProxy {
 	AMessage    inmsg;
 	AMessage    outmsg;
 	SliceBuffer outbuf;
+	DWORD       outtick;
 	long volatile reqcount;
 	AMessage     *outfrom;
 	srsw_queue<AMessage, 64> frame_queue;
@@ -102,16 +103,29 @@ static long PVDProxySendDone(AMessage *msg, long result)
 static long PVDProxyRecvDone(AMessage *msg, long result)
 {
 	PVDProxy *p = from_outmsg(msg);
-	if (result == 0)
+	if (result == 0) {
+		if (p->outmsg.type == p->inmsg.type)
+			return 1;
+		if (long(GetTickCount()-p->outtick) < 5000)
+			return 0;
+		TRACE("%p: command(%02x) timeout...\n", p, p->inmsg.type&~AMsgType_Custom);
+		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return 1;
+	}
 	if (result > 0) {
 		if (SliceResLen(&p->outbuf) < p->outmsg.size) {
 			result = SliceResize(&p->outbuf, max(p->outmsg.size,2048));
 		}
 	}
 	if (result >= 0) {
-		memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, p->outmsg.size);
-		p->outmsg.data = SliceResPtr(&p->outbuf);
+		if (p->outmsg.data == NULL) {
+			p->outmsg.data = SliceResPtr(&p->outbuf);
+			result = PVDCmdEncode(userid, p->outmsg.data, p->outmsg.type&~AMsgType_Custom, 0);
+			assert(result == p->outmsg.size);
+		} else {
+			memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, p->outmsg.size);
+			p->outmsg.data = SliceResPtr(&p->outbuf);
+		}
 	} else {
 		p->outmsg.data = NULL;
 		p->outmsg.size = 0;
@@ -140,13 +154,18 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 				AMessage &frame = p->frame_queue.end();
 				AMsgInit(&frame, msg->type, (char*)ptr[0], msg->size);
 				p->frame_queue.put_end();
+				result = 1;
 			}
 		}
+		if (result == 0)
+			TRACE("%p: drop stream frame(%d) size = %d...\n", p, msg->type&~AMsgType_Custom, msg->size);
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
 	}
-	if (result < 0)
+	if (result < 0) {
+		p->reqcount = -1;
 		AObjectRelease(&p->object);
+	}
 	return result;
 }
 static DWORD WINAPI PVDProxySendStream(void *param)
@@ -254,14 +273,16 @@ static long PVDProxyDispatch(PVDProxy *p)
 			assert(p->reqcount == 0);
 			InterlockedExchange(&p->reqcount, 2);
 
-			AMsgInit(&p->outmsg, AMsgType_Custom|phead->uCmd, NULL, 0);
+			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			p->outmsg.done = &PVDProxyRecvDone;
+			p->outtick = GetTickCount();
 			result = pvd->request(pvd, ANotify_InQueueFront|ARequest_Output, &p->outmsg);
 			if (result < 0) {
 				InterlockedExchange(&p->reqcount, 0);
 				return result;
 			}
 
+			p->inmsg.type = AMsgType_Custom|phead->uCmd;
 			p->inmsg.done = &PVDProxySendDone;
 			result = pvd->request(pvd, ARequest_Input, &p->inmsg);
 			if (result != 0) {
