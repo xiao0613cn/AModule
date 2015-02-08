@@ -87,7 +87,7 @@ static long PVDProxySendDone(AMessage *msg, long result)
 		return 0;
 
 	SlicePop(&p->outbuf, p->inmsg.size);
-	if (p->outmsg.data == NULL) {
+	if (p->outmsg.size == 0) {
 		result = -EFAULT;
 	} else {
 		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
@@ -106,18 +106,19 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 	if (result == 0) {
 		if (p->outmsg.type == p->inmsg.type)
 			return 1;
-		if (long(GetTickCount()-p->outtick) < 5000)
+		if (long(GetTickCount()-p->outtick) < 5000) {
+			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
+		}
 		TRACE("%p: command(%02x) timeout...\n", p, p->inmsg.type&~AMsgType_Custom);
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
-		return 1;
+		return -1;
 	}
-	if (result > 0) {
-		if (SliceResLen(&p->outbuf) < p->outmsg.size) {
-			result = SliceResize(&p->outbuf, max(p->outmsg.size,2048));
-		}
-	}
-	if (result >= 0) {
+	if ((p->outmsg.size != 0)
+	 && (SliceResLen(&p->outbuf) < p->outmsg.size)
+	 && (SliceResize(&p->outbuf, max(p->outmsg.size,2048)) < 0))
+		p->outmsg.size = 0;
+	if (p->outmsg.size != 0) {
 		if (p->outmsg.data == NULL) {
 			p->outmsg.data = SliceResPtr(&p->outbuf);
 			result = PVDCmdEncode(userid, p->outmsg.data, p->outmsg.type&~AMsgType_Custom, 0);
@@ -126,9 +127,6 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 			memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, p->outmsg.size);
 			p->outmsg.data = SliceResPtr(&p->outbuf);
 		}
-	} else {
-		p->outmsg.data = NULL;
-		p->outmsg.size = 0;
 	}
 	result = PVDProxySendDone(&p->inmsg, result);
 	return result;
@@ -236,8 +234,8 @@ extern long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg);
 static long PVDProxyDispatch(PVDProxy *p)
 {
 	long result;
-	p->inmsg.type = p->outfrom->type;
 	do {
+		p->inmsg.type = p->outfrom->type;
 		result = PVDTryOutput(0, &p->outbuf, &p->inmsg);
 		if (result < 0)
 			return result;
@@ -245,7 +243,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 			return p->outfrom->size;
 
 		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
-		p->outmsg.type = phead->uCmd;
+		p->inmsg.type = AMsgType_Custom|phead->uCmd;
 		switch (phead->uCmd)
 		{
 		case NET_SDVR_MD5ID_GET:
@@ -261,7 +259,9 @@ static long PVDProxyDispatch(PVDProxy *p)
 			p->outmsg.size = sizeof(pvdnet_head) + 0;
 			break;
 		case NET_SDVR_REAL_PLAY:
+			phead->uLen = 0;
 			phead->uResult = 1;
+			p->inmsg.size = sizeof(pvdnet_head) + 0;
 			p->inmsg.done = &PVDProxyRTStream;
 			result = p->client->request(p->client, ARequest_Input, &p->inmsg);
 			if (result != 0) {
@@ -282,14 +282,13 @@ static long PVDProxyDispatch(PVDProxy *p)
 				return result;
 			}
 
-			p->inmsg.type = AMsgType_Custom|phead->uCmd;
 			p->inmsg.done = &PVDProxySendDone;
 			result = pvd->request(pvd, ARequest_Input, &p->inmsg);
 			if (result != 0) {
 				if (InterlockedDecrement(&p->reqcount) != 0)
 					return 0;
 				SlicePop(&p->outbuf, p->inmsg.size);
-				if (p->outmsg.data == NULL) {
+				if (p->outmsg.size == 0) {
 					result = -EFAULT;
 				} else {
 					AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
@@ -307,10 +306,10 @@ static long PVDProxyDispatch(PVDProxy *p)
 				break;
 		}
 
-		AMsgInit(&p->inmsg, p->outmsg.type, SliceResPtr(&p->outbuf), p->outmsg.size);
-		p->inmsg.done = &PVDClientSendDone;
+		p->inmsg.data = SliceResPtr(&p->outbuf);
+		p->inmsg.size = PVDCmdEncode(userid, p->inmsg.data, p->inmsg.type&~AMsgType_Custom, p->outmsg.size-sizeof(pvdnet_head));
+		assert(p->inmsg.size == p->outmsg.size);
 
-		PVDCmdEncode(userid, p->inmsg.data, p->outmsg.type, p->outmsg.size-sizeof(pvdnet_head));
 		phead = (pvdnet_head*)p->inmsg.data;
 		phead->uResult = 1;
 		switch (phead->uCmd)
@@ -331,6 +330,8 @@ static long PVDProxyDispatch(PVDProxy *p)
 			assert(FALSE);
 			break;
 		}
+
+		p->inmsg.done = &PVDClientSendDone;
 		result = p->client->request(p->client, ARequest_Input, &p->inmsg);
 	} while (result > 0);
 	return result;
