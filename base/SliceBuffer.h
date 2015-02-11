@@ -131,6 +131,15 @@ static inline int SliceResize(SliceBuffer *sb, int len) {
 	return 1;
 }
 
+static inline int SliceReserve(SliceBuffer *sb, int res_len) {
+	if (SliceResLen(sb) >= res_len)
+		return 0;
+
+	res_len += SliceCurLen(sb);
+	res_len = (res_len/2048+1)*2048;
+	return SliceResize(sb, res_len);
+}
+
 static inline void SliceFree(SliceBuffer *sb) {
 	if (sb->buf != NULL)
 		free(sb->buf);

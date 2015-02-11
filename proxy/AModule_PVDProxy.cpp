@@ -7,6 +7,7 @@
 static AObject *pvd = NULL;
 static STRUCT_SDVR_DEVICE_EX login_data;
 static STRUCT_SDVR_ALARM_EX heart_data;
+static STRUCT_SDVR_INFO dvr_info;
 DWORD  userid;
 static AObject *rt = NULL;
 
@@ -114,9 +115,7 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
-	if ((p->outmsg.size != 0)
-	 && (SliceResLen(&p->outbuf) < p->outmsg.size)
-	 && (SliceResize(&p->outbuf, max(p->outmsg.size,2048)) < 0))
+	if (SliceReserve(&p->outbuf, p->outmsg.size) < 0)
 		p->outmsg.size = 0;
 	if (p->outmsg.size != 0) {
 		if (p->outmsg.data == NULL) {
@@ -171,6 +170,8 @@ static DWORD WINAPI PVDProxySendStream(void *param)
 	PVDProxy *p = (PVDProxy*)param;
 	long result = 1;
 	do {
+		if (p->reqcount == -1)
+			break;
 		if (p->frame_queue.size() == 0) {
 			Sleep(10);
 			continue;
@@ -246,18 +247,13 @@ static long PVDProxyDispatch(PVDProxy *p)
 		p->inmsg.type = AMsgType_Custom|phead->uCmd;
 		switch (phead->uCmd)
 		{
-		case NET_SDVR_MD5ID_GET:
-			p->outmsg.size = sizeof(pvdnet_head) + 4;
-			break;
-		case NET_SDVR_LOGIN:
-			p->outmsg.size = sizeof(pvdnet_head) + sizeof(login_data);
-			break;
-		case NET_SDVR_SHAKEHAND:
-			p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data);
-			break;
-		case NET_SDVR_LOGOUT:
-			p->outmsg.size = sizeof(pvdnet_head) + 0;
-			break;
+		case NET_SDVR_MD5ID_GET:   p->outmsg.size = sizeof(pvdnet_head) + 4; break;
+		case NET_SDVR_LOGIN:       p->outmsg.size = sizeof(pvdnet_head) + sizeof(login_data); break;
+		case NET_SDVR_GET_DVRTYPE: p->outmsg.size = sizeof(pvdnet_head) + sizeof(dvr_info); break;
+		case NET_SDVR_SHAKEHAND:   p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data); break;
+		case NET_SDVR_KEYFRAME:
+		case NET_SDVR_REAL_STOP:
+		case NET_SDVR_LOGOUT:      p->outmsg.size = sizeof(pvdnet_head) + 0; break;
 		case NET_SDVR_REAL_PLAY:
 			phead->uLen = 0;
 			phead->uResult = 1;
@@ -276,7 +272,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			p->outmsg.done = &PVDProxyRecvDone;
 			p->outtick = GetTickCount();
-			result = pvd->request(pvd, ANotify_InQueueFront|ARequest_Output, &p->outmsg);
+			result = pvd->request(pvd, ANotify_InQueueBack|ARequest_Output, &p->outmsg);
 			if (result < 0) {
 				InterlockedExchange(&p->reqcount, 0);
 				return result;
@@ -300,11 +296,9 @@ static long PVDProxyDispatch(PVDProxy *p)
 		}
 
 		SlicePop(&p->outbuf, p->inmsg.size);
-		if (SliceResLen(&p->outbuf) < p->outmsg.size) {
-			result = SliceResize(&p->outbuf, max(p->outmsg.size,2048));
-			if (result < 0)
-				break;
-		}
+		result = SliceReserve(&p->outbuf, p->outmsg.size);
+		if (result < 0)
+			break;
 
 		p->inmsg.data = SliceResPtr(&p->outbuf);
 		p->inmsg.size = PVDCmdEncode(userid, p->inmsg.data, p->inmsg.type&~AMsgType_Custom, p->outmsg.size-sizeof(pvdnet_head));
@@ -314,17 +308,13 @@ static long PVDProxyDispatch(PVDProxy *p)
 		phead->uResult = 1;
 		switch (phead->uCmd)
 		{
-		case NET_SDVR_MD5ID_GET:
-			p->inmsg.data[sizeof(pvdnet_head)] = 0x50;
-			break;
-		case NET_SDVR_LOGIN:
-			memcpy(p->inmsg.data+sizeof(pvdnet_head), &login_data, sizeof(login_data));
-			break;
-		case NET_SDVR_SHAKEHAND:
-			memcpy(p->inmsg.data+sizeof(pvdnet_head), &heart_data, sizeof(heart_data));
-			break;
+		case NET_SDVR_MD5ID_GET:   p->inmsg.data[sizeof(pvdnet_head)] = 0x50; break;
+		case NET_SDVR_LOGIN:       memcpy(phead+1, &login_data, sizeof(login_data)); break;
+		case NET_SDVR_GET_DVRTYPE: memcpy(phead+1, &dvr_info, sizeof(dvr_info)); break;
+		case NET_SDVR_SHAKEHAND:   memcpy(phead+1, &heart_data, sizeof(heart_data)); break;
+		case NET_SDVR_KEYFRAME:
+		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:
-			p->inmsg.data[sizeof(pvdnet_head)];
 			break;
 		default:
 			assert(FALSE);
@@ -354,16 +344,12 @@ static long PVDProxyOpen(AObject *object, AMessage *msg)
 static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDProxy *p = to_proxy(object);
-	long result;
 	if (reqix != ARequest_Input)
 		return -ENOSYS;
 
-	result = max(msg->size, 2048);
-	if (SliceResLen(&p->outbuf) < result) {
-		result = SliceResize(&p->outbuf, SliceCurLen(&p->outbuf)+result);
-		if (result < 0)
-			return result;
-	}
+	long result = SliceReserve(&p->outbuf, max(msg->size,2048));
+	if (result < 0)
+		return result;
 
 	if (msg->data == NULL) {
 		AMsgInit(msg, AMsgType_Unknown, SliceResPtr(&p->outbuf), SliceResLen(&p->outbuf));
@@ -386,10 +372,15 @@ static DWORD WINAPI PVDSendProc(void *p)
 	HeartMsg *sm = (HeartMsg*)p;
 	long result;
 	do {
-		::Sleep(3000);
-		sm->msg.type = AMsgType_Custom|NET_SDVR_SHAKEHAND;
+		if (sm->msg.type == AMsgType_Option) {
+			result = NET_SDVR_GET_DVRTYPE;
+		} else {
+			::Sleep(3000);
+			result = NET_SDVR_SHAKEHAND;
+		}
+		sm->msg.type = AMsgType_Custom|result;
 		sm->msg.data = (char*)&sm->heart;
-		sm->msg.size = PVDCmdEncode(0, &sm->heart, NET_SDVR_SHAKEHAND, 0);
+		sm->msg.size = PVDCmdEncode(0, &sm->heart, result, 0);
 		sm->msg.done = &PVDSendDone;
 		result = sm->object->request(sm->object, ARequest_Input, &sm->msg);
 	} while (result > 0);
@@ -413,8 +404,17 @@ static long PVDRecvDone(AMessage *msg, long result)
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
 	if (result > 0) {
 		pvdnet_head *phead = (pvdnet_head*)msg->data;
-		if ((phead->uFlag == NET_CMD_HEAD_FLAG) && (phead->uCmd == NET_SDVR_SHAKEHAND))
-			memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
+		if (phead->uFlag == NET_CMD_HEAD_FLAG) {
+			switch (phead->uCmd)
+			{
+			case NET_SDVR_SHAKEHAND:
+				memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
+				break;
+			case NET_SDVR_GET_DVRTYPE:
+				memcpy(&dvr_info, phead+1, min(sizeof(dvr_info),msg->size-sizeof(pvdnet_head)));
+				break;
+			}
+		}
 		/*MSHEAD *mshead = (MSHEAD*)msg->data;
 		STREAM_HEADER *shead = (STREAM_HEADER*)msg->data;
 		if ((phead->uFlag == NET_CMD_HEAD_FLAG)
