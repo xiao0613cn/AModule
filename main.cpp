@@ -10,7 +10,7 @@
 static const char *pvd_path =
 	"PVDClient: PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.20.37,"
+	"		address: 192.168.60.161,"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -158,6 +158,7 @@ void ResetOption(AOption *option)
 
 extern AModule SyncControlModule;
 extern AModule TCPModule;
+extern AModule AsyncTcpModule;
 extern AModule PVDClientModule;
 extern AModule PVDRTModule;
 extern AModule TCPServerModule;
@@ -232,8 +233,8 @@ _retry:
 
 static const char *proxy_path =
 	"tcp_server: tcp_server {"
-	"	port: 8080,"
-	"	io: tcp,"
+	"	port: 8101,"
+	"	io: async_tcp,"
 	"	HTTPProxy {"
 	"		io: tcp {"
 	"			address: 127.0.0.1,"
@@ -279,6 +280,7 @@ int _tmain(int argc, _TCHAR* argv[])
 {
 	AModuleRegister(&TCPModule);
 	AModuleRegister(&TCPServerModule);
+	AModuleRegister(&AsyncTcpModule);
 	AModuleRegister(&SyncControlModule);
 	AModuleRegister(&PVDClientModule);
 	AModuleRegister(&PVDRTModule);
@@ -300,6 +302,12 @@ int _tmain(int argc, _TCHAR* argv[])
 			path = pvd_path;
 		else if (_stricmp(str,"tcp_server") == 0)
 			path = proxy_path;
+		else if (str[0] == 'q') {
+#ifdef _DEBUG
+			_CrtDumpMemoryLeaks();
+#endif
+			return 0;
+		}
 		else
 			continue;
 		break;

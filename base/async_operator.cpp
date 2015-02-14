@@ -157,6 +157,8 @@ int async_operator_post(async_operator *asop, async_thread *at, DWORD tick)
 		}
 
 		if (list_empty(&asop->ao_entry)) {
+			if (list_empty(&at->ao_waiting))
+				tick = 0;
 			list_add_tail(&asop->ao_entry, &at->ao_waiting);
 		}
 		else if (list_is_last(&at->ao_waiting, &asop->ao_entry)) {

@@ -175,6 +175,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\io\AModule_AsyncTcp.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\proxy\AModule_HttpProxy.cpp"
 				>
 			</File>

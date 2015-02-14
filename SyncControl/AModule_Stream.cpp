@@ -200,8 +200,14 @@ static long SyncControlOpenDone(AMessage *msg, long result)
 	msg = req->from;
 
 	result = SyncControlOpenStatus(req, result);
-	if (result != 0)
-		result = msg->done(msg, result);
+	if (result != 0) {
+		if (msg->done != NULL) {
+			result = msg->done(msg, result);
+		} else {
+			msg->entry.prev = (struct list_head*)result;
+			msg->entry.next = LIST_POISON1;
+		}
+	}
 	return result;
 }
 
@@ -227,10 +233,17 @@ static long SyncControlOpen(AObject *object, AMessage *msg)
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
 	req->msg.done = &SyncControlOpenDone;
 	req->from = msg;
+	if (msg->done == NULL)
+		msg->entry.next = NULL;
 
 	result = sc->stream->open(sc->stream, &req->msg);
 	if (result != 0)
 		result = SyncControlOpenStatus(req, result);
+	if ((result == 0) && (msg->done == NULL)) {
+		while (msg->entry.next == NULL)
+			Sleep(10);
+		result = (long)msg->entry.prev;
+	}
 	return result;
 }
 

@@ -3,17 +3,21 @@
 #include "../base/SliceBuffer.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
+#include "../base/async_operator.h"
 
 static AObject *pvd = NULL;
 static STRUCT_SDVR_DEVICE_EX login_data;
 static STRUCT_SDVR_ALARM_EX heart_data;
 static STRUCT_SDVR_INFO dvr_info;
+static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 DWORD  userid;
 static AObject *rt = NULL;
+static async_thread timer_thread;
 
 struct HeartMsg {
 	AMessage msg;
 	AObject *object;
+	async_operator timer;
 	union {
 	pvdnet_head heart;
 	struct {
@@ -39,6 +43,7 @@ struct PVDProxy {
 	AMessage     *outfrom;
 	srsw_queue<AMessage, 64> frame_queue;
 	srsw_buffer   frame_buffer;
+	async_operator timer;
 };
 #define to_proxy(obj) container_of(obj, PVDProxy, object)
 #define from_inmsg(msg) container_of(msg, PVDProxy, inmsg)
@@ -168,13 +173,15 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 static DWORD WINAPI PVDProxySendStream(void *param)
 {
 	PVDProxy *p = (PVDProxy*)param;
-	long result = 1;
+	long result;
 	do {
-		if (p->reqcount == -1)
+		if (p->reqcount == -1) {
+			result = -1;
 			break;
+		}
 		if (p->frame_queue.size() == 0) {
-			Sleep(10);
-			continue;
+			async_operator_timewait(&p->timer, &timer_thread, 10);
+			return 0;
 		}
 
 		AMessage &msg = p->frame_queue.front();
@@ -196,12 +203,24 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
-		QueueUserWorkItem(PVDProxySendStream, p, 0);
+		p->frame_buffer.decommit((unsigned char*)p->inmsg.data, p->inmsg.size);
+		p->frame_queue.get_front();
+		QueueUserWorkItem(&PVDProxySendStream, p, 0);
 	} else {
 		p->reqcount = -1;
 		AObjectRelease(&p->object);
 	}
 	return result;
+}
+static void PVDProxyWaitStream(async_operator *asop, int result)
+{
+	PVDProxy *p = container_of(asop, PVDProxy, timer);
+	if (result >= 0) {
+		QueueUserWorkItem(&PVDProxySendStream, p, 0);
+	} else {
+		p->reqcount = -1;
+		AObjectRelease(&p->object);
+	}
 }
 static long PVDProxyRTStream(AMessage *msg, long result)
 {
@@ -216,11 +235,12 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 		p->outmsg.done = &PVDProxyRecvStream;
 
 		AObjectAddRef(&p->object);
-		result = rt->request(rt, ANotify_InQueueFront|0, &p->outmsg);
+		result = rt->request(rt, ANotify_InQueueBack|0, &p->outmsg);
 		if (result < 0)
 			AObjectRelease(&p->object);
 		else {
 			p->inmsg.done = &PVDProxyStreamDone;
+			p->timer.callback = &PVDProxyWaitStream;
 			AObjectAddRef(&p->object);
 			QueueUserWorkItem(&PVDProxySendStream, p, 0);
 			result = -1;
@@ -250,11 +270,14 @@ static long PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_MD5ID_GET:   p->outmsg.size = sizeof(pvdnet_head) + 4; break;
 		case NET_SDVR_LOGIN:       p->outmsg.size = sizeof(pvdnet_head) + sizeof(login_data); break;
 		case NET_SDVR_GET_DVRTYPE: p->outmsg.size = sizeof(pvdnet_head) + sizeof(dvr_info); break;
+		case NET_SDVR_SUPPORT_FUNC:p->outmsg.size = sizeof(pvdnet_head) + sizeof(supp_func); break;
 		case NET_SDVR_SHAKEHAND:   p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:      p->outmsg.size = sizeof(pvdnet_head) + 0; break;
 		case NET_SDVR_REAL_PLAY:
+		case NETCOM_VOD_RECFILE_REQ:
+		case NETCOM_VOD_RECFILE_REQ_EX:
 			phead->uLen = 0;
 			phead->uResult = 1;
 			p->inmsg.size = sizeof(pvdnet_head) + 0;
@@ -311,6 +334,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_MD5ID_GET:   p->inmsg.data[sizeof(pvdnet_head)] = 0x50; break;
 		case NET_SDVR_LOGIN:       memcpy(phead+1, &login_data, sizeof(login_data)); break;
 		case NET_SDVR_GET_DVRTYPE: memcpy(phead+1, &dvr_info, sizeof(dvr_info)); break;
+		case NET_SDVR_SUPPORT_FUNC:memcpy(phead+1, &supp_func, sizeof(supp_func)); break;
 		case NET_SDVR_SHAKEHAND:   memcpy(phead+1, &heart_data, sizeof(heart_data)); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
@@ -366,7 +390,6 @@ static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static long PVDSendDone(AMessage *msg, long result);
 static DWORD WINAPI PVDSendProc(void *p)
 {
 	HeartMsg *sm = (HeartMsg*)p;
@@ -374,14 +397,18 @@ static DWORD WINAPI PVDSendProc(void *p)
 	do {
 		if (sm->msg.type == AMsgType_Option) {
 			result = NET_SDVR_GET_DVRTYPE;
-		} else {
-			::Sleep(3000);
+		} else if (sm->msg.type == (AMsgType_Custom|NET_SDVR_GET_DVRTYPE)) {
+			result = NET_SDVR_SUPPORT_FUNC;
+		} else if (sm->msg.type != (AMsgType_Custom|NET_SDVR_SHAKEHAND)) {
 			result = NET_SDVR_SHAKEHAND;
+		} else {
+			sm->msg.type = 0;
+			async_operator_timewait(&sm->timer, &timer_thread, 3000);
+			return 0;
 		}
 		sm->msg.type = AMsgType_Custom|result;
 		sm->msg.data = (char*)&sm->heart;
 		sm->msg.size = PVDCmdEncode(0, &sm->heart, result, 0);
-		sm->msg.done = &PVDSendDone;
 		result = sm->object->request(sm->object, ARequest_Input, &sm->msg);
 	} while (result > 0);
 	if (result != 0) {
@@ -399,6 +426,15 @@ static long PVDSendDone(AMessage *msg, long result)
 	}
 	return result;
 }
+static void PVDWaitHeart(async_operator *asop, int result)
+{
+	HeartMsg *sm = container_of(asop, HeartMsg, timer);
+	if (result >= 0) {
+		QueueUserWorkItem(&PVDSendProc, sm, 0);
+	} else {
+		HeartMsgFree(sm, result);
+	}
+}
 static long PVDRecvDone(AMessage *msg, long result)
 {
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
@@ -408,10 +444,18 @@ static long PVDRecvDone(AMessage *msg, long result)
 			switch (phead->uCmd)
 			{
 			case NET_SDVR_SHAKEHAND:
+#if 1
 				memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
+#else
+				memset(heart_data.wMotion, 1, sizeof(heart_data.wMotion));
+				memset(heart_data.wAlarm, 1, sizeof(heart_data.wAlarm));
+#endif
 				break;
 			case NET_SDVR_GET_DVRTYPE:
 				memcpy(&dvr_info, phead+1, min(sizeof(dvr_info),msg->size-sizeof(pvdnet_head)));
+				break;
+			case NET_SDVR_SUPPORT_FUNC:
+				memcpy(&supp_func, phead+1, min(sizeof(supp_func),msg->size-sizeof(pvdnet_head)));
 				break;
 			}
 		}
@@ -441,6 +485,8 @@ static DWORD WINAPI PVDRecvProc(void *p)
 
 long PVDProxyInit(AOption *option)
 {
+	async_thread_begin(&timer_thread, NULL);
+
 	long result = -EFAULT;
 	AOption opt;
 	AOptionInit(&opt, NULL);
@@ -475,6 +521,8 @@ long PVDProxyInit(AOption *option)
 			pvd->getopt(pvd, &opt);
 			userid = atol(opt.value);
 
+			sm->msg.done = &PVDSendDone;
+			sm->timer.callback = &PVDWaitHeart;
 			QueueUserWorkItem(&PVDSendProc, sm, 0);
 		}
 	}
@@ -518,15 +566,19 @@ long PVDProxyInit(AOption *option)
 static void PVDProxyExit(void)
 {
 	if (pvd != NULL) {
+		pvd->cancel(pvd, ARequest_MsgLoop|ARequest_Output, NULL);
 		pvd->close(pvd, NULL);
 		AObjectRelease(pvd);
 		pvd = NULL;
 	}
 	if (rt != NULL) {
+		rt->cancel(rt, ARequest_MsgLoop|0, NULL);
 		rt->close(rt, NULL);
 		AObjectRelease(rt);
 		rt = NULL;
 	}
+
+	async_thread_end(&timer_thread);
 }
 
 static long PVDProxyProbe(AObject *object, AMessage *msg)
