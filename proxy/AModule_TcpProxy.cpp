@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "../io/iocp_util.h"
+#include "../base/async_operator.h"
 
 
 struct TCPServer {
@@ -22,6 +23,8 @@ struct TCPClient {
 	AObject   *proxy;
 	long       probe_type;
 	long       probe_size;
+	async_operator bridge_work;
+	async_operator proxy_work;
 	AMessage   inmsg;
 	AMessage   outmsg;
 	char       indata[2048];
@@ -98,6 +101,15 @@ static long TCPClientSendDone(AMessage *msg, long result)
 		AObjectRelease(client->client);
 	return result;
 }
+static void TCPBridgeProcess(async_operator *asop, int result)
+{
+	TCPClient *client = container_of(asop, TCPClient, bridge_work);
+	if (result >= 0) {
+		result = TCPClientSendDone(&client->outmsg, 1);
+	} else {
+		AObjectRelease(client->client);
+	}
+}
 static DWORD WINAPI TCPBridgeProcess(void *p)
 {
 	TCPClient *client = (TCPClient*)p;
@@ -160,6 +172,8 @@ static long TCPBridgeOpenDone(AMessage *msg, long result)
 	client->client->release = TCPBridgeRelease;
 	AObjectAddRef(client->client);
 	QueueUserWorkItem(TCPBridgeProcess, client, 0);
+	//client->bridge_work.callback = &TCPBridgeProcess;
+	//async_operator_timewait(&client->bridge_work, NULL, 0);
 
 	AMsgInit(msg, AMsgType_Custom|client->probe_type, client->indata, client->probe_size);
 	msg->done = &TCPBridgeSendDone;
@@ -198,11 +212,21 @@ static DWORD WINAPI TCPProxyProcess(void *p)
 	}
 	return result;
 }
+static void TCPProxyProcess(async_operator *asop, int result)
+{
+	TCPClient *client = container_of(asop, TCPClient, proxy_work);
+	if (result >= 0)
+		TCPProxyProcess(client);
+	else
+		TCPProxyRelease(&client->inmsg, result);
+}
 static long TCPProxySendDone(AMessage *msg, long result)
 {
 	TCPClient *client = from_inmsg(msg);
 	if (result > 0) {
 		QueueUserWorkItem(TCPProxyProcess, client, 0);
+		//client->proxy_work.callback = &TCPProxyProcess;
+		//async_operator_timewait(&client->proxy_work, NULL, 0);
 	} else {
 		result = TCPProxyRelease(&client->inmsg, result);
 	}
@@ -319,6 +343,15 @@ static DWORD WINAPI TCPClientProcess(void *p)
 	return result;
 }
 
+static void TCPClientProcess(async_operator *asop, int result)
+{
+	TCPClient *client = container_of(asop, TCPClient, proxy_work);
+	if (result >= 0) {
+		TCPClientProcess(client);
+	} else {
+		TCPClientOpenDone(&client->inmsg, result);
+	}
+}
 static DWORD WINAPI TCPServerProcess(void *p)
 {
 	TCPServer *server = to_server(p);
@@ -349,6 +382,8 @@ static DWORD WINAPI TCPServerProcess(void *p)
 		client->client = NULL;
 		client->proxy = NULL;
 		QueueUserWorkItem(&TCPClientProcess, client, 0);
+		//client->proxy_work.callback = &TCPClientProcess;
+		//async_operator_timewait(&client->proxy_work, NULL, 0);
 	} while (1);
 	TRACE("%p: quit.\n", &server->object);
 	AObjectRelease(&server->object);

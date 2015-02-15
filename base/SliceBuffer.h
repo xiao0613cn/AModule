@@ -101,7 +101,8 @@ static inline int SliceCapacity(SliceBuffer *sb) {
 	return sb->siz - sb->bgn;
 }
 
-static inline int SliceResize(SliceBuffer *sb, int len) {
+static inline int SliceResize(SliceBuffer *sb, int len, int slice) {
+	len = (len/slice+1)*slice;
 	if (len <= sb->siz) {
 		if (sb->bgn == 0)
 			return 0;
@@ -131,13 +132,12 @@ static inline int SliceResize(SliceBuffer *sb, int len) {
 	return 1;
 }
 
-static inline int SliceReserve(SliceBuffer *sb, int res_len) {
+static inline int SliceReserve(SliceBuffer *sb, int res_len, int slice) {
 	if (SliceResLen(sb) >= res_len)
 		return 0;
 
 	res_len += SliceCurLen(sb);
-	res_len = (res_len/2048+1)*2048;
-	return SliceResize(sb, res_len);
+	return SliceResize(sb, res_len, slice);
 }
 
 static inline void SliceFree(SliceBuffer *sb) {

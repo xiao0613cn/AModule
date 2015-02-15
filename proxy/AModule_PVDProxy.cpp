@@ -44,7 +44,7 @@ struct PVDProxy {
 	DWORD       outtick;
 	long volatile reqcount;
 	AMessage     *outfrom;
-	srsw_queue<AMessage, 64> frame_queue;
+	srsw_queue<AMessage, 128> frame_queue;
 	srsw_buffer   frame_buffer;
 	async_operator timer;
 };
@@ -123,7 +123,7 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
-	if (SliceReserve(&p->outbuf, p->outmsg.size) < 0)
+	if (SliceReserve(&p->outbuf, p->outmsg.size, 2048) < 0)
 		p->outmsg.size = 0;
 	if (p->outmsg.size != 0) {
 		if (p->outmsg.data == NULL) {
@@ -219,7 +219,7 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
 		SliceReset(&p->outbuf);
-		SliceResize(&p->outbuf, 2048*1024);
+		SliceResize(&p->outbuf, 2048*1024, 8*1024);
 		p->frame_queue.reset();
 		p->frame_buffer.reset((unsigned char*)p->outbuf.buf, p->outbuf.siz);
 
@@ -311,7 +311,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 		}
 
 		SlicePop(&p->outbuf, p->inmsg.size);
-		result = SliceReserve(&p->outbuf, p->outmsg.size);
+		result = SliceReserve(&p->outbuf, p->outmsg.size, 2048);
 		if (result < 0)
 			break;
 
@@ -363,7 +363,7 @@ static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 	if (reqix != ARequest_Input)
 		return -ENOSYS;
 
-	long result = SliceReserve(&p->outbuf, max(msg->size,2048));
+	long result = SliceReserve(&p->outbuf, max(msg->size,1024), 2048);
 	if (result < 0)
 		return result;
 

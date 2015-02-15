@@ -109,7 +109,7 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 
 	if ((result == 0) || (result > rt->outmsg.size)) {
 		if (max(result,8*1024) > SliceCapacity(&rt->outbuf)) {
-			long error = SliceResize(&rt->outbuf, ((result/4096)+2)*4096);
+			long error = SliceResize(&rt->outbuf, result, 8*1024);
 			if (error < 0)
 				return error;
 			else if (error > 0)
@@ -147,7 +147,7 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 		{
 		case pvdnet_connecting:
 			SliceReset(&rt->outbuf);
-			if (SliceResize(&rt->outbuf, 64*1024) < 0) {
+			if (SliceResize(&rt->outbuf, 64*1024, 8*1024) < 0) {
 				result = -ENOMEM;
 				break;
 			}

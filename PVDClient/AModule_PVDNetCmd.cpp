@@ -13,6 +13,7 @@ struct PVDClient {
 	PVDStatus   status;
 	DWORD       userid;
 	BYTE        md5id;
+	long        last_error;
 	STRUCT_SDVR_DEVICE_EX device2;
 
 	AMessage    outmsg;
@@ -67,7 +68,7 @@ extern long PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg)
 
 	if ((result == 0) || (result > outmsg->size)) {
 		if (max(result,1024) > SliceCapacity(outbuf)) {
-			if (SliceResize(outbuf, ((result/2048)+1)*2048) < 0)
+			if (SliceResize(outbuf, result, 2048) < 0)
 				return -ENOMEM;
 			outmsg->data = SliceCurPtr(outbuf);
 		}
@@ -154,7 +155,7 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 		case pvdnet_connecting:
 			pvd->userid = 0;
 			SliceReset(&pvd->outbuf);
-			if (SliceResize(&pvd->outbuf, 8*1024) < 0) {
+			if (SliceResize(&pvd->outbuf, 8*1024, 2048) < 0) {
 				result = -ENOMEM;
 			} else {
 				PVDDoInput(pvd, pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
@@ -228,16 +229,18 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 				pvd->status = pvdnet_con_devinfo;
 			else
 				pvd->status = pvdnet_con_devinfox;
+			pvd->last_error = result;
 			return result;
 
 		case pvdnet_closing:
+			pvd->last_error = result;
 			result = PVDDoClose(pvd, pvdnet_disconnected);
 			if (result == 0)
 				break;
 
 		case pvdnet_disconnected:
 			pvd->status = pvdnet_invalid;
-			return -EFAULT;
+			return pvd->last_error;
 
 		default:
 			assert(FALSE);
@@ -401,13 +404,14 @@ static long PVDCloseStatus(PVDClient *pvd, long result)
 				AMsgCopy(pvd->outfrom, AMsgType_Custom|phead->uCmd, pvd->outmsg.data, pvd->outmsg.size);
 			}
 		case pvdnet_closing:
+			pvd->last_error = result;
 			result = PVDDoClose(pvd, pvdnet_disconnected);
 			if (result == 0)
 				break;
 
 		case pvdnet_disconnected:
 			pvd->status = pvdnet_invalid;
-			return (pvd->outfrom->type&AMsgType_Custom) ? result : -EFAULT;
+			return pvd->last_error;
 
 		default:
 			assert(FALSE);
@@ -442,7 +446,7 @@ static long PVDClose(AObject *object, AMessage *msg)
 	if (pvd->status < pvdnet_con_devinfo) {
 		result = -ENOENT;
 	} else {
-		SliceResize(&pvd->outbuf, 1024);
+		SliceResize(&pvd->outbuf, 1024, 2048);
 		PVDDoInput(pvd, pvdnet_syn_logout, NET_SDVR_LOGOUT, 0);
 		result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
 	}
