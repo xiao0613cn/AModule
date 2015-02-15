@@ -43,11 +43,11 @@ int async_operator_signal(async_operator *asop, async_thread *at);
 
 //////////////////////////////////////////////////////////////////////////
 struct sysio_operator {
-	void   *userdata;
-	void  (*callback)(sysio_operator *sysop, int result);
-
 	// private
 	OVERLAPPED ovlp;
+
+	void   *userdata;
+	void  (*callback)(sysio_operator *sysop, int result);
 };
 
 int sysio_bind(async_thread *at, HANDLE file);

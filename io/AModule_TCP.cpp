@@ -132,6 +132,7 @@ static long TCPClose(AObject *object, AMessage *msg)
 	if (msg == NULL) {
 		if (tcp->sock != INVALID_SOCKET) {
 			shutdown(tcp->sock, SD_BOTH);
+			CancelIoEx((HANDLE)tcp->sock, NULL);
 			return 1;
 		}
 		return -ENOENT;

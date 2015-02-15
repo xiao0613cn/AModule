@@ -152,6 +152,7 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 		switch (pvd->status)
 		{
 		case pvdnet_connecting:
+			pvd->userid = 0;
 			SliceReset(&pvd->outbuf);
 			if (SliceResize(&pvd->outbuf, 8*1024) < 0) {
 				result = -ENOMEM;

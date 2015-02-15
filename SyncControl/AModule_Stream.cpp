@@ -216,8 +216,12 @@ static long SyncControlOpen(AObject *object, AMessage *msg)
 	SyncControl *sc = to_sc(object);
 
 	long result = InterlockedCompareExchange((long volatile*)&sc->status, stream_opening, stream_invalid);
-	if (result != stream_invalid)
-		return -EBUSY;
+	if (result != stream_invalid) {
+		if (result == stream_closed)
+			result = InterlockedCompareExchange((long volatile*)&sc->status, stream_opening, stream_closed);
+		if (result != stream_closed)
+			return -EBUSY;
+	}
 
 	SyncRequest *req = SyncRequestGet(sc, 0);
 	if (req == NULL) {

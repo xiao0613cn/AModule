@@ -12,16 +12,18 @@ static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 DWORD  userid;
 static AObject *rt = NULL;
-static async_thread timer_thread;
+static async_thread timer_thread[3];
 
 struct HeartMsg {
 	AMessage msg;
 	AObject *object;
+	AOption *option;
 	async_operator timer;
 	union {
 	pvdnet_head heart;
 	struct {
 	long        reqix;
+	long        threadix;
 	};
 	};
 };
@@ -29,6 +31,7 @@ static void HeartMsgFree(HeartMsg *sm, long result)
 {
 	TRACE("%p: result = %d.\n", sm->object, result);
 	release_s(sm->object, AObjectRelease, NULL);
+	release_s(sm->option, AOptionRelease, NULL);
 	free(sm);
 }
 
@@ -170,18 +173,18 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 	}
 	return result;
 }
-static DWORD WINAPI PVDProxySendStream(void *param)
+static void PVDProxySendStream(async_operator *asop, int result)
 {
-	PVDProxy *p = (PVDProxy*)param;
-	long result;
+	PVDProxy *p = container_of(asop, PVDProxy, timer);
+	if (result >= 0)
 	do {
 		if (p->reqcount == -1) {
 			result = -1;
 			break;
 		}
 		if (p->frame_queue.size() == 0) {
-			async_operator_timewait(&p->timer, &timer_thread, 10);
-			return 0;
+			async_operator_timewait(&p->timer, &timer_thread[0], 10);
+			return;
 		}
 
 		AMessage &msg = p->frame_queue.front();
@@ -197,7 +200,6 @@ static DWORD WINAPI PVDProxySendStream(void *param)
 		p->reqcount = -1;
 		AObjectRelease(&p->object);
 	}
-	return result;
 }
 static long PVDProxyStreamDone(AMessage *msg, long result)
 {
@@ -205,22 +207,12 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 	if (result > 0) {
 		p->frame_buffer.decommit((unsigned char*)p->inmsg.data, p->inmsg.size);
 		p->frame_queue.get_front();
-		QueueUserWorkItem(&PVDProxySendStream, p, 0);
+		PVDProxySendStream(&p->timer, 1);
 	} else {
 		p->reqcount = -1;
 		AObjectRelease(&p->object);
 	}
 	return result;
-}
-static void PVDProxyWaitStream(async_operator *asop, int result)
-{
-	PVDProxy *p = container_of(asop, PVDProxy, timer);
-	if (result >= 0) {
-		QueueUserWorkItem(&PVDProxySendStream, p, 0);
-	} else {
-		p->reqcount = -1;
-		AObjectRelease(&p->object);
-	}
 }
 static long PVDProxyRTStream(AMessage *msg, long result)
 {
@@ -240,9 +232,9 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 			AObjectRelease(&p->object);
 		else {
 			p->inmsg.done = &PVDProxyStreamDone;
-			p->timer.callback = &PVDProxyWaitStream;
+			p->timer.callback = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
-			QueueUserWorkItem(&PVDProxySendStream, p, 0);
+			async_operator_timewait(&p->timer, &timer_thread[0], 0);
 			result = -1;
 		}
 	}
@@ -390,10 +382,13 @@ static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static DWORD WINAPI PVDSendProc(void *p)
+static void PVDDoSend(async_operator *asop, int result)
 {
-	HeartMsg *sm = (HeartMsg*)p;
-	long result;
+	HeartMsg *sm = container_of(asop, HeartMsg, timer);
+	if ((result < 0) || (pvd == NULL)) {
+		HeartMsgFree(sm, result);
+		return;
+	}
 	do {
 		if (sm->msg.type == AMsgType_Option) {
 			result = NET_SDVR_GET_DVRTYPE;
@@ -403,89 +398,165 @@ static DWORD WINAPI PVDSendProc(void *p)
 			result = NET_SDVR_SHAKEHAND;
 		} else {
 			sm->msg.type = 0;
-			async_operator_timewait(&sm->timer, &timer_thread, 3000);
-			return 0;
+			async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+			return;
 		}
 		sm->msg.type = AMsgType_Custom|result;
 		sm->msg.data = (char*)&sm->heart;
 		sm->msg.size = PVDCmdEncode(0, &sm->heart, result, 0);
 		result = sm->object->request(sm->object, ARequest_Input, &sm->msg);
 	} while (result > 0);
-	if (result != 0) {
-		HeartMsgFree(sm, result);
+	if (result < 0) {
+		sm->msg.type = AMsgType_Option;
+		async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
 	}
-	return result;
 }
 static long PVDSendDone(AMessage *msg, long result)
 {
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
-	if (result > 0) {
-		QueueUserWorkItem(&PVDSendProc, sm, 0);
-	} else {
+	if (result < 0) {
+		sm->msg.type = AMsgType_Option;
+	}
+	async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+	return result;
+}
+static void PVDDoOpen(async_operator *asop, int result);
+static long PVDCloseDone(AMessage *msg, long result)
+{
+	HeartMsg *sm = container_of(msg, HeartMsg, msg);
+	if (pvd == NULL) {
 		HeartMsgFree(sm, result);
+	} else {
+		sm->timer.callback = &PVDDoOpen;
+		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 10*1000);
 	}
 	return result;
 }
-static void PVDWaitHeart(async_operator *asop, int result)
+static void PVDDoClose(HeartMsg *sm, long result)
 {
-	HeartMsg *sm = container_of(asop, HeartMsg, timer);
-	if (result >= 0) {
-		QueueUserWorkItem(&PVDSendProc, sm, 0);
-	} else {
-		HeartMsgFree(sm, result);
-	}
+	TRACE("%p: result = %d.\n", sm->object, result);
+	if ((sm->threadix == 1) && (rt != NULL))
+		rt->close(rt, NULL);
+
+	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	sm->msg.done = &PVDCloseDone;
+	result = sm->object->close(sm->object, &sm->msg);
+	if (result != 0)
+		PVDCloseDone(&sm->msg, result);
 }
 static long PVDRecvDone(AMessage *msg, long result)
 {
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
-	if (result > 0) {
-		pvdnet_head *phead = (pvdnet_head*)msg->data;
-		if (phead->uFlag == NET_CMD_HEAD_FLAG) {
-			switch (phead->uCmd)
-			{
-			case NET_SDVR_SHAKEHAND:
-#if 1
-				memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
-#else
-				memset(heart_data.wMotion, 1, sizeof(heart_data.wMotion));
-				memset(heart_data.wAlarm, 1, sizeof(heart_data.wAlarm));
-#endif
-				break;
-			case NET_SDVR_GET_DVRTYPE:
-				memcpy(&dvr_info, phead+1, min(sizeof(dvr_info),msg->size-sizeof(pvdnet_head)));
-				break;
-			case NET_SDVR_SUPPORT_FUNC:
-				memcpy(&supp_func, phead+1, min(sizeof(supp_func),msg->size-sizeof(pvdnet_head)));
-				break;
-			}
-		}
-		/*MSHEAD *mshead = (MSHEAD*)msg->data;
-		STREAM_HEADER *shead = (STREAM_HEADER*)msg->data;
-		if ((phead->uFlag == NET_CMD_HEAD_FLAG)
-		 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
-		 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
-			TRACE("result = %d.\n", result);*/
-		AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
-	} else {
-		HeartMsgFree(sm, result);
+	if (result < 0) {
+		PVDDoClose(sm, result);
+		return result;
 	}
+
+	pvdnet_head *phead = (pvdnet_head*)msg->data;
+	if (phead->uFlag == NET_CMD_HEAD_FLAG) {
+		switch (phead->uCmd)
+		{
+		case NET_SDVR_SHAKEHAND:
+#if 1
+			memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
+#else
+			memset(heart_data.wMotion, 1, sizeof(heart_data.wMotion));
+			memset(heart_data.wAlarm, 1, sizeof(heart_data.wAlarm));
+#endif
+			break;
+		case NET_SDVR_GET_DVRTYPE:
+			memcpy(&dvr_info, phead+1, min(sizeof(dvr_info),msg->size-sizeof(pvdnet_head)));
+			break;
+		case NET_SDVR_SUPPORT_FUNC:
+			memcpy(&supp_func, phead+1, min(sizeof(supp_func),msg->size-sizeof(pvdnet_head)));
+			break;
+		}
+	}
+	/*MSHEAD *mshead = (MSHEAD*)msg->data;
+	STREAM_HEADER *shead = (STREAM_HEADER*)msg->data;
+	if ((phead->uFlag == NET_CMD_HEAD_FLAG)
+	 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
+	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
+		TRACE("result = %d.\n", result);*/
+	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	return result;
 }
-static DWORD WINAPI PVDRecvProc(void *p)
+static void PVDDoRecv(async_operator *asop, int result)
 {
-	HeartMsg *sm = (HeartMsg*)p;
+	HeartMsg *sm = container_of(asop, HeartMsg, timer);
+	if ((result < 0) || (pvd == NULL)) {
+		HeartMsgFree(sm, result);
+		return;
+	}
+
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	sm->msg.done = &PVDRecvDone;
+	result = sm->object->request(sm->object, ARequest_MsgLoop|sm->reqix, &sm->msg);
+	if (result < 0) {
+		PVDDoClose(sm, result);
+	}
+}
 
-	long result = sm->object->request(sm->object, ARequest_MsgLoop|sm->reqix, &sm->msg);
-	if (result != 0)
-		HeartMsgFree(sm, result);
+static long PVDOpenDone(AMessage *msg, long result)
+{
+	HeartMsg *sm = container_of(msg, HeartMsg, msg);
+	if (result < 0) {
+		PVDDoClose(sm, result);
+		return result;
+	}
+
+	TRACE("%p: result = %d.\n", sm->object, result);
+	if (sm->threadix == 1) {
+		AOption opt;
+		AOptionInit(&opt, NULL);
+
+		strcpy_s(opt.name, "login_data");
+		opt.extend = &login_data;
+		sm->object->getopt(sm->object, &opt);
+
+		strcpy_s(opt.name, "session_id");
+		sm->object->getopt(sm->object, &opt);
+		userid = atol(opt.value);
+	}
+
+	sm->timer.callback = &PVDDoRecv;
+	async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
 	return result;
+}
+
+static void PVDDoOpen(async_operator *asop, int result)
+{
+	HeartMsg *sm = container_of(asop, HeartMsg, timer);
+	if ((result < 0) || (pvd == NULL)) {
+		HeartMsgFree(sm, result);
+		return;
+	}
+
+	if (sm->threadix == 2) {
+		AOption opt;
+		AOptionInit(&opt, NULL);
+
+		strcpy_s(opt.name, "version");
+		_ltoa_s(login_data.byDVRType, opt.value, 10);
+		sm->object->setopt(sm->object, &opt);
+
+		strcpy_s(opt.name, "session_id");
+		_ltoa_s(userid, opt.value, 10);
+		sm->object->setopt(sm->object, &opt);
+	}
+
+	AMsgInit(&sm->msg, AMsgType_Option, (char*)sm->option, sizeof(*sm->option));
+	sm->msg.done = &PVDOpenDone;
+
+	result = sm->object->open(sm->object, &sm->msg);
+	if (result != 0)
+		PVDOpenDone(&sm->msg, result);
 }
 
 long PVDProxyInit(AOption *option)
 {
-	async_thread_begin(&timer_thread, NULL);
+	for (int ix = 0; ix < _countof(timer_thread); ++ix)
+		async_thread_begin(&timer_thread[ix], NULL);
 
 	long result = -EFAULT;
 	AOption opt;
@@ -504,27 +575,12 @@ long PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = pvd; AObjectAddRef(pvd);
+		sm->option = NULL;
 
-		AMsgInit(&sm->msg, AMsgType_Option, (char*)option, sizeof(*option));
-		sm->msg.done = NULL;
-		result = sm->object->open(sm->object, &sm->msg);
-
-		TRACE("open(%s) result = %d.\n", opt.name, result);
-		if (result < 0) {
-			HeartMsgFree(sm, result);
-		} else {
-			strcpy_s(opt.name, "login_data");
-			opt.extend = &login_data;
-			pvd->getopt(pvd, &opt);
-
-			strcpy_s(opt.name, "session_id");
-			pvd->getopt(pvd, &opt);
-			userid = atol(opt.value);
-
-			sm->msg.done = &PVDSendDone;
-			sm->timer.callback = &PVDWaitHeart;
-			QueueUserWorkItem(&PVDSendProc, sm, 0);
-		}
+		sm->msg.type = AMsgType_Option;
+		sm->msg.done = &PVDSendDone;
+		sm->timer.callback = &PVDDoSend;
+		async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -533,12 +589,15 @@ long PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = pvd; AObjectAddRef(pvd);
+		sm->option = AOptionClone(option);
 		sm->reqix = ARequest_Output;
-		QueueUserWorkItem(&PVDRecvProc, sm, 0);
+		sm->threadix = 1;
+		sm->timer.callback = &PVDDoOpen;
+		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
 
 		strcpy_s(opt.name, "PVDRTStream");
 		opt.value[0] = '\0';
-		result = syncControl->create(&rt, pvd, &opt);
+		result = syncControl->create(&rt, NULL, &opt);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -547,18 +606,11 @@ long PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = rt; AObjectAddRef(rt);
-
-		AMsgInit(&sm->msg, AMsgType_Option, (char*)option, sizeof(*option));
-		sm->msg.done = NULL;
-		result = sm->object->open(sm->object, &sm->msg);
-
-		TRACE("open(%s) result = %d.\n", opt.name, result);
-		if (result < 0) {
-			HeartMsgFree(sm, result);
-		} else {
-			sm->reqix = 0;
-			QueueUserWorkItem(&PVDRecvProc, sm, 0);
-		}
+		sm->option = AOptionClone(option);
+		sm->reqix = 0;
+		sm->threadix = 2;
+		sm->timer.callback = &PVDDoOpen;
+		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 3*1000);
 	}
 	return result;
 }
@@ -578,7 +630,8 @@ static void PVDProxyExit(void)
 		rt = NULL;
 	}
 
-	async_thread_end(&timer_thread);
+	for (int ix = 0; ix < _countof(timer_thread); ++ix)
+		async_thread_end(&timer_thread[ix]);
 }
 
 static long PVDProxyProbe(AObject *object, AMessage *msg)

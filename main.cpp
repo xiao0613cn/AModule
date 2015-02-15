@@ -278,6 +278,7 @@ void test_proxy(AOption *option)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	async_thread_begin(NULL, NULL);
 	AModuleRegister(&TCPModule);
 	AModuleRegister(&TCPServerModule);
 	AModuleRegister(&AsyncTcpModule);
@@ -302,12 +303,8 @@ int _tmain(int argc, _TCHAR* argv[])
 			path = pvd_path;
 		else if (_stricmp(str,"tcp_server") == 0)
 			path = proxy_path;
-		else if (str[0] == 'q') {
-#ifdef _DEBUG
-			_CrtDumpMemoryLeaks();
-#endif
-			return 0;
-		}
+		else if (str[0] == 'q')
+			goto _return;
 		else
 			continue;
 		break;
@@ -320,10 +317,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		else
 			test_proxy(option);
 	}
-	AModuleExitAll();
 	release_s(option, AOptionRelease, NULL);
-
+_return:
+	AModuleExitAll();
 	gets_s(str);
+	async_thread_end(NULL);
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
 #endif

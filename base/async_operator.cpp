@@ -75,8 +75,33 @@ unsigned int __stdcall async_thread_run(void *p)
 
 
 //////////////////////////////////////////////////////////////////////////
+static async_thread work_thread[4];
+static int work_thread_begin(HANDLE iocp)
+{
+	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+		async_thread_begin(&work_thread[ix], iocp);
+		if (iocp == NULL)
+			iocp = work_thread[0].iocp;
+	}
+	return 0;
+}
+static int work_thread_end(void)
+{
+	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+		async_thread_abort(&work_thread[ix]);
+	}
+	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+		async_thread_end(&work_thread[ix]);
+	}
+	return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////
 int async_thread_begin(async_thread *at, HANDLE iocp)
 {
+	if (at == NULL)
+		return work_thread_begin(iocp);
+
 	if (at->thread != NULL)
 		return -1;
 
@@ -96,6 +121,9 @@ int async_thread_begin(async_thread *at, HANDLE iocp)
 
 int async_thread_end(async_thread *at)
 {
+	if (at == NULL)
+		return work_thread_end();
+
 	at->running = FALSE;
 	if (at->thread == NULL)
 		return 0;
@@ -134,6 +162,8 @@ int async_thread_abort(async_thread *at)
 int async_operator_post(async_operator *asop, async_thread *at, DWORD tick)
 {
 	OVERLAPPED *ovlp = NULL;
+	if (at == NULL)
+		at = work_thread;
 
 	asop->ao_tick = tick;
 	if (tick == 0) {
@@ -193,6 +223,9 @@ int async_operator_signal(async_operator *asop, async_thread *at)
 //////////////////////////////////////////////////////////////////////////
 int sysio_bind(async_thread *at, HANDLE file)
 {
+	if (at == NULL)
+		at = work_thread;
+
 	HANDLE iocp = CreateIoCompletionPort(file, at->iocp, iocp_key_sysio, 0);
 	assert(iocp == at->iocp);
 	return 0;

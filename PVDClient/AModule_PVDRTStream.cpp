@@ -195,6 +195,10 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 			}
 			assert(rt->status != pvdnet_ack_login);
 			if (rt->status == pvdnet_con_stream) {
+				pvdnet_head *phead = (pvdnet_head*)rt->outmsg.data;
+				if (phead->uResult == 0)
+					return -EFAULT;
+
 				SlicePop(&rt->outbuf, rt->outmsg.size);
 				rt->outmsg.data = NULL;
 				rt->outmsg.size = 0;
@@ -264,6 +268,20 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+static long PVDRTSetOption(AObject *object, AOption *option)
+{
+	PVDRTStream *rt = to_rt(object);
+	if (_stricmp(option->name, "version") == 0) {
+		rt->version = atol(option->value);
+		return 1;
+	}
+	if (_stricmp(option->name, "session_id") == 0) {
+		rt->userid = atol(option->value);
+		return 1;
+	}
+	return -ENOSYS;
+}
+
 static long PVDRTOutputStatus(PVDRTStream *rt)
 {
 	long result;
@@ -329,7 +347,7 @@ AModule PVDRTModule = {
 	1,
 
 	&PVDRTOpen,
-	NULL,
+	&PVDRTSetOption,
 	NULL,
 	&PVDRTRequest,
 	NULL,

@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "iocp_util.h"
+#include "../base/async_operator.h"
 
 
 struct AsyncTcp;
 struct AsyncOvlp {
-	OVERLAPPED  ovlp;
+	sysio_operator sysio;
 	AsyncTcp   *tcp;
 	AMessage   *msg;
 	WSABUF      buf;
@@ -35,15 +36,15 @@ static long AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 	extern AModule AsyncTcpModule;
 	AObjectInit(&tcp->object, &AsyncTcpModule);
 	tcp->sock = INVALID_SOCKET;
-	memset(&tcp->send_ovlp.ovlp, 0, sizeof(OVERLAPPED));
-	memset(&tcp->recv_ovlp.ovlp, 0, sizeof(OVERLAPPED));
+	memset(&tcp->send_ovlp, 0, sizeof(tcp->send_ovlp));
+	memset(&tcp->recv_ovlp, 0, sizeof(tcp->recv_ovlp));
 	tcp->send_ovlp.tcp = tcp;
 	tcp->recv_ovlp.tcp = tcp;
 
 	*object = &tcp->object;
 	return 1;
 }
-
+/*
 static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 {
 	AsyncOvlp *ovlp = container_of(op, AsyncOvlp, ovlp);
@@ -78,6 +79,46 @@ static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 	}
 	result = ovlp->msg->done(ovlp->msg, result);
 }
+*/
+static void AsyncTcpRequestDone(sysio_operator *sysop, int result)
+{
+	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
+	if (result <= 0) {
+		result = -EIO;
+	} else if (ovlp->msg->type & AMsgType_Custom) {
+		ovlp->buf.buf += result;
+		ovlp->buf.len -= result;
+
+		if (ovlp->buf.len == 0) {
+			result = ovlp->msg->size;
+		} else {
+			if (ovlp == &ovlp->tcp->send_ovlp)
+				result = iocp_send(ovlp->tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
+			else
+				result = iocp_recv(ovlp->tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
+			if (result == 0)
+				return;
+			result = -EIO;
+		}
+	} else {
+		ovlp->msg->size = result;
+	}
+	result = ovlp->msg->done(ovlp->msg, result);
+}
+
+static void AsyncTcpOpenDone(sysio_operator *sysop, int result)
+{
+	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
+	if (result >= 0)
+		result = iocp_is_connected(ovlp->tcp->sock);
+	if (result != 0)
+		result = -EIO;
+	else
+		result = 1;
+	ovlp->tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
+	ovlp->tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
+	ovlp->msg->done(ovlp->msg, result);
+}
 
 static long AsyncTcpOpen(AObject *object, AMessage *msg)
 {
@@ -88,8 +129,12 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 		tcp->sock = (SOCKET)msg->data;
-		if (tcp->sock != INVALID_SOCKET)
-			BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
+		if (tcp->sock != INVALID_SOCKET) {
+			//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
+			sysio_bind(NULL, (HANDLE)tcp->sock);
+			tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
+			tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
+		}
 		return 1;
 	}
 
@@ -120,10 +165,12 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 			return -EFAULT;
 		}
 	}
-	BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
+	//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
+	sysio_bind(NULL, (HANDLE)tcp->sock);
 
 	tcp->send_ovlp.msg = msg;
-	long result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.ovlp);
+	tcp->send_ovlp.sysio.callback = &AsyncTcpOpenDone;
+	long result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ovlp);
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result != 0) {
@@ -142,12 +189,12 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
-		result = iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.ovlp);
+		result = iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
 	} else if (reqix == ARequest_Output) {
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
-		result = iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.ovlp);
+		result = iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ovlp);
 	} else {
 		result = -ENOSYS;
 	}
