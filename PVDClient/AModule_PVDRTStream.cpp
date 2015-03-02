@@ -285,12 +285,19 @@ static long PVDRTSetOption(AObject *object, AOption *option)
 static long PVDRTOutputStatus(PVDRTStream *rt)
 {
 	long result;
+	long again = 0;
 	do {
 		SlicePush(&rt->outbuf, rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
 		if (result < 0) {
 			if (result != -EAGAIN)
 				break;
+
+			if (!again) {
+				TRACE("%p: unsupport format: %02x %02x %02x %02x.\n", rt,
+					rt->outmsg.data[0], rt->outmsg.data[1], rt->outmsg.data[2], rt->outmsg.data[3]);
+				again = 1;
+			}
 			SlicePop(&rt->outbuf, 1);
 			rt->outmsg.size = 0;
 			result = 1;
@@ -333,6 +340,8 @@ static long PVDRTRequest(AObject *object, long reqix, AMessage *msg)
 static long PVDRTClose(AObject *object, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
+	if (rt->io == NULL)
+		return -ENOSYS;
 	return rt->io->close(rt->io, msg);
 }
 

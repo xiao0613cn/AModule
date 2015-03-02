@@ -4,7 +4,8 @@
 #include "../io/iocp_util.h"
 
 enum iocp_key {
-	iocp_key_signal = 0,
+	iocp_key_unknown = 0,
+	iocp_key_signal,
 	iocp_key_sysio,
 };
 

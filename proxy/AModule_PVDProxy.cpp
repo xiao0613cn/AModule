@@ -71,7 +71,9 @@ static long PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 
 	extern AModule PVDProxyModule;
 	AObjectInit(&p->object, &PVDProxyModule);
-	p->client = parent; AObjectAddRef(parent);
+	p->client = parent;
+	if (parent != NULL)
+		AObjectAddRef(parent);
 	SliceInit(&p->outbuf);
 	p->reqcount = 0;
 
@@ -435,7 +437,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 static void PVDDoClose(HeartMsg *sm, long result)
 {
 	TRACE("%p: result = %d.\n", sm->object, result);
-	if ((sm->threadix == 1) && (rt != NULL))
+	if ((sm->reqix == ARequest_Output) && (rt != NULL))
 		rt->close(rt, NULL);
 
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
@@ -478,7 +480,7 @@ static long PVDRecvDone(AMessage *msg, long result)
 	 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
 	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
 		TRACE("result = %d.\n", result);*/
-	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
 	return result;
 }
 static void PVDDoRecv(async_operator *asop, int result)
@@ -491,9 +493,9 @@ static void PVDDoRecv(async_operator *asop, int result)
 
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	sm->msg.done = &PVDRecvDone;
-	result = sm->object->request(sm->object, ARequest_MsgLoop|sm->reqix, &sm->msg);
-	if (result < 0) {
-		PVDDoClose(sm, result);
+	result = sm->object->request(sm->object, sm->reqix, &sm->msg);
+	if (result != 0) {
+		PVDRecvDone(&sm->msg, result);
 	}
 }
 
@@ -506,7 +508,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 	}
 
 	TRACE("%p: result = %d.\n", sm->object, result);
-	if (sm->threadix == 1) {
+	if (sm->reqix == ARequest_Output) {
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
@@ -532,7 +534,7 @@ static void PVDDoOpen(async_operator *asop, int result)
 		return;
 	}
 
-	if (sm->threadix == 2) {
+	if (sm->reqix == 0) {
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
@@ -591,7 +593,7 @@ long PVDProxyInit(AOption *option)
 		sm->object = pvd; AObjectAddRef(pvd);
 		sm->option = AOptionClone(option);
 		sm->reqix = ARequest_Output;
-		sm->threadix = 1;
+		sm->threadix = min(1, _countof(timer_thread)-1);
 		sm->timer.callback = &PVDDoOpen;
 		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
 
@@ -608,7 +610,7 @@ long PVDProxyInit(AOption *option)
 		sm->object = rt; AObjectAddRef(rt);
 		sm->option = AOptionClone(option);
 		sm->reqix = 0;
-		sm->threadix = 2;
+		sm->threadix = min(2, _countof(timer_thread)-1);
 		sm->timer.callback = &PVDDoOpen;
 		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 3*1000);
 	}
