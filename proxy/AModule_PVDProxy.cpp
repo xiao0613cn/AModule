@@ -12,7 +12,6 @@ static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 DWORD  userid;
 static AObject *rt = NULL;
-static async_thread timer_thread[3];
 
 struct HeartMsg {
 	AMessage msg;
@@ -185,7 +184,7 @@ static void PVDProxySendStream(async_operator *asop, int result)
 			break;
 		}
 		if (p->frame_queue.size() == 0) {
-			async_operator_timewait(&p->timer, &timer_thread[0], 10);
+			async_operator_timewait(&p->timer, NULL, 10);
 			return;
 		}
 
@@ -236,7 +235,7 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.callback = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
-			async_operator_timewait(&p->timer, &timer_thread[0], 0);
+			async_operator_timewait(&p->timer, NULL, 0);
 			result = -1;
 		}
 	}
@@ -400,7 +399,7 @@ static void PVDDoSend(async_operator *asop, int result)
 			result = NET_SDVR_SHAKEHAND;
 		} else {
 			sm->msg.type = 0;
-			async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+			async_operator_timewait(&sm->timer, NULL, 3*1000);
 			return;
 		}
 		sm->msg.type = AMsgType_Custom|result;
@@ -410,7 +409,7 @@ static void PVDDoSend(async_operator *asop, int result)
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
-		async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+		async_operator_timewait(&sm->timer, NULL, 3*1000);
 	}
 }
 static long PVDSendDone(AMessage *msg, long result)
@@ -419,7 +418,7 @@ static long PVDSendDone(AMessage *msg, long result)
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
 	}
-	async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+	async_operator_timewait(&sm->timer, NULL, 3*1000);
 	return result;
 }
 static void PVDDoOpen(async_operator *asop, int result);
@@ -430,7 +429,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 		HeartMsgFree(sm, result);
 	} else {
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 10*1000);
+		async_operator_timewait(&sm->timer, NULL, 10*1000);
 	}
 	return result;
 }
@@ -459,7 +458,7 @@ static long PVDRecvDone(AMessage *msg, long result)
 		switch (phead->uCmd)
 		{
 		case NET_SDVR_SHAKEHAND:
-#if 1
+#ifndef _DEBUG
 			memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
 #else
 			memset(heart_data.wMotion, 1, sizeof(heart_data.wMotion));
@@ -480,7 +479,7 @@ static long PVDRecvDone(AMessage *msg, long result)
 	 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
 	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
 		TRACE("result = %d.\n", result);*/
-	async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
+	async_operator_timewait(&sm->timer, NULL, 0);
 	return result;
 }
 static void PVDDoRecv(async_operator *asop, int result)
@@ -522,7 +521,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 	}
 
 	sm->timer.callback = &PVDDoRecv;
-	async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
+	async_operator_timewait(&sm->timer, NULL, 0);
 	return result;
 }
 
@@ -557,9 +556,6 @@ static void PVDDoOpen(async_operator *asop, int result)
 
 long PVDProxyInit(AOption *option)
 {
-	for (int ix = 0; ix < _countof(timer_thread); ++ix)
-		async_thread_begin(&timer_thread[ix], NULL);
-
 	long result = -EFAULT;
 	AOption opt;
 	AOptionInit(&opt, NULL);
@@ -582,7 +578,7 @@ long PVDProxyInit(AOption *option)
 		sm->msg.type = AMsgType_Option;
 		sm->msg.done = &PVDSendDone;
 		sm->timer.callback = &PVDDoSend;
-		async_operator_timewait(&sm->timer, &timer_thread[0], 3*1000);
+		async_operator_timewait(&sm->timer, NULL, 3*1000);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -593,9 +589,9 @@ long PVDProxyInit(AOption *option)
 		sm->object = pvd; AObjectAddRef(pvd);
 		sm->option = AOptionClone(option);
 		sm->reqix = ARequest_Output;
-		sm->threadix = min(1, _countof(timer_thread)-1);
+		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 0);
+		async_operator_timewait(&sm->timer, NULL, 0);
 
 		strcpy_s(opt.name, "PVDRTStream");
 		opt.value[0] = '\0';
@@ -610,9 +606,9 @@ long PVDProxyInit(AOption *option)
 		sm->object = rt; AObjectAddRef(rt);
 		sm->option = AOptionClone(option);
 		sm->reqix = 0;
-		sm->threadix = min(2, _countof(timer_thread)-1);
+		sm->threadix = 2;
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, &timer_thread[sm->threadix], 3*1000);
+		async_operator_timewait(&sm->timer, NULL, 3*1000);
 	}
 	return result;
 }
@@ -631,9 +627,6 @@ static void PVDProxyExit(void)
 		AObjectRelease(rt);
 		rt = NULL;
 	}
-
-	for (int ix = 0; ix < _countof(timer_thread); ++ix)
-		async_thread_end(&timer_thread[ix]);
 }
 
 static long PVDProxyProbe(AObject *object, AMessage *msg)

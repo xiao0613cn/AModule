@@ -15,16 +15,17 @@ struct async_thread {
 	BOOL volatile    running;
 	HANDLE           thread;
 	HANDLE           iocp;
-	BOOL             attach;
+	async_thread    *attach;
 
 	CRITICAL_SECTION ao_lock;
 	struct list_head ao_waiting;
 	struct list_head ao_pending;
 };
 
-int async_thread_begin(async_thread *at, HANDLE iocp);
+int async_thread_begin(async_thread *at, async_thread *pool);
 int async_thread_end(async_thread *at);
 int async_thread_abort(async_thread *at);
+async_thread* sys_work_thread(int ix);
 
 
 //////////////////////////////////////////////////////////////////////////

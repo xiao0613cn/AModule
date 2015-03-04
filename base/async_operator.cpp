@@ -21,6 +21,9 @@ unsigned int __stdcall async_thread_run(void *p)
 	struct list_head ao_timeout;
 	INIT_LIST_HEAD(&ao_timeout);
 
+	if (at->attach != NULL)
+		at = at->attach;
+
 	while (at->running) {
 		DWORD curtick = GetTickCount();
 		long timewait = 20*1000;
@@ -77,12 +80,12 @@ unsigned int __stdcall async_thread_run(void *p)
 
 //////////////////////////////////////////////////////////////////////////
 static async_thread work_thread[4];
-static int work_thread_begin(HANDLE iocp)
+static int work_thread_begin(async_thread *pool)
 {
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
-		async_thread_begin(&work_thread[ix], iocp);
-		if (iocp == NULL)
-			iocp = work_thread[0].iocp;
+		async_thread_begin(&work_thread[ix], pool);
+		if (pool == NULL)
+			pool = &work_thread[0];
 	}
 	return 0;
 }
@@ -98,22 +101,24 @@ static int work_thread_end(void)
 }
 
 //////////////////////////////////////////////////////////////////////////
-int async_thread_begin(async_thread *at, HANDLE iocp)
+int async_thread_begin(async_thread *at, async_thread *pool)
 {
 	if (at == NULL)
-		return work_thread_begin(iocp);
+		return work_thread_begin(pool);
 
 	if (at->thread != NULL)
 		return -1;
 
-	InitializeCriticalSection(&at->ao_lock);
+	at->attach = pool;
+	if (pool != NULL) {
+		at->iocp = pool->iocp;
+		memset(&at->ao_lock, 0, sizeof(at->ao_lock));
+	} else {
+		at->iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+		InitializeCriticalSection(&at->ao_lock);
+	}
 	INIT_LIST_HEAD(&at->ao_waiting);
 	INIT_LIST_HEAD(&at->ao_pending);
-
-	at->attach = (iocp != NULL);
-	if (iocp == NULL)
-		iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-	at->iocp = iocp;
 
 	at->running = TRUE;
 	at->thread = (HANDLE)_beginthreadex(NULL, 0, &async_thread_run, at, 0, NULL);
@@ -133,8 +138,12 @@ int async_thread_end(async_thread *at)
 	WaitForSingleObjectEx(at->thread, INFINITE, FALSE);
 	CloseHandle(at->thread); at->thread = NULL;
 
-	if (!at->attach)
-		CloseHandle(at->iocp);
+	if (at->attach) {
+		at->attach = NULL;
+		at->iocp = NULL;
+		return 0;
+	}
+	CloseHandle(at->iocp);
 	at->iocp = NULL;
 
 	DeleteCriticalSection(&at->ao_lock);
@@ -159,12 +168,21 @@ int async_thread_abort(async_thread *at)
 	return 0;
 }
 
+async_thread* sys_work_thread(int ix)
+{
+	if (ix >= _countof(work_thread))
+		return NULL;
+	return &work_thread[ix];
+}
+
 //////////////////////////////////////////////////////////////////////////
 int async_operator_post(async_operator *asop, async_thread *at, DWORD tick)
 {
 	OVERLAPPED *ovlp = NULL;
 	if (at == NULL)
 		at = work_thread;
+	if (at->attach != NULL)
+		at = at->attach;
 
 	asop->ao_tick = tick;
 	if (tick == 0) {
@@ -206,6 +224,11 @@ int async_operator_post(async_operator *asop, async_thread *at, DWORD tick)
 
 int async_operator_signal(async_operator *asop, async_thread *at)
 {
+	if (at == NULL)
+		at = work_thread;
+	if (at->attach != NULL)
+		at = at->attach;
+
 	EnterCriticalSection(&at->ao_lock);
 	int set = (asop->ao_tick != 0);
 	if (set) {

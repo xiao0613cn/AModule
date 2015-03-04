@@ -295,7 +295,8 @@ static long PVDRTOutputStatus(PVDRTStream *rt)
 
 			if (!again) {
 				TRACE("%p: unsupport format: %02x %02x %02x %02x.\n", rt,
-					rt->outmsg.data[0], rt->outmsg.data[1], rt->outmsg.data[2], rt->outmsg.data[3]);
+					(unsigned char)rt->outmsg.data[0], (unsigned char)rt->outmsg.data[1],
+					(unsigned char)rt->outmsg.data[2], (unsigned char)rt->outmsg.data[3]);
 				again = 1;
 			}
 			SlicePop(&rt->outbuf, 1);
