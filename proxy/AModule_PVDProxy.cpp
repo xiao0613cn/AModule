@@ -463,6 +463,7 @@ static long PVDRecvDone(AMessage *msg, long result)
 #else
 			memset(heart_data.wMotion, 1, sizeof(heart_data.wMotion));
 			memset(heart_data.wAlarm, 1, sizeof(heart_data.wAlarm));
+			memset(heart_data.byDisk, 1, sizeof(heart_data.byDisk));
 #endif
 			break;
 		case NET_SDVR_GET_DVRTYPE:
@@ -518,6 +519,22 @@ static long PVDOpenDone(AMessage *msg, long result)
 		strcpy_s(opt.name, "session_id");
 		sm->object->getopt(sm->object, &opt);
 		userid = atol(opt.value);
+
+		AOption *opt2 = AOptionFindChild(sm->option, "channel_count");
+		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
+			login_data.byChanNum = atol(opt2->value);
+
+		opt2 = AOptionFindChild(sm->option, "alarm_in_count");
+		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
+			login_data.byAlarmInPortNum = atol(opt2->value);
+
+		opt2 = AOptionFindChild(sm->option, "alarm_out_count");
+		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
+			login_data.byAlarmOutPortNum = atol(opt2->value);
+
+		opt2 = AOptionFindChild(sm->option, "hdd_count");
+		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
+			login_data.byDiskNum = atol(opt2->value);
 	}
 
 	sm->timer.callback = &PVDDoRecv;
