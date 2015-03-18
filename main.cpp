@@ -28,6 +28,7 @@ struct RecvMsg {
 	AMessage msg;
 	async_operator op;
 	AObject *pvd;
+	long     reqix;
 };
 
 long CloseDone(AMessage *msg, long result)
@@ -43,39 +44,26 @@ long CloseDone(AMessage *msg, long result)
 
 static BOOL g_abort = FALSE;
 
-long RecvDone(AMessage *msg, long result)
-{
-	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
-	if (result >= 0) {
-		//TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-		//	rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
-		// for next recv
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		if (g_abort)
-			result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
-	} else {
-		CloseDone(msg, result);
-	}
-	return result;
-}
-
 DWORD WINAPI RecvCB2(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-	rm->msg.done = &RecvDone;
-	INIT_LIST_HEAD(&rm->msg.entry);
+	rm->msg.done = NULL;
 
-	//long result = rm->pvd->request(rm->pvd, ANotify_InQueueFront|ARequest_Output, &rm->msg);
-	long result = rm->pvd->request(rm->pvd, ARequest_MsgLoop|ARequest_Output, &rm->msg);
-	if (result != 0) {
-		TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-			rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
-
+	long result;
+	do {
 		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		rm->msg.done = CloseDone;
+		result = rm->pvd->request(rm->pvd, rm->reqix, &rm->msg);
+	} while (!g_abort && (result > 0));
+
+	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
+		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+
+	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	rm->msg.done = CloseDone;
+
+	result = rm->pvd->close(rm->pvd, &rm->msg);
+	if (result != 0)
 		CloseDone(&rm->msg, result);
-	}
 	return result;
 }
 void RecvCB(async_operator *op, int result)
@@ -90,7 +78,6 @@ void RecvCB(async_operator *op, int result)
 DWORD WINAPI SendHeart(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
-	INIT_LIST_HEAD(&rm->msg.entry);
 
 	pvdnet_head header;
 	rm->msg.type = AMsgType_Custom|NET_SDVR_SHAKEHAND;
@@ -103,36 +90,12 @@ DWORD WINAPI SendHeart(void *p)
 		::Sleep(3000);
 		result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
 	} while (!g_abort && (result > 0));
+
 	TRACE("%p: send result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
 
-	result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
+	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
 	result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
-
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-	rm->msg.done = CloseDone;
-	result = rm->pvd->close(rm->pvd, &rm->msg);
-	if (result != 0) {
-		CloseDone(&rm->msg, result);
-	}
-	return result;
-}
-
-DWORD WINAPI RecvStream(void *p)
-{
-	RecvMsg *rm = (RecvMsg*)p;
-	rm->msg.done = NULL;
-	INIT_LIST_HEAD(&rm->msg.entry);
-
-	long result = 0;
-	do {
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
-		result = rm->pvd->request(rm->pvd, 0, &rm->msg);
-		//TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-		//	rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
-	} while (!g_abort && (result > 0));
-	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
@@ -194,11 +157,13 @@ _retry:
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
+		rm->reqix = ARequest_Output;
 		QueueUserWorkItem(&RecvCB2, rm, 0);
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
+		rm->reqix = ARequest_Input;
 		QueueUserWorkItem(&SendHeart, rm, 0);
 		rm = NULL;
 	}
@@ -214,10 +179,10 @@ _retry:
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = rt; AObjectAddRef(rt);
-		QueueUserWorkItem(&RecvStream, rm, 0);
+		rm->reqix = 0;
+		QueueUserWorkItem(&RecvCB2, rm, 0);
 		rm = NULL;
 	}
-
 	release_s(rt, AObjectRelease, NULL);
 
 	//async_thread_end(&at);

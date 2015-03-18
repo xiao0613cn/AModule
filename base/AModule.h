@@ -72,7 +72,7 @@ enum ARequestIndex {
 	ARequest_Output,
 	ARequest_IndexMask = 0x00ffffff,
 
-	ARequest_MsgLoop      = 0x01000000,
+	//ARequest_MsgLoop    = 0x01000000,
 	ARequest_InQueueFront = 0x02000000,
 	ANotify_InQueueFront  = 0x03000000,
 	ANotify_InQueueBack   = 0x04000000,

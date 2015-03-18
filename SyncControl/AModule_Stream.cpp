@@ -10,8 +10,8 @@ struct SyncRequest {
 
 	CRITICAL_SECTION    lock;
 	AMessage           *from;
-	unsigned long       msgloop : 1;
-	unsigned long       abortloop : 1;
+	//unsigned long     msgloop : 1;
+	//unsigned long     abortloop : 1;
 	struct list_head    request_list;
 	struct list_head    notify_list;
 };
@@ -34,7 +34,7 @@ struct SyncControl {
 	long      open_result;
 	AMessage *close_msg;
 
-	StreamStatus volatile status;
+	long volatile status;
 	long volatile request_count;
 	struct list_head syncreq_list;
 	SyncRequest     *syncreq_cache_list[syncreq_cache_count];
@@ -73,8 +73,8 @@ static SyncRequest* SyncRequestNew(SyncControl *sc, long reqix)
 
 	InitializeCriticalSection(&req->lock);
 	req->from = NULL;
-	req->msgloop = 0;
-	req->abortloop = 0;
+	//req->msgloop = 0;
+	//req->abortloop = 0;
 	INIT_LIST_HEAD(&req->request_list);
 	INIT_LIST_HEAD(&req->notify_list);
 
@@ -158,16 +158,17 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 			AMessage *msg = req->from;
 			req->msg.done = &SyncRequestDone;
 			req->from = NULL;
-			old_status = InterlockedCompareExchange((long volatile*)&sc->status, stream_opened, stream_opening);
+			old_status = InterlockedCompareExchange(&sc->status, stream_opened, stream_opening);
 			if (old_status == stream_opening)
 				break;
 
+			assert(old_status == stream_abort);
 			sc->open_result = -EINTR;
 			req->msg.done = &SyncControlOpenDone;
 			req->from = msg;
 		}
 
-		old_status = InterlockedExchange((long volatile*)&sc->status, stream_closing);
+		old_status = InterlockedExchange(&sc->status, stream_closing);
 		assert((old_status == stream_opening) || (old_status == stream_abort));
 
 		AMsgInit(&req->msg, AMsgType_Unknown, NULL, 0);
@@ -182,7 +183,7 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 
 		req->msg.done = &SyncRequestDone;
 		req->from = NULL;
-		old_status = InterlockedExchange((long volatile*)&sc->status, stream_closed);
+		old_status = InterlockedExchange(&sc->status, stream_closed);
 		assert(old_status == stream_closing);
 		break;
 
@@ -200,14 +201,8 @@ static long SyncControlOpenDone(AMessage *msg, long result)
 	msg = req->from;
 
 	result = SyncControlOpenStatus(req, result);
-	if (result != 0) {
-		if (msg->done != NULL) {
-			result = msg->done(msg, result);
-		} else {
-			msg->entry.prev = (struct list_head*)result;
-			msg->entry.next = LIST_POISON1;
-		}
-	}
+	if (result != 0)
+		result = msg->done(msg, result);
 	return result;
 }
 
@@ -215,10 +210,10 @@ static long SyncControlOpen(AObject *object, AMessage *msg)
 {
 	SyncControl *sc = to_sc(object);
 
-	long result = InterlockedCompareExchange((long volatile*)&sc->status, stream_opening, stream_invalid);
+	long result = InterlockedCompareExchange(&sc->status, stream_opening, stream_invalid);
 	if (result != stream_invalid) {
 		if (result == stream_closed)
-			result = InterlockedCompareExchange((long volatile*)&sc->status, stream_opening, stream_closed);
+			result = InterlockedCompareExchange(&sc->status, stream_opening, stream_closed);
 		if (result != stream_closed)
 			return -EBUSY;
 	}
@@ -237,17 +232,10 @@ static long SyncControlOpen(AObject *object, AMessage *msg)
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
 	req->msg.done = &SyncControlOpenDone;
 	req->from = msg;
-	if (msg->done == NULL)
-		msg->entry.next = NULL;
 
 	result = sc->stream->open(sc->stream, &req->msg);
 	if (result != 0)
 		result = SyncControlOpenStatus(req, result);
-	if ((result == 0) && (msg->done == NULL)) {
-		while (msg->entry.next == NULL)
-			Sleep(10);
-		result = (long)msg->entry.prev;
-	}
 	return result;
 }
 
@@ -278,7 +266,7 @@ static void SyncControlClosed(SyncControl *sc, SyncRequest *req)
 	req->msg.done = &SyncRequestDone;
 	req->from = NULL;
 
-	long old_status = InterlockedExchange((long volatile*)&sc->status, stream_closed);
+	long old_status = InterlockedExchange(&sc->status, stream_closed);
 	assert(old_status == stream_closing);
 }
 
@@ -306,10 +294,12 @@ static long SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 	return sc->stream->close(sc->stream, &req->msg);
 }
 
-static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
+static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*/)
 {
 	SyncControl *sc = req->sc;
 	AMessage *msg;
+
+	INIT_LIST_HEAD(&req->msg.entry);
 	for (;;) {
 		AMessage *probe_msg = NULL;
 		long      probe_ret;
@@ -335,7 +325,7 @@ static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
 				probe_msg = NULL;
 			}
 		} }
-		if (req->msgloop) {
+		/*if (req->msgloop) {
 			msg = req->from;
 			if (result < 0) {
 				if (firstloop)
@@ -350,7 +340,7 @@ static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
 				req->msgloop = 0;
 				req->abortloop = 0;
 			}
-		} else if (sc->status != stream_opened) {
+		} else*/ if (sc->status != stream_opened) {
 			msg = req->from = NULL;
 			result = -EINTR;
 		} else if (list_empty(&req->request_list)) {
@@ -379,15 +369,15 @@ static void SyncRequestDispatch(SyncRequest *req, long result, BOOL firstloop)
 		if (result == 0)
 			return;
 
-		if (!req->msgloop || (result >= 0)) {
+		//if (!req->msgloop || (result >= 0)) {
 			AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
 			msg->done(msg, result);
-		}
-		firstloop = FALSE;
+		//}
+		//firstloop = FALSE;
 	}
 
-	if (msg != NULL)
-		msg->done(msg, result);
+	//if (msg != NULL)
+	//	msg->done(msg, result);
 
 	if (InterlockedDecrement(&sc->request_count) == 0) {
 		result = SyncControlDoClose(sc, req);
@@ -406,11 +396,11 @@ static long SyncRequestDone(AMessage *msg, long result)
 
 	msg = req->from;
 	AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-	if (!req->msgloop || (result >= 0)) {
+	//if (!req->msgloop || (result >= 0)) {
 		msg->done(msg, result);
-	}
+	//}
 
-	SyncRequestDispatch(req, result, FALSE);
+	SyncRequestDispatch(req, result/*, FALSE*/);
 	return result;
 }
 
@@ -441,7 +431,7 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 			list_add_tail(&msg->entry, &req->notify_list);
 			result = 0;
 			break;
-		case ARequest_MsgLoop:
+		/*case ARequest_MsgLoop:
 			if (req->msgloop || (req->from != NULL)) {
 				result = -EBUSY;
 			} else {
@@ -451,11 +441,11 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 				result = InterlockedIncrement(&sc->request_count);
 				assert(result > 1);
 			}
-			break;
+			break;*/
 		default:
-			if (req->msgloop) {
+			/*if (req->msgloop) {
 				result = -EBUSY;
-			} else if (req->from != NULL) {
+			} else*/ if (req->from != NULL) {
 				if (flag == ARequest_InQueueFront)
 					list_add(&msg->entry, &req->request_list);
 				else
@@ -481,11 +471,12 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 	{
 		long ret = result;
 		AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-		if (req->msgloop && (result > 0)) {
+		//if (req->msgloop && (result > 0)) {
+		if (msg->done != NULL) {
 			msg->done(msg, result);
 			result = 0;
 		}
-		SyncRequestDispatch(req, ret, TRUE);
+		SyncRequestDispatch(req, ret/*, TRUE*/);
 	}
 	return result;
 }
@@ -512,7 +503,7 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 
 	long result;
 	EnterCriticalSection(&req->lock);
-	if (flag == ARequest_MsgLoop) {
+	/*if (flag == ARequest_MsgLoop) {
 		if (!req->msgloop) {
 			result = -ENODEV;
 		} else if ((msg == NULL) || (msg == req->from)) {
@@ -521,7 +512,7 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 		} else {
 			result = -EINVAL;
 		}
-	} else if (sc->status != stream_opened) {
+	} else*/ if (sc->status != stream_opened) {
 		result = -EINTR;
 	} else if (msg == req->from) {
 		result = 0;
@@ -549,7 +540,7 @@ static long SyncControlClose(AObject *object, AMessage *msg)
 	long new_status = stream_abort;
 	long test_status = stream_opening;
 	for (;;) {
-		long old_status = InterlockedCompareExchange((long volatile*)&sc->status, new_status, test_status);
+		long old_status = InterlockedCompareExchange(&sc->status, new_status, test_status);
 		if ((old_status == stream_invalid) || (old_status == stream_closed))
 			return -ENOENT;
 		if ((old_status == stream_abort) || (old_status == stream_closing))

@@ -633,13 +633,13 @@ long PVDProxyInit(AOption *option)
 static void PVDProxyExit(void)
 {
 	if (pvd != NULL) {
-		pvd->cancel(pvd, ARequest_MsgLoop|ARequest_Output, NULL);
+		//pvd->cancel(pvd, ARequest_MsgLoop|ARequest_Output, NULL);
 		pvd->close(pvd, NULL);
 		AObjectRelease(pvd);
 		pvd = NULL;
 	}
 	if (rt != NULL) {
-		rt->cancel(rt, ARequest_MsgLoop|0, NULL);
+		//rt->cancel(rt, ARequest_MsgLoop|0, NULL);
 		rt->close(rt, NULL);
 		AObjectRelease(rt);
 		rt = NULL;
