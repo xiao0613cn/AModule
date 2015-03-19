@@ -12,6 +12,7 @@ static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 DWORD  userid;
 static AObject *rt = NULL;
+static DWORD rt_active = 0;
 
 struct HeartMsg {
 	AMessage msg;
@@ -54,7 +55,7 @@ struct PVDProxy {
 static void PVDProxyRelease(AObject *object)
 {
 	PVDProxy *p = to_proxy(object);
-	TRACE("%p: free\n", &p->object);
+	//TRACE("%p: free\n", &p->object);
 	release_s(p->client, AObjectRelease, NULL);
 	SliceFree(&p->outbuf);
 	free(p);
@@ -142,7 +143,9 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 static long PVDProxyRecvStream(AMessage *msg, long result)
 {
 	PVDProxy *p = from_outmsg(msg);
-	if (result == 0) {
+	if (result == 0)
+	{
+		// on notify callback
 		if (p->reqcount == -1)
 			return -1;
 		if (p->frame_queue.size() < p->frame_queue._capacity())
@@ -163,8 +166,10 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 				result = 1;
 			}
 		}
-		if (result == 0)
-			TRACE("%p: drop stream frame(%d) size = %d...\n", p, msg->type&~AMsgType_Custom, msg->size);
+		if (result == 0) {
+			TRACE("%p: drop stream frame(%d) size = %d...\n",
+				p, msg->type&~AMsgType_Custom, msg->size);
+		}
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
 	}
@@ -218,9 +223,11 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 static long PVDProxyRTStream(AMessage *msg, long result)
 {
 	PVDProxy *p = from_inmsg(msg);
-	if (result > 0) {
+	if (result >= 0) {
 		SliceReset(&p->outbuf);
-		SliceResize(&p->outbuf, 2048*1024, 8*1024);
+		result = SliceResize(&p->outbuf, 2048*1024, 8*1024);
+	}
+	if (result >= 0) {
 		p->frame_queue.reset();
 		p->frame_buffer.reset((unsigned char*)p->outbuf.buf, p->outbuf.siz);
 
@@ -229,9 +236,9 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 
 		AObjectAddRef(&p->object);
 		result = rt->request(rt, ANotify_InQueueBack|0, &p->outmsg);
-		if (result < 0)
+		if (result < 0) {
 			AObjectRelease(&p->object);
-		else {
+		} else {
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.callback = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
@@ -239,8 +246,8 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 			result = -1;
 		}
 	}
-	if ((result < 0) && (p->outfrom != NULL)) {
-		result = p->outfrom->done(p->outfrom, result);
+	if (p->outfrom != NULL) {
+		result = p->outfrom->done(p->outfrom, -1);
 	}
 	return result;
 }
@@ -390,6 +397,12 @@ static void PVDDoSend(async_operator *asop, int result)
 		HeartMsgFree(sm, result);
 		return;
 	}
+	DWORD tick = GetTickCount();
+	if (long(tick-rt_active) > 10*1000) {
+		TRACE("realtime stream timeout...\n");
+		rt->close(rt, NULL);
+		rt_active = tick;
+	}
 	do {
 		if (sm->msg.type == AMsgType_Option) {
 			result = NET_SDVR_GET_DVRTYPE;
@@ -436,8 +449,6 @@ static long PVDCloseDone(AMessage *msg, long result)
 static void PVDDoClose(HeartMsg *sm, long result)
 {
 	TRACE("%p: result = %d.\n", sm->object, result);
-	if ((sm->reqix == ARequest_Output) && (rt != NULL))
-		rt->close(rt, NULL);
 
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	sm->msg.done = &PVDCloseDone;
@@ -480,6 +491,8 @@ static long PVDRecvDone(AMessage *msg, long result)
 	 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
 	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
 		TRACE("result = %d.\n", result);*/
+	if (sm->object == rt)
+		rt_active = GetTickCount();
 	async_operator_timewait(&sm->timer, NULL, 0);
 	return result;
 }
@@ -492,10 +505,9 @@ static void PVDDoRecv(async_operator *asop, int result)
 	}
 
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
-	sm->msg.done = &PVDRecvDone;
 	result = sm->object->request(sm->object, sm->reqix, &sm->msg);
 	if (result != 0) {
-		PVDRecvDone(&sm->msg, result);
+		sm->msg.done(&sm->msg, result);
 	}
 }
 
@@ -508,7 +520,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 	}
 
 	TRACE("%p: result = %d.\n", sm->object, result);
-	if (sm->reqix == ARequest_Output) {
+	if (sm->object == pvd) {
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
@@ -537,6 +549,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 			login_data.byDiskNum = atol(opt2->value);
 	}
 
+	sm->msg.done = &PVDRecvDone;
 	sm->timer.callback = &PVDDoRecv;
 	async_operator_timewait(&sm->timer, NULL, 0);
 	return result;
@@ -550,7 +563,7 @@ static void PVDDoOpen(async_operator *asop, int result)
 		return;
 	}
 
-	if (sm->reqix == 0) {
+	if (sm->object == rt) {
 		AOption opt;
 		AOptionInit(&opt, NULL);
 

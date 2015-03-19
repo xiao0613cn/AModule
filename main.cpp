@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include <process.h>
 #include "base/AModule.h"
 #include "base/async_operator.h"
 #include "PVDClient/PvdNetCmd.h"
@@ -10,7 +11,7 @@
 static const char *pvd_path =
 	"PVDClient: PVDClient {"
 	"       io: tcp {"
-	"		address: 192.168.60.161,"
+	"		address: 192.168.20.174,"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -44,7 +45,7 @@ long CloseDone(AMessage *msg, long result)
 
 static BOOL g_abort = FALSE;
 
-DWORD WINAPI RecvCB2(void *p)
+unsigned int WINAPI RecvCB2(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
 	rm->msg.done = NULL;
@@ -75,7 +76,7 @@ void RecvCB(async_operator *op, int result)
 		CloseDone(&rm->msg, result);
 	}
 }
-DWORD WINAPI SendHeart(void *p)
+unsigned int WINAPI SendHeart(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
 
@@ -146,7 +147,8 @@ _retry:
 
 	if (_stricmp(option->value, "PVDClient") == 0) {
 		release_s(pvd, AObjectRelease, NULL);
-		result = SyncControlModule.create(&pvd, NULL, option);
+		//result = SyncControlModule.create(&pvd, NULL, option);
+		result = PVDClientModule.create(&pvd, NULL, option);
 	} else {
 		result = -1;
 	}
@@ -158,19 +160,19 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = ARequest_Output;
-		QueueUserWorkItem(&RecvCB2, rm, 0);
+		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = ARequest_Input;
-		QueueUserWorkItem(&SendHeart, rm, 0);
+		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &SendHeart, rm, 0, NULL));
 		rm = NULL;
 	}
 	if (pvd != NULL) {
 		strcpy_s(option->value, "PVDRTStream");
-		result = SyncControlModule.create(&rt, pvd, option);
-		//result = PVDRTModule.create(&rt, pvd, option);
+		//result = SyncControlModule.create(&rt, pvd, option);
+		result = PVDRTModule.create(&rt, pvd, option);
 	}
 	if (result >= 0) {
 		result = rt->open(rt, &sm);
@@ -180,7 +182,7 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = rt; AObjectAddRef(rt);
 		rm->reqix = 0;
-		QueueUserWorkItem(&RecvCB2, rm, 0);
+		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 	}
 	release_s(rt, AObjectRelease, NULL);

@@ -298,8 +298,8 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 {
 	SyncControl *sc = req->sc;
 	AMessage *msg;
-
-	INIT_LIST_HEAD(&req->msg.entry);
+	struct list_head quit_notify;
+	INIT_LIST_HEAD(&quit_notify);
 	for (;;) {
 		AMessage *probe_msg = NULL;
 		long      probe_ret;
@@ -321,7 +321,7 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 				}
 
 				msg = list_entry(msg->entry.prev, AMessage, entry);
-				list_move(&probe_msg->entry, &req->msg.entry);
+				list_move_tail(&probe_msg->entry, &quit_notify);
 				probe_msg = NULL;
 			}
 		} }
@@ -355,11 +355,13 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 
 		if (probe_msg != NULL) {
 			probe_msg->done(probe_msg, probe_ret);
+			probe_msg = NULL;
 		}
-		while (!list_empty(&req->msg.entry)) {
-			probe_msg = list_first_entry(&req->msg.entry, AMessage, entry);
+		while (!list_empty(&quit_notify)) {
+			probe_msg = list_first_entry(&quit_notify, AMessage, entry);
 			list_del_init(&probe_msg->entry);
 			probe_msg->done(probe_msg, -1);
+			probe_msg = NULL;
 		}
 		if (result <= 0)
 			break;
