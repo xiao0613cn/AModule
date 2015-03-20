@@ -547,6 +547,8 @@ static long PVDOpenDone(AMessage *msg, long result)
 		opt2 = AOptionFindChild(sm->option, "hdd_count");
 		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
 			login_data.byDiskNum = atol(opt2->value);
+	} else {
+		rt_active = GetTickCount();
 	}
 
 	sm->msg.done = &PVDRecvDone;
@@ -586,6 +588,9 @@ static void PVDDoOpen(async_operator *asop, int result)
 
 long PVDProxyInit(AOption *option)
 {
+	if (_stricmp(option->value[0]?option->value:option->name, "PVDClient") != 0)
+		return 0;
+
 	long result = -EFAULT;
 	AOption opt;
 	AOptionInit(&opt, NULL);

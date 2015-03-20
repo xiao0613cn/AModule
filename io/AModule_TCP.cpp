@@ -126,18 +126,35 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	return result;
 }
 
+static long TcpCancel(AObject *object, long reqix, AMessage *msg)
+{
+	TCPObject *tcp = to_tcp(object);
+	if (tcp->sock == INVALID_SOCKET)
+		return -ENOENT;
+
+	if (reqix == ARequest_Input) {
+		shutdown(tcp->sock, SD_SEND);
+	} else if (reqix == ARequest_Output) {
+		shutdown(tcp->sock, SD_RECEIVE);
+	} else {
+		return -ENOSYS;
+	}
+	CancelIo((HANDLE)tcp->sock);
+	return 1;
+}
+
 static long TCPClose(AObject *object, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
-	if (msg == NULL) {
-		if (tcp->sock != INVALID_SOCKET) {
-			shutdown(tcp->sock, SD_BOTH);
-			CancelIoEx((HANDLE)tcp->sock, NULL);
-			return 1;
-		}
+	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
+
+	if (msg == NULL) {
+		shutdown(tcp->sock, SD_BOTH);
+		CancelIoEx((HANDLE)tcp->sock, NULL);
+	} else {
+		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	return 1;
 }
 
@@ -162,7 +179,7 @@ AModule TCPModule = {
 	&TCPSetOption,
 	NULL,
 	&TCPRequest,
-	NULL,
+	&TcpCancel,
 	&TCPClose,
 };
 

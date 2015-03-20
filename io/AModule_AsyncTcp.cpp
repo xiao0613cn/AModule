@@ -203,18 +203,36 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 	return result;
 }
 
+static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
+{
+	AsyncTcp *tcp = to_tcp(object);
+	if (tcp->sock == INVALID_SOCKET)
+		return -ENOENT;
+
+	if (reqix == ARequest_Input) {
+		shutdown(tcp->sock, SD_SEND);
+		CancelIoEx((HANDLE)tcp->sock, &tcp->send_ovlp.sysio.ovlp);
+	} else if (reqix == ARequest_Output) {
+		shutdown(tcp->sock, SD_RECEIVE);
+		CancelIoEx((HANDLE)tcp->sock, &tcp->recv_ovlp.sysio.ovlp);
+	} else {
+		return -ENOSYS;
+	}
+	return 1;
+}
+
 static long AsyncTcpClose(AObject *object, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
-	if (msg == NULL) {
-		if (tcp->sock != INVALID_SOCKET) {
-			shutdown(tcp->sock, SD_BOTH);
-			CancelIoEx((HANDLE)tcp->sock, NULL);
-			return 1;
-		}
+	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
+
+	if (msg == NULL) {
+		shutdown(tcp->sock, SD_BOTH);
+		CancelIoEx((HANDLE)tcp->sock, NULL);
+	} else {
+		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	return 1;
 }
 
@@ -239,6 +257,6 @@ AModule AsyncTcpModule = {
 	NULL,
 	NULL,
 	&AsyncTcpRequest,
-	NULL,
+	&AsyncTcpCancel,
 	&AsyncTcpClose,
 };

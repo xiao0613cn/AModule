@@ -45,6 +45,8 @@ struct TCPClient {
 static long TCPClientRelease(AMessage *msg, long result)
 {
 	TCPClient *client = from_inmsg(msg);
+	if ((client->proxy != NULL) && (client->proxy->cancel != NULL))
+		client->proxy->cancel(client->proxy, ARequest_Input, NULL);
 	//TRACE("%p: result = %d.\n", client, result);
 	release_s(client->proxy, AObjectRelease, NULL);
 	release_s(client->client, AObjectRelease, NULL);

@@ -211,7 +211,7 @@ static const char *proxy_path =
 	"		port: 80,"
 	"	},"
 	"	PVDProxy {"
-	"		address: 127.0.0.1, "
+	"		address: 192.168.10.21, "
 	"		port: 8101, "
 	"	},"
 	"	default_bridge {"
