@@ -211,10 +211,10 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 
 	if (reqix == ARequest_Input) {
 		shutdown(tcp->sock, SD_SEND);
-		CancelIoEx((HANDLE)tcp->sock, &tcp->send_ovlp.sysio.ovlp);
+		//CancelIoEx((HANDLE)tcp->sock, &tcp->send_ovlp.sysio.ovlp);
 	} else if (reqix == ARequest_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
-		CancelIoEx((HANDLE)tcp->sock, &tcp->recv_ovlp.sysio.ovlp);
+		//CancelIoEx((HANDLE)tcp->sock, &tcp->recv_ovlp.sysio.ovlp);
 	} else {
 		return -ENOSYS;
 	}
@@ -229,7 +229,7 @@ static long AsyncTcpClose(AObject *object, AMessage *msg)
 
 	if (msg == NULL) {
 		shutdown(tcp->sock, SD_BOTH);
-		CancelIoEx((HANDLE)tcp->sock, NULL);
+		//CancelIoEx((HANDLE)tcp->sock, NULL);
 	} else {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}

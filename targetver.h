@@ -11,3 +11,7 @@
 #define _WIN32_WINNT 0x0501     // 将此值更改为相应的值，以适用于 Windows 的其他版本。
 #endif
 
+
+#ifndef _WIN32_WINDOWS          // 指定要求的最低平台是 Windows 98。
+#define _WIN32_WINDOWS 0x0500   // 将此值更改为适当的值，以适用于 Windows Me 或更高版本。
+#endif

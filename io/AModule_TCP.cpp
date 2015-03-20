@@ -151,7 +151,7 @@ static long TCPClose(AObject *object, AMessage *msg)
 
 	if (msg == NULL) {
 		shutdown(tcp->sock, SD_BOTH);
-		CancelIoEx((HANDLE)tcp->sock, NULL);
+		//CancelIoEx((HANDLE)tcp->sock, NULL);
 	} else {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}
