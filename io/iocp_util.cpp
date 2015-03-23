@@ -33,7 +33,7 @@ iocp_getaddrinfo(const char *netaddr, const char *port)
 }
 
 SOCKET
-bind_socket(int protocol, unsigned short port)
+bind_socket(int family, int protocol, unsigned short port)
 {
 	int type;
 	if (protocol == IPPROTO_TCP)
@@ -41,7 +41,7 @@ bind_socket(int protocol, unsigned short port)
 	else
 		type = SOCK_DGRAM;
 
-	SOCKET sock = socket(AF_INET, type, protocol);
+	SOCKET sock = socket(family, type, protocol);
 	if (sock == INVALID_SOCKET)
 		return INVALID_SOCKET;
 

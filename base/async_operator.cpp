@@ -9,7 +9,7 @@ enum iocp_key {
 	iocp_key_sysio,
 };
 
-unsigned int __stdcall async_thread_run(void *p)
+static unsigned int __stdcall async_thread_run(void *p)
 {
 	async_thread *at = (async_thread*)p;
 	async_operator *asop;
@@ -94,7 +94,7 @@ static int work_thread_end(void)
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
 		async_thread_abort(&work_thread[ix]);
 	}
-	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+	for (int ix = _countof(work_thread)-1; ix >= 0; --ix) {
 		async_thread_end(&work_thread[ix]);
 	}
 	return 0;
@@ -251,8 +251,7 @@ int sysio_bind(async_thread *at, HANDLE file)
 		at = work_thread;
 
 	HANDLE iocp = CreateIoCompletionPort(file, at->iocp, iocp_key_sysio, 0);
-	assert(iocp == at->iocp);
-	return 0;
+	return (iocp == at->iocp) ? 1 : -GetLastError();
 }
 
 int sysio_operator_connect(sysio_operator *sysop, SOCKET sd, const char *netaddr, const char *port)

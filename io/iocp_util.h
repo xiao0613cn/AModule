@@ -11,7 +11,7 @@ extern struct addrinfo*
 iocp_getaddrinfo(const char *netaddr, const char *port);
 
 extern SOCKET
-bind_socket(int protocol, unsigned short port);
+bind_socket(int family, int protocol, unsigned short port);
 
 extern int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds);
