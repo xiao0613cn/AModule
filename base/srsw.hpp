@@ -1,39 +1,36 @@
 #pragma once
 
-class srsw_count {
-	size_t  put_count;
-	size_t  get_count;
-public:
+struct srsw_count {
+	size_t  add_count;
+	size_t  del_count;
+
+#ifdef __cplusplus
 	srsw_count(void) { reset(); }
 	~srsw_count(void) { }
 
-	void reset(void)
-	{
-		put_count = 0;
-		get_count = 0;
-	}
-	void operator=(int)
-	{
-		reset();
-	}
-
-	operator size_t(void)
-	{
-		return (put_count - get_count);
-	}
-
-	size_t operator+=(size_t n)
-	{
-		put_count += n;
-		return (put_count - get_count);
-	}
-
-	size_t operator-=(size_t n)
-	{
-		get_count += n;
-		return (put_count - get_count);
-	}
+	void reset(void) { add_count = del_count = 0; }
+	operator size_t(void) { return (add_count - del_count); }
+	void operator+=(size_t n) { add_count += n; }
+	void operator-=(size_t n) { del_count += n; }
+#endif
 };
+
+static inline void srsw_reset(srsw_count *n) {
+	n->add_count = 0;
+	n->del_count = 0;
+}
+
+static inline size_t srsw_get(srsw_count *n) {
+	return (n->add_count - n->del_count);
+}
+
+static inline size_t srsw_add(srsw_count *n, size_t num) {
+	n->add_count += num;
+}
+
+static inline void srsw_del(srsw_count *n, size_t num) {
+	n->del_count += num;
+}
 
 template <typename item_t, size_t capacity>
 class srsw_queue {
@@ -47,7 +44,7 @@ public:
 
 	void reset(void)
 	{
-		item_count = 0;
+		item_count.reset();
 		put_index = 0;
 		get_index = 0;
 	}
@@ -100,11 +97,8 @@ public:
 	}
 };
 
-#ifndef byte_t
-typedef unsigned char byte_t;
-#endif
-
-class srsw_buffer {
+template <typename byte_t>
+class srsw_buffer_t {
 	byte_t *buf_data;
 	size_t  buf_size;
 
@@ -113,13 +107,13 @@ class srsw_buffer {
 	size_t  write_pos;
 	size_t  read_pos;
 public:
-	srsw_buffer(void)
+	srsw_buffer_t(void)
 	{
 		buf_data = NULL;
 		buf_size = 0;
 		reset(NULL, 0);
 	}
-	~srsw_buffer(void) { }
+	~srsw_buffer_t(void) { }
 
 	byte_t* reset(byte_t *ptr, size_t len)
 	{
@@ -261,4 +255,4 @@ public:
 		}
 	}
 };
-
+typedef srsw_buffer_t<char> srsw_buffer;

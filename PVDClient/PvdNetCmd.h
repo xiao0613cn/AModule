@@ -42,7 +42,10 @@ inline int PVDCmdDecode(unsigned long user_id, void *data, int size)
 
 	pvdnet_head *phead = (pvdnet_head*)data;
 	int cmdlen = sizeof(pvdnet_head) + phead->uLen;
-	if (phead->uResult) {
+	if (phead->uResult
+	 && (phead->uCmd == NET_SDVR_GET_PHOTO
+	  || phead->uCmd == NET_SDVR_ALARM_REPORT
+	  || phead->uCmd == NET_SDVR_GET_PHOTO_EX)) {
 		cmdlen += long(phead->uReserve)<<16;
 	}
 

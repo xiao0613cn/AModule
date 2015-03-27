@@ -121,7 +121,7 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
 		}
-		TRACE("%p: command(%02x) timeout...\n", p, p->inmsg.type&~AMsgType_Custom);
+		TRACE("command(%02x) timeout...\n", p->inmsg.type&~AMsgType_Custom);
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
@@ -150,7 +150,7 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 			return -1;
 		if (p->frame_queue.size() < p->frame_queue._capacity())
 		{
-			byte_t *ptr[2]; size_t len[2];
+			char *ptr[2]; size_t len[2];
 			p->frame_buffer.reserve(ptr, len);
 			if ((len[0] < msg->size) && (len[1] >= msg->size)) {
 				ptr[0] = ptr[1];
@@ -161,14 +161,14 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 				p->frame_buffer.commit(ptr[0], msg->size);
 
 				AMessage &frame = p->frame_queue.end();
-				AMsgInit(&frame, msg->type, (char*)ptr[0], msg->size);
+				AMsgInit(&frame, msg->type, ptr[0], msg->size);
 				p->frame_queue.put_end();
 				result = 1;
 			}
 		}
 		if (result == 0) {
-			TRACE("%p: drop stream frame(%d) size = %d...\n",
-				p, msg->type&~AMsgType_Custom, msg->size);
+			TRACE("drop stream frame(%d) size = %d...\n",
+				msg->type&~AMsgType_Custom, msg->size);
 		}
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
@@ -199,7 +199,7 @@ static void PVDProxySendStream(async_operator *asop, int result)
 		if (result <= 0)
 			break;
 
-		p->frame_buffer.decommit((unsigned char*)p->inmsg.data, p->inmsg.size);
+		p->frame_buffer.decommit(p->inmsg.data, p->inmsg.size);
 		p->frame_queue.get_front();
 	} while (result > 0);
 	if (result != 0) {
@@ -211,7 +211,7 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
-		p->frame_buffer.decommit((unsigned char*)p->inmsg.data, p->inmsg.size);
+		p->frame_buffer.decommit(p->inmsg.data, p->inmsg.size);
 		p->frame_queue.get_front();
 		PVDProxySendStream(&p->timer, 1);
 	} else {
@@ -229,7 +229,7 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 	}
 	if (result >= 0) {
 		p->frame_queue.reset();
-		p->frame_buffer.reset((unsigned char*)p->outbuf.buf, p->outbuf.siz);
+		p->frame_buffer.reset(p->outbuf.buf, p->outbuf.siz);
 
 		AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 		p->outmsg.done = &PVDProxyRecvStream;
@@ -399,7 +399,7 @@ static void PVDDoSend(async_operator *asop, int result)
 	}
 	DWORD tick = GetTickCount();
 	if (long(tick-rt_active) > 10*1000) {
-		TRACE("realtime stream timeout...\n");
+		TRACE("realtime timeout...\n");
 		rt->close(rt, NULL);
 		rt_active = tick;
 	}
@@ -448,7 +448,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 }
 static void PVDDoClose(HeartMsg *sm, long result)
 {
-	TRACE("%p: result = %d.\n", sm->object, result);
+	TRACE("%s result = %d.\n", (sm->object==pvd)?"client":"realtime", result);
 
 	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	sm->msg.done = &PVDCloseDone;
@@ -519,7 +519,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 		return result;
 	}
 
-	TRACE("%p: result = %d.\n", sm->object, result);
+	TRACE("%s result = %d.\n", (sm->object==pvd)?"client":"realtime", result);
 	if (sm->object == pvd) {
 		AOption opt;
 		AOptionInit(&opt, NULL);
