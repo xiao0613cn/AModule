@@ -17,10 +17,7 @@ static const char *pvd_path =
 	"	},"
 	"	username: 'admin',"
 	"	password: 888888,"
-	"	channel_count: ,"
-	"	alarm_in_count: ,"
-	"	alarm_out_count: ,"
-	"	hdd_count: ,"
+	"	force_alarm: 0,"
 	"	channel: 0,"
 	"	linkmode: 0,"
 	"}";

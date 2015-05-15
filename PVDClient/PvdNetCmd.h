@@ -54,7 +54,9 @@ inline int PVDCmdDecode(unsigned long user_id, void *data, int size)
 	}
 
 	if ((user_id != 0) && (user_id != phead->uUserId)) {
-		return -ERROR_INVALID_OWNER;
+		//return -ERROR_INVALID_OWNER;
+		TRACE("user_id(%d): error: command(%02x) userid = %d.\n",
+			user_id, phead->uCmd, phead->uUserId);
 	}
 	return cmdlen;
 }

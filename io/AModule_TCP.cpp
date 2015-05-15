@@ -60,14 +60,14 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	struct addrinfo *ai = iocp_getaddrinfo(addr->value, port?port->value:NULL);
 	if (ai == NULL) {
 		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", WSAGetLastError());
-		return -EFAULT;
+		return -EIO;
 	}
 
 	if (tcp->sock == INVALID_SOCKET) {
 		tcp->sock = socket(AF_INET, SOCK_STREAM, ai->ai_protocol);
 		if (tcp->sock == INVALID_SOCKET) {
 			release_s(ai, freeaddrinfo, NULL);
-			return -EFAULT;
+			return -EIO;
 		}
 	}
 
@@ -76,7 +76,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result != 0) {
-		result = -EFAULT;
+		result = -EIO;
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	} else {
 		result = 1;
@@ -169,7 +169,7 @@ AModule TCPModule = {
 	"io",
 	"tcp",
 	sizeof(TCPObject),
-	TCPInit, NULL,
+	&TCPInit, NULL,
 	&TCPCreate,
 	&TCPRelease,
 	NULL,
