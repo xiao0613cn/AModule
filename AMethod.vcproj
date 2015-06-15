@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="gb2312"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9.00"
+	Version="8.00"
 	Name="AModule"
 	ProjectGUID="{2CD3D550-0312-4522-8DF4-97FCF0425533}"
 	RootNamespace="InterfaceMethod"
 	Keyword="Win32Proj"
-	TargetFrameworkVersion="196613"
 	>
 	<Platforms>
 		<Platform
@@ -84,6 +83,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -158,6 +160,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -176,6 +181,10 @@
 			</File>
 			<File
 				RelativePath=".\io\AModule_AsyncTcp.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\io\AModule_Dump.cpp"
 				>
 			</File>
 			<File
@@ -310,10 +319,6 @@
 			</File>
 			<File
 				RelativePath=".\base\spinlock.h"
-				>
-			</File>
-			<File
-				RelativePath=".\base\srsw.hpp"
 				>
 			</File>
 			<File

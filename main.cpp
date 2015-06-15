@@ -10,10 +10,14 @@
 
 static const char *pvd_path =
 	"PVDClient: PVDClient {"
+	"	io: io_dump {"
+	"	file: \"C:\\Users\\xiao\\Desktop\\Record\\dump.bin\","
+	"	req_list: '0,1,', "
 	"       io: tcp {"
-	"		address: 192.168.20.174,"
+	"		address: 192.168.36.45,"
 	"		port: 8101,"
 	"               timeout: 5,"
+	"	},"
 	"	},"
 	"	username: 'admin',"
 	"	password: 888888,"
@@ -112,7 +116,10 @@ void ResetOption(AOption *option)
 	value[0] = '\0';
 	if (gets_s(value) == NULL)
 		return;
-	if (value[0] != '\0')
+
+	if (value[0] == ' ')
+		option->value[0] = '\0';
+	else if (value[0] != '\0')
 		strcpy_s(option->value, value);
 
 	AOption *child;
@@ -129,6 +136,7 @@ extern AModule PVDRTModule;
 extern AModule TCPServerModule;
 extern AModule HTTPProxyModule;
 extern AModule PVDProxyModule;
+extern AModule DumpModule;
 
 void test_pvd(AOption *option)
 {
@@ -255,6 +263,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	AModuleRegister(&PVDRTModule);
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
+	AModuleRegister(&DumpModule);
 
 	AOption *option = NULL;
 	long result = AOptionDecode(&option, pvd_path);

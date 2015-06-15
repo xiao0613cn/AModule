@@ -14,6 +14,7 @@ struct PVDRTStream {
 	AMessage    outmsg;
 	AMessage   *outfrom;
 	SliceBuffer outbuf;
+	long        retry_count;
 };
 #define to_rt(obj) container_of(obj, PVDRTStream, object)
 #define from_outmsg(msg) container_of(msg, PVDRTStream, outmsg)
@@ -46,6 +47,7 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 	rt->outfrom = NULL;
 	SliceInit(&rt->outbuf);
+	rt->retry_count = 0;
 
 	if (parent != NULL) {
 		AOption opt;
@@ -285,7 +287,6 @@ static long PVDRTSetOption(AObject *object, AOption *option)
 static long PVDRTOutputStatus(PVDRTStream *rt)
 {
 	long result;
-	long again = 0;
 	do {
 		SlicePush(&rt->outbuf, rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
@@ -293,18 +294,17 @@ static long PVDRTOutputStatus(PVDRTStream *rt)
 			if (result != -EAGAIN)
 				break;
 
-			if (!again) {
-				TRACE("%p: unsupport format: %02x %02x %02x %02x.\n", rt,
-					(unsigned char)rt->outmsg.data[0], (unsigned char)rt->outmsg.data[1],
-					(unsigned char)rt->outmsg.data[2], (unsigned char)rt->outmsg.data[3]);
-				again = 1;
-			}
+			rt->retry_count++;
 			SlicePop(&rt->outbuf, 1);
 			rt->outmsg.size = 0;
 			result = 1;
 			continue;
 		}
 		if (result > 0) {
+			if (rt->retry_count != 0) {
+				TRACE("%p: re-probe stream head, count = %d.\n", rt, rt->retry_count);
+				rt->retry_count = 0;
+			}
 			SlicePop(&rt->outbuf, rt->outmsg.size);
 			AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, rt->outmsg.data, rt->outmsg.size);
 			break;
