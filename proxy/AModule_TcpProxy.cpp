@@ -126,7 +126,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				proxy_opt = AOptionFindChild(client->server->option, module->module_name);
 			else
 				proxy_opt = NULL;
-			if ((proxy_opt == NULL) || (_stricmp(proxy_opt->value, "bridge") == 0))
+			if ((module == NULL) || (proxy_opt != NULL && _stricmp(proxy_opt->value, "bridge") == 0))
 			{
 				if (proxy_opt == NULL)
 					proxy_opt = client->server->default_bridge;

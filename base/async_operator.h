@@ -18,6 +18,7 @@ struct async_thread {
 	async_thread    *attach;
 
 	CRITICAL_SECTION ao_lock;
+	DWORD            ao_tick;
 	struct list_head ao_waiting;
 	struct list_head ao_pending;
 };

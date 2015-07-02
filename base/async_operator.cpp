@@ -25,14 +25,14 @@ static unsigned int __stdcall async_thread_run(void *p)
 		at = at->attach;
 
 	while (at->running) {
-		DWORD curtick = GetTickCount();
+		at->ao_tick = GetTickCount();
 		long timewait = 20*1000;
 
 		EnterCriticalSection(&at->ao_lock);
 		while (!list_empty(&at->ao_waiting))
 		{
 			asop = list_first_entry(&at->ao_waiting, async_operator, ao_entry);
-			long diff = (long)(curtick - asop->ao_tick);
+			long diff = (long)(at->ao_tick - asop->ao_tick);
 			if (diff < 0) {
 				timewait = -diff;
 				break;
@@ -49,7 +49,7 @@ static unsigned int __stdcall async_thread_run(void *p)
 		}
 
 		for ( ; ; ) {
-			timewait -= (GetTickCount() - curtick);
+			timewait -= (GetTickCount() - at->ao_tick);
 			if (timewait < 0) {
 				timewait = 0;
 			}

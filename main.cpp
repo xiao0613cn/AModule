@@ -10,14 +10,10 @@
 
 static const char *pvd_path =
 	"PVDClient: PVDClient {"
-	"	io: io_dump {"
-	"	file: \"C:\\Users\\xiao\\Desktop\\Record\\dump.bin\","
-	"	req_list: '0,1,', "
-	"       io: tcp {"
-	"		address: 192.168.36.45,"
+	"       io: async_tcp {"
+	"		address: 192.168.40.222,"
 	"		port: 8101,"
 	"               timeout: 5,"
-	"	},"
 	"	},"
 	"	username: 'admin',"
 	"	password: 888888,"
@@ -136,6 +132,7 @@ extern AModule PVDRTModule;
 extern AModule TCPServerModule;
 extern AModule HTTPProxyModule;
 extern AModule PVDProxyModule;
+extern AModule M3U8ProxyModule;
 extern AModule DumpModule;
 
 void test_pvd(AOption *option)
@@ -264,6 +261,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
 	AModuleRegister(&DumpModule);
+	AModuleRegister(&M3U8ProxyModule);
 
 	AOption *option = NULL;
 	long result = AOptionDecode(&option, pvd_path);
@@ -278,7 +276,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		gets_s(str);
 		if (_stricmp(str,"pvd") == 0)
 			path = pvd_path;
-		else if (_stricmp(str,"tcp_server") == 0)
+		else if (str[0] == '\0' || _stricmp(str,"tcp_server") == 0)
 			path = proxy_path;
 		else if (str[0] == 'q')
 			goto _return;

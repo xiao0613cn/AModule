@@ -78,7 +78,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 
 
 #ifndef _align_8bytes
-#define _align_8bytes(x) (((x)+0x3)&~0x3)
+#define _align_8bytes(x) (((x)+7)&~7)
 #endif
 
 

@@ -11,31 +11,11 @@ static STRUCT_SDVR_ALARM_EX heart_data;
 static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 DWORD  userid;
-static AObject *rt = NULL;
 static DWORD rt_active = 0;
 static BOOL force_alarm = FALSE;
-struct RTBuffer {
-	long    refs;
-	long    size;
-	char    data[0];
-};
-static RTBuffer* RTBufferAlloc(int size) {
-	RTBuffer *buffer = (RTBuffer*)malloc(sizeof(RTBuffer)+size);
-	buffer->refs = 1;
-	buffer->size = size;
-	return buffer;
-}
-static void RTBufferFree(RTBuffer *buffer) {
-	long ret = InterlockedDecrement(&buffer->refs);
-	if (ret <= 0)
-		free(buffer);
-}
-static struct RTFrame {
-	RTBuffer *buffer;
-	long      type;
-	long      offset;
-	long      length;
-} rt_frame = { 0 };
+
+AObject *rt = NULL;
+AMessage rt_msg = { 0 };
 
 struct HeartMsg {
 	AMessage msg;
@@ -67,7 +47,7 @@ struct PVDProxy {
 	DWORD       outtick;
 	long volatile reqcount;
 	AMessage     *outfrom;
-	srsw_queue<RTFrame,64> frame_queue;
+	srsw_queue<AMessage,64> frame_queue;
 	async_operator timer;
 };
 #define to_proxy(obj) container_of(obj, PVDProxy, object)
@@ -82,7 +62,7 @@ static void PVDProxyRelease(AObject *object)
 	SliceFree(&p->outbuf);
 
 	while (p->frame_queue.size() != 0) {
-		RTBufferFree(p->frame_queue.front().buffer);
+		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
 		p->frame_queue.get_front();
 	}
 	free(p);
@@ -174,12 +154,12 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 	if (result == 0)
 	{
 		// on notify callback
-		if (p->reqcount == -1)
+		if ((p->reqcount == -1) || (rt_msg.data == NULL))
 			return -1;
-		assert(rt_frame.buffer != NULL);
+
 		if (p->frame_queue.size() < p->frame_queue._capacity()) {
-			InterlockedIncrement(&rt_frame.buffer->refs);
-			p->frame_queue.put_back(rt_frame);
+			RTBufferAddRef(RTMsgGet(&rt_msg));
+			p->frame_queue.put_back(rt_msg);
 		} else {
 			TRACE("drop stream frame(%d) size = %d...\n",
 				msg->type&~AMsgType_Custom, msg->size);
@@ -207,13 +187,13 @@ static void PVDProxySendStream(async_operator *asop, int result)
 			return;
 		}
 
-		RTFrame &frame = p->frame_queue.front();
-		AMsgInit(&p->inmsg, AMsgType_Custom|frame.type, frame.buffer->data+frame.offset, frame.length);
+		AMessage &frame = p->frame_queue.front();
+		AMsgInit(&p->inmsg, AMsgType_Custom|frame.type, frame.data, frame.size);
 		result = p->client->request(p->client, ARequest_Input, &p->inmsg);
 		if (result <= 0)
 			break;
 
-		RTBufferFree(frame.buffer);
+		RTBufferFree(RTMsgGet(&frame));
 		p->frame_queue.get_front();
 	} while (result > 0);
 	if (result != 0) {
@@ -225,7 +205,7 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
-		RTBufferFree(p->frame_queue.front().buffer);
+		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
 		p->frame_queue.get_front();
 		PVDProxySendStream(&p->timer, 1);
 	} else {
@@ -500,17 +480,26 @@ static long PVDRecvDone(AMessage *msg, long result)
 	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
 		TRACE("result = %d.\n", result);*/
 	if (sm->object == rt) {
-		if ((rt_frame.buffer == NULL) || (rt_frame.buffer->size < rt_frame.offset+rt_frame.length+msg->size)) {
-			release_s(rt_frame.buffer, RTBufferFree, NULL);
-			rt_frame.buffer = RTBufferAlloc(max(msg->size*10,1024*1024));
-			rt_frame.offset = 0;
-		} else {
-			rt_frame.offset += rt_frame.length;
-		}
-		rt_frame.type = msg->type;
-		rt_frame.length = msg->size;
-		memcpy(rt_frame.buffer->data+rt_frame.offset, msg->data, msg->size);
+		RTBuffer *buffer;
+		long offset;
 		rt_active = GetTickCount();
+
+		if (rt_msg.data == NULL) {
+			buffer = RTBufferAlloc(max(msg->size*10,1024*1024));
+			offset = 0;
+		} else {
+			buffer = RTMsgGet(&rt_msg);
+			offset = rt_msg.type + _align_8bytes(rt_msg.size);
+
+			if (buffer->size < offset+msg->size) {
+				RTBufferFree(buffer);
+				buffer = RTBufferAlloc(max(msg->size*10,1024*1024));
+				offset = 0;
+			}
+		}
+		RTMsgSet(&rt_msg, buffer, offset);
+		memcpy(rt_msg.data, msg->data, msg->size);
+		rt_msg.size = msg->size;
 	}
 	async_operator_timewait(&sm->timer, NULL, 0);
 	return result;
@@ -685,7 +674,10 @@ static void PVDProxyExit(void)
 		AObjectRelease(rt);
 		rt = NULL;
 	}
-	release_s(rt_frame.buffer, RTBufferFree, NULL);
+	if (rt_msg.data != NULL) {
+		RTBufferFree(RTMsgGet(&rt_msg));
+		rt_msg.data = NULL;
+	}
 }
 
 static long PVDProxyProbe(AObject *object, AMessage *msg)

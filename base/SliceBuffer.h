@@ -146,4 +146,43 @@ static inline void SliceFree(SliceBuffer *sb) {
 	SliceInit(sb);
 }
 
+//////////////////////////////////////////////////////////////////////////
+struct RTBuffer {
+	long    refs;
+	long    size;
+	void  (*free)(void*);
+#pragma warning(disable:4200)
+	char    data[0];
+#pragma warning(default:4200)
+};
+
+static RTBuffer* RTBufferAlloc(int size) {
+	RTBuffer *buffer = (RTBuffer*)malloc(sizeof(RTBuffer)+size+sizeof(long));
+	buffer->refs = 1;
+	buffer->size = size;
+	buffer->free = &free;
+	return buffer;
+}
+
+static long RTBufferAddRef(RTBuffer *buffer) {
+	return InterlockedIncrement(&buffer->refs);
+}
+
+static void RTBufferFree(RTBuffer *buffer) {
+	long ret = InterlockedDecrement(&buffer->refs);
+	if (ret <= 0)
+		(buffer->free)(buffer);
+}
+
+//
+static void RTMsgSet(AMessage *msg, RTBuffer *buffer, long offset) {
+	msg->type = offset;
+	msg->data = buffer->data + offset;
+	msg->size = buffer->size - offset;
+}
+
+static RTBuffer* RTMsgGet(AMessage *msg) {
+	return (RTBuffer*)(msg->data - msg->type - sizeof(RTBuffer));
+}
+
 #endif
