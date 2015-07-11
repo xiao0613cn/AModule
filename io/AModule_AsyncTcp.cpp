@@ -83,6 +83,7 @@ static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 static void AsyncTcpRequestDone(sysio_operator *sysop, int result)
 {
 	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
+
 	if (result <= 0) {
 		result = -EIO;
 	} else if (ovlp->msg->type & AMsgType_Custom) {
@@ -123,8 +124,8 @@ static void AsyncTcpOpenDone(sysio_operator *sysop, int result)
 static long AsyncTcpOpen(AObject *object, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
-	if (msg->type == AMsgType_Object) {
-		if (msg->size != sizeof(SOCKET))
+	if (msg->type == AMsgType_Handle) {
+		if (msg->size != 0)
 			return -EINVAL;
 
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
@@ -140,7 +141,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AOption)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
@@ -159,7 +160,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 	}
 
 	if (tcp->sock == INVALID_SOCKET) {
-		tcp->sock = socket(AF_INET, SOCK_STREAM, ai->ai_protocol);
+		tcp->sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 		if (tcp->sock == INVALID_SOCKET) {
 			release_s(ai, freeaddrinfo, NULL);
 			return -EFAULT;
@@ -185,18 +186,23 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 	AsyncTcp *tcp = to_tcp(object);
 	long result;
 
-	if (reqix == ARequest_Input) {
+	switch (reqix)
+	{
+	case ARequest_Input:
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
 		result = iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
-	} else if (reqix == ARequest_Output) {
+		break;
+	case ARequest_Output:
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
 		result = iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ovlp);
-	} else {
-		result = -ENOSYS;
+		break;
+	default:
+		assert(FALSE);
+		return -ENOSYS;
 	}
 	if (result != 0)
 		result = -EIO;
@@ -211,10 +217,8 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 
 	if (reqix == ARequest_Input) {
 		shutdown(tcp->sock, SD_SEND);
-		//CancelIoEx((HANDLE)tcp->sock, &tcp->send_ovlp.sysio.ovlp);
 	} else if (reqix == ARequest_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
-		//CancelIoEx((HANDLE)tcp->sock, &tcp->recv_ovlp.sysio.ovlp);
 	} else {
 		return -ENOSYS;
 	}
@@ -229,7 +233,6 @@ static long AsyncTcpClose(AObject *object, AMessage *msg)
 
 	if (msg == NULL) {
 		shutdown(tcp->sock, SD_BOTH);
-		//CancelIoEx((HANDLE)tcp->sock, NULL);
 	} else {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}

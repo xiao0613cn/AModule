@@ -1,5 +1,5 @@
-#ifndef _INTERFACE_METHOD_H_
-#define _INTERFACE_METHOD_H_
+#ifndef _AMODULE_H_
+#define _AMODULE_H_
 
 #ifndef _AOPTION_H_
 #include "AOption.h"
@@ -22,10 +22,10 @@ typedef struct AModule AModule;
 //////////////////////////////////////////////////////////////////////////
 enum AMsgType {
 	AMsgType_Unknown = 0,
-	AMsgType_Option,
-	AMsgType_Object,
-	AMsgType_Module,
-	AMsgType_Packet,
+	AMsgType_Handle, /* void*   (data = void*, size = 0) */
+	AMsgType_Option, /* AOption (data = AOption*, size = 0 */
+	AMsgType_Object, /* AObject (data = AObject*, size = 0 */
+	AMsgType_Module, /* AModule (data = AModule*, size = 0 */
 	AMsgType_Custom = 0x80000000,
 };
 
@@ -78,6 +78,11 @@ enum ARequestIndex {
 	ANotify_InQueueBack   = 0x04000000,
 };
 
+//////////////////////////////////////////////////////////////////////////
+// all api return value:
+// > 0: completed with success
+// = 0: pending with success, will callback msg->done()
+// < 0: call failed, return error code
 struct AObject {
 	long volatile count;
 	void  (*release)(AObject *object);

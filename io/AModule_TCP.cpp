@@ -34,8 +34,8 @@ static long TCPCreate(AObject **object, AObject *parent, AOption *option)
 static long TCPOpen(AObject *object, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
-	if (msg->type == AMsgType_Object) {
-		if (msg->size != sizeof(SOCKET))
+	if (msg->type == AMsgType_Handle) {
+		if (msg->size != 0)
 			return -EINVAL;
 
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
@@ -45,7 +45,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AOption)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
@@ -64,7 +64,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	}
 
 	if (tcp->sock == INVALID_SOCKET) {
-		tcp->sock = socket(AF_INET, SOCK_STREAM, ai->ai_protocol);
+		tcp->sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
 		if (tcp->sock == INVALID_SOCKET) {
 			release_s(ai, freeaddrinfo, NULL);
 			return -EIO;
@@ -139,7 +139,6 @@ static long TcpCancel(AObject *object, long reqix, AMessage *msg)
 	} else {
 		return -ENOSYS;
 	}
-	CancelIo((HANDLE)tcp->sock);
 	return 1;
 }
 
@@ -151,7 +150,6 @@ static long TCPClose(AObject *object, AMessage *msg)
 
 	if (msg == NULL) {
 		shutdown(tcp->sock, SD_BOTH);
-		//CancelIoEx((HANDLE)tcp->sock, NULL);
 	} else {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	}
