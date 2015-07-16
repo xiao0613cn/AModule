@@ -93,13 +93,13 @@ static void AsyncTcpRequestDone(sysio_operator *sysop, int result)
 		if (ovlp->buf.len == 0) {
 			result = ovlp->msg->size;
 		} else {
-			if (ovlp == &ovlp->tcp->send_ovlp)
-				result = iocp_send(ovlp->tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
+			AsyncTcp *tcp = ovlp->tcp;
+			if (ovlp == &tcp->send_ovlp)
+				result = iocp_send(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
 			else
-				result = iocp_recv(ovlp->tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
+				result = iocp_recv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
 			if (result == 0)
 				return;
-			result = -EIO;
 		}
 	} else {
 		ovlp->msg->size = result;
@@ -110,15 +110,14 @@ static void AsyncTcpRequestDone(sysio_operator *sysop, int result)
 static void AsyncTcpOpenDone(sysio_operator *sysop, int result)
 {
 	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
+	AsyncTcp *tcp = ovlp->tcp;
+
 	if (result >= 0)
-		result = iocp_is_connected(ovlp->tcp->sock);
-	if (result != 0)
-		result = -EIO;
-	else
-		result = 1;
-	ovlp->tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
-	ovlp->tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
-	ovlp->msg->done(ovlp->msg, result);
+		result = iocp_is_connected(tcp->sock);
+
+	tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
+	tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
+	result = ovlp->msg->done(ovlp->msg, result);
 }
 
 static long AsyncTcpOpen(AObject *object, AMessage *msg)
@@ -184,29 +183,26 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
-	long result;
 
+	assert(msg->size != 0);
 	switch (reqix)
 	{
 	case ARequest_Input:
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
-		result = iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
-		break;
+		return iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
+
 	case ARequest_Output:
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
-		result = iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ovlp);
-		break;
+		return iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ovlp);
+
 	default:
 		assert(FALSE);
 		return -ENOSYS;
 	}
-	if (result != 0)
-		result = -EIO;
-	return result;
 }
 
 static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
@@ -220,6 +216,7 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 	} else if (reqix == ARequest_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
+		assert(FALSE);
 		return -ENOSYS;
 	}
 	return 1;

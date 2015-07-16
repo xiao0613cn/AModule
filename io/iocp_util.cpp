@@ -64,8 +64,8 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 {
 	u_long nonblocking = 1;
 	int ret = ioctlsocket(sock, FIONBIO, &nonblocking);
-	if (ret == SOCKET_ERROR)
-		return SOCKET_ERROR;
+	if (ret != 0)
+		return -EIO;
 
 	ret = connect(sock, name, namelen);
 
@@ -79,28 +79,24 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 	FD_SET(sock, &wfds);
 
 	ret = select(sock, NULL, &wfds, NULL, &tv);
-	if (ret == SOCKET_ERROR)
-		return SOCKET_ERROR;
-	if (ret == 0)
-		return SOCKET_ERROR;
+	if (ret <= 0)
+		return -EAGAIN;
 
 	// error checking
 	int error = 0;
 	int errorlen = sizeof(error);
 	ret = getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&error, &errorlen);
-	if (ret == SOCKET_ERROR)
-		return SOCKET_ERROR;
-	if (error != 0)
-		return SOCKET_ERROR;
+	if ((ret != 0) || (error != 0))
+		return -EIO;
 
 	// reset to blocking io
 	nonblocking = 0;
 	ret = ioctlsocket(sock, FIONBIO, &nonblocking);
-	if (ret == SOCKET_ERROR)
-		return SOCKET_ERROR;
+	if (ret < 0)
+		return -EIO;
 
 	//success
-	return 0;
+	return 1;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -114,7 +110,7 @@ iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPE
 	addr.sin_addr.s_addr = htonl(ADDR_ANY);
 	int ret = bind(sock, (const sockaddr*)&addr, sizeof(addr));
 	if (ret != 0)
-		return SOCKET_ERROR;
+		return -EIO;
 
 	DWORD tx;
 	LPFN_CONNECTEX ConnectEx = NULL;
@@ -125,35 +121,30 @@ iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPE
 		&ConnectEx_GUID, sizeof(ConnectEx_GUID), &ConnectEx, sizeof(ConnectEx),
 		&tx, NULL, NULL);
 	if (ret != 0)
-		return SOCKET_ERROR;
+		return -EIO;
 
 	ret = ConnectEx(sock, name, namelen, NULL, 0, NULL, ovlp);
-	if (ret) {
-		ret = 0;
-	} else if ((ret = WSAGetLastError()) == WSA_IO_PENDING) {
-		ret = 0;
-	} else {
-		ret = SOCKET_ERROR;
-	}
-	return ret;
+	if (!ret && (WSAGetLastError() != WSA_IO_PENDING))
+		return -EIO;
+
+	return 0;
 }
 
 int
 iocp_is_connected(SOCKET sock)
 {
 	int ret = setsockopt(sock, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
-	if (ret == SOCKET_ERROR) {
-		return SOCKET_ERROR;
-	}
+	if (ret != 0)
+		return -EIO;
 
 	DWORD seconds;
 	int size = sizeof(seconds);
 
 	ret = getsockopt(sock, SOL_SOCKET, SO_CONNECT_TIME, (char*)&seconds, (int*)&size);
-	if ((ret != SOCKET_ERROR) && (seconds == 0xffffffff)) {
-		ret = SOCKET_ERROR;
-	}
-	return ret;
+	if ((ret != 0) || (seconds == 0xffffffff))
+		return -EIO;
+
+	return 1;
 }
 
 int
@@ -163,15 +154,10 @@ iocp_send(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	DWORD flag = 0;
 
 	int ret = WSASend(sock, buffer, count, &tx, flag, ovlp, NULL);
-	if (ret != 0)
-	{
-		ret = WSAGetLastError();
-		if (ret == WSA_IO_PENDING)
-			ret = 0;
-		else
-			ret = SOCKET_ERROR;
-	}
-	return ret;
+	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
+		return -EIO;
+
+	return 0;
 }
 
 int
@@ -191,15 +177,10 @@ iocp_recv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	DWORD flag = 0;
 
 	int ret = WSARecv(sock, buffer, count, &tx, &flag, ovlp, NULL);
-	if (ret != 0)
-	{
-		ret = WSAGetLastError();
-		if (ret == WSA_IO_PENDING)
-			ret = 0;
-		else
-			ret = SOCKET_ERROR;
-	}
-	return ret;
+	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
+		return -EIO;
+
+	return 0;
 }
 
 int
@@ -217,32 +198,20 @@ int
 iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
-	int ret = WriteFile(file, data, size, &tx, ovlp);
-	if (ret) {
-		ret = 0;
-	} else {
-		ret = GetLastError();
-		if (ret == ERROR_IO_PENDING)
-			ret = 0;
-		else
-			ret = -1;
-	}
-	return ret;
+	BOOL ret = WriteFile(file, data, size, &tx, ovlp);
+	if (!ret && (GetLastError() != ERROR_IO_PENDING))
+		return -EIO;
+
+	return 0;
 }
 
 int
 iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
-	int ret = ReadFile(file, data, size, &tx, ovlp);
-	if (ret) {
-		ret = 0;
-	} else {
-		ret = GetLastError();
-		if (ret == ERROR_IO_PENDING)
-			ret = 0;
-		else
-			ret = -1;
-	}
-	return ret;
+	BOOL ret = ReadFile(file, data, size, &tx, ovlp);
+	if (!ret && (GetLastError() != ERROR_IO_PENDING))
+		return -EIO;
+
+	return 0;
 }

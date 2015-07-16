@@ -388,7 +388,7 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	DWORD tx = 0;
 	result = WSAIoctl(server->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &ax_guid, sizeof(ax_guid),
 	                  &server->acceptex, sizeof(server->acceptex), &tx, NULL, NULL);
-	if (result == SOCKET_ERROR)
+	if (result != 0)
 		return -EIO;
 
 	result = sysio_bind(NULL, (HANDLE)server->sock);

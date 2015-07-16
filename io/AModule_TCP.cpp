@@ -7,7 +7,7 @@ struct TCPObject {
 	AObject object;
 	SOCKET  sock;
 };
-#define to_tcp(obj) CONTAINING_RECORD(obj, TCPObject, object);
+#define to_tcp(obj) container_of(obj, TCPObject, object);
 
 static void TCPRelease(AObject *object)
 {
@@ -75,7 +75,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	long result = tcp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, (timeout?atol(timeout->value):20));
 	release_s(ai, freeaddrinfo, NULL);
 
-	if (result != 0) {
+	if (result < 0) {
 		result = -EIO;
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	} else {
@@ -105,17 +105,20 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	{
 	case ARequest_Input:
 		if (msg->type & AMsgType_Custom)
-			result = tcp_send(tcp->sock, msg->data, msg->size, 0);
-		else
-			result = send(tcp->sock, msg->data, msg->size, 0);
+			return tcp_send(tcp->sock, msg->data, msg->size, 0);
+
+		result = send(tcp->sock, msg->data, msg->size, 0);
 		break;
+
 	case ARequest_Output:
 		if (msg->type & AMsgType_Custom)
-			result = tcp_recv(tcp->sock, msg->data, msg->size, 0);
-		else
-			result = recv(tcp->sock, msg->data, msg->size, 0);
+			return tcp_recv(tcp->sock, msg->data, msg->size, 0);
+
+		result = recv(tcp->sock, msg->data, msg->size, 0);
 		break;
+
 	default:
+		assert(FALSE);
 		return -ENOSYS;
 	}
 
@@ -137,6 +140,7 @@ static long TcpCancel(AObject *object, long reqix, AMessage *msg)
 	} else if (reqix == ARequest_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
+		assert(FALSE);
 		return -ENOSYS;
 	}
 	return 1;

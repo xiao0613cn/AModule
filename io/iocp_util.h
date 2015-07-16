@@ -23,7 +23,7 @@ tcp_send(SOCKET sock, const char *data, int size, int flags)
 	while (left > 0) {
 		int ret = send(sock, data, left, flags);
 		if (ret <= 0)
-			return -1;
+			return -EIO;
 		data += ret;
 		left -= ret;
 	}
@@ -37,7 +37,7 @@ tcp_recv(SOCKET sock, char *data, int size, int flags)
 	while (left > 0) {
 		int ret = recv(sock, data, left, flags);
 		if (ret <= 0)
-			return -1;
+			return -EIO;
 		data += ret;
 		left -= ret;
 	}
