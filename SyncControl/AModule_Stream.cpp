@@ -10,8 +10,6 @@ struct SyncRequest {
 
 	CRITICAL_SECTION    lock;
 	AMessage           *from;
-	//unsigned long     msgloop : 1;
-	//unsigned long     abortloop : 1;
 	struct list_head    request_list;
 	struct list_head    notify_list;
 };
@@ -73,8 +71,6 @@ static SyncRequest* SyncRequestNew(SyncControl *sc, long reqix)
 
 	InitializeCriticalSection(&req->lock);
 	req->from = NULL;
-	//req->msgloop = 0;
-	//req->abortloop = 0;
 	INIT_LIST_HEAD(&req->request_list);
 	INIT_LIST_HEAD(&req->notify_list);
 
@@ -87,10 +83,14 @@ static void SyncControlRelease(AObject *object)
 {
 	SyncControl *sc = to_sc(object);
 	release_s(sc->stream, AObjectRelease, NULL);
+
+	assert(sc->close_msg == NULL);
 	if (sc->close_msg != NULL) {
 		sc->close_msg->done(sc->close_msg, -EINTR);
 		sc->close_msg = NULL;
 	}
+
+	assert(list_empty(&sc->syncreq_list));
 	while (!list_empty(&sc->syncreq_list)) {
 		SyncRequest *req = list_first_entry(&sc->syncreq_list, SyncRequest, entry);
 		list_del_init(&req->entry);
@@ -99,9 +99,9 @@ static void SyncControlRelease(AObject *object)
 			req->from->done(req->from, -EINTR);
 			req->from = NULL;
 		}
-		DeleteCriticalSection(&req->lock);
 		MsgListClear(&req->request_list, -EINTR);
 		MsgListClear(&req->notify_list, -EINTR);
+		DeleteCriticalSection(&req->lock);
 		free(req);
 	}
 	free(sc);
@@ -131,7 +131,7 @@ static long SyncControlCreate(AObject **object, AObject *parent, AOption *option
 
 static long SyncControlOpenDone(AMessage *msg, long result);
 
-static long SyncControlOpenStatus(SyncRequest *req, long result)
+static long SyncControlOpenStatus(SyncRequest *req, long &result)
 {
 	SyncControl *sc = req->sc;
 	long old_status;
@@ -140,9 +140,7 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 	case stream_abort:
 		result = -EINTR;
 	case stream_opening:
-		if (result == 0)
-			result = 1;
-		if (result > 0)
+		if (result >= 0)
 		{
 			while (sc->object.reqix_count < sc->stream->reqix_count) {
 				if (SyncRequestNew(sc, sc->object.reqix_count) == NULL) {
@@ -154,13 +152,13 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 		}
 		AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
 		sc->open_result = result;
-		if (result > 0) {
+		if (result >= 0) {
 			AMessage *msg = req->from;
 			req->msg.done = &SyncRequestDone;
 			req->from = NULL;
 			old_status = InterlockedCompareExchange(&sc->status, stream_opened, stream_opening);
 			if (old_status == stream_opening)
-				break;
+				return 1;
 
 			assert(old_status == stream_abort);
 			sc->open_result = -EINTR;
@@ -174,7 +172,7 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 		AMsgInit(&req->msg, AMsgType_Unknown, NULL, 0);
 		result = sc->stream->close(sc->stream, &req->msg);
 		if (result == 0)
-			break;
+			return 0;
 
 	case stream_closing:
 		result = InterlockedDecrement(&sc->request_count);
@@ -185,14 +183,13 @@ static long SyncControlOpenStatus(SyncRequest *req, long result)
 		req->from = NULL;
 		old_status = InterlockedExchange(&sc->status, stream_closed);
 		assert(old_status == stream_closing);
-		break;
+		return -1;
 
 	default:
 		assert(FALSE);
 		result = -EACCES;
-		break;
+		return -1;
 	}
-	return result;
 }
 
 static long SyncControlOpenDone(AMessage *msg, long result)
@@ -200,8 +197,7 @@ static long SyncControlOpenDone(AMessage *msg, long result)
 	SyncRequest *req = to_req(msg);
 	msg = req->from;
 
-	result = SyncControlOpenStatus(req, result);
-	if (result != 0)
+	if (SyncControlOpenStatus(req, result) != 0)
 		result = msg->done(msg, result);
 	return result;
 }
@@ -235,7 +231,7 @@ static long SyncControlOpen(AObject *object, AMessage *msg)
 
 	result = sc->stream->open(sc->stream, &req->msg);
 	if (result != 0)
-		result = SyncControlOpenStatus(req, result);
+		SyncControlOpenStatus(req, result);
 	return result;
 }
 
@@ -294,7 +290,7 @@ static long SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 	return sc->stream->close(sc->stream, &req->msg);
 }
 
-static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*/)
+static void SyncRequestDispatch(SyncRequest *req, long result)
 {
 	SyncControl *sc = req->sc;
 	AMessage *msg;
@@ -306,9 +302,10 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 
 		EnterCriticalSection(&req->lock);
 		if (result >= 0) {
-		list_for_each_entry(msg, &req->notify_list, AMessage, entry) {
-			if ((msg->type == AMsgType_Unknown) || (msg->type == req->msg.type))
-			{
+			list_for_each_entry(msg, &req->notify_list, AMessage, entry) {
+				if ((msg->type != AMsgType_Unknown) && (msg->type != req->msg.type))
+					continue;
+
 				AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
 				probe_ret = msg->done(msg, 0);
 				if (probe_ret == 0)
@@ -324,23 +321,8 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 				list_move_tail(&probe_msg->entry, &quit_notify);
 				probe_msg = NULL;
 			}
-		} }
-		/*if (req->msgloop) {
-			msg = req->from;
-			if (result < 0) {
-				if (firstloop)
-					msg = NULL;
-			} else if (req->abortloop || (sc->status != stream_opened)) {
-				result = -EINTR;
-			} else {
-				result = 1;
-			}
-			if (result < 0) {
-				req->from = NULL;
-				req->msgloop = 0;
-				req->abortloop = 0;
-			}
-		} else*/ if (sc->status != stream_opened) {
+		}
+		if (sc->status != stream_opened) {
 			msg = req->from = NULL;
 			result = -EINTR;
 		} else if (list_empty(&req->request_list)) {
@@ -371,15 +353,9 @@ static void SyncRequestDispatch(SyncRequest *req, long result/*, BOOL firstloop*
 		if (result == 0)
 			return;
 
-		//if (!req->msgloop || (result >= 0)) {
-			AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-			msg->done(msg, result);
-		//}
-		//firstloop = FALSE;
+		AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
+		msg->done(msg, result);
 	}
-
-	//if (msg != NULL)
-	//	msg->done(msg, result);
 
 	if (InterlockedDecrement(&sc->request_count) == 0) {
 		result = SyncControlDoClose(sc, req);
@@ -398,11 +374,9 @@ static long SyncRequestDone(AMessage *msg, long result)
 
 	msg = req->from;
 	AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-	//if (!req->msgloop || (result >= 0)) {
-		msg->done(msg, result);
-	//}
+	msg->done(msg, result);
 
-	SyncRequestDispatch(req, result/*, FALSE*/);
+	SyncRequestDispatch(req, result);
 	return result;
 }
 
@@ -433,21 +407,8 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 			list_add_tail(&msg->entry, &req->notify_list);
 			result = 0;
 			break;
-		/*case ARequest_MsgLoop:
-			if (req->msgloop || (req->from != NULL)) {
-				result = -EBUSY;
-			} else {
-				req->msgloop = 1;
-				req->abortloop = 0;
-				req->from = msg;
-				result = InterlockedIncrement(&sc->request_count);
-				assert(result > 1);
-			}
-			break;*/
 		default:
-			/*if (req->msgloop) {
-				result = -EBUSY;
-			} else*/ if (req->from != NULL) {
+			if (req->from != NULL) {
 				if (flag == ARequest_InQueueFront)
 					list_add(&msg->entry, &req->request_list);
 				else
@@ -473,12 +434,11 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 	{
 		long ret = result;
 		AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-		//if (req->msgloop && (result > 0)) {
 		if (msg->done != NULL) {
 			msg->done(msg, result);
 			result = 0;
 		}
-		SyncRequestDispatch(req, ret/*, TRUE*/);
+		SyncRequestDispatch(req, ret);
 	}
 	return result;
 }
@@ -505,17 +465,10 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 
 	long result;
 	EnterCriticalSection(&req->lock);
-	/*if (flag == ARequest_MsgLoop) {
-		if (!req->msgloop) {
-			result = -ENODEV;
-		} else if ((msg == NULL) || (msg == req->from)) {
-			req->abortloop = 1;
-			result = 0;
-		} else {
-			result = -EINVAL;
-		}
-	} else*/ if (sc->status != stream_opened) {
+	if (sc->status != stream_opened) {
 		result = -EINTR;
+	} else if (msg == NULL) {
+		result = sc->stream->request(sc->stream, reqix, NULL);
 	} else if (msg == req->from) {
 		result = 0;
 	} else {

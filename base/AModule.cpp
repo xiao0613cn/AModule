@@ -2,6 +2,7 @@
 #include "AModule.h"
 
 static LIST_HEAD(module_list);
+static AOption *g_option = NULL;
 
 void AModuleRegister(AModule *module)
 {
@@ -15,10 +16,21 @@ void AModuleRegister(AModule *module)
 		}
 	}
 	list_add_tail(&module->global_entry, &module_list);
+
+	long result = 0;
+	if (module->init != NULL) {
+		result = module->init(g_option);
+		if (result < 0) {
+			list_del_init(&module->global_entry);
+			list_del_init(&module->class_list);
+		}
+	}
+	return result;
 }
 
 long AModuleInitAll(AOption *option)
 {
+	g_option = option;
 	AModule *pos;
 	list_for_each_entry(pos, &module_list, AModule, global_entry)
 	{
@@ -38,6 +50,7 @@ long AModuleExitAll(void)
 		if (pos->exit != NULL)
 			pos->exit();
 	}
+	release_s(g_option, AOptionRelease, NULL);
 	return 1;
 }
 

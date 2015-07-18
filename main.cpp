@@ -267,7 +267,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	long result = AOptionDecode(&option, pvd_path);
 	ResetOption(option);
 	AModuleInitAll(option);
-	release_s(option, AOptionRelease, NULL);
+	//release_s(option, AOptionRelease, NULL);
 
 	char str[256];
 	const char *path;
