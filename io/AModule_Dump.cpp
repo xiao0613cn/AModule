@@ -1,24 +1,45 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
+#include "AModule_io.h"
 
 struct DumpObject;
 struct DumpReq {
 	long        reqix;
 	DumpObject *dump;
+	HANDLE      file;
+	BOOL        attach;
 	AMessage    msg;
 	AMessage   *from;
+	struct list_head entry;
 };
 struct DumpObject {
 	AObject  object;
 	HANDLE   file;
+	char     file_name[512];
+	BOOL     single_file;
 	AObject *io;
-	DumpReq  req_list[4];
+
+	CRITICAL_SECTION req_lock;
+	struct list_head req_list;
+	DumpReq *req_cache[4];
 };
 #define to_dump(obj)   container_of(obj, DumpObject, object)
 
 static void DumpRelease(AObject *object)
 {
 	DumpObject *dump = to_dump(object);
+
+	while (!list_empty(&dump->req_list)) {
+		DumpReq *req = list_first_entry(&dump->req_list, DumpReq, entry);
+		list_del_init(&req->entry);
+
+		if (!req->attach) {
+			release_s(req->file, CloseHandle, INVALID_HANDLE_VALUE);
+		}
+		free(req);
+	}
+	DeleteCriticalSection(&dump->req_lock);
+
 	release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
 	release_s(dump->io, AObjectRelease, NULL);
 
@@ -34,12 +55,13 @@ static long DumpCreate(AObject **object, AObject *parent, AOption *option)
 	extern AModule DumpModule;
 	AObjectInit(&dump->object, &DumpModule);
 	dump->file = INVALID_HANDLE_VALUE;
+	dump->file_name[0] = '\0';
+	dump->single_file = FALSE;
 	dump->io = NULL;
-	for (int reqix = 0; reqix < _countof(dump->req_list); ++reqix) {
-		dump->req_list[reqix].reqix = reqix;
-		dump->req_list[reqix].dump = dump;
-		dump->req_list[reqix].msg.done = NULL;
-	}
+
+	InitializeCriticalSection(&dump->req_lock);
+	INIT_LIST_HEAD(&dump->req_list);
+	memset(dump->req_cache, 0, sizeof(dump->req_cache));
 
 	AOption *io_opt = AOptionFindChild(option, "io");
 	if (io_opt != NULL)
@@ -49,43 +71,68 @@ static long DumpCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;
 }
 
+static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
+{
+	DumpReq *req;
+	if (reqix < _countof(dump->req_cache)) {
+		req = dump->req_cache[reqix];
+		if (req != NULL)
+			return req;
+	}
+
+	EnterCriticalSection(&dump->req_lock);
+	list_for_each_entry(req, &dump->req_list, DumpReq, entry) {
+		if (req->reqix == reqix) {
+			LeaveCriticalSection(&dump->req_lock);
+			return req;
+		}
+	}
+
+	req = (DumpReq*)malloc(sizeof(DumpReq));
+	if (req != NULL) {
+		req->reqix = reqix;
+		req->dump = dump;
+		if (dump->single_file) {
+			req->file = dump->file;
+			req->attach = TRUE;
+		} else {
+			req->file = INVALID_HANDLE_VALUE;
+			req->attach = FALSE;
+		}
+		req->from = NULL;
+
+		list_add_tail(&req->entry, &dump->req_list);
+		if (reqix < _countof(dump->req_cache))
+			dump->req_cache[reqix] = req;
+	}
+	LeaveCriticalSection(&dump->req_lock);
+
+	if (!dump->single_file && (req != NULL)) {
+		char file_name[512];
+		sprintf_s(file_name, "%s_%d.dmp", dump->file_name, reqix);
+		req->file = CreateFileA(file_name, GENERIC_WRITE, FILE_SHARE_READ,
+		                        NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+	return req;
+}
+
 static void OnDumpRequest(DumpReq *req)
 {
 	AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
 
-	DWORD tx = 0;
-	WriteFile(req->dump->file, req->msg.data, req->msg.size, &tx, NULL);
-}
-
-static long DumpRequestDone(AMessage *msg, long result)
-{
-	DumpReq *req = container_of(msg, DumpReq, msg);
-	if (result >= 0) {
-		OnDumpRequest(req);
+	if (req->file != INVALID_HANDLE_VALUE) {
+		DWORD tx = 0;
+		WriteFile(req->file, req->msg.data, req->msg.size, &tx, NULL);
+	} else {
+		TRACE("dump(%s): reqix = %d, type = %08x, size = %d.\n",
+			req->dump->file_name, req->reqix, req->msg.type, req->msg.size);
 	}
-	result = req->from->done(req->from, result);
-	return result;
 }
 
 static void OnDumpOpen(DumpObject *dump, DumpReq *req)
 {
-	AOption *opt = AOptionFindChild((AOption*)req->from->data, "req_list");
-	if (opt != NULL) {
-		req->msg.done = NULL;
-		const char *sep = opt->value;
-		do {
-			long reqix = atol(sep);
-			if (reqix < _countof(dump->req_list)) {
-				dump->req_list[reqix].msg.done = &DumpRequestDone;
-			}
-		} while (((sep=strchr(sep,',')) != NULL) && (*++sep != '\0'));
-	} else {
-		for (int reqix = 0; reqix < _countof(dump->req_list); ++reqix) {
-			dump->req_list[reqix].msg.done = &DumpRequestDone;
-		}
-	}
-
 	dump->object.reqix_count = dump->io->reqix_count;
+	OnDumpRequest(req);
 }
 
 static long DumpOpenDone(AMessage *msg, long result)
@@ -107,15 +154,20 @@ static long DumpOpen(AObject *object, AMessage *msg)
 
 	DumpObject *dump = to_dump(object);
 	AOption *opt = AOptionFindChild((AOption*)msg->data, "file");
+	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
+		strcpy_s(dump->file_name, opt->value);
 
-	release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
-	if ((opt->value[0] != '\0') && (opt->value[1] != '\0'))
-	{
-		dump->file = CreateFileA(opt->value, GENERIC_WRITE, FILE_SHARE_READ,
+	opt = AOptionFindChild((AOption*)msg->data, "single_file");
+	if (opt != NULL)
+		dump->single_file = atol(opt->value);
+
+	if (dump->single_file && (dump->file_name[0] != '\0')) {
+		release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
+
+		dump->file = CreateFileA(dump->file_name, GENERIC_WRITE, FILE_SHARE_READ,
 		                         NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (dump->file == INVALID_HANDLE_VALUE) {
-			TRACE("CreateFile(%s) error = %d.\n", opt->value, GetLastError());
-			return -EBADF;
+			TRACE("dump(%s): create file error = %d.\n", dump->file_name, GetLastError());
 		}
 	}
 
@@ -126,7 +178,10 @@ static long DumpOpen(AObject *object, AMessage *msg)
 			return -ENXIO;
 	}
 
-	DumpReq *req = &dump->req_list[0];
+	DumpReq *req = DumpReqGet(dump, 0);
+	if (req == NULL)
+		return -ENOMEM;
+
 	AMsgInit(&req->msg, AMsgType_Option, (char*)opt, 0);
 	req->msg.done = &DumpOpenDone;
 	req->from = msg;
@@ -138,16 +193,25 @@ static long DumpOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+static long DumpRequestDone(AMessage *msg, long result)
+{
+	DumpReq *req = container_of(msg, DumpReq, msg);
+	if (result >= 0) {
+		OnDumpRequest(req);
+	}
+	result = req->from->done(req->from, result);
+	return result;
+}
+
 static long DumpRequest(AObject *object, long reqix, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
-	if ((dump->file == INVALID_HANDLE_VALUE)
-	 || (reqix >= _countof(dump->req_list))
-	 || (dump->req_list[reqix].msg.done == NULL))
+	DumpReq *req = DumpReqGet(dump, reqix);
+	if (req == NULL)
 		return dump->io->request(dump->io, reqix, msg);
 
-	DumpReq *req = &dump->req_list[reqix];
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
+	req->msg.done = &DumpRequestDone;
 	req->from = msg;
 
 	long result = dump->io->request(dump->io, reqix, &req->msg);

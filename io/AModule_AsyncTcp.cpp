@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
+#include "AModule_io.h"
 #include "iocp_util.h"
 #include "../base/async_operator.h"
 
@@ -187,13 +188,13 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 	assert(msg->size != 0);
 	switch (reqix)
 	{
-	case ARequest_Input:
+	case Aio_RequestInput:
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
 		return iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
 
-	case ARequest_Output:
+	case Aio_RequestOutput:
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
@@ -211,9 +212,9 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
-	if (reqix == ARequest_Input) {
+	if (reqix == Aio_RequestInput) {
 		shutdown(tcp->sock, SD_SEND);
-	} else if (reqix == ARequest_Output) {
+	} else if (reqix == Aio_RequestOutput) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
 		assert(FALSE);

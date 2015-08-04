@@ -265,7 +265,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	AOption *option = NULL;
 	long result = AOptionDecode(&option, pvd_path);
-	ResetOption(option);
+	if (option != NULL)
+		ResetOption(option);
 	AModuleInitAll(option);
 	//release_s(option, AOptionRelease, NULL);
 

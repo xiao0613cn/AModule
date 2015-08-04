@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
+#include "AModule_io.h"
 #include "iocp_util.h"
 
 
@@ -103,14 +104,14 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	assert(msg->size != 0);
 	switch (reqix)
 	{
-	case ARequest_Input:
+	case Aio_RequestInput:
 		if (msg->type & AMsgType_Custom)
 			return tcp_send(tcp->sock, msg->data, msg->size, 0);
 
 		result = send(tcp->sock, msg->data, msg->size, 0);
 		break;
 
-	case ARequest_Output:
+	case Aio_RequestOutput:
 		if (msg->type & AMsgType_Custom)
 			return tcp_recv(tcp->sock, msg->data, msg->size, 0);
 
@@ -135,9 +136,9 @@ static long TcpCancel(AObject *object, long reqix, AMessage *msg)
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
-	if (reqix == ARequest_Input) {
+	if (reqix == Aio_RequestInput) {
 		shutdown(tcp->sock, SD_SEND);
-	} else if (reqix == ARequest_Output) {
+	} else if (reqix == Aio_RequestOutput) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
 		assert(FALSE);

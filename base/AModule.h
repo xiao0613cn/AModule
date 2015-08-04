@@ -1,13 +1,17 @@
 #ifndef _AMODULE_H_
 #define _AMODULE_H_
 
+#ifndef _LIST_HEAD_H_
+#include "list.h"
+#endif
+
 #ifndef _AOPTION_H_
 #include "AOption.h"
 #endif
 
-typedef struct AMessage AMessage;
-typedef struct AObject AObject;
-typedef struct AModule AModule;
+#ifndef _AMESSAGE_H_
+#include "AMessage.h"
+#endif
 
 #ifndef release_s
 #define release_s(ptr, release, null) \
@@ -18,53 +22,6 @@ typedef struct AModule AModule;
 		} \
 	} while (0)
 #endif
-
-//////////////////////////////////////////////////////////////////////////
-enum AMsgType {
-	AMsgType_Unknown = 0,
-	AMsgType_Handle, /* void*   (data = void*, size = 0) */
-	AMsgType_Option, /* AOption (data = AOption*, size = 0 */
-	AMsgType_Object, /* AObject (data = AObject*, size = 0 */
-	AMsgType_Module, /* AModule (data = AModule*, size = 0 */
-	AMsgType_Custom = 0x80000000,
-};
-
-struct AMessage {
-	long    type;
-	char   *data;
-	long    size;
-	long  (*done)(AMessage *msg, long result);
-	struct list_head entry;
-};
-
-static inline void
-AMsgInit(AMessage *msg, long type, char *data, long size) {
-	msg->type = type;
-	msg->data = data;
-	msg->size = size;
-}
-
-static inline void
-AMsgCopy(AMessage *msg, long type, char *data, long size) {
-	msg->type = type;
-	if ((msg->data == NULL) || (msg->size == 0)) {
-		msg->data = data;
-		msg->size = size;
-	} else {
-		if (msg->size > size)
-			msg->size = size;
-		memcpy(msg->data, data, msg->size);
-	}
-}
-
-static inline void
-MsgListClear(struct list_head *head, long result) {
-	while (!list_empty(head)) {
-		AMessage *msg = list_first_entry(head, AMessage, entry);
-		list_del_init(&msg->entry);
-		msg->done(msg, result);
-	}
-}
 
 //////////////////////////////////////////////////////////////////////////
 enum ARequestIndex {
@@ -83,6 +40,7 @@ enum ARequestIndex {
 // > 0: completed with success
 // = 0: pending with success, will callback msg->done()
 // < 0: call failed, return error code
+typedef struct AModule AModule;
 struct AObject {
 	long volatile count;
 	void  (*release)(AObject *object);
@@ -117,7 +75,36 @@ AObjectRelease(AObject *object) {
 	return result;
 }
 
+static inline long
+AObjectOpen(AObject *object, AMessage *msg) {
+	if (object->open == NULL)
+		return -ENOSYS;
+	return object->open(object, msg);
+}
 
+static inline long
+AObjectRequest(AObject *object, long reqix, AMessage *msg) {
+	if (object->request == NULL)
+		return -ENOSYS;
+	return object->request(object, reqix, msg);
+}
+
+static inline long
+AObjectCancel(AObject *object, long reqix, AMessage *msg) {
+	if (object->cancel == NULL)
+		return -ENOSYS;
+	return object->cancel(object, reqix, msg);
+}
+
+static inline long
+AObjectClose(AObject *object, AMessage *msg) {
+	if (object->close == NULL)
+		return -ENOSYS;
+	return object->close(object, msg);
+}
+
+//////////////////////////////////////////////////////////////////////////
+typedef struct AModule AModule;
 struct AModule {
 	const char *class_name;
 	const char *module_name;
@@ -140,7 +127,7 @@ struct AModule {
 	struct list_head class_list;
 };
 
-extern void
+extern long
 AModuleRegister(AModule *module);
 
 extern long
@@ -161,21 +148,39 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
 //////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus
 struct IObject {
+public:
 	AObject *object;
-	void init(AObject *object, bool ref) { this->object = object; if (ref) AObjectAddRef(object); }
-	long addref(void)                    { return AObjectAddRef(this->object); }
-	void release(void)                   { release_s(this->object, AObjectRelease, NULL); }
-
-	long create(AObject *parent, AOption *option, const char *default_module)
-	{ release(); return AObjectCreate(&this->object, parent, option, default_module); }
-
 	IObject(void)                  { init(NULL, false); }
 	IObject(AObject *other)        { init(other, false); }
-	IObject(const IObject &other)  { init(other.object, !!other.object); }
+	IObject(const IObject &other)  { init(other.object, (other.object != NULL)); }
 	~IObject(void)                 { release(); }
 
-	IObject& operator=(AObject *other)       { release(); init(other, false); return *this; }
-	IObject& operator=(const IObject &other) { release(); init(other.object, !!other.object); return *this; }
+	void init(AObject *obj, bool ref) {
+		this->object = obj;
+		if (ref)
+			AObjectAddRef(obj);
+	}
+	long addref(void) {
+		return AObjectAddRef(this->object);
+	}
+	void release(void) {
+		release_s(this->object, AObjectRelease, NULL);
+	}
+	long create(AObject *parent, AOption *option, const char *default_module) {
+		release();
+		return AObjectCreate(&this->object, parent, option, default_module);
+	}
+
+	IObject& operator=(AObject *other) {
+		release();
+		init(other, false);
+		return *this;
+	}
+	IObject& operator=(const IObject &other) {
+		release();
+		init(other.object, (other.object != NULL));
+		return *this;
+	}
 
 	AObject* operator->(void) { return this->object; }
 	operator AObject* (void)  { return this->object; }

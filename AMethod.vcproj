@@ -266,7 +266,15 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\base\AMessage.h"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AModule.h"
+				>
+			</File>
+			<File
+				RelativePath=".\io\AModule_io.h"
 				>
 			</File>
 			<File

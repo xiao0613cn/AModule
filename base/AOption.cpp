@@ -10,6 +10,7 @@ void AOptionRelease(AOption *option)
 		list_del_init(&child->brother_entry);
 		AOptionRelease(child);
 	}
+
 	assert(list_empty(&option->brother_entry));
 	free(option);
 }
@@ -49,7 +50,7 @@ extern long AOptionDecode(AOption **option, const char *name)
 {
 	AOption *current = AOptionCreate(NULL);
 	if (current == NULL)
-		return -ERROR_OUTOFMEMORY;
+		return -ENOMEM;
 	*option = current;
 
 	char ident = '\0';
@@ -58,12 +59,13 @@ extern long AOptionDecode(AOption **option, const char *name)
 	{
 		if ((ident != '\0') && (*sep != '\0') && (*sep != ident))
 			continue;
+
 		switch (*sep)
 		{
 		case '\0':
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);
-			return (layer ? -ERROR_INVALID_PARAMETER : 0);
+			return (layer ? -EINVAL : 0);
 
 		case '{':
 			if (sep != name)
@@ -71,7 +73,7 @@ extern long AOptionDecode(AOption **option, const char *name)
 
 			current = AOptionCreate(current);
 			if (current == NULL)
-				return -ERROR_OUTOFMEMORY;
+				return -ENOMEM;
 
 			++layer;
 			name = sep+1;
@@ -81,7 +83,7 @@ extern long AOptionDecode(AOption **option, const char *name)
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);
 			if (--layer < 0)
-				return -ERROR_INVALID_PARAMETER;
+				return -EINVAL;
 
 			if ((current->name[0] == '\0') && list_empty(&current->children_list)) {
 				AOption *empty_option = current;
@@ -91,6 +93,7 @@ extern long AOptionDecode(AOption **option, const char *name)
 			} else {
 				current = current->parent;
 			}
+
 			if (layer == 0)
 				return 0;
 			name = sep+1;
@@ -99,13 +102,12 @@ extern long AOptionDecode(AOption **option, const char *name)
 		case ',':
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);
-
 			if (layer == 0)
-				return -ERROR_INVALID_PARAMETER;
+				return -EINVAL;
 
 			current = AOptionCreate(current->parent);
 			if (current == NULL)
-				return -ERROR_OUTOFMEMORY;
+				return -ENOMEM;
 
 			name = sep+1;
 			break;
@@ -135,6 +137,9 @@ extern long AOptionDecode(AOption **option, const char *name)
 
 AOption* AOptionClone(AOption *option)
 {
+	if (option == NULL)
+		return NULL;
+
 	AOption *current = AOptionCreate(NULL);
 	strcpy_s(current->name, option->name);
 	strcpy_s(current->value, option->value);
@@ -151,6 +156,9 @@ AOption* AOptionClone(AOption *option)
 
 AOption* AOptionFindChild(AOption *option, const char *name)
 {
+	if (option == NULL)
+		return NULL;
+
 	AOption *child;
 	list_for_each_entry(child, &option->children_list, AOption, brother_entry)
 	{

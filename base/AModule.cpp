@@ -4,7 +4,7 @@
 static LIST_HEAD(module_list);
 static AOption *g_option = NULL;
 
-void AModuleRegister(AModule *module)
+long AModuleRegister(AModule *module)
 {
 	AModule *pos;
 	INIT_LIST_HEAD(&module->class_list);
@@ -156,8 +156,10 @@ void AObjectInit(AObject *object, AModule *module)
 
 long AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
+	const char *class_name = NULL;
 	const char *module_name = NULL;
 	if (option != NULL) {
+		class_name = option->name;
 		if (option->value[0] != '\0')
 			module_name = option->value;
 		else
@@ -165,10 +167,10 @@ long AObjectCreate(AObject **object, AObject *parent, AOption *option, const cha
 	} else {
 		module_name = default_module;
 	}
-	if (module_name == NULL)
+	if ((class_name == NULL) && (module_name == NULL))
 		return -EINVAL;
 
-	AModule *module = AModuleFind(NULL, module_name);
+	AModule *module = AModuleFind(class_name, module_name);
 	if (module == NULL)
 		return -ENOSYS;
 
