@@ -82,3 +82,4 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #endif
 
 
+#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)

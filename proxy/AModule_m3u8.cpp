@@ -13,7 +13,17 @@ extern "C" {
 };
 #endif
 
-extern AObject *rt;
+extern AObject  *rt;
+extern AMessage  rt_msg;
+static AMessage  tmp_msg;
+
+#define rt_m3u8   "h264.m3u8"
+#define rt_name   "h264.ts"
+
+#define pb_m3u8   "file.m3u8"
+#define pb_name   "file.ts"
+
+#define sec_per_file   10 // 10 seconds per file
 
 static const char *m3u8_ack =
 	"HTTP/1.1 200 OK\r\n"
@@ -23,10 +33,10 @@ static const char *m3u8_ack =
 
 static const char *m3u8_file =
 	"#EXTM3U\r\n"
-	"#EXT-X-TARGETDURATION:10\r\n"
 	"#EXT-X-MEDIA-SEQUENCE:%d\r\n"
-	"#EXTINF:10,h264.mp4\r\n"
-	"h264.mp4\r\n";
+	"#EXT-X-TARGETDURATION:%d\r\n"
+	"#EXTINF:%d\r\n"
+	"%s\r\n";
 
 static const char *media_ack =
 	"HTTP/1.1 200 OK\r\n"
@@ -34,21 +44,28 @@ static const char *media_ack =
 	"Content-Length: %d\r\n"
 	"\r\n";
 
-static CRITICAL_SECTION media_lock;
-static DWORD     media_sequence = 0;
-static list_head media_file;
-static long      media_file_size;
+struct media_file_t {
+	long  content_length;
+	long  nb_buffers;
+	ARefsBuf *buffers[8];
+};
+static void media_file_release(media_file_t *mf) {
+	while (mf->nb_buffers != 0)
+		ARefsBufRelease(mf->buffers[--mf->nb_buffers]);
+	mf->content_length = 0;
+}
 
-static list_head tmp_media;
-static long      tmp_media_size;
-static ARefsBuf *tmp_buffer;
+static CRITICAL_SECTION rt_lock;
+static DWORD        rt_seq = 0;
+static media_file_t rt_media;
+
+static media_file_t tmp_media;
 static long      tmp_offset;
 static time_t    first_time;
+static media_file_t tmp_swap;
 
 AVFormatContext *tmp_avfx;
 AVPacket         tmp_avpkt;
-
-static AMessage  rt_msg;
 
 static long ilen(long num) {
 	int len = 1;
@@ -59,14 +76,6 @@ static long ilen(long num) {
 	return len;
 }
 
-static void MediaListClear(struct list_head *list) {
-	while (!list_empty(list)) {
-		ARefsMsg *rm = list_first_entry(list, ARefsMsg, msg.entry);
-		list_del_init(&rm->msg.entry);
-		ARefsBufRelease(rm->buf);
-	}
-}
-
 struct M3U8Proxy {
 	AObject   object;
 	AObject  *client;
@@ -74,8 +83,8 @@ struct M3U8Proxy {
 	AMessage *from;
 
 	char      reply[512];
-	struct list_head reply_frame;
-	ARefsMsg *reply_msg;
+	media_file_t reply_file;
+	long         reply_bufix;
 };
 #define to_proxy(obj)  container_of(obj, M3U8Proxy, object)
 
@@ -83,12 +92,8 @@ static void M3U8ProxyRelease(AObject *object)
 {
 	M3U8Proxy *p = to_proxy(object);
 	release_s(p->client, AObjectRelease, NULL);
+	media_file_release(&p->reply_file);
 
-	MediaListClear(&p->reply_frame);
-	if (p->reply_msg != NULL) {
-		ARefsBufRelease(p->reply_msg->buf);
-		p->reply_msg = NULL;
-	}
 	free(p);
 }
 
@@ -108,9 +113,8 @@ static long M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
 	p->client = parent;
 	if (parent != NULL)
 		AObjectAddRef(parent);
-
-	INIT_LIST_HEAD(&p->reply_frame);
-	p->reply_msg = NULL;
+	memset(&p->reply_file, 0, sizeof(p->reply_file));
+	p->reply_bufix = 0;
 
 	*object = &p->object;
 	return 1;
@@ -142,26 +146,26 @@ static long M3U8AckDone(AMessage *msg, long result)
 
 static long OnMp4AckDone(M3U8Proxy *p)
 {
-	if (p->reply_msg != NULL) {
-		ARefsBufRelease(p->reply_msg->buf);
-		p->reply_msg = NULL;
-	}
-	while (!list_empty(&p->reply_frame))
+	while (p->reply_bufix < p->reply_file.nb_buffers)
 	{
-		p->reply_msg = list_first_entry(&p->reply_frame, ARefsMsg, msg.entry);
-		list_del_init(&p->reply_msg->msg.entry);
+		ARefsBuf *buf = p->reply_file.buffers[p->reply_bufix];
+		if (p->outmsg.data == buf->data) {
+			++p->reply_bufix;
+			continue;
+		}
 
 		p->outmsg.type = AMsgType_Custom;
-		p->outmsg.data = p->reply_msg->data();
-		p->outmsg.size = p->reply_msg->size;
+		p->outmsg.data = buf->data;
+		p->outmsg.size = buf->size;
 
 		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
 		if (result == 0)
 			return 0;
-
-		ARefsBufRelease(p->reply_msg->buf);
-		p->reply_msg = NULL;
+		++p->reply_bufix;
 	}
+	media_file_release(&p->reply_file);
+	p->reply_bufix = 0;
+
 	return p->from->size;
 }
 
@@ -185,19 +189,20 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 		return -EINVAL;
 
 	msg->data[msg->size] = '\0';
-	if (strnicmp(msg->data, "GET ", 4) != 0)
+	if (strnicmp_c(msg->data, "GET ") != 0)
 		return -EINVAL;
 	TRACE(msg->data);
 
 	const char *file_name = msg->data + 4;
-	if (strnicmp(file_name, "/h264.m3u8 ", 11) == 0)
+	if (strnicmp_c(file_name, "/"rt_m3u8" ") == 0)
 	{
-		int m3u8_len = sprintf(p->reply+100, m3u8_file, media_sequence);
-		int head_len = strlen(m3u8_ack) -2+ ilen(m3u8_len);
-		_snprintf(p->reply+100-head_len, head_len, m3u8_ack, m3u8_len);
+		int m3u8_len = sprintf(p->reply+100, m3u8_file, rt_seq,
+				sec_per_file, sec_per_file, rt_name);
+		int head_len = sprintf(p->reply, m3u8_ack, m3u8_len);
+		memmove(p->reply+head_len, p->reply+100, m3u8_len+1);
 
 		p->outmsg.type = AMsgType_Custom;
-		p->outmsg.data = p->reply+100-head_len;
+		p->outmsg.data = p->reply;
 		p->outmsg.size = head_len + m3u8_len;
 		p->outmsg.done = &M3U8AckDone;
 		TRACE(p->outmsg.data);
@@ -208,17 +213,22 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 			result = p->outmsg.size;
 		return result;
 	}
-	if (strnicmp(file_name, "/h264.mp4 ", 10) == 0)
+	if (strnicmp_c(file_name, "/"rt_name" ") == 0)
 	{
-		EnterCriticalSection(&media_lock);
-		list_splice_tail_init(&media_file, &p->reply_frame);
-		long content_length = media_file_size;
-		media_file_size = 0;
-		LeaveCriticalSection(&media_lock);
+		media_file_release(&p->reply_file);
+		p->reply_bufix = 0;
+
+		if (rt_media.nb_buffers != 0) {
+			EnterCriticalSection(&rt_lock);
+			p->reply_file = rt_media;
+			for (long ix = 0; ix < rt_media.nb_buffers; ++ix)
+				ARefsBufAddRef(rt_media.buffers[ix]);
+			LeaveCriticalSection(&rt_lock);
+		}
 
 		p->outmsg.type = AMsgType_Custom;
 		p->outmsg.data = p->reply;
-		p->outmsg.size = sprintf(p->reply, media_ack, content_length);
+		p->outmsg.size = sprintf(p->reply, media_ack, p->reply_file.content_length);
 		p->outmsg.done = &Mp4AckDone;
 		TRACE(p->outmsg.data);
 
@@ -228,6 +238,9 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 			result = OnMp4AckDone(p);
 		return result;
 	}
+	if (strnicmp_c(file_name, "/"pb_name" ") == 0)
+	{
+	}
 	return -EACCES;
 }
 
@@ -235,9 +248,24 @@ static long M3U8ProxyProbe(AObject *object, AMessage *msg)
 {
 	if (msg->type != AMsgType_Unknown)
 		return -1;
-	if (_strnicmp(msg->data, "GET ", 4) != 0)
+	if (strnicmp_c(msg->data, "GET ") != 0)
 		return -1;
 	return 80;
+}
+
+static void RTStreamPush(void)
+{
+	TRACE("free last media(%d), size = %d.\n", rt_seq, rt_media.content_length);
+
+	EnterCriticalSection(&rt_lock);
+	++rt_seq;
+	tmp_swap = rt_media;
+	rt_media = tmp_media;
+	LeaveCriticalSection(&rt_lock);
+
+	media_file_release(&tmp_swap);
+	memset(&tmp_media, 0, sizeof(tmp_media));
+	first_time = 0;
 }
 
 static long RTStreamDone(AMessage *msg, long result)
@@ -245,15 +273,25 @@ static long RTStreamDone(AMessage *msg, long result)
 	if (result != 0)
 		return result;
 
-	if ((tmp_buffer == NULL) || (tmp_buffer->size < tmp_offset+sizeof(ARefsMsg)+msg->size)) {
-		release_s(tmp_buffer, ARefsBufRelease, NULL);
-		tmp_buffer = ARefsBufCreate(max(1024*1024, 10*msg->size));
-		if (tmp_buffer == NULL)
+	ARefsBuf *buf = tmp_media.buffers[tmp_media.nb_buffers];
+	if ((buf != NULL) && (buf->size < tmp_offset+msg->size))
+	{
+		buf->size = tmp_offset;
+		buf = NULL;
+
+		if (tmp_media.nb_buffers >= _countof(tmp_media.buffers)) {
+			RTStreamPush();
+		}
+	}
+	if (buf == NULL) {
+		buf = ARefsBufCreate(max(1024*1024, 10*msg->size));
+		if (buf == NULL)
 			return -ENOMEM;
+		++tmp_media.nb_buffers;
+		tmp_media.buffers[tmp_media.nb_buffers] = buf;
 		tmp_offset = 0;
 	}
 
-	ARefsMsg *rm = (ARefsMsg*)(tmp_buffer->data + tmp_offset);
 	time_t tm;
 
 	// on notify callback
@@ -264,9 +302,9 @@ static long RTStreamDone(AMessage *msg, long result)
 			return 0;
 		}
 
-		ARefsMsgInit(rm, AMsgType_Custom, tmp_buffer, tmp_offset+sizeof(ARefsMsg), MSHEAD_GETMSDSIZE(msh));
-		memcpy(rm->data(), msg->data+MSHEAD_GETMSHSIZE(msh), rm->size);
 		tm = msh->time_sec;
+		msg->data += MSHEAD_GETMSHSIZE(msh);
+		msg->size = min(msg->size-MSHEAD_GETMSHSIZE(msh), MSHEAD_GETMSDSIZE(msh));
 	}
 	else if (Stream_IsValidFrame(msg->data, msg->size)) {
 		STREAM_HEADER *sh = (STREAM_HEADER*)msg->data;
@@ -275,49 +313,32 @@ static long RTStreamDone(AMessage *msg, long result)
 			return 0;
 		}
 
-		ARefsMsgInit(rm, AMsgType_Custom, tmp_buffer, tmp_offset+sizeof(ARefsMsg), sh->nEncodeDataSize);
-		memcpy(rm->data(), msg->data+sh->nHeaderSize, rm->size);
-
 		STREAM_VIDEO_HEADER *vh = (STREAM_VIDEO_HEADER*)(sh + 1);
 		tm = vh->nTimeStampLow;
+		msg->data += sh->nHeaderSize;
+		msg->size = min(msg->size-sh->nHeaderSize, sh->nEncodeDataSize);
 	}
 	else {
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
 	}
 
-	tmp_offset += sizeof(ARefsMsg) + rm->size;
-	tmp_offset = _align_8bytes(tmp_offset);
-	ARefsBufAddRef(tmp_buffer);
-	list_add_tail(&rm->msg.entry, &tmp_media);
-	tmp_media_size += rm->size;
+	memcpy(buf->data+tmp_offset, msg->data, msg->size);
+	tmp_offset += msg->size;
+	tmp_media.content_length += msg->size;
 
 	if (tmp_avfx != NULL) {
 		av_init_packet(&tmp_avpkt);
-		tmp_avpkt.data = (uint8_t*)rm->data();
-		tmp_avpkt.size = rm->size;
+		tmp_avpkt.data = (uint8_t*)msg->data;
+		tmp_avpkt.size = msg->size;
 		long ret = av_write_frame(tmp_avfx, &tmp_avpkt);
-		TRACE("av_write_frame(%d) = %d.\n", rm->size, ret);
+		TRACE("av_write_frame(%d) = %d.\n", msg->size, ret);
 	}
 
 	if (first_time == 0) {
 		first_time = tm;
 	} else if (first_time+10 < tm) {
-		first_time = 0;
-		LIST_HEAD(last_media);
-
-		EnterCriticalSection(&media_lock);
-		TRACE("free last media(%d) file size = %d.\n", media_sequence, media_file_size);
-		++media_sequence;
-
-		list_splice_tail_init(&media_file, &last_media);
-		list_splice_tail_init(&tmp_media, &media_file);
-
-		media_file_size = tmp_media_size;
-		tmp_media_size = 0;
-		LeaveCriticalSection(&media_lock);
-
-		MediaListClear(&last_media);
+		RTStreamPush();
 	}
 
 	AMsgInit(msg, AMsgType_Unknown, NULL, 0);
@@ -332,27 +353,26 @@ int tmp_avio_write(void *opaque, uint8_t *buf, int buf_size)
 
 static long M3U8ProxyInit(AOption *option)
 {
-	if ((rt == NULL) || (media_sequence != 0))
+	if ((rt == NULL) || (rt_seq != 0))
 		return 0;
 
-	AMsgInit(&rt_msg, AMsgType_Unknown, NULL, 0);
-	rt_msg.done = &RTStreamDone;
-	long result = rt->request(rt, Aiosync_NotifyBack|0, &rt_msg);
+	AMsgInit(&tmp_msg, AMsgType_Unknown, NULL, 0);
+	tmp_msg.done = &RTStreamDone;
+
+	long result = rt->request(rt, Aiosync_NotifyBack|0, &tmp_msg);
 	TRACE("m3u8 stream register = %d.\n", result);
 	if (result < 0)
 		return 0;
 
-	media_sequence = 1;
-	InitializeCriticalSection(&media_lock);
-	INIT_LIST_HEAD(&media_file);
-	media_file_size = 0;
+	rt_seq = 1;
+	InitializeCriticalSection(&rt_lock);
+	memset(&rt_media, 0, sizeof(rt_media));
 
-	INIT_LIST_HEAD(&tmp_media);
-	tmp_media_size = 0;
-	tmp_buffer = NULL;
+	memset(&tmp_media, 0, sizeof(tmp_media));
 	tmp_offset = 0;
 	first_time = 0;
 
+	//av_log_set_callback();
 	av_register_all();
 	tmp_avfx = NULL;
 
@@ -362,8 +382,16 @@ static long M3U8ProxyInit(AOption *option)
 		return ret;
 	}
 
+	tmp_avfx->flags |= AVFMT_FLAG_NOBUFFER;
+	tmp_avfx->oformat->flags |= AVFMT_NODIMENSIONS;
 	if (tmp_avfx->pb == NULL)
 		tmp_avfx->pb = avio_alloc_context(NULL, 0, 1, NULL, NULL, &tmp_avio_write, NULL);
+
+	AVCodec *avc = avcodec_find_decoder(AV_CODEC_ID_H264);//avcodec_find_decoder_by_name("h264");
+	AVStream *s = avformat_new_stream(tmp_avfx, avc);
+	if (s != NULL) {
+		s->time_base = av_make_q(1, 90000);
+	}
 
 	ret = avformat_write_header(tmp_avfx, NULL);
 	if (ret < 0) {
@@ -374,19 +402,17 @@ static long M3U8ProxyInit(AOption *option)
 
 static void M3U8ProxyExit(void)
 {
-	if (media_sequence == 0)
+	if (rt_seq == 0)
 		return;
 	if (rt != NULL)
-		rt->cancel(rt, Aiosync_NotifyBack|0, &rt_msg);
+		rt->cancel(rt, Aiosync_NotifyBack|0, &tmp_msg);
 	first_time = 0;
 	tmp_offset = 0;
-	release_s(tmp_buffer, ARefsBufRelease, NULL);
-	tmp_media_size = 0;
-	MediaListClear(&tmp_media);
+	media_file_release(&tmp_media);
 
-	MediaListClear(&media_file);
-	DeleteCriticalSection(&media_lock);
-	media_sequence = 0;
+	media_file_release(&rt_media);
+	DeleteCriticalSection(&rt_lock);
+	rt_seq = 0;
 }
 
 AModule M3U8ProxyModule = {
