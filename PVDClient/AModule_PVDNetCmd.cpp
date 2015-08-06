@@ -91,7 +91,7 @@ static inline long PVDDoOpen(PVDClient *pvd, PVDStatus status)
 {
 	pvd->outmsg.type = AMsgType_Option;
 	pvd->outmsg.data = (char*)AOptionFindChild((AOption*)pvd->outfrom->data, "io");
-	pvd->outmsg.size = sizeof(AOption);
+	pvd->outmsg.size = 0;
 
 	pvd->status = status;
 	return pvd->io->open(pvd->io, &pvd->outmsg);
@@ -263,7 +263,7 @@ static long PVDOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AOption)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	PVDClient *pvd = to_pvd(object);

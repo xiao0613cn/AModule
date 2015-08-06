@@ -242,7 +242,7 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AOption)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	PVDRTStream *rt = to_rt(object);
@@ -261,7 +261,7 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 
 	rt->outmsg.type = AMsgType_Option;
 	rt->outmsg.data = (char*)AOptionFindChild((AOption*)msg->data, "io");
-	rt->outmsg.size = sizeof(AOption);
+	rt->outmsg.size = 0;
 
 	rt->status = pvdnet_connecting;
 	long result = rt->io->open(rt->io, &rt->outmsg);

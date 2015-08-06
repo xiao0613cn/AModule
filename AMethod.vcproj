@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="gb2312"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="AModule"
 	ProjectGUID="{2CD3D550-0312-4522-8DF4-97FCF0425533}"
 	RootNamespace="InterfaceMethod"
 	Keyword="Win32Proj"
+	TargetFrameworkVersion="0"
 	>
 	<Platforms>
 		<Platform
@@ -83,9 +84,6 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -158,9 +156,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -266,6 +261,14 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\ffmpeg\libavutil\adler32.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\aes.h"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AMessage.h"
 				>
 			</File>
@@ -286,7 +289,115 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\attributes.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\audio_fifo.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\audioconvert.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\avassert.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\avcodec.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\avfft.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\avformat.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\avio.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\avstring.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\avutil.h"
+				>
+			</File>
+			<File
 				RelativePath=".\base\base.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\base64.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\blowfish.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\bprint.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\buffer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\channel_layout.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\common.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\cpu.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\crc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\dict.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\dxva2.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\error.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\eval.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\fifo.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\file.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\frame.h"
 				>
 			</File>
 			<File
@@ -294,7 +405,31 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\hmac.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\imgutils.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\intfloat_readwrite.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				>
+			</File>
+			<File
 				RelativePath=".\io\iocp_util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
@@ -302,7 +437,27 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\log.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\lzo.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\mathematics.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\mem.h"
 				>
 			</File>
 			<File
@@ -322,7 +477,47 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavcodec\old_codec_ids.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\old_pix_fmts.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\opt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\parseutils.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\pixdesc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\pixfmt.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\PvdNetCmd.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\random_seed.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\rational.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\samplefmt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
@@ -338,7 +533,59 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libswscale\swscale.h"
+				>
+			</File>
+			<File
 				RelativePath=".\targetver.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\time.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\timecode.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\timestamp.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\vaapi.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\vda.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\vdpau.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\xtea.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\xvmc.h"
 				>
 			</File>
 		</Filter>
@@ -357,7 +604,23 @@
 			>
 		</Filter>
 		<File
+			RelativePath=".\ffmpeg\lib\avcodec.lib"
+			>
+		</File>
+		<File
+			RelativePath=".\ffmpeg\lib\avformat.lib"
+			>
+		</File>
+		<File
+			RelativePath=".\ffmpeg\lib\avutil.lib"
+			>
+		</File>
+		<File
 			RelativePath=".\ReadMe.txt"
+			>
+		</File>
+		<File
+			RelativePath=".\ffmpeg\lib\swscale.lib"
 			>
 		</File>
 	</Files>

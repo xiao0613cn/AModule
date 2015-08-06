@@ -98,7 +98,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				break;
 
 			client->status = tcp_client_open;
-			AMsgInit(&client->inmsg, AMsgType_Object, (char*)client->sock, sizeof(client->sock));
+			AMsgInit(&client->inmsg, AMsgType_Handle, (char*)client->sock, 0);
 			result = client->client->open(client->client, &client->inmsg);
 			break;
 
@@ -135,13 +135,13 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				} else {
 					result = client->server->io_module->create(&client->proxy, client->client, proxy_opt);
 				}
-				AMsgInit(&client->inmsg, AMsgType_Option, (char*)proxy_opt, sizeof(*proxy_opt));
+				AMsgInit(&client->inmsg, AMsgType_Option, (char*)proxy_opt, 0);
 				client->status = tcp_bridge_open;
 			}
 			else
 			{
 				result = module->create(&client->proxy, client->client, proxy_opt);
-				AMsgInit(&client->inmsg, AMsgType_Object, (char*)client->client, sizeof(AObject));
+				AMsgInit(&client->inmsg, AMsgType_Object, (char*)client->client, 0);
 				client->status = tcp_proxy_open;
 			}
 			if (result >= 0) {
@@ -170,6 +170,10 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				}
 			}
 			result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+			if (result < 0) {
+				AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
+				result = 1;
+			}
 			if (result > 0) {
 				client->status = tcp_client_output;
 				result = client->client->request(client->client, ARequest_Output, &client->inmsg);
@@ -342,7 +346,7 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AOption)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	TCPServer *server = to_server(object);

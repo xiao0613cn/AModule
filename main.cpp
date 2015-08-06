@@ -9,7 +9,7 @@
 
 
 static const char *pvd_path =
-	"PVDClient: PVDClient {"
+	"stream: PVDClient {"
 	"       io: async_tcp {"
 	"		address: 192.168.40.222,"
 	"		port: 8101,"
@@ -144,7 +144,7 @@ void test_pvd(AOption *option)
 	long result;
 _retry:
 	ResetOption(option);
-	AMsgInit(&sm, AMsgType_Option, (char*)option, sizeof(AOption));
+	AMsgInit(&sm, AMsgType_Option, (char*)option, 0);
 	sm.done = NULL;
 
 	if (_stricmp(option->value, "PVDClient") == 0) {
@@ -205,7 +205,7 @@ _retry:
 }
 
 static const char *proxy_path =
-	"tcp_server: tcp_server {"
+	"server: tcp_server {"
 	"	port: 8101,"
 	"	io: async_tcp,"
 	"	HTTPProxy: bridge {"
@@ -230,7 +230,7 @@ void test_proxy(AOption *option)
 	AObject *tcp_server = NULL;
 	long result = AObjectCreate(&tcp_server, NULL, option, NULL);
 	if (result >= 0) {
-		AMsgInit(&msg, AMsgType_Option, (char*)option, sizeof(*option));
+		AMsgInit(&msg, AMsgType_Option, (char*)option, 0);
 		msg.done = NULL;
 		result = tcp_server->open(tcp_server, &msg);
 	}

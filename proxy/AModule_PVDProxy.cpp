@@ -344,7 +344,7 @@ static long PVDProxyOpen(AObject *object, AMessage *msg)
 	PVDProxy *p = to_proxy(object);
 	if ((msg->type != AMsgType_Object)
 	 || (msg->data == NULL)
-	 || (msg->size != sizeof(AObject)))
+	 || (msg->size != 0))
 		return -EINVAL;
 
 	release_s(p->client, AObjectRelease, NULL);
@@ -586,7 +586,7 @@ static void PVDDoOpen(async_operator *asop, int result)
 		sm->object->setopt(sm->object, &opt);
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Option, (char*)sm->option, sizeof(*sm->option));
+	AMsgInit(&sm->msg, AMsgType_Option, (char*)sm->option, 0);
 	sm->msg.done = &PVDOpenDone;
 
 	result = sm->object->open(sm->object, &sm->msg);
@@ -596,7 +596,9 @@ static void PVDDoOpen(async_operator *asop, int result)
 
 long PVDProxyInit(AOption *option)
 {
-	if (_stricmp(option->value[0]?option->value:option->name, "PVDClient") != 0)
+	if (option == NULL)
+		return 0;
+	if (_stricmp(option->name, "stream") != 0)
 		return 0;
 
 	AOption *opt2 = AOptionFindChild(option, "force_alarm");
@@ -609,7 +611,8 @@ long PVDProxyInit(AOption *option)
 
 	AModule *syncControl = AModuleFind("stream", "SyncControl");
 	if (syncControl != NULL) {
-		strcpy_s(opt.name, "PVDClient");
+		strcpy_s(opt.name, "stream");
+		strcpy_s(opt.value, option->value);
 		result = syncControl->create(&pvd, NULL, &opt);
 	}
 	HeartMsg *sm = NULL;
@@ -640,8 +643,7 @@ long PVDProxyInit(AOption *option)
 		sm->timer.callback = &PVDDoOpen;
 		async_operator_timewait(&sm->timer, NULL, 0);
 
-		strcpy_s(opt.name, "PVDRTStream");
-		opt.value[0] = '\0';
+		strcpy_s(opt.value, "PVDRTStream");
 		result = syncControl->create(&rt, NULL, &opt);
 	}
 	if (result >= 0) {

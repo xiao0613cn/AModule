@@ -100,6 +100,9 @@ struct ARefsMsg {
 	long       pos;
 	long       type;
 	long       size;
+#ifdef __cplusplus
+	char*      data(void) { return this->buf->data + this->pos; }
+#endif
 };
 // ARefsMsg::msg.type = AMsgType_RefsMsg
 // ARefsMsg::msg.data = ARefsMsg::buf->data + ARefsMsg::pos;
@@ -128,7 +131,7 @@ ARefsBufRelease(ARefsBuf *buf) {
 	return result;
 }
 
-static inline long
+static inline void
 ARefsMsgInit(ARefsMsg *rm, long type, ARefsBuf *buf, long offset, long size) {
 	AMsgInit(&rm->msg, AMsgType_RefsMsg, (char*)rm, 0);
 	rm->buf = buf; // ARefsBufAddRef(buf);

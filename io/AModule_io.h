@@ -7,7 +7,6 @@
 enum AModule_ioRequest {
 	Aio_RequestInput = 0,
 	Aio_RequestOutput,
-	Aio_RequestSeek,
 	Aio_RequestCount,
 };
 

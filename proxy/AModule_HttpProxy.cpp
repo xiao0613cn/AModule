@@ -196,7 +196,7 @@ static long HTTPProxyOpen(AObject *object, AMessage *msg)
 	proxy->openmsg = msg;
 	proxy->inmsg.done = &HTTPProxyOpenDone;
 
-	AMsgInit(&proxy->inmsg, AMsgType_Option, (char*)proxy->option, sizeof(AOption));
+	AMsgInit(&proxy->inmsg, AMsgType_Option, (char*)proxy->option, 0);
 	long result = proxy->to->open(proxy->to, &proxy->inmsg);
 	if (result > 0) {
 		HTTPProxy_OutputFrom_InputTo(proxy);

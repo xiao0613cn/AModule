@@ -90,7 +90,7 @@ static void SyncControlRelease(AObject *object)
 		sc->close_msg = NULL;
 	}
 
-	assert(list_empty(&sc->syncreq_list));
+	//assert(list_empty(&sc->syncreq_list));
 	while (!list_empty(&sc->syncreq_list)) {
 		SyncRequest *req = list_first_entry(&sc->syncreq_list, SyncRequest, entry);
 		list_del_init(&req->entry);
@@ -489,8 +489,11 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 static long SyncControlClose(AObject *object, AMessage *msg)
 {
 	SyncControl *sc = to_sc(object);
-	if (msg == NULL)
+	if (msg == NULL) {
+		if (sc->stream == NULL)
+			return -ENOENT;
 		return sc->stream->close(sc->stream, NULL);
+	}
 
 	long new_status = stream_abort;
 	long test_status = stream_opening;
