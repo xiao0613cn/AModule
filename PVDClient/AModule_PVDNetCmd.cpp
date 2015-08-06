@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "../base/SliceBuffer.h"
+#include "../io/AModule_io.h"
 #include "PvdNetCmd.h"
 #include "md5.h"
 
@@ -117,7 +118,7 @@ static inline void PVDDoInput(PVDClient *pvd, PVDStatus status, long type, long 
 static inline long PVDDoOutput(PVDClient *pvd)
 {
 	AMsgInit(&pvd->outmsg, AMsgType_Unknown, SliceResPtr(&pvd->outbuf), SliceResLen(&pvd->outbuf));
-	return pvd->io->request(pvd->io, ARequest_Output, &pvd->outmsg);
+	return pvd->io->request(pvd->io, Aio_RequestOutput, &pvd->outmsg);
 }
 
 static long PVDDoLogin(PVDClient *pvd, PVDStatus status)
@@ -141,7 +142,7 @@ static long PVDDoLogin(PVDClient *pvd, PVDStatus status)
 	login->dwNamelen = strlen(usr);
 	login->dwPWlen = PASSWD_LEN;
 
-	return pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
+	return pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
 }
 
 static long PVDOpenStatus(PVDClient *pvd, long result)
@@ -159,7 +160,7 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 				result = -ENOMEM;
 			} else {
 				PVDDoInput(pvd, pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
-				result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
+				result = pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
 			}
 			break;
 
@@ -354,9 +355,9 @@ static long PVDOutputDone(AMessage *msg, long result)
 static long PVDRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
-	if (reqix != ARequest_Output)
+	if (reqix != Aio_RequestOutput)
 	{
-		if ((reqix == ARequest_Input) && (msg->type & AMsgType_Custom)) {
+		if ((reqix == Aio_RequestInput) && (msg->type & AMsgType_Custom)) {
 			pvdnet_head *phead = (pvdnet_head*)msg->data;
 			phead->uUserId = pvd->userid;
 		}
@@ -448,7 +449,7 @@ static long PVDClose(AObject *object, AMessage *msg)
 	} else {
 		SliceResize(&pvd->outbuf, 1024, 2048);
 		PVDDoInput(pvd, pvdnet_syn_logout, NET_SDVR_LOGOUT, 0);
-		result = pvd->io->request(pvd->io, ARequest_Input, &pvd->outmsg);
+		result = pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
 	}
 	if (result != 0)
 		result = PVDCloseStatus(pvd, result);

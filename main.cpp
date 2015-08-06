@@ -5,6 +5,7 @@
 #include <process.h>
 #include "base/AModule.h"
 #include "base/async_operator.h"
+#include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 
 
@@ -86,14 +87,14 @@ unsigned int WINAPI SendHeart(void *p)
 	long result;
 	do {
 		::Sleep(3000);
-		result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
+		result = rm->pvd->request(rm->pvd, Aio_RequestInput, &rm->msg);
 	} while (!g_abort && (result > 0));
 
 	TRACE("%p: send result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
 
-	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|ARequest_Output, NULL);
-	result = rm->pvd->request(rm->pvd, ARequest_Input, &rm->msg);
+	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|Aio_RequestOutput, NULL);
+	result = rm->pvd->request(rm->pvd, Aio_RequestInput, &rm->msg);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
@@ -161,13 +162,13 @@ _retry:
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
-		rm->reqix = ARequest_Output;
+		rm->reqix = Aio_RequestOutput;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
-		rm->reqix = ARequest_Input;
+		rm->reqix = Aio_RequestInput;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &SendHeart, rm, 0, NULL));
 		rm = NULL;
 	}

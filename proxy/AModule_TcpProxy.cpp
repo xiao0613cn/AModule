@@ -3,6 +3,7 @@
 #include <MSWSock.h>
 #include "../base/AModule.h"
 #include "../base/async_operator.h"
+#include "../io/AModule_io.h"
 #include "../io/iocp_util.h"
 
 
@@ -52,7 +53,7 @@ struct TCPClient {
 static void TCPClientRelease(TCPClient *client)
 {
 	if ((client->proxy != NULL) && (client->proxy->cancel != NULL))
-		client->proxy->cancel(client->proxy, ARequest_Input, NULL);
+		client->proxy->cancel(client->proxy, Aio_RequestInput, NULL);
 	//TRACE("%p: result = %d.\n", client, result);
 	release_s(client->proxy, AObjectRelease, NULL);
 	release_s(client->client, AObjectRelease, NULL);
@@ -111,7 +112,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			}
 
 			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
-			result = client->client->request(client->client, ARequest_Output, &client->inmsg);
+			result = client->client->request(client->client, Aio_RequestOutput, &client->inmsg);
 			break;
 
 		case tcp_recv_probe:
@@ -157,7 +158,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				result = -EINTR;
 			} else {
 				client->status = tcp_proxy_input;
-				result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+				result = client->proxy->request(client->proxy, Aio_RequestInput, &client->inmsg);
 			}
 			break;
 
@@ -169,14 +170,14 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 					return 0;
 				}
 			}
-			result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+			result = client->proxy->request(client->proxy, Aio_RequestInput, &client->inmsg);
 			if (result < 0) {
 				AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 				result = 1;
 			}
 			if (result > 0) {
 				client->status = tcp_client_output;
-				result = client->client->request(client->client, ARequest_Output, &client->inmsg);
+				result = client->client->request(client->client, Aio_RequestOutput, &client->inmsg);
 			}
 			break;
 
@@ -208,14 +209,14 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			} else {
 				client->inmsg.type |= AMsgType_Custom;
 				client->status = tcp_bridge_input;
-				result = client->proxy->request(client->proxy, ARequest_Input, &client->inmsg);
+				result = client->proxy->request(client->proxy, Aio_RequestInput, &client->inmsg);
 			}
 			break;
 
 		case tcp_bridge_input:
 			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			client->status = tcp_bridge_output;
-			result = client->client->request(client->client, ARequest_Output, &client->inmsg);
+			result = client->client->request(client->client, Aio_RequestOutput, &client->inmsg);
 			break;
 
 		default:

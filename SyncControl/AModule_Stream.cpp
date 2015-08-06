@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
+#include "../io/AModule_io.h"
 
 
 struct SyncRequest {
@@ -386,8 +387,8 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 	if (sc->status != stream_opened)
 		return -ENOENT;
 
-	long flag = (reqix & ~ARequest_IndexMask);
-	reqix = reqix & ARequest_IndexMask;
+	long flag = (reqix & ~Aiosync_IndexMask);
+	reqix = reqix & Aiosync_IndexMask;
 	SyncRequest *req = SyncRequestGet(sc, reqix);
 	if (req == NULL)
 		return -ENOENT;
@@ -399,25 +400,26 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 	} else {
 		switch (flag)
 		{
-		case ANotify_InQueueFront:
+		case Aiosync_NotifyFront:
 			list_add(&msg->entry, &req->notify_list);
 			result = 0;
 			break;
-		case ANotify_InQueueBack:
+		case Aiosync_NotifyBack:
 			list_add_tail(&msg->entry, &req->notify_list);
 			result = 0;
 			break;
 		default:
-			if (req->from != NULL) {
-				if (flag == ARequest_InQueueFront)
-					list_add(&msg->entry, &req->request_list);
-				else
-					list_add_tail(&msg->entry, &req->request_list);
-				result = 0;
-			} else {
+			if (req->from == NULL) {
+				assert(list_empty(&req->request_list));
 				req->from = msg;
 				result = InterlockedIncrement(&sc->request_count);
 				assert(result > 1);
+			} else if (flag == Aiosync_RequestFront) {
+				list_add(&msg->entry, &req->request_list);
+				result = 0;
+			} else {
+				list_add_tail(&msg->entry, &req->request_list);
+				result = 0;
 			}
 			break;
 		}
@@ -449,15 +451,15 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 	if (sc->status != stream_opened)
 		return -ENOENT;
 
-	long flag = (reqix & ~ARequest_IndexMask);
-	reqix = reqix & ARequest_IndexMask;
+	long flag = (reqix & ~Aiosync_IndexMask);
+	reqix = reqix & Aiosync_IndexMask;
 	SyncRequest *req = SyncRequestGet(sc, reqix);
 	if (req == NULL)
 		return -ENOENT;
 
 	struct list_head *head;
-	if ((flag == ANotify_InQueueFront)
-	 || (flag == ANotify_InQueueBack)) {
+	if ((flag == Aiosync_NotifyFront)
+	 || (flag == Aiosync_NotifyBack)) {
 		head = &req->notify_list;
 	} else {
 		head = &req->request_list;

@@ -7,8 +7,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "../ffmpeg/libavformat/avformat.h"
-#include "../ffmpeg/libavutil/avutil.h"
+#define __STDC_CONSTANT_MACROS
+#include "libavformat/avformat.h"
 #ifdef __cplusplus
 };
 #endif
@@ -155,7 +155,7 @@ static long OnMp4AckDone(M3U8Proxy *p)
 		p->outmsg.data = p->reply_msg->data();
 		p->outmsg.size = p->reply_msg->size;
 
-		long result = p->client->request(p->client, ARequest_Input, &p->outmsg);
+		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
 		if (result == 0)
 			return 0;
 
@@ -179,7 +179,7 @@ static long Mp4AckDone(AMessage *msg, long result)
 static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 {
 	M3U8Proxy *p = to_proxy(object);
-	if (reqix != ARequest_Input)
+	if (reqix != Aio_RequestInput)
 		return -ENOSYS;
 	if (msg->data == NULL)
 		return -EINVAL;
@@ -337,7 +337,7 @@ static long M3U8ProxyInit(AOption *option)
 
 	AMsgInit(&rt_msg, AMsgType_Unknown, NULL, 0);
 	rt_msg.done = &RTStreamDone;
-	long result = rt->request(rt, ANotify_InQueueBack|0, &rt_msg);
+	long result = rt->request(rt, Aiosync_NotifyBack|0, &rt_msg);
 	TRACE("m3u8 stream register = %d.\n", result);
 	if (result < 0)
 		return 0;
@@ -377,7 +377,7 @@ static void M3U8ProxyExit(void)
 	if (media_sequence == 0)
 		return;
 	if (rt != NULL)
-		rt->cancel(rt, ANotify_InQueueBack|0, &rt_msg);
+		rt->cancel(rt, Aiosync_NotifyBack|0, &rt_msg);
 	first_time = 0;
 	tmp_offset = 0;
 	release_s(tmp_buffer, ARefsBufRelease, NULL);

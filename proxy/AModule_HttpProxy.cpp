@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
+#include "../io/AModule_io.h"
 
 
 static struct HTTPRequest {
@@ -75,7 +76,7 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 	{
 		proxy->outmsg.done = &HTTPProxyOutputTo;
 		AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
-		result = proxy->to->request(proxy->to, ARequest_Output, &proxy->outmsg);
+		result = proxy->to->request(proxy->to, Aio_RequestOutput, &proxy->outmsg);
 		if (result > 0)
 		{
 			//proxy->outmsg.data[proxy->outmsg.size] = '\0';
@@ -83,7 +84,7 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 
 			proxy->outmsg.type |= AMsgType_Custom;
 			proxy->outmsg.done = &HTTPProxyInputFrom;
-			result = proxy->from->request(proxy->from, ARequest_Input, &proxy->outmsg);
+			result = proxy->from->request(proxy->from, Aio_RequestInput, &proxy->outmsg);
 		}
 	}
 	if (result != 0)
@@ -97,12 +98,12 @@ static long HTTPProxyOutputTo(AMessage *msg, long result)
 	{
 		proxy->outmsg.type |= AMsgType_Custom;
 		proxy->outmsg.done = &HTTPProxyInputFrom;
-		result = proxy->from->request(proxy->from, ARequest_Input, &proxy->outmsg);
+		result = proxy->from->request(proxy->from, Aio_RequestInput, &proxy->outmsg);
 		if (result > 0)
 		{
 			proxy->outmsg.done = &HTTPProxyOutputTo;
 			AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
-			result = proxy->to->request(proxy->to, ARequest_Output, &proxy->outmsg);
+			result = proxy->to->request(proxy->to, Aio_RequestOutput, &proxy->outmsg);
 		}
 	}
 	if (result != 0)
@@ -125,12 +126,12 @@ static long HTTPProxyInputTo(AMessage *msg, long result)
 	{
 		proxy->inmsg.done = &HTTPProxyOutputFrom;
 		AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
-		result = proxy->from->request(proxy->from, ARequest_Output, &proxy->inmsg);
+		result = proxy->from->request(proxy->from, Aio_RequestOutput, &proxy->inmsg);
 		if (result > 0)
 		{
 			proxy->inmsg.type |= AMsgType_Custom;
 			proxy->inmsg.done = &HTTPProxyInputTo;
-			result = proxy->to->request(proxy->to, ARequest_Input, &proxy->inmsg);
+			result = proxy->to->request(proxy->to, Aio_RequestInput, &proxy->inmsg);
 		}
 	}
 	if (result != 0)
@@ -148,12 +149,12 @@ static long HTTPProxyOutputFrom(AMessage *msg, long result)
 
 		proxy->inmsg.type |= AMsgType_Custom;
 		proxy->inmsg.done = &HTTPProxyInputTo;
-		result = proxy->to->request(proxy->to, ARequest_Input, &proxy->inmsg);
+		result = proxy->to->request(proxy->to, Aio_RequestInput, &proxy->inmsg);
 		if (result > 0)
 		{
 			proxy->inmsg.done = &HTTPProxyOutputFrom;
 			AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
-			result = proxy->from->request(proxy->from, ARequest_Output, &proxy->inmsg);
+			result = proxy->from->request(proxy->from, Aio_RequestOutput, &proxy->inmsg);
 		}
 	}
 	if (result != 0)
