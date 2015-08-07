@@ -1,0 +1,22 @@
+<html>
+
+<head>
+<script type="text/javascript">
+function on_load_vc()
+{
+	var vc = document.getElementById("vc");
+	vc.src = "http://"+location.hostname+":8101/h264.m3u8";
+	alert(vc.src);
+}
+</script>
+</head>
+
+<body onload="on_load_vc()" >
+
+<video id="vc" controls="controls" >
+	您的浏览器不支持 video 标签。
+</video>
+
+</body>
+
+</html>
