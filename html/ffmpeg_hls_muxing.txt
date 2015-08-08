@@ -1,0 +1,7 @@
+ffmpeg -i "input_file"
+ -codec:v libx264
+ -codec:a libvo_aacenc
+ -force_key_frames expr:gte(t,n_forced*2)
+ -hls_list_size 0
+ -hls_time 10
+ "output_file"
