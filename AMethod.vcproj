@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="gb2312"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9.00"
+	Version="8.00"
 	Name="AModule"
 	ProjectGUID="{2CD3D550-0312-4522-8DF4-97FCF0425533}"
 	RootNamespace="InterfaceMethod"
 	Keyword="Win32Proj"
-	TargetFrameworkVersion="0"
 	>
 	<Platforms>
 		<Platform
@@ -85,6 +84,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -157,6 +159,9 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -426,6 +431,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\include\inttypes.h"
+				>
+			</File>
+			<File
 				RelativePath=".\io\iocp_util.h"
 				>
 			</File>
@@ -534,6 +543,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\include\stdint.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libswscale\swscale.h"
 				>
 			</File>
@@ -566,11 +579,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File
@@ -578,7 +591,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
