@@ -47,7 +47,7 @@ static const char *media_ack =
 struct media_file_t {
 	long  content_length;
 	long  nb_buffers;
-	ARefsBuf *buffers[8];
+	ARefsBuf *buffers[16];
 };
 static void media_file_release(media_file_t *mf) {
 	long total_length = 0;
@@ -510,7 +510,7 @@ static long RTStreamDone(AMessage *msg, long result)
 
 	if (first_pts == 0) {
 		first_pts = tmp_avpkt.pts;
-	} else if (first_pts+10*1000 < tmp_avpkt.pts) {
+	} else if (first_pts+sec_per_file*1000 < tmp_avpkt.pts) {
 		ARefsBuf *buf = tmp_media.buffers[tmp_media.nb_buffers];
 		buf->size = tmp_offset;
 		tmp_media.nb_buffers++;

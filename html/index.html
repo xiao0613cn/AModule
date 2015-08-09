@@ -1,22 +1,55 @@
-<html>
 
+<html>
 <head>
-<script type="text/javascript">
-function on_load_vc()
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+<title>Video Test</title>
+
+<script type="text/javascript" src="js/util.js" ></script>
+<script type="text/javascript" src="js/xhr.js" ></script>
+<script type="text/javascript" >
+function on_load_body()
 {
-	var vc = document.getElementById("vc");
-	vc.src = "http://"+location.hostname+":8101/h264.m3u8";
-	alert(vc.src);
+	//var vc = id("vc");
+	//vc.src = "http://" + location.hostname + ":8101/file.m3u8";
+}
+
+function resp_text(xhr, status)
+{
+	var txt_ele = id("txtHint");
+	if (status != 200) {
+		txt_ele.innerHTML = "request status = "+status;
+	} else {
+		txt_ele.innerHTML = xhr.responseText;
+	}
+}
+
+function showHint(txt_ele)
+{
+	if (txt_ele.value.length == 0) {
+		id("txtHint").innerHTML = "";
+		return;
+	}
+
+	var xhr = xhr_create(resp_text);
+	xhr.open("GET", "/ajax/gethint.php?q="+txt_ele.value, true);
+	xhr.send();
 }
 </script>
 </head>
 
-<body onload="on_load_vc()" >
+<body onload="on_load_body()" >
 
-<video id="vc" controls="controls" width="100%" >
+<h3>请在下面的输入框中键入字母（A - Z）：</h3>
+<form action="">
+	姓氏：<input type="text" id="txt1" onkeyup="showHint(this)" ></input>
+</form>
+<p>
+	建议：<span id="txtHint"></span>
+</p>
+
+<video id="vc" src="./file/file.m3u8" controls="controls" width="100%" >
 	您的浏览器不支持 video 标签。
 </video>
 
 </body>
-
 </html>
