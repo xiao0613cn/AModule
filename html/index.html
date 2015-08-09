@@ -15,22 +15,24 @@ function on_load_body()
 
 function resp_text(xhr, status)
 {
-	var txt_ele = id("txtHint");
 	if (status != 200) {
-		txt_ele.innerHTML = "request status = "+status;
+		xhr.txtHint.innerHTML = "request status = "+status;
 	} else {
-		txt_ele.innerHTML = xhr.responseText;
+		xhr.txtHint.innerHTML = xhr.responseText;
 	}
 }
 
 function showHint(txt_ele)
 {
+	var txtHint = id("txtHint");
 	if (txt_ele.value.length == 0) {
-		id("txtHint").innerHTML = "";
+		txtHint.innerHTML = "";
 		return;
 	}
 
 	var xhr = xhr_create(resp_text);
+	xhr.txtHint = txtHint;
+
 	xhr.open("GET", "/ajax/gethint.php?q="+txt_ele.value, true);
 	xhr.send();
 }
