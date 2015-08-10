@@ -15,7 +15,8 @@ extern "C" {
 
 extern AObject  *rt;
 extern AMessage  rt_msg;
-static AMessage  tmp_msg;
+static AMessage  work_msg;
+static async_operator work_opt;
 
 #define rt_m3u8   "h264.m3u8"
 #define rt_name   "h264.ts"
@@ -171,7 +172,7 @@ static void M3U8ProxyRelease(AObject *object)
 	release_s(p->client, AObjectRelease, NULL);
 	media_file_release(&p->reply_file);
 
-	avformat_close_input(&p->file_inctx);
+	if (p->file_inctx != NULL) avformat_close_input(&p->file_inctx);
 	release_s(p->file_outctx, avformat_close_output, NULL);
 
 	free(p);
@@ -241,8 +242,8 @@ static long OnMp4AckDone(M3U8Proxy *p)
 		p->outmsg.size = buf->size;
 
 		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
-		if (result == 0)
-			return 0;
+		if (result <= 0)
+			return result;
 	}
 	media_file_release(&p->reply_file);
 	p->reply_index = 0;
@@ -353,7 +354,7 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 	fputs(msg->data, stdout);
 
 	char *file_name = msg->data + sizeof("GET ");
-	if (strnicmp_c(file_name, "/"rt_m3u8" ") == 0)
+	if (strnicmp_c(file_name, rt_m3u8" ") == 0)
 	{
 		int m3u8_len = sprintf(p->reply+100, m3u8_file, rt_seq,
 				sec_per_file, sec_per_file, rt_name);
@@ -373,7 +374,7 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 			result = p->outmsg.size;
 		return result;
 	}
-	if (strnicmp_c(file_name, "/"rt_name" ") == 0)
+	if (strnicmp_c(file_name, rt_name" ") == 0)
 	{
 		media_file_release(&p->reply_file);
 		p->reply_index = 0;
@@ -432,6 +433,16 @@ static void RTStreamPush(void)
 	rt_media = tmp_media;
 	LeaveCriticalSection(&rt_lock);
 
+	/*HANDLE file = CreateFileA("./html/"rt_name, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file != INVALID_HANDLE_VALUE)
+	{
+		for (int ix = 0; ix < tmp_swap.nb_buffers; ++ix) {
+			ARefsBuf *buf = tmp_swap.buffers[ix];
+			DWORD tx = 0;
+			WriteFile(file, buf->data, buf->size, &tx, NULL);
+		}
+		CloseHandle(file);
+	}*/
 	media_file_release(&tmp_swap);
 	memset(&tmp_media, 0, sizeof(tmp_media));
 	first_pts = 0;
@@ -465,8 +476,10 @@ static int tmp_avio_write(void *opaque, uint8_t *data, int size)
 
 static long RTStreamDone(AMessage *msg, long result)
 {
-	if (result != 0)
+	if (result != 0) {
+		msg->done = NULL;
 		return result;
+	}
 
 	// on notify callback
 	if (ISMSHEAD(msg->data)) {
@@ -519,9 +532,15 @@ static long RTStreamDone(AMessage *msg, long result)
 
 	if (tmp_avfx != NULL) {
 		tmp_avpkt.pts *= 90;
+
+		//AVStream *s = tmp_avfx->streams[tmp_avpkt.stream_index];
+		//if ((s->cur_dts != AV_NOPTS_VALUE) && (s->cur_dts != 0))
+		//	tmp_avpkt.dts = s->cur_dts;
+
 		long ret = av_write_frame(tmp_avfx, &tmp_avpkt);
-		if (ret < 0)
-			TRACE("av_write_frame(%d) = %d.\n", tmp_avpkt.size, ret);
+		//if (ret < 0)
+			TRACE("av_write_frame(%d) = %d, pts = %lld.\n", tmp_avpkt.size, ret, tmp_avpkt.pts);
+		//s->cur_dts = tmp_avpkt.pts;
 	}
 #if 0
 	tmp_avio_write(NULL, tmp_avpkt.data, tmp_avpkt.size);
@@ -540,64 +559,78 @@ static void av_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 	fputs(log_buf, stdout);
 }
 
+static void RTCheck(async_operator *opt, int result)
+{
+	if (result < 0) {
+		if (rt != NULL)
+			rt->cancel(rt, Aiosync_NotifyBack|0, &work_msg);
+		if (rt_seq != 0) {
+			first_pts = 0;
+			tmp_offset = 0;
+			media_file_release(&tmp_media);
+
+			media_file_release(&rt_media);
+			DeleteCriticalSection(&rt_lock);
+			rt_seq = 0;
+		}
+		release_s(tmp_avfx, avformat_close_output, NULL);
+		return;
+	}
+
+	if ((rt != NULL) && (work_msg.done == NULL)) {
+		AMsgInit(&work_msg, AMsgType_Unknown, NULL, 0);
+		work_msg.done = &RTStreamDone;
+
+		if (rt->request(rt, Aiosync_NotifyBack|0, &work_msg) < 0)
+			work_msg.done = NULL;
+	}
+	if (rt_seq == 0) {
+		InitializeCriticalSection(&rt_lock);
+		memset(&rt_media, 0, sizeof(rt_media));
+
+		memset(&tmp_media, 0, sizeof(tmp_media));
+		tmp_offset = 0;
+		first_pts = 0;
+		rt_seq = 1;
+	}
+	if (tmp_avfx == NULL) {
+		float a = 1.0f;
+		av_log_set_level(AV_LOG_MAX_OFFSET);
+		av_log_set_callback(&av_log_callback);
+		av_register_all();
+
+		mpegts_ofmt = av_guess_format("mpegts", NULL, NULL);
+		h264_codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+
+		AVFormatContext *oc = NULL;
+		long ret = avformat_open_output(&oc, mpegts_ofmt, NULL, &tmp_avio_write);
+		if (ret >= 0)
+			ret = avformat_new_output_stream(oc, h264_codec, NULL);
+		if (ret >= 0)
+			ret = avformat_write_header(oc, NULL);
+		if (ret >= 0) {
+			tmp_avfx = oc;
+		} else {
+			release_s(oc, avformat_close_output, NULL);
+			TRACE("avformat create output(%s-%s) = %d.\n",
+				mpegts_ofmt->name, h264_codec->name, ret);
+		}
+	}
+	async_operator_timewait(opt, NULL, 5*1000);
+}
+
 static long M3U8ProxyInit(AOption *option)
 {
-	if ((rt == NULL) || (rt_seq != 0))
+	if (work_opt.callback != NULL)
 		return 0;
 
-	AMsgInit(&tmp_msg, AMsgType_Unknown, NULL, 0);
-	tmp_msg.done = &RTStreamDone;
-
-	long result = rt->request(rt, Aiosync_NotifyBack|0, &tmp_msg);
-	TRACE("m3u8 stream register = %d.\n", result);
-	if (result < 0)
-		return 0;
-
-	rt_seq = 1;
-	InitializeCriticalSection(&rt_lock);
-	memset(&rt_media, 0, sizeof(rt_media));
-
-	memset(&tmp_media, 0, sizeof(tmp_media));
-	tmp_offset = 0;
-	first_pts = 0;
-
-	float a = 1.0;
-	av_log_set_level(AV_LOG_MAX_OFFSET);
-	av_log_set_callback(&av_log_callback);
-	av_register_all();
-	tmp_avfx = NULL;
-
-	mpegts_ofmt = av_guess_format("mpegts", NULL, NULL);
-	h264_codec = avcodec_find_encoder(AV_CODEC_ID_H264);
-
-	AVFormatContext *oc = NULL;
-	long ret = avformat_open_output(&oc, mpegts_ofmt, NULL, &tmp_avio_write);
-	if (ret >= 0)
-		ret = avformat_new_output_stream(oc, h264_codec, NULL);
-	if (ret >= 0)
-		ret = avformat_write_header(oc, NULL);
-	if (ret >= 0) {
-		tmp_avfx = oc;
-	} else {
-		TRACE("avformat create output(%s-%s) = %d.\n",
-			mpegts_ofmt->name, h264_codec->name, ret);
-	}
+	work_opt.callback = &RTCheck;
+	async_operator_timewait(&work_opt, NULL, 10*1000);
 	return 1;
 }
 
 static void M3U8ProxyExit(void)
 {
-	if (rt_seq == 0)
-		return;
-	if (rt != NULL)
-		rt->cancel(rt, Aiosync_NotifyBack|0, &tmp_msg);
-	first_pts = 0;
-	tmp_offset = 0;
-	media_file_release(&tmp_media);
-
-	media_file_release(&rt_media);
-	DeleteCriticalSection(&rt_lock);
-	rt_seq = 0;
 }
 
 AModule M3U8ProxyModule = {
