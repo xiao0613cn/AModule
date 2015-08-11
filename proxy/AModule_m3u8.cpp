@@ -68,11 +68,11 @@ static media_file_t rt_media;
 
 static media_file_t tmp_media;
 static long         tmp_offset;
-static int64_t      first_pts;
 static media_file_t tmp_swap;
 
 AVFormatContext *tmp_avfx;
 AVPacket         tmp_avpkt;
+static int64_t   pts_offset;
 
 AVOutputFormat  *mpegts_ofmt;
 AVCodec         *h264_codec;
@@ -124,6 +124,7 @@ static long avformat_new_output_stream(AVFormatContext *oc, const AVCodec *codec
 		ctx->flags2 |= CODEC_FLAG2_NO_OUTPUT;
 		ctx->time_base.num = 1;
 		ctx->time_base.den = 90000;
+		ctx->ticks_per_frame = 2;
 		//codec->width = 704;
 		//codec->height = 576;
 		//codec->gop_size = 30;
@@ -152,6 +153,8 @@ static long avformat_new_output_stream(AVFormatContext *oc, const AVCodec *codec
 }
 
 //////////////////////////////////////////////////////////////////////////
+static long volatile alloc_count = 0;
+
 struct M3U8Proxy {
 	AObject   object;
 	AObject  *client;
@@ -176,6 +179,8 @@ static void M3U8ProxyRelease(AObject *object)
 	release_s(p->file_outctx, avformat_close_output, NULL);
 
 	free(p);
+	long ret = InterlockedDecrement(&alloc_count);
+	TRACE("m3u8 proxy alloc count = %d.\n", ret);
 }
 
 static long M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
@@ -198,6 +203,7 @@ static long M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
 	p->file_inctx = NULL;
 	p->file_outctx = NULL;
 
+	InterlockedIncrement(&alloc_count);
 	*object = &p->object;
 	return 1;
 }
@@ -373,14 +379,6 @@ static long M3U8OpenFile(M3U8Proxy *p, const char *file_name)
 		pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
 		pkt.pos = -1;
 
-		if (first_pts == 0) {
-			first_pts = pkt.pts;
-		} else {
-			pkt.dts = first_pts;
-			first_pts += pkt.duration;
-			pkt.pts = first_pts;
-		}
-
 		ret = av_write_frame(p->file_outctx, &pkt);
 		if (ret < 0) {
 			TRACE("av_write_frame(%s) = %d.\n", file_name, ret);
@@ -509,39 +507,52 @@ static void RTStreamPush(void)
 	tmp_swap = rt_media;
 	rt_media = tmp_media;
 	LeaveCriticalSection(&rt_lock);
+#if 0
+	if (tmp_swap.content_length != 0) {
+		char file_name[BUFSIZ];
+		_snprintf(file_name, BUFSIZ, "./html/file/file%d.ts", rt_seq);
 
-	/*HANDLE file = CreateFileA("./html/"rt_name, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (file != INVALID_HANDLE_VALUE)
-	{
-		for (int ix = 0; ix < tmp_swap.nb_buffers; ++ix) {
-			ARefsBuf *buf = tmp_swap.buffers[ix];
-			DWORD tx = 0;
-			WriteFile(file, buf->data, buf->size, &tx, NULL);
+		HANDLE file = CreateFileA(file_name, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (file != INVALID_HANDLE_VALUE)
+		{
+			for (int ix = 0; ix < tmp_swap.nb_buffers; ++ix) {
+				ARefsBuf *buf = tmp_swap.buffers[ix];
+				DWORD tx = 0;
+				WriteFile(file, buf->data, buf->size, &tx, NULL);
+			}
+			CloseHandle(file);
 		}
-		CloseHandle(file);
-	}*/
+	}
+#endif
 	media_file_release(&tmp_swap);
 	memset(&tmp_media, 0, sizeof(tmp_media));
-	first_pts = 0;
 }
 
 static int tmp_avio_write(void *opaque, uint8_t *data, int size)
 {
 	//TRACE("avio write = %d\n", buf_size);
-	ARefsBuf *buf = tmp_media.buffers[tmp_media.nb_buffers];
-	if ((buf != NULL) && (buf->size < tmp_offset+size))
+	ARefsBuf *buf = NULL;
+	if (tmp_media.nb_buffers != 0)
 	{
-		buf->size = tmp_offset;
-		buf = NULL;
-		if (++tmp_media.nb_buffers >= _countof(tmp_media.buffers)) {
-			RTStreamPush();
+		buf = tmp_media.buffers[tmp_media.nb_buffers-1];
+		if (buf->size < tmp_offset+size)
+		{
+			buf->size = tmp_offset;
+			buf = NULL;
 		}
 	}
 	if (buf == NULL) {
+		if (tmp_media.nb_buffers >= _countof(tmp_media.buffers)) {
+			TRACE("ts stream(%d) out of memory.\n", tmp_media.content_length);
+			RTStreamPush();
+		}
+
 		buf = ARefsBufCreate(max(1024*1024, 10*size));
 		if (buf == NULL)
 			return -ENOMEM;
+
 		tmp_media.buffers[tmp_media.nb_buffers] = buf;
+		tmp_media.nb_buffers++;
 		tmp_offset = 0;
 	}
 
@@ -572,7 +583,7 @@ static long RTStreamDone(AMessage *msg, long result)
 		if (ISKEYFRAME(msh))
 			tmp_avpkt.flags |= AV_PKT_FLAG_KEY;
 
-		tmp_avpkt.pts = msh->time_sec*1000 + msh->time_msec*10;
+		tmp_avpkt.pts = msh->time_sec*1000LL + msh->time_msec*10;
 	}
 	else if (Stream_IsValidFrame(msg->data, msg->size)) {
 		STREAM_HEADER *sh = (STREAM_HEADER*)msg->data;
@@ -598,30 +609,58 @@ static long RTStreamDone(AMessage *msg, long result)
 		return 0;
 	}
 
-	if (first_pts == 0) {
-		first_pts = tmp_avpkt.pts;
-	} else if (first_pts+sec_per_file*1000 < tmp_avpkt.pts) {
-		ARefsBuf *buf = tmp_media.buffers[tmp_media.nb_buffers];
-		buf->size = tmp_offset;
-		tmp_media.nb_buffers++;
+	if (tmp_avfx == NULL) {
+#if 0
+		tmp_avio_write(NULL, tmp_avpkt.data, tmp_avpkt.size);
+#endif
+		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
+		return 0;
+	}
+
+	if (pts_offset == 0)
+		pts_offset = tmp_avpkt.pts;
+	tmp_avpkt.pts -= pts_offset;
+
+	AVStream *s = tmp_avfx->streams[tmp_avpkt.stream_index];
+	tmp_avpkt.pts = av_rescale(tmp_avpkt.pts, s->time_base.den, s->time_base.num*1000);
+
+	bool push_buf = false;
+	if ((s->cur_dts != AV_NOPTS_VALUE) && (s->cur_dts != 0))
+	{
+		if ((s->cur_dts >= tmp_avpkt.pts)
+		 || (s->cur_dts+av_rescale(sec_per_file/2,s->time_base.den,s->time_base.num) < tmp_avpkt.pts))
+		{
+			int64_t diff = av_rescale(s->cur_dts-tmp_avpkt.pts, s->time_base.num*1000, s->time_base.den);
+			TRACE("reset dts(%lld) = %lld, pts offset(%lld) - %lld.\n", s->cur_dts, tmp_avpkt.pts, pts_offset, diff);
+			pts_offset -= diff;
+
+			s->cur_dts = AV_NOPTS_VALUE;
+			push_buf = true;
+		}
+	}
+	if ((s->first_dts == AV_NOPTS_VALUE) || (s->first_dts == 0)
+	 || (s->first_dts+av_rescale(sec_per_file,s->time_base.den,s->time_base.num) < tmp_avpkt.pts))
+	{
+		TRACE("reset first dts(%lld) = %lld.\n", s->first_dts, tmp_avpkt.pts);
+		s->first_dts = tmp_avpkt.pts;
+		push_buf = true;
+	}
+
+	if (push_buf && (tmp_media.nb_buffers != 0)) {
+		ARefsBuf *buf = tmp_media.buffers[tmp_media.nb_buffers-1];
+		if (tmp_offset == 0) {
+			ARefsBufRelease(buf);
+			tmp_media.nb_buffers--;
+		} else {
+			buf->size = tmp_offset;
+			tmp_offset = 0;
+		}
 		RTStreamPush();
 	}
 
-	if (tmp_avfx != NULL) {
-		tmp_avpkt.pts *= 90;
+	long ret = av_write_frame(tmp_avfx, &tmp_avpkt);
+	//TRACE("av_write_frame(%d) = %d, pts = %lld.\n", tmp_avpkt.size, ret, tmp_avpkt.pts);
 
-		//AVStream *s = tmp_avfx->streams[tmp_avpkt.stream_index];
-		//if ((s->cur_dts != AV_NOPTS_VALUE) && (s->cur_dts != 0))
-		//	tmp_avpkt.dts = s->cur_dts;
-
-		long ret = av_write_frame(tmp_avfx, &tmp_avpkt);
-		//if (ret < 0)
-			TRACE("av_write_frame(%d) = %d, pts = %lld.\n", tmp_avpkt.size, ret, tmp_avpkt.pts);
-		//s->cur_dts = tmp_avpkt.pts;
-	}
-#if 0
-	tmp_avio_write(NULL, tmp_avpkt.data, tmp_avpkt.size);
-#endif
 	AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 	return 0;
 }
@@ -641,7 +680,7 @@ static void RTCheck(async_operator *opt, int result)
 		if (rt != NULL)
 			rt->cancel(rt, Aiosync_NotifyBack|0, &work_msg);
 		if (rt_seq != 0) {
-			first_pts = 0;
+			pts_offset = 0;
 			tmp_offset = 0;
 			media_file_release(&tmp_media);
 
@@ -657,6 +696,7 @@ static void RTCheck(async_operator *opt, int result)
 	if ((rt != NULL) && (work_msg.done == NULL)) {
 		AMsgInit(&work_msg, AMsgType_Unknown, NULL, 0);
 		work_msg.done = &RTStreamDone;
+		pts_offset = 0;
 
 		result = rt->request(rt, Aiosync_NotifyBack|0, &work_msg);
 		TRACE("rt stream register = %d.\n", result);
@@ -670,7 +710,7 @@ static void RTCheck(async_operator *opt, int result)
 
 		memset(&tmp_media, 0, sizeof(tmp_media));
 		tmp_offset = 0;
-		first_pts = 0;
+		pts_offset = 0;
 	}
 	if (tmp_avfx == NULL) {
 		float a = 1.0f;
