@@ -12,7 +12,7 @@
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: 192.168.40.222,"
+	"		address: 192.168.20.51,"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -20,7 +20,7 @@ static const char *pvd_path =
 	"	password: 888888,"
 	"	force_alarm: 0,"
 	"	channel: 0,"
-	"	linkmode: 0,"
+	"	linkmode: 1,"
 	"}";
 
 struct RecvMsg {

@@ -22,26 +22,30 @@ static async_operator work_opt;
 #define rt_name   "h264.ts"
 
 #define pb_m3u8   "file.m3u8"
-#define pb_name   "./html/file/file9.ts"
+#define pb_name   "html/file/file9.ts"
 
 #define sec_per_file   10 // 10 seconds per file
 
 static const char *m3u8_ack =
 	"HTTP/1.1 200 OK\r\n"
 	"Content-Type: application/vnd.apple.mpegurl\r\n" // text\r\n" //
+	"Cache-Control: no-cache\r\n"
 	"Content-Length: %d\r\n"
 	"\r\n";
 
 static const char *m3u8_file =
 	"#EXTM3U\r\n"
+	"#EXT-X-VERSION:3\r\n"
 	"#EXT-X-MEDIA-SEQUENCE:%d\r\n"
 	"#EXT-X-TARGETDURATION:%d\r\n"
-	"#EXTINF:%d\r\n"
-	"%s\r\n";
+	"#EXT-X-ALLOW-CACHE:NO\r\n"
+	"#EXTINF:%d,\r\n"
+	"./%s\r\n";
 
 static const char *media_ack =
 	"HTTP/1.1 200 OK\r\n"
 	"Content-Type: video/mp2t\r\n"
+	"Cache-Control: no-cache\r\n"
 	"Content-Length: %d\r\n"
 	"\r\n";
 
@@ -148,6 +152,9 @@ static long avformat_new_output_stream(AVFormatContext *oc, const AVCodec *codec
 
 	s->id = s->index + 1;
 	s->time_base = ctx->time_base;
+
+	s->avg_frame_rate.num = 30;
+	s->avg_frame_rate.den = 1;
 	av_dump_format(oc, s->index, NULL, TRUE);
 	return 0;
 }
@@ -429,10 +436,10 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 		file_name = NULL;
 	if (file_name != NULL)
 	{
-		int m3u8_len = sprintf(p->reply+100, m3u8_file, rt_seq,
+		int m3u8_len = sprintf(p->reply+200, m3u8_file, rt_seq,
 		                       sec_per_file, sec_per_file, file_name);
 		int head_len = sprintf(p->reply, m3u8_ack, m3u8_len);
-		memmove(p->reply+head_len, p->reply+100, m3u8_len+1);
+		memmove(p->reply+head_len, p->reply+200, m3u8_len+1);
 
 		p->outmsg.type = AMsgType_Custom;
 		p->outmsg.data = p->reply;
@@ -630,12 +637,12 @@ static long RTStreamDone(AMessage *msg, long result)
 		if ((s->cur_dts >= tmp_avpkt.pts)
 		 || (s->cur_dts+av_rescale(sec_per_file/2,s->time_base.den,s->time_base.num) < tmp_avpkt.pts))
 		{
-			int64_t diff = av_rescale(s->cur_dts-tmp_avpkt.pts, s->time_base.num*1000, s->time_base.den);
-			TRACE("reset dts(%lld) = %lld, pts offset(%lld) - %lld.\n", s->cur_dts, tmp_avpkt.pts, pts_offset, diff);
-			pts_offset -= diff;
+			int64_t diff = s->cur_dts - tmp_avpkt.pts;
+			diff += av_rescale(s->avg_frame_rate.den, s->time_base.den, s->avg_frame_rate.num*s->time_base.num);
 
-			s->cur_dts = AV_NOPTS_VALUE;
-			push_buf = true;
+			TRACE("reset dts = %lld, pts = %lld, pts offset(%lld) - %lld.\n", s->cur_dts, tmp_avpkt.pts, pts_offset, diff);
+			tmp_avpkt.pts += diff;
+			pts_offset -= av_rescale(diff*1000, s->time_base.num, s->time_base.den);
 		}
 	}
 	if ((s->first_dts == AV_NOPTS_VALUE) || (s->first_dts == 0)
