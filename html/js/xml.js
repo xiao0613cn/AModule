@@ -40,9 +40,27 @@ function xml_createFromText(txt)
 	return xmlDoc;
 }
 
+function xml_firstChild(x)
+{
+	var y = x.firstChild;
+	while (y.nodeType != 1) {
+		y = y.nextSibling;
+	}
+	return y;
+}
+
+function xml_nextSibling(x)
+{
+	var y = x.nextSibling;
+	while (y.nodeType != 1) {
+		y = y.nextSibling;
+	}
+	return y;
+}
+
 function GetLanguageUtf8Text(module, text, xmlDoc)
 {
-	var module_element = xmlDoc.firstChild.getElementsByTagName(module);
-	module_element = module_element[0].getElementsByTagName(text)[0];
-	return module_element.attributes.getNamedItem("txt").nodeValue;
+	var y = xmlDoc.firstChild.getElementsByTagName(module)[0];
+	y = y.getElementsByTagName(text)[0];
+	return y.getAttribute("txt");
 }
