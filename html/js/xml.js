@@ -60,7 +60,7 @@ function xml_nextSibling(x)
 
 function GetLanguageUtf8Text(module, text, xmlDoc)
 {
-	var y = xmlDoc.firstChild.getElementsByTagName(module)[0];
+	var y = xmlDoc.getElementsByTagName(module)[0];
 	y = y.getElementsByTagName(text)[0];
 	return y.getAttribute("txt");
 }
