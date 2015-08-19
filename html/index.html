@@ -6,11 +6,16 @@
 
 <script type="text/javascript" src="js/util.js" ></script>
 <script type="text/javascript" src="js/xhr.js" ></script>
+<script type="text/javascript" src="js/xml.js" ></script>
 <script type="text/javascript" >
 function on_load_body()
 {
 	var vc = id("vc");
 	vc.src = "http://" + location.hostname + ":8101/h264.m3u8";
+	//alert(vc.src);
+	
+	var xmlDoc = xml_createFromFile("PCClient_zh-cn.xml");
+	alert(GetLanguageUtf8Text("COMMON", "BT_YES", xmlDoc));
 }
 
 function resp_text(xhr, status)
@@ -53,7 +58,13 @@ function showHint(txt_ele)
 	您的浏览器不支持 video 标签。
 </video>
 
+<!--
 <video id="vc2" src="./file/file.m3u8" controls="controls" width="100%" >
+	您的浏览器不支持 video 标签。
+</video>
+-->
+<video id="vc3" src="./file/file.m3u8" width="100%" controls="controls" >
+	<source src="./file/file.mp4" id="vr1" type="video/mp4" />
 	您的浏览器不支持 video 标签。
 </video>
 
