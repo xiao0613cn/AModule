@@ -372,6 +372,15 @@ static long PVDRequest(AObject *object, long reqix, AMessage *msg)
 	return PVDOutputStatus(pvd);
 }
 
+static long PVDCancel(AObject *object, long reqix, AMessage *msg)
+{
+	PVDClient *p = to_pvd(object);
+	if (p->io == NULL)
+		return 1;
+
+	return p->io->cancel(p->io, reqix, msg);
+}
+
 static long PVDCloseStatus(PVDClient *pvd, long result)
 {
 	pvdnet_head *phead;
@@ -470,6 +479,6 @@ AModule PVDClientModule = {
 	&PVDSetOption,
 	&PVDGetOption,
 	&PVDRequest,
-	NULL,
+	&PVDCancel,
 	&PVDClose,
 };

@@ -16,16 +16,7 @@ long AModuleRegister(AModule *module)
 		}
 	}
 	list_add_tail(&module->global_entry, &module_list);
-
-	long result = 0;
-	if (module->init != NULL) {
-		result = module->init(g_option);
-		if (result < 0) {
-			list_del_init(&module->global_entry);
-			list_del_init(&module->class_list);
-		}
-	}
-	return result;
+	return 1;
 }
 
 long AModuleInitAll(AOption *option)

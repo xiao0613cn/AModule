@@ -25,7 +25,7 @@ static async_operator work_opt;
 
 static const char *m3u8_ack =
 	"HTTP/1.1 200 OK\r\n"
-	"Content-Type: application/vnd.apple.mpegurl\r\n" // text\r\n" //
+	"Content-Type: application/x-mpegURL\r\n" //application/vnd.apple.mpegurl\r\n" // text\r\n" //
 	"Cache-Control: no-cache\r\n"
 	"Content-Length: %d\r\n"
 	"\r\n";

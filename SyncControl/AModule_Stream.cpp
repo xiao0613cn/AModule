@@ -465,15 +465,14 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 		head = &req->request_list;
 	}
 
-	long result;
+	long result = 0;
 	EnterCriticalSection(&req->lock);
 	if (sc->status != stream_opened) {
 		result = -EINTR;
 	} else if (msg == NULL) {
-		result = sc->stream->request(sc->stream, reqix, NULL);
-	} else if (msg == req->from) {
-		result = 0;
-	} else {
+		if (sc->stream->cancel != NULL)
+			result = sc->stream->cancel(sc->stream, reqix, NULL);
+	} else if (msg != req->from) {
 		AMessage *pos;
 		result = -ENODEV;
 		list_for_each_entry(pos, head, AMessage, entry) {
