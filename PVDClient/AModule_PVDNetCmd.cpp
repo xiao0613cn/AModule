@@ -106,7 +106,7 @@ static inline long PVDDoClose(PVDClient *pvd, PVDStatus status)
 	return pvd->io->close(pvd->io, &pvd->outmsg);
 }
 
-static inline void PVDDoInput(PVDClient *pvd, PVDStatus status, long type, long body)
+static inline void PVDInitInput(PVDClient *pvd, PVDStatus status, long type, long body)
 {
 	pvd->outmsg.type = AMsgType_Custom|type;
 	pvd->outmsg.data = SliceResPtr(&pvd->outbuf);
@@ -118,13 +118,13 @@ static inline void PVDDoInput(PVDClient *pvd, PVDStatus status, long type, long 
 static inline long PVDDoOutput(PVDClient *pvd)
 {
 	AMsgInit(&pvd->outmsg, AMsgType_Unknown, SliceResPtr(&pvd->outbuf), SliceResLen(&pvd->outbuf));
-	return pvd->io->request(pvd->io, Aio_RequestOutput, &pvd->outmsg);
+	return pvd->io->request(pvd->io, Aio_Output, &pvd->outmsg);
 }
 
 static long PVDDoLogin(PVDClient *pvd, PVDStatus status)
 {
 	SliceReset(&pvd->outbuf);
-	PVDDoInput(pvd, status, NET_SDVR_LOGIN, sizeof(STRUCT_SDVR_LOGUSER));
+	PVDInitInput(pvd, status, NET_SDVR_LOGIN, sizeof(STRUCT_SDVR_LOGUSER));
 
 	const char *usr = "admin";
 	AOption *usr_opt = AOptionFindChild((AOption*)pvd->outfrom->data, "username");
@@ -142,7 +142,7 @@ static long PVDDoLogin(PVDClient *pvd, PVDStatus status)
 	login->dwNamelen = strlen(usr);
 	login->dwPWlen = PASSWD_LEN;
 
-	return pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
+	return pvd->io->request(pvd->io, Aio_Input, &pvd->outmsg);
 }
 
 static long PVDOpenStatus(PVDClient *pvd, long result)
@@ -159,8 +159,8 @@ static long PVDOpenStatus(PVDClient *pvd, long result)
 			if (SliceResize(&pvd->outbuf, 8*1024, 2048) < 0) {
 				result = -ENOMEM;
 			} else {
-				PVDDoInput(pvd, pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
-				result = pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
+				PVDInitInput(pvd, pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
+				result = pvd->io->request(pvd->io, Aio_Input, &pvd->outmsg);
 			}
 			break;
 
@@ -355,9 +355,9 @@ static long PVDOutputDone(AMessage *msg, long result)
 static long PVDRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
-	if (reqix != Aio_RequestOutput)
+	if (reqix != Aio_Output)
 	{
-		if ((reqix == Aio_RequestInput) && (msg->type & AMsgType_Custom)) {
+		if ((reqix == Aio_Input) && (msg->type & AMsgType_Custom)) {
 			pvdnet_head *phead = (pvdnet_head*)msg->data;
 			phead->uUserId = pvd->userid;
 		}
@@ -457,8 +457,8 @@ static long PVDClose(AObject *object, AMessage *msg)
 		result = -ENOENT;
 	} else {
 		SliceResize(&pvd->outbuf, 1024, 2048);
-		PVDDoInput(pvd, pvdnet_syn_logout, NET_SDVR_LOGOUT, 0);
-		result = pvd->io->request(pvd->io, Aio_RequestInput, &pvd->outmsg);
+		PVDInitInput(pvd, pvdnet_syn_logout, NET_SDVR_LOGOUT, 0);
+		result = pvd->io->request(pvd->io, Aio_Input, &pvd->outmsg);
 	}
 	if (result != 0)
 		result = PVDCloseStatus(pvd, result);

@@ -138,7 +138,7 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 static inline long PVDRTDoOutput(PVDRTStream *rt)
 {
 	AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-	return rt->io->request(rt->io, Aio_RequestOutput, &rt->outmsg);
+	return rt->io->request(rt->io, Aio_Output, &rt->outmsg);
 }
 
 static long PVDRTOpenStatus(PVDRTStream *rt, long result)
@@ -178,7 +178,7 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 				rp->byLinkMode = atol(linkmode->value);
 		}
 			rt->status = pvdnet_syn_login;
-			result = rt->io->request(rt->io, Aio_RequestInput, &rt->outmsg);
+			result = rt->io->request(rt->io, Aio_Input, &rt->outmsg);
 			break;
 
 		case pvdnet_syn_login:

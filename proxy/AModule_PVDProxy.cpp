@@ -112,7 +112,7 @@ static long PVDProxySendDone(AMessage *msg, long result)
 	} else {
 		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
 		p->inmsg.done = &PVDClientSendDone;
-		result = p->client->request(p->client, Aio_RequestInput, &p->inmsg);
+		result = p->client->request(p->client, Aio_Input, &p->inmsg);
 	}
 	if (result > 0)
 		result = PVDProxyDispatch(p);
@@ -162,6 +162,8 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 			RTBufferAddRef(RTMsgGet(&rt_msg));
 			p->frame_queue.put_back(rt_msg);
 		} else {
+			if (long(GetTickCount()-p->outtick) > 15000)
+				return -1;
 			TRACE("drop stream frame(%d) size = %d...\n",
 				msg->type&~AMsgType_Custom, msg->size);
 		}
@@ -183,6 +185,7 @@ static void PVDProxySendStream(async_operator *asop, int result)
 			result = -1;
 			break;
 		}
+		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
 			async_operator_timewait(&p->timer, NULL, 10);
 			return;
@@ -190,7 +193,7 @@ static void PVDProxySendStream(async_operator *asop, int result)
 
 		AMessage &frame = p->frame_queue.front();
 		AMsgInit(&p->inmsg, AMsgType_Custom|frame.type, frame.data, frame.size);
-		result = p->client->request(p->client, Aio_RequestInput, &p->inmsg);
+		result = p->client->request(p->client, Aio_Input, &p->inmsg);
 		if (result <= 0)
 			break;
 
@@ -271,7 +274,8 @@ static long PVDProxyDispatch(PVDProxy *p)
 			phead->uResult = 1;
 			p->inmsg.size = sizeof(pvdnet_head) + 0;
 			p->inmsg.done = &PVDProxyRTStream;
-			result = p->client->request(p->client, Aio_RequestInput, &p->inmsg);
+			p->outtick = GetTickCount();
+			result = p->client->request(p->client, Aio_Input, &p->inmsg);
 			if (result != 0) {
 				p->outfrom = NULL;
 				result = PVDProxyRTStream(&p->inmsg, result);
@@ -284,26 +288,24 @@ static long PVDProxyDispatch(PVDProxy *p)
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			p->outmsg.done = &PVDProxyRecvDone;
 			p->outtick = GetTickCount();
-			result = pvd->request(pvd, Aiosync_NotifyBack|Aio_RequestOutput, &p->outmsg);
+			result = pvd->request(pvd, Aiosync_NotifyBack|Aio_Output, &p->outmsg);
 			if (result < 0) {
 				InterlockedExchange(&p->reqcount, 0);
 				return result;
 			}
 
 			p->inmsg.done = &PVDProxySendDone;
-			result = pvd->request(pvd, Aio_RequestInput, &p->inmsg);
-			if (result != 0) {
-				if (InterlockedDecrement(&p->reqcount) != 0)
-					return 0;
-				SlicePop(&p->outbuf, p->inmsg.size);
-				if (p->outmsg.size == 0) {
-					result = -EFAULT;
-				} else {
-					AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
-					p->inmsg.done = &PVDClientSendDone;
-					result = p->client->request(p->client, Aio_RequestInput, &p->inmsg);
-				}
-			}
+			result = pvd->request(pvd, Aio_Input, &p->inmsg);
+			if (result == 0)
+				return 0;
+			if (InterlockedDecrement(&p->reqcount) != 0)
+				return 0;
+			SlicePop(&p->outbuf, p->inmsg.size);
+			if (p->outmsg.size == 0)
+				return -EFAULT;
+			AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
+			p->inmsg.done = &PVDClientSendDone;
+			result = p->client->request(p->client, Aio_Input, &p->inmsg);
 			continue;
 		}
 
@@ -335,7 +337,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 		}
 
 		p->inmsg.done = &PVDClientSendDone;
-		result = p->client->request(p->client, Aio_RequestInput, &p->inmsg);
+		result = p->client->request(p->client, Aio_Input, &p->inmsg);
 	} while (result > 0);
 	return result;
 }
@@ -357,7 +359,7 @@ static long PVDProxyOpen(AObject *object, AMessage *msg)
 static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 {
 	PVDProxy *p = to_proxy(object);
-	if (reqix != Aio_RequestInput)
+	if (reqix != Aio_Input)
 		return -ENOSYS;
 
 	long result = SliceReserve(&p->outbuf, max(msg->size,1024), 2048);
@@ -407,7 +409,7 @@ static void PVDDoSend(async_operator *asop, int result)
 		sm->msg.type = AMsgType_Custom|result;
 		sm->msg.data = (char*)&sm->heart;
 		sm->msg.size = PVDCmdEncode(0, &sm->heart, result, 0);
-		result = sm->object->request(sm->object, Aio_RequestInput, &sm->msg);
+		result = sm->object->request(sm->object, Aio_Input, &sm->msg);
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
@@ -639,7 +641,7 @@ long PVDProxyInit(AOption *option)
 	if (result >= 0) {
 		sm->object = pvd; AObjectAddRef(pvd);
 		sm->option = AOptionClone(option);
-		sm->reqix = Aio_RequestOutput;
+		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
 		async_operator_timewait(&sm->timer, NULL, 0);
@@ -666,7 +668,7 @@ long PVDProxyInit(AOption *option)
 static void PVDProxyExit(void)
 {
 	if (pvd != NULL) {
-		//pvd->cancel(pvd, ARequest_MsgLoop|Aio_RequestOutput, NULL);
+		//pvd->cancel(pvd, ARequest_MsgLoop|Aio_Output, NULL);
 		pvd->close(pvd, NULL);
 		AObjectRelease(pvd);
 		pvd = NULL;

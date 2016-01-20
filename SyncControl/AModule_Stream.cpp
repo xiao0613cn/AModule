@@ -291,71 +291,78 @@ static long SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 	return sc->stream->close(sc->stream, &req->msg);
 }
 
-static void SyncRequestDispatch(SyncRequest *req, long result)
+static AMessage* NotifyDispatch(struct list_head *notify_list, AMessage *from, struct list_head *quit_list)
+{
+	AMessage *msg;
+	list_for_each_entry(msg, notify_list, AMessage, entry)
+	{
+		if ((from->type != AMsgType_Unknown)
+		 && (msg->type != AMsgType_Unknown)
+		 && (msg->type != from->type))
+			continue;
+
+		AMsgInit(msg, from->type, from->data, from->size);
+		int result = msg->done(msg, 0);
+		if (result == 0)
+			continue;
+
+		if (result > 0) {
+			list_del_init(&msg->entry);
+			return msg;
+		}
+
+		msg = list_entry(msg->entry.prev, AMessage, entry);
+		list_move_tail(msg->entry.next, quit_list);
+	}
+	return NULL;
+}
+
+static void SyncRequestDispatchRequest(SyncRequest *req, long result)
 {
 	SyncControl *sc = req->sc;
 	AMessage *msg;
+
 	struct list_head quit_notify;
 	INIT_LIST_HEAD(&quit_notify);
+
 	for (;;) {
-		AMessage *probe_msg = NULL;
-		long      probe_ret;
+		AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
+		req->from->done(req->from, result);
 
 		EnterCriticalSection(&req->lock);
 		if (result >= 0) {
-			list_for_each_entry(msg, &req->notify_list, AMessage, entry) {
-				if ((msg->type != AMsgType_Unknown) && (msg->type != req->msg.type))
-					continue;
-
-				AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-				probe_ret = msg->done(msg, 0);
-				if (probe_ret == 0)
-					continue;
-
-				probe_msg = msg;
-				if (probe_ret > 0) {
-					list_del_init(&probe_msg->entry);
-					break;
-				}
-
-				msg = list_entry(msg->entry.prev, AMessage, entry);
-				list_move_tail(&probe_msg->entry, &quit_notify);
-				probe_msg = NULL;
-			}
+			msg = NotifyDispatch(&req->notify_list, &req->msg, &quit_notify);
+		} else {
+			msg = NULL;
 		}
 		if (sc->status != stream_opened) {
-			msg = req->from = NULL;
+			req->from = NULL;
 			result = -EINTR;
 		} else if (list_empty(&req->request_list)) {
-			msg = req->from = NULL;
+			req->from = NULL;
 			result = 0;
 		} else {
-			msg = req->from = list_first_entry(&req->request_list, AMessage, entry);
-			list_del_init(&msg->entry);
+			req->from = list_first_entry(&req->request_list, AMessage, entry);
+			list_del_init(&req->from->entry);
 			result = 1;
 		}
 		LeaveCriticalSection(&req->lock);
 
-		if (probe_msg != NULL) {
-			probe_msg->done(probe_msg, probe_ret);
-			probe_msg = NULL;
+		if (msg != NULL) {
+			msg->done(msg, 1);
 		}
 		while (!list_empty(&quit_notify)) {
-			probe_msg = list_first_entry(&quit_notify, AMessage, entry);
-			list_del_init(&probe_msg->entry);
-			probe_msg->done(probe_msg, -1);
-			probe_msg = NULL;
+			msg = list_first_entry(&quit_notify, AMessage, entry);
+			list_del_init(&msg->entry);
+			msg->done(msg, -1);
 		}
 		if (result <= 0)
 			break;
 
-		AMsgInit(&req->msg, msg->type, msg->data, msg->size);
+		AMsgInit(&req->msg, req->from->type, req->from->data, req->from->size);
 		result = sc->stream->request(sc->stream, req->reqix, &req->msg);
 		if (result == 0)
 			return;
-
-		AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-		msg->done(msg, result);
 	}
 
 	if (InterlockedDecrement(&sc->request_count) == 0) {
@@ -373,12 +380,28 @@ static long SyncRequestDone(AMessage *msg, long result)
 {
 	SyncRequest *req = to_req(msg);
 
-	msg = req->from;
-	AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-	msg->done(msg, result);
-
-	SyncRequestDispatch(req, result);
+	SyncRequestDispatchRequest(req, result);
 	return result;
+}
+
+static long SyncRequestDispatchNotify(SyncRequest *req, AMessage *from)
+{
+	struct list_head quit_notify;
+	INIT_LIST_HEAD(&quit_notify);
+
+	EnterCriticalSection(&req->lock);
+	AMessage *msg = NotifyDispatch(&req->notify_list, from, &quit_notify);
+	LeaveCriticalSection(&req->lock);
+
+	if (msg != NULL) {
+		msg->done(msg, 1);
+	}
+	while (!list_empty(&quit_notify)) {
+		msg = list_first_entry(&quit_notify, AMessage, entry);
+		list_del_init(&msg->entry);
+		msg->done(msg, -1);
+	}
+	return 1;
 }
 
 static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
@@ -389,9 +412,13 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 
 	long flag = (reqix & ~Aiosync_IndexMask);
 	reqix = reqix & Aiosync_IndexMask;
+
 	SyncRequest *req = SyncRequestGet(sc, reqix);
 	if (req == NULL)
 		return -ENOENT;
+
+	if (flag == Aiosync_NotifyDispath)
+		return SyncRequestDispatchNotify(req, msg);
 
 	long result;
 	EnterCriticalSection(&req->lock);
@@ -432,15 +459,9 @@ static long SyncControlRequest(AObject *object, long reqix, AMessage *msg)
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
 
 	result = sc->stream->request(sc->stream, reqix, &req->msg);
-	if (result != 0)
-	{
-		long ret = result;
-		AMsgInit(msg, req->msg.type, req->msg.data, req->msg.size);
-		if (msg->done != NULL) {
-			msg->done(msg, result);
-			result = 0;
-		}
-		SyncRequestDispatch(req, ret);
+	if (result != 0) {
+		SyncRequestDispatchRequest(req, result);
+		result = 0;
 	}
 	return result;
 }
@@ -453,6 +474,7 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 
 	long flag = (reqix & ~Aiosync_IndexMask);
 	reqix = reqix & Aiosync_IndexMask;
+
 	SyncRequest *req = SyncRequestGet(sc, reqix);
 	if (req == NULL)
 		return -ENOENT;
@@ -472,6 +494,8 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 	} else if (msg == NULL) {
 		if (sc->stream->cancel != NULL)
 			result = sc->stream->cancel(sc->stream, reqix, NULL);
+		else
+			result = -ENOSYS;
 	} else if (msg != req->from) {
 		AMessage *pos;
 		result = -ENODEV;
@@ -512,6 +536,7 @@ static long SyncControlClose(AObject *object, AMessage *msg)
 		}
 		if (old_status == stream_opening)
 			return 1;
+		assert(old_status == stream_opened);
 		break;
 	}
 

@@ -279,6 +279,8 @@ static long OnMp4AckDone(M3U8Proxy *p)
 		ARefsBuf *buf = p->reply_file.buffers[p->reply_index];
 		if (p->outmsg.data == buf->data) {
 			assert(p->outmsg.size == buf->size);
+			TRACE("send ts file(%d), size = %d, data = %s.\n", p->reply_file.media_sequence,
+				p->outmsg.size, p->outmsg.data);
 			++p->reply_index;
 			continue;
 		}
@@ -287,10 +289,12 @@ static long OnMp4AckDone(M3U8Proxy *p)
 		p->outmsg.data = buf->data;
 		p->outmsg.size = buf->size;
 
-		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
+		long result = p->client->request(p->client, Aio_Input, &p->outmsg);
 		if (result <= 0)
 			return result;
 	}
+	TRACE("send ts file(%d) size = %d, nb_buffers = %d.\n", p->reply_file.media_sequence,
+		p->reply_file.content_length, p->reply_file.nb_buffers);
 	media_file_release(&p->reply_file);
 	p->reply_index = 0;
 
@@ -449,7 +453,7 @@ static long M3U8OpenFile(M3U8Proxy *p, const char *file_name)
 static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 {
 	M3U8Proxy *p = to_proxy(object);
-	if (reqix != Aio_RequestInput)
+	if (reqix != Aio_Input)
 		return -ENOSYS;
 	if (msg->data == NULL)
 		return -EINVAL;
@@ -477,7 +481,7 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 		fputs(p->outmsg.data, stdout);
 
 		p->from = msg;
-		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
+		long result = p->client->request(p->client, Aio_Input, &p->outmsg);
 		if (result > 0)
 			result = p->outmsg.size;
 		return result;
@@ -500,6 +504,11 @@ static long M3U8ProxyRequest(AObject *object, long reqix, AMessage *msg)
 				ARefsBufAddRef(file->buffers[ix]);
 			break;
 		}
+		if ((p->reply_file.content_length == 0) && (rt_media[0].content_length != 0)) {
+			memcpy(&p->reply_file, &rt_media[0], sizeof(media_file_t));
+			for (long ix = 0; ix < rt_media[0].nb_buffers; ++ix)
+				ARefsBufAddRef(rt_media[0].buffers[ix]);
+		}
 		LeaveCriticalSection(&rt_lock);
 _reply:
 		if (p->reply_file.content_length != 0) {
@@ -514,7 +523,7 @@ _reply:
 		fputs(p->outmsg.data, stdout);
 
 		p->from = msg;
-		long result = p->client->request(p->client, Aio_RequestInput, &p->outmsg);
+		long result = p->client->request(p->client, Aio_Input, &p->outmsg);
 		if (result > 0)
 			result = OnMp4AckDone(p);
 		return result;

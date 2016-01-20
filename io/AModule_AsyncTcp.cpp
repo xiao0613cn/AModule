@@ -188,13 +188,13 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 	assert(msg->size != 0);
 	switch (reqix)
 	{
-	case Aio_RequestInput:
+	case Aio_Input:
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
 		return iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
 
-	case Aio_RequestOutput:
+	case Aio_Output:
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
@@ -212,9 +212,9 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
-	if (reqix == Aio_RequestInput) {
+	if (reqix == Aio_Input) {
 		shutdown(tcp->sock, SD_SEND);
-	} else if (reqix == Aio_RequestOutput) {
+	} else if (reqix == Aio_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
 		assert(FALSE);

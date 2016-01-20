@@ -104,14 +104,14 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	assert(msg->size != 0);
 	switch (reqix)
 	{
-	case Aio_RequestInput:
+	case Aio_Input:
 		if (msg->type & AMsgType_Custom)
 			return tcp_send(tcp->sock, msg->data, msg->size, 0);
 
 		result = send(tcp->sock, msg->data, msg->size, 0);
 		break;
 
-	case Aio_RequestOutput:
+	case Aio_Output:
 		if (msg->type & AMsgType_Custom)
 			return tcp_recv(tcp->sock, msg->data, msg->size, 0);
 
@@ -136,9 +136,9 @@ static long TcpCancel(AObject *object, long reqix, AMessage *msg)
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
-	if (reqix == Aio_RequestInput) {
+	if (reqix == Aio_Input) {
 		shutdown(tcp->sock, SD_SEND);
-	} else if (reqix == Aio_RequestOutput) {
+	} else if (reqix == Aio_Output) {
 		shutdown(tcp->sock, SD_RECEIVE);
 	} else {
 		assert(FALSE);

@@ -12,16 +12,16 @@
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: 192.168.20.147,"
-	"		port: 8101,"
+	"		address: 127.0.0.1,"
+	"		port: 8000,"
 	"               timeout: 5,"
 	"	},"
-	"	username: 'admin',"
+	"	username: ':40',"
 	"	password: 888888,"
 	"	force_alarm: 0,"
 	"	channel: 0,"
 	"	linkmode: 0,"
-	"	m3u8_proxy: 1,"
+	"	m3u8_proxy: 0,"
 	"}";
 
 struct RecvMsg {
@@ -88,14 +88,14 @@ unsigned int WINAPI SendHeart(void *p)
 	long result;
 	do {
 		::Sleep(3000);
-		result = rm->pvd->request(rm->pvd, Aio_RequestInput, &rm->msg);
+		result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
 	} while (!g_abort && (result > 0));
 
 	TRACE("%p: send result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
 
-	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|Aio_RequestOutput, NULL);
-	result = rm->pvd->request(rm->pvd, Aio_RequestInput, &rm->msg);
+	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|Aio_Output, NULL);
+	result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
@@ -163,13 +163,13 @@ _retry:
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
-		rm->reqix = Aio_RequestOutput;
+		rm->reqix = Aio_Output;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
-		rm->reqix = Aio_RequestInput;
+		rm->reqix = Aio_Input;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &SendHeart, rm, 0, NULL));
 		rm = NULL;
 	}
