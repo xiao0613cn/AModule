@@ -11,6 +11,9 @@ static STRUCT_SDVR_DEVICE_EX login_data;
 static STRUCT_SDVR_ALARM_EX heart_data;
 static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
+static STRUCT_SDVR_DEVICEINFO devcfg_info;
+static STRUCT_SDVR_NETINFO netcfg_info;
+static STRUCT_SDVR_DEVICEINFO_EX devinfo_ex;
 DWORD  userid;
 static DWORD rt_active = 0;
 static BOOL force_alarm = FALSE;
@@ -262,7 +265,10 @@ static long PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_MD5ID_GET:   p->outmsg.size = sizeof(pvdnet_head) + 4; break;
 		case NET_SDVR_LOGIN:       p->outmsg.size = sizeof(pvdnet_head) + sizeof(login_data); break;
 		case NET_SDVR_GET_DVRTYPE: p->outmsg.size = sizeof(pvdnet_head) + sizeof(dvr_info); break;
-		case NET_SDVR_SUPPORT_FUNC:p->outmsg.size = sizeof(pvdnet_head) + sizeof(supp_func); break;
+		case NET_SDVR_SUPPORT_FUNC: p->outmsg.size = sizeof(pvdnet_head) + sizeof(supp_func); break;
+		case NET_SDVR_DEVICECFG_GET: p->outmsg.size = sizeof(pvdnet_head) + sizeof(devcfg_info); break;
+		case NET_SDVR_DEVICECFG_GET_EX: p->outmsg.size = sizeof(pvdnet_head) + sizeof(devinfo_ex); break;
+		case NET_SDVR_NETCFG_GET:  p->outmsg.size = sizeof(pvdnet_head) + sizeof(netcfg_info); break;
 		case NET_SDVR_SHAKEHAND:   p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
@@ -325,7 +331,10 @@ static long PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_MD5ID_GET:   p->inmsg.data[sizeof(pvdnet_head)] = 0x50; break;
 		case NET_SDVR_LOGIN:       memcpy(phead+1, &login_data, sizeof(login_data)); break;
 		case NET_SDVR_GET_DVRTYPE: memcpy(phead+1, &dvr_info, sizeof(dvr_info)); break;
-		case NET_SDVR_SUPPORT_FUNC:memcpy(phead+1, &supp_func, sizeof(supp_func)); break;
+		case NET_SDVR_SUPPORT_FUNC: memcpy(phead+1, &supp_func, sizeof(supp_func)); break;
+		case NET_SDVR_DEVICECFG_GET: memcpy(phead+1, &devcfg_info, sizeof(devcfg_info)); break;
+		case NET_SDVR_DEVICECFG_GET_EX: memcpy(phead+1, &devinfo_ex, sizeof(devinfo_ex)); break;
+		case NET_SDVR_NETCFG_GET:  memcpy(phead+1, &netcfg_info, sizeof(netcfg_info)); break;
 		case NET_SDVR_SHAKEHAND:   memcpy(phead+1, &heart_data, sizeof(heart_data)); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
@@ -395,13 +404,18 @@ static void PVDDoSend(async_operator *asop, int result)
 		rt_active = tick;
 	}
 	do {
-		if (sm->msg.type == AMsgType_Option) {
-			result = NET_SDVR_GET_DVRTYPE;
-		} else if (sm->msg.type == (AMsgType_Custom|NET_SDVR_GET_DVRTYPE)) {
-			result = NET_SDVR_SUPPORT_FUNC;
-		} else if (sm->msg.type != (AMsgType_Custom|NET_SDVR_SHAKEHAND)) {
-			result = NET_SDVR_SHAKEHAND;
-		} else {
+		switch (sm->msg.type)
+		{
+		case AMsgType_Option: result = NET_SDVR_GET_DVRTYPE; break;
+		case (AMsgType_Custom|NET_SDVR_GET_DVRTYPE): result = NET_SDVR_SUPPORT_FUNC; break;
+		case (AMsgType_Custom|NET_SDVR_SUPPORT_FUNC): result = NET_SDVR_DEVICECFG_GET; break;
+		case (AMsgType_Custom|NET_SDVR_DEVICECFG_GET): result = NET_SDVR_DEVICECFG_GET_EX; break;
+		case (AMsgType_Custom|NET_SDVR_DEVICECFG_GET_EX): result = NET_SDVR_NETCFG_GET; break;
+		default:
+			if (sm->msg.type != (AMsgType_Custom|NET_SDVR_SHAKEHAND)) {
+				result = NET_SDVR_SHAKEHAND;
+				break;
+			}
 			sm->msg.type = 0;
 			async_operator_timewait(&sm->timer, NULL, 3*1000);
 			return;
@@ -456,24 +470,29 @@ static long PVDRecvDone(AMessage *msg, long result)
 	}
 
 	pvdnet_head *phead = (pvdnet_head*)msg->data;
-	if (phead->uFlag == NET_CMD_HEAD_FLAG) {
+	if ((phead->uFlag == NET_CMD_HEAD_FLAG) && (phead->uResult != 0)) {
+		void *ptr = NULL;
+		int len = 0;
+
 		switch (phead->uCmd)
 		{
 		case NET_SDVR_SHAKEHAND:
 			if (!force_alarm) {
-				memcpy(&heart_data, phead+1, min(sizeof(heart_data),msg->size-sizeof(pvdnet_head)));
+				ptr = &heart_data; len = sizeof(heart_data);
 			} else {
 				memset(heart_data.wMotion, force_alarm, sizeof(heart_data.wMotion));
 				memset(heart_data.wAlarm, force_alarm, sizeof(heart_data.wAlarm));
 				memset(heart_data.byDisk, force_alarm, sizeof(heart_data.byDisk));
 			}
 			break;
-		case NET_SDVR_GET_DVRTYPE:
-			memcpy(&dvr_info, phead+1, min(sizeof(dvr_info),msg->size-sizeof(pvdnet_head)));
-			break;
-		case NET_SDVR_SUPPORT_FUNC:
-			memcpy(&supp_func, phead+1, min(sizeof(supp_func),msg->size-sizeof(pvdnet_head)));
-			break;
+		case NET_SDVR_GET_DVRTYPE: ptr = &dvr_info; len = sizeof(dvr_info); break;
+		case NET_SDVR_SUPPORT_FUNC: ptr = &supp_func; len = sizeof(supp_func); break;
+		case NET_SDVR_DEVICECFG_GET: ptr = &devcfg_info; len = sizeof(devcfg_info); break;
+		case NET_SDVR_DEVICECFG_GET_EX: ptr = &devinfo_ex; len = sizeof(devinfo_ex); break;
+		case NET_SDVR_NETCFG_GET: ptr = &netcfg_info; len = sizeof(netcfg_info); break;
+		}
+		if (ptr != NULL) {
+			memcpy(ptr, phead+1, min(len,msg->size-sizeof(pvdnet_head)));
 		}
 	}
 	/*MSHEAD *mshead = (MSHEAD*)msg->data;

@@ -293,26 +293,26 @@ static long SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 
 static AMessage* NotifyDispatch(struct list_head *notify_list, AMessage *from, struct list_head *quit_list)
 {
-	AMessage *msg;
-	list_for_each_entry(msg, notify_list, AMessage, entry)
+	AMessage *pos;
+	list_for_each_entry(pos, notify_list, AMessage, entry)
 	{
 		if ((from->type != AMsgType_Unknown)
-		 && (msg->type != AMsgType_Unknown)
-		 && (msg->type != from->type))
+		 && (pos->type != AMsgType_Unknown)
+		 && (pos->type != from->type))
 			continue;
 
-		AMsgInit(msg, from->type, from->data, from->size);
-		int result = msg->done(msg, 0);
+		AMsgInit(pos, from->type, from->data, from->size);
+		int result = pos->done(pos, 0);
 		if (result == 0)
 			continue;
 
 		if (result > 0) {
-			list_del_init(&msg->entry);
-			return msg;
+			list_del_init(&pos->entry);
+			return pos;
 		}
 
-		msg = list_entry(msg->entry.prev, AMessage, entry);
-		list_move_tail(msg->entry.next, quit_list);
+		pos = list_entry(pos->entry.prev, AMessage, entry);
+		list_move_tail(pos->entry.next, quit_list);
 	}
 	return NULL;
 }
@@ -322,8 +322,8 @@ static void SyncRequestDispatchRequest(SyncRequest *req, long result)
 	SyncControl *sc = req->sc;
 	AMessage *msg;
 
-	struct list_head quit_notify;
-	INIT_LIST_HEAD(&quit_notify);
+	struct list_head quit_list;
+	INIT_LIST_HEAD(&quit_list);
 
 	for (;;) {
 		AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
@@ -331,7 +331,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, long result)
 
 		EnterCriticalSection(&req->lock);
 		if (result >= 0) {
-			msg = NotifyDispatch(&req->notify_list, &req->msg, &quit_notify);
+			msg = NotifyDispatch(&req->notify_list, &req->msg, &quit_list);
 		} else {
 			msg = NULL;
 		}
@@ -351,8 +351,8 @@ static void SyncRequestDispatchRequest(SyncRequest *req, long result)
 		if (msg != NULL) {
 			msg->done(msg, 1);
 		}
-		while (!list_empty(&quit_notify)) {
-			msg = list_first_entry(&quit_notify, AMessage, entry);
+		while (!list_empty(&quit_list)) {
+			msg = list_first_entry(&quit_list, AMessage, entry);
 			list_del_init(&msg->entry);
 			msg->done(msg, -1);
 		}
@@ -386,18 +386,55 @@ static long SyncRequestDone(AMessage *msg, long result)
 
 static long SyncRequestDispatchNotify(SyncRequest *req, AMessage *from)
 {
-	struct list_head quit_notify;
-	INIT_LIST_HEAD(&quit_notify);
+	struct list_head quit_list;
+	INIT_LIST_HEAD(&quit_list);
 
 	EnterCriticalSection(&req->lock);
-	AMessage *msg = NotifyDispatch(&req->notify_list, from, &quit_notify);
+	AMessage *msg = NotifyDispatch(&req->notify_list, from, &quit_list);
 	LeaveCriticalSection(&req->lock);
 
 	if (msg != NULL) {
 		msg->done(msg, 1);
 	}
-	while (!list_empty(&quit_notify)) {
-		msg = list_first_entry(&quit_notify, AMessage, entry);
+	while (!list_empty(&quit_list)) {
+		msg = list_first_entry(&quit_list, AMessage, entry);
+		list_del_init(&msg->entry);
+		msg->done(msg, -1);
+	}
+	return 1;
+}
+
+static long SyncRequestCancelDispath(SyncRequest *req, AMessage *from)
+{
+	AMessage *msg = NULL;
+	struct list_head quit_list;
+	INIT_LIST_HEAD(&quit_list);
+
+	EnterCriticalSection(&req->lock);
+	AMessage *pos;
+	list_for_each_entry(pos, &req->notify_list, AMessage, entry)
+	{
+		AMsgInit(from, AMsgType_OtherMsg, (char*)pos, 0);
+		int result = from->done(from, 0);
+		if (result == 0)
+			continue;
+
+		if (result > 0) {
+			list_del_init(&pos->entry);
+			msg = pos;
+			break;
+		}
+
+		pos = list_entry(pos->entry.prev, AMessage, entry);
+		list_move_tail(pos->entry.next, &quit_list);
+	}
+	LeaveCriticalSection(&req->lock);
+
+	if (msg != NULL) {
+		msg->done(msg, 1);
+	}
+	while (!list_empty(&quit_list)) {
+		msg = list_first_entry(&quit_list, AMessage, entry);
 		list_del_init(&msg->entry);
 		msg->done(msg, -1);
 	}
@@ -478,6 +515,9 @@ static long SyncControlCancel(AObject *object, long reqix, AMessage *msg)
 	SyncRequest *req = SyncRequestGet(sc, reqix);
 	if (req == NULL)
 		return -ENOENT;
+
+	if (flag == Aiosync_NotifyDispath)
+		return SyncRequestCancelDispath(req, msg);
 
 	struct list_head *head;
 	if ((flag == Aiosync_NotifyFront)

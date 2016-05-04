@@ -8,6 +8,7 @@ enum AMsgType {
 	AMsgType_Option,   /* AOption (data = AOption*, size = 0 */
 	AMsgType_Object,   /* AObject (data = AObject*, size = 0 */
 	AMsgType_Module,   /* AModule (data = AModule*, size = 0 */
+	AMsgType_OtherMsg, /* AMessage (data = AMessage*, size = 0 */
 	AMsgType_InOutMsg, /* contain_of(msg, AIOMsg, msg) */
 	AMsgType_RefsMsg,  /* contain_of(msg, ARefMsg, msg) */
 	AMsgType_Custom = 0x80000000,

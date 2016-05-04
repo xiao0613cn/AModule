@@ -117,6 +117,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
+				AdditionalIncludeDirectories="ffmpeg/include"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -185,6 +186,10 @@
 			</File>
 			<File
 				RelativePath=".\io\AModule_Dump.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\proxy\AModule_EchoProxy.cpp"
 				>
 			</File>
 			<File

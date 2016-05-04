@@ -21,6 +21,7 @@ static const char *pvd_path =
 	"	force_alarm: 0,"
 	"	channel: 0,"
 	"	linkmode: 0,"
+	"	channel_count: ,"
 	"	m3u8_proxy: 0,"
 	"}";
 
@@ -126,18 +127,10 @@ void ResetOption(AOption *option)
 	}
 }
 
-extern AModule SyncControlModule;
-extern AModule TCPModule;
-extern AModule AsyncTcpModule;
 extern AModule PVDClientModule;
 extern AModule PVDRTModule;
-extern AModule TCPServerModule;
-extern AModule HTTPProxyModule;
-extern AModule PVDProxyModule;
-extern AModule M3U8ProxyModule;
-extern AModule DumpModule;
 
-void test_pvd(AOption *option)
+void test_pvd(AOption *option, bool reset_option)
 {
 	AObject *pvd = NULL;
 	AObject *rt = NULL;
@@ -145,7 +138,8 @@ void test_pvd(AOption *option)
 	AMessage sm;
 	long result;
 _retry:
-	ResetOption(option);
+	if (reset_option)
+		ResetOption(option);
 	AMsgInit(&sm, AMsgType_Option, (char*)option, 0);
 	sm.done = NULL;
 
@@ -224,10 +218,11 @@ static const char *proxy_path =
 	"	},"
 	"},";
 
-void test_proxy(AOption *option)
+void test_proxy(AOption *option, bool reset_option)
 {
 	AMessage msg;
-	ResetOption(option);
+	if (reset_option)
+		ResetOption(option);
 
 	AObject *tcp_server = NULL;
 	long result = AObjectCreate(&tcp_server, NULL, option, NULL);
@@ -251,49 +246,68 @@ void test_proxy(AOption *option)
 	release_s(tcp_server, AObjectRelease, NULL);
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
 	async_thread_begin(NULL, NULL);
-	AModuleRegister(&TCPModule);
-	AModuleRegister(&TCPServerModule);
-	AModuleRegister(&AsyncTcpModule);
-	AModuleRegister(&SyncControlModule);
-	AModuleRegister(&PVDClientModule);
-	AModuleRegister(&PVDRTModule);
-	AModuleRegister(&HTTPProxyModule);
-	AModuleRegister(&PVDProxyModule);
-	AModuleRegister(&DumpModule);
-	AModuleRegister(&M3U8ProxyModule);
+	extern AModule TCPModule; AModuleRegister(&TCPModule);
+	extern AModule TCPServerModule; AModuleRegister(&TCPServerModule);
+	extern AModule AsyncTcpModule; AModuleRegister(&AsyncTcpModule);
+	extern AModule SyncControlModule; AModuleRegister(&SyncControlModule);
+	extern AModule PVDClientModule; AModuleRegister(&PVDClientModule);
+	extern AModule PVDRTModule; AModuleRegister(&PVDRTModule);
+	extern AModule HTTPProxyModule; AModuleRegister(&HTTPProxyModule);
+	extern AModule PVDProxyModule; AModuleRegister(&PVDProxyModule);
+	extern AModule DumpModule; AModuleRegister(&DumpModule);
+	extern AModule M3U8ProxyModule; AModuleRegister(&M3U8ProxyModule);
+	extern AModule EchoModule; AModuleRegister(&EchoModule);
 
 	AOption *option = NULL;
-	long result = AOptionDecode(&option, pvd_path);
-	if (option != NULL)
-		ResetOption(option);
+	long result;
+	if (argc > 1) {
+		result = AOptionDecode(&option, argv[1]);
+		if (result < 0)
+			release_s(option, AOptionRelease, NULL);
+	}
+	if (option == NULL) {
+		result = AOptionDecode(&option, pvd_path);
+		if (option != NULL)
+			ResetOption(option);
+	}
 	AModuleInitAll(option);
-	//release_s(option, AOptionRelease, NULL);
+	option = NULL;
 
 	char str[256];
 	const char *path;
-	do {
-		TRACE("input test module: pvd, tcp_server ...\n");
-		gets_s(str);
-		if (_stricmp(str,"pvd") == 0)
-			path = pvd_path;
-		else if (str[0] == '\0' || _stricmp(str,"tcp_server") == 0)
-			path = proxy_path;
-		else if (str[0] == 'q')
-			goto _return;
+	if (argc > 2) {
+		result = AOptionDecode(&option, argv[2]);
+		if (result < 0)
+			release_s(option, AOptionRelease, NULL);
+	}
+	bool reset_option = false;
+	if (option == NULL) {
+		reset_option = true;
+		do {
+			TRACE("input test module: pvd, tcp_server ...\n");
+			gets_s(str);
+			if (_stricmp(str,"pvd") == 0)
+				path = pvd_path;
+			else if (/*str[0] == '\0' || */_stricmp(str,"tcp_server") == 0)
+				path = proxy_path;
+			else if (str[0] == 'q')
+				goto _return;
+			else
+				continue;
+			break;
+		} while (1);
+		result = AOptionDecode(&option, path);
+	}
+	if (result == 0) {
+		if (_stricmp(option->name, "stream") == 0)
+			test_pvd(option, reset_option);
+		else if (_stricmp(option->name, "server") == 0)
+			test_proxy(option, reset_option);
 		else
-			continue;
-		break;
-	} while (1);
-	result = AOptionDecode(&option, path);
-	if (result == 0)
-	{
-		if (path == pvd_path)
-			test_pvd(option);
-		else
-			test_proxy(option);
+			TRACE("unknown test module [%s: %s]...\n", option->name, option->value);
 	}
 	release_s(option, AOptionRelease, NULL);
 _return:

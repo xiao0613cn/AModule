@@ -107,10 +107,8 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 		case tcp_client_open:
 			client->sock = INVALID_SOCKET;
 			client->status = tcp_recv_probe;
-			if (client->probe_size != 0) {
-				AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			if (client->inmsg.size != 0)
 				break;
-			}
 
 			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			result = client->client->request(client->client, Aio_Output, &client->inmsg);
@@ -118,10 +116,21 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 
 		case tcp_recv_probe:
 			client->probe_type = client->inmsg.type;
-			client->probe_size = client->inmsg.size;
+			client->probe_size += client->inmsg.size;
+			client->indata[client->probe_size] = '\0';
+			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 
 			AModule *module;
 			module = AModuleProbe("proxy", client->client, &client->inmsg);
+			if ((module == NULL) && (client->inmsg.size < 8))
+			{
+				TRACE("retry probe: %s\n", client->indata);
+				AMsgInit(&client->inmsg, AMsgType_Unknown,
+					client->indata+client->probe_size,
+					sizeof(client->indata)-1-client->probe_size);
+				result = client->client->request(client->client, Aio_Output, &client->inmsg);
+				break;
+			}
 
 			AOption *proxy_opt;
 			if (module != NULL)
@@ -320,8 +329,8 @@ static void TCPServerAcceptExDone(sysio_operator *sysop, int result)
 {
 	TCPServer *server = container_of(sysop, TCPServer, sysio);
 	if (result > 0) {
-		server->prepare->probe_type = AMsgType_Unknown;
-		server->prepare->probe_size = result;
+		server->prepare->inmsg.type = AMsgType_Unknown;
+		server->prepare->inmsg.size = result;
 		result = setsockopt(server->prepare->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
