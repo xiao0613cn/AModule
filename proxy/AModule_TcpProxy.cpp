@@ -105,8 +105,10 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 		case tcp_client_open:
 			client->sock = INVALID_SOCKET;
 			client->status = tcp_recv_probe;
-			if (client->inmsg.size != 0)
+			if (client->probe_size != 0) {
+				amsg_init(&client->inmsg, client->probe_type, NULL, 0);
 				break;
+			}
 
 			amsg_init(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			result = client->client->request(client->client, Aio_Output, &client->inmsg);
@@ -327,8 +329,8 @@ static void TCPServerAcceptExDone(AOperator *sysop, int result)
 {
 	TCPServer *server = container_of(sysop, TCPServer, sysio);
 	if (result > 0) {
-		server->prepare->inmsg.type = AMsgType_Unknown;
-		server->prepare->inmsg.size = result;
+		server->prepare->probe_type = AMsgType_Unknown;
+		server->prepare->probe_size = result;
 		result = setsockopt(server->prepare->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
