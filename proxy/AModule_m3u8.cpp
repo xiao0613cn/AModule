@@ -3,7 +3,7 @@
 #include "../io/AModule_io.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
-#include "../base/async_operator.h"
+#include "../base/AOperator.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,7 +16,7 @@ extern "C" {
 extern AObject  *rt;
 extern AMessage  rt_msg;
 static AMessage  work_msg;
-static async_operator work_opt;
+static AOperator work_opt;
 
 #define live_m3u8     "h264.m3u8"
 #define live_prefix   "h264_"
@@ -740,7 +740,7 @@ static void av_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 	fputs(log_buf, stdout);
 }
 
-static void RTCheck(async_operator *opt, int result)
+static void RTCheck(AOperator *opt, int result)
 {
 	if (result < 0) {
 		if (rt != NULL)
@@ -802,7 +802,7 @@ static void RTCheck(async_operator *opt, int result)
 				mpegts_ofmt->name, h264_codec->name, ret);
 		}
 	}
-	async_operator_timewait(opt, NULL, 5*1000);
+	AOperatorTimewait(opt, NULL, 5*1000);
 }
 
 static long M3U8ProxyInit(AOption *option)
@@ -817,7 +817,7 @@ static long M3U8ProxyInit(AOption *option)
 		return 0;
 
 	work_opt.callback = &RTCheck;
-	async_operator_timewait(&work_opt, NULL, 5*1000);
+	AOperatorTimewait(&work_opt, NULL, 5*1000);
 	return 1;
 }
 

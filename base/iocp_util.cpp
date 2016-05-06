@@ -1,11 +1,13 @@
 #include "stdafx.h"
-#include "iocp_util.h"
+#include "AModule.h"
 
+#ifndef _MSWSOCK_
 #include <MSWSock.h>
+#endif
 #pragma comment(lib, "ws2_32.lib")
 
 
-struct addrinfo*
+AMODULE_API struct addrinfo*
 iocp_getaddrinfo(const char *netaddr, const char *port)
 {
 	char ipaddr[MAX_PATH];
@@ -32,7 +34,7 @@ iocp_getaddrinfo(const char *netaddr, const char *port)
 	return res;
 }
 
-SOCKET
+AMODULE_API SOCKET
 bind_socket(int family, int protocol, unsigned short port)
 {
 	int type;
@@ -59,7 +61,7 @@ bind_socket(int family, int protocol, unsigned short port)
 	return sock;
 }
 
-int
+AMODULE_API int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 {
 	u_long nonblocking = 1;
@@ -100,7 +102,7 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 }
 
 //////////////////////////////////////////////////////////////////////////
-int
+AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp)
 {
 	SOCKADDR_IN addr;
@@ -130,7 +132,7 @@ iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPE
 	return 0;
 }
 
-int
+AMODULE_API int
 iocp_is_connected(SOCKET sock)
 {
 	int ret = setsockopt(sock, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0);
@@ -147,8 +149,8 @@ iocp_is_connected(SOCKET sock)
 	return 1;
 }
 
-int
-iocp_send(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
+AMODULE_API int
+iocp_sendv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
 	DWORD flag = 0;
@@ -160,18 +162,18 @@ iocp_send(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	return 0;
 }
 
-int
+AMODULE_API int
 iocp_send(SOCKET sock, const char *data, int size, WSAOVERLAPPED *ovlp)
 {
 	WSABUF buffer;
 	buffer.buf = (char*)data;
 	buffer.len = size;
 
-	return iocp_send(sock, &buffer, 1, ovlp);
+	return iocp_sendv(sock, &buffer, 1, ovlp);
 }
 
-int
-iocp_recv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
+AMODULE_API int
+iocp_recvv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
 	DWORD flag = 0;
@@ -183,18 +185,18 @@ iocp_recv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	return 0;
 }
 
-int
+AMODULE_API int
 iocp_recv(SOCKET sock, char *data, int size, WSAOVERLAPPED *ovlp)
 {
 	WSABUF buffer;
 	buffer.buf = data;
 	buffer.len = size;
 
-	return iocp_recv(sock, &buffer, 1, ovlp);
+	return iocp_recvv(sock, &buffer, 1, ovlp);
 }
 
 //
-int
+AMODULE_API int
 iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
@@ -205,7 +207,7 @@ iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp)
 	return 0;
 }
 
-int
+AMODULE_API int
 iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;

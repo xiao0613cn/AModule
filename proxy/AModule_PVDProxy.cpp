@@ -4,7 +4,7 @@
 #include "../io/AModule_io.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
-#include "../base/async_operator.h"
+#include "../base/AOperator.h"
 
 static AObject *pvd = NULL;
 static STRUCT_SDVR_DEVICE_EX login_data;
@@ -25,7 +25,7 @@ struct HeartMsg {
 	AMessage msg;
 	AObject *object;
 	AOption *option;
-	async_operator timer;
+	AOperator timer;
 	union {
 	pvdnet_head heart;
 	struct {
@@ -52,7 +52,7 @@ struct PVDProxy {
 	long volatile reqcount;
 	AMessage     *outfrom;
 	srsw_queue<AMessage,64> frame_queue;
-	async_operator timer;
+	AOperator timer;
 };
 #define to_proxy(obj) container_of(obj, PVDProxy, object)
 #define from_inmsg(msg) container_of(msg, PVDProxy, inmsg)
@@ -179,7 +179,7 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 	}
 	return result;
 }
-static void PVDProxySendStream(async_operator *asop, int result)
+static void PVDProxySendStream(AOperator *asop, int result)
 {
 	PVDProxy *p = container_of(asop, PVDProxy, timer);
 	if (result >= 0)
@@ -190,7 +190,7 @@ static void PVDProxySendStream(async_operator *asop, int result)
 		}
 		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
-			async_operator_timewait(&p->timer, NULL, 10);
+			AOperatorTimewait(&p->timer, NULL, 10);
 			return;
 		}
 
@@ -237,7 +237,7 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.callback = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
-			async_operator_timewait(&p->timer, NULL, 0);
+			AOperatorTimewait(&p->timer, NULL, 0);
 			result = -1;
 		}
 	}
@@ -390,7 +390,7 @@ static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static void PVDDoSend(async_operator *asop, int result)
+static void PVDDoSend(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
@@ -417,7 +417,7 @@ static void PVDDoSend(async_operator *asop, int result)
 				break;
 			}
 			sm->msg.type = 0;
-			async_operator_timewait(&sm->timer, NULL, 3*1000);
+			AOperatorTimewait(&sm->timer, NULL, 3*1000);
 			return;
 		}
 		sm->msg.type = AMsgType_Custom|result;
@@ -427,7 +427,7 @@ static void PVDDoSend(async_operator *asop, int result)
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
-		async_operator_timewait(&sm->timer, NULL, 3*1000);
+		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
 }
 static long PVDSendDone(AMessage *msg, long result)
@@ -436,10 +436,10 @@ static long PVDSendDone(AMessage *msg, long result)
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
 	}
-	async_operator_timewait(&sm->timer, NULL, 3*1000);
+	AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	return result;
 }
-static void PVDDoOpen(async_operator *asop, int result);
+static void PVDDoOpen(AOperator *asop, int result);
 static long PVDCloseDone(AMessage *msg, long result)
 {
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
@@ -447,7 +447,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 		HeartMsgFree(sm, result);
 	} else {
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, NULL, 10*1000);
+		AOperatorTimewait(&sm->timer, NULL, 10*1000);
 	}
 	return result;
 }
@@ -523,10 +523,10 @@ static long PVDRecvDone(AMessage *msg, long result)
 		memcpy(rt_msg.data, msg->data, msg->size);
 		rt_msg.size = msg->size;
 	}
-	async_operator_timewait(&sm->timer, NULL, 0);
+	AOperatorTimewait(&sm->timer, NULL, 0);
 	return result;
 }
-static void PVDDoRecv(async_operator *asop, int result)
+static void PVDDoRecv(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
@@ -583,11 +583,11 @@ static long PVDOpenDone(AMessage *msg, long result)
 
 	sm->msg.done = &PVDRecvDone;
 	sm->timer.callback = &PVDDoRecv;
-	async_operator_timewait(&sm->timer, NULL, 0);
+	AOperatorTimewait(&sm->timer, NULL, 0);
 	return result;
 }
 
-static void PVDDoOpen(async_operator *asop, int result)
+static void PVDDoOpen(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
@@ -650,7 +650,7 @@ long PVDProxyInit(AOption *option)
 		sm->msg.type = AMsgType_Option;
 		sm->msg.done = &PVDSendDone;
 		sm->timer.callback = &PVDDoSend;
-		async_operator_timewait(&sm->timer, NULL, 3*1000);
+		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -663,7 +663,7 @@ long PVDProxyInit(AOption *option)
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, NULL, 0);
+		AOperatorTimewait(&sm->timer, NULL, 0);
 
 		strcpy_s(opt.value, "PVDRTStream");
 		result = syncControl->create(&rt, NULL, &opt);
@@ -679,7 +679,7 @@ long PVDProxyInit(AOption *option)
 		sm->reqix = 0;
 		sm->threadix = 2;
 		sm->timer.callback = &PVDDoOpen;
-		async_operator_timewait(&sm->timer, NULL, 3*1000);
+		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
 	return result;
 }

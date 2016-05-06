@@ -2,9 +2,7 @@
 #include <process.h>
 #include <MSWSock.h>
 #include "../base/AModule.h"
-#include "../base/async_operator.h"
 #include "../io/AModule_io.h"
-#include "../io/iocp_util.h"
 
 
 struct TCPServer {
@@ -20,7 +18,7 @@ struct TCPServer {
 	long     io_family;
 	struct TCPClient *prepare;
 	LPFN_ACCEPTEX acceptex;
-	sysio_operator sysio;
+	AOperator sysio;
 };
 #define to_server(obj) container_of(obj, TCPServer, object)
 
@@ -248,7 +246,7 @@ static unsigned __stdcall TCPServerProcess(void *p)
 	int addrlen;
 	SOCKET sock;
 
-	do {
+	for ( ; ; ) {
 		memset(&addr, 0, sizeof(addr));
 		addrlen = sizeof(addr);
 
@@ -268,7 +266,7 @@ static unsigned __stdcall TCPServerProcess(void *p)
 		} else {
 			QueueUserWorkItem(&TCPClientProcess, client, 0);
 		}
-	} while (1);
+	}
 	TRACE("%p: quit.\n", &server->object);
 	AObjectRelease(&server->object);
 	return 0;
@@ -317,7 +315,7 @@ static long TCPServerDoAcceptEx(TCPServer *server)
 
 	DWORD tx = 0;
 	result = server->acceptex(server->sock, server->prepare->sock, server->prepare->indata,
-	                          sizeof(server->prepare->indata)-1-result*2, result, result, &tx, &server->sysio.ovlp);
+	                          sizeof(server->prepare->indata)-1-result*2, result, result, &tx, &server->sysio.ao_ovlp);
 	if (!result) {
 		if (WSAGetLastError() != ERROR_IO_PENDING)
 			return -EIO;
@@ -325,7 +323,7 @@ static long TCPServerDoAcceptEx(TCPServer *server)
 	return 0;
 }
 
-static void TCPServerAcceptExDone(sysio_operator *sysop, int result)
+static void TCPServerAcceptExDone(AOperator *sysop, int result)
 {
 	TCPServer *server = container_of(sysop, TCPServer, sysio);
 	if (result > 0) {
@@ -406,8 +404,8 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	if (result != 0)
 		return -EIO;
 
-	result = sysio_bind(NULL, (HANDLE)server->sock);
-	memset(&server->sysio.ovlp, 0, sizeof(server->sysio.ovlp));
+	result = AThreadBind(NULL, (HANDLE)server->sock);
+	memset(&server->sysio.ao_ovlp, 0, sizeof(server->sysio.ao_ovlp));
 	server->sysio.userdata = server;
 	server->sysio.callback = &TCPServerAcceptExDone;
 

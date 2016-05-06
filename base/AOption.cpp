@@ -1,9 +1,10 @@
 #include "stdafx.h"
-#include "AOption.h"
+#include "AModule.h"
 
 
 //////////////////////////////////////////////////////////////////////////
-void AOptionRelease(AOption *option)
+AMODULE_API void
+AOptionRelease(AOption *option)
 {
 	while (!list_empty(&option->children_list)) {
 		AOption *child = list_first_entry(&option->children_list, AOption, brother_entry);
@@ -15,7 +16,8 @@ void AOptionRelease(AOption *option)
 	free(option);
 }
 
-void AOptionInit(AOption *option, AOption *parent)
+AMODULE_API void
+AOptionInit(AOption *option, AOption *parent)
 {
 	option->name[0] = '\0';
 	option->value[0] = '\0';
@@ -30,7 +32,8 @@ void AOptionInit(AOption *option, AOption *parent)
 	}
 }
 
-AOption* AOptionCreate(AOption *parent)
+AMODULE_API AOption*
+AOptionCreate(AOption *parent)
 {
 	AOption *option = (AOption*)malloc(sizeof(AOption));
 	if (option != NULL)
@@ -38,7 +41,8 @@ AOption* AOptionCreate(AOption *parent)
 	return option;
 }
 
-void AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
+static void
+AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 {
 	if (!option->name[0])
 		strncpy_s(option->name, str, len);
@@ -46,7 +50,8 @@ void AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 		strncpy_s(option->value, str, len);
 }
 
-extern long AOptionDecode(AOption **option, const char *name)
+AMODULE_API long
+AOptionDecode(AOption **option, const char *name)
 {
 	AOption *current = AOptionCreate(NULL);
 	if (current == NULL)
@@ -135,7 +140,8 @@ extern long AOptionDecode(AOption **option, const char *name)
 	}
 }
 
-AOption* AOptionClone(AOption *option)
+AMODULE_API AOption*
+AOptionClone(AOption *option)
 {
 	if (option == NULL)
 		return NULL;
@@ -154,7 +160,8 @@ AOption* AOptionClone(AOption *option)
 	return current;
 }
 
-AOption* AOptionFindChild(AOption *option, const char *name)
+AMODULE_API AOption*
+AOptionFindChild(AOption *option, const char *name)
 {
 	if (option == NULL)
 		return NULL;

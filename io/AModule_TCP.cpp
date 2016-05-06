@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "AModule_io.h"
-#include "iocp_util.h"
 
 
 struct TCPObject {

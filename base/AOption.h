@@ -1,9 +1,6 @@
 #ifndef _AOPTION_H_
 #define _AOPTION_H_
 
-#ifndef _LIST_HEAD_H_
-#include "list.h"
-#endif
 
 //////////////////////////////////////////////////////////////////////////
 typedef struct AOption {
@@ -16,22 +13,22 @@ typedef struct AOption {
 	struct AOption  *parent;
 } AOption;
 
-extern void
+AMODULE_API void
 AOptionInit(AOption *option, AOption *parent);
 
-extern AOption*
+AMODULE_API AOption*
 AOptionCreate(AOption *parent);
 
-extern long
+AMODULE_API long
 AOptionDecode(AOption **option, const char *name);
 
-extern AOption*
+AMODULE_API AOption*
 AOptionClone(AOption *option);
 
-extern AOption*
+AMODULE_API AOption*
 AOptionFindChild(AOption *option, const char *name);
 
-extern void
+AMODULE_API void
 AOptionRelease(AOption *option);
 
 

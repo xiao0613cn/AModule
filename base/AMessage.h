@@ -110,7 +110,7 @@ struct ARefsMsg {
 
 static inline ARefsBuf*
 ARefsBufCreate(long size) {
-	ARefsBuf *buf = (ARefsBuf*)malloc(sizeof(ARefsBuf)+size);
+	ARefsBuf *buf = (ARefsBuf*)malloc(sizeof(ARefsBuf)+size+4);
 	if (buf != NULL) {
 		buf->refs = 1;
 		buf->size = size;

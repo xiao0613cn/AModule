@@ -4,10 +4,10 @@
 #include "stdafx.h"
 #include <process.h>
 #include "base/AModule.h"
-#include "base/async_operator.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 
+#ifndef _WINDLL
 
 static const char *pvd_path =
 	"stream: PVDClient {"
@@ -27,7 +27,7 @@ static const char *pvd_path =
 
 struct RecvMsg {
 	AMessage msg;
-	async_operator op;
+	AOperator op;
 	AObject *pvd;
 	long     reqix;
 };
@@ -67,7 +67,7 @@ unsigned int WINAPI RecvCB2(void *p)
 		CloseDone(&rm->msg, result);
 	return result;
 }
-void RecvCB(async_operator *op, int result)
+void RecvCB(AOperator *op, int result)
 {
 	RecvMsg *rm = CONTAINING_RECORD(op, RecvMsg, op);
 	if (result >= 0) {
@@ -248,19 +248,6 @@ void test_proxy(AOption *option, bool reset_option)
 
 int main(int argc, char* argv[])
 {
-	async_thread_begin(NULL, NULL);
-	extern AModule TCPModule; AModuleRegister(&TCPModule);
-	extern AModule TCPServerModule; AModuleRegister(&TCPServerModule);
-	extern AModule AsyncTcpModule; AModuleRegister(&AsyncTcpModule);
-	extern AModule SyncControlModule; AModuleRegister(&SyncControlModule);
-	extern AModule PVDClientModule; AModuleRegister(&PVDClientModule);
-	extern AModule PVDRTModule; AModuleRegister(&PVDRTModule);
-	extern AModule HTTPProxyModule; AModuleRegister(&HTTPProxyModule);
-	extern AModule PVDProxyModule; AModuleRegister(&PVDProxyModule);
-	extern AModule DumpModule; AModuleRegister(&DumpModule);
-	extern AModule M3U8ProxyModule; AModuleRegister(&M3U8ProxyModule);
-	extern AModule EchoModule; AModuleRegister(&EchoModule);
-
 	AOption *option = NULL;
 	long result;
 	if (argc > 1) {
@@ -275,6 +262,19 @@ int main(int argc, char* argv[])
 	}
 	AModuleInitAll(option);
 	option = NULL;
+
+	AThreadBegin(NULL, NULL);
+	extern AModule TCPModule; AModuleRegister(&TCPModule);
+	extern AModule TCPServerModule; AModuleRegister(&TCPServerModule);
+	extern AModule AsyncTcpModule; AModuleRegister(&AsyncTcpModule);
+	extern AModule SyncControlModule; AModuleRegister(&SyncControlModule);
+	extern AModule PVDClientModule; AModuleRegister(&PVDClientModule);
+	extern AModule PVDRTModule; AModuleRegister(&PVDRTModule);
+	extern AModule HTTPProxyModule; AModuleRegister(&HTTPProxyModule);
+	extern AModule PVDProxyModule; AModuleRegister(&PVDProxyModule);
+	extern AModule DumpModule; AModuleRegister(&DumpModule);
+	extern AModule M3U8ProxyModule; AModuleRegister(&M3U8ProxyModule);
+	extern AModule EchoModule; AModuleRegister(&EchoModule);
 
 	char str[256];
 	const char *path;
@@ -313,10 +313,29 @@ int main(int argc, char* argv[])
 _return:
 	AModuleExitAll();
 	gets_s(str);
-	async_thread_end(NULL);
+	AThreadEnd(NULL);
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
 #endif
 	return 0;
 }
 
+#else
+
+BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
+{
+	switch (dwReason)
+	{
+	case DLL_PROCESS_ATTACH:
+		break;
+	case DLL_THREAD_ATTACH:
+		break;
+	case DLL_THREAD_DETACH:
+		break;
+	case DLL_PROCESS_DETACH:
+		break;
+	}
+	return TRUE;
+}
+
+#endif

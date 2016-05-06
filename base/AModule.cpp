@@ -1,29 +1,45 @@
 #include "stdafx.h"
 #include "AModule.h"
 
-static LIST_HEAD(module_list);
+static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
 
-long AModuleRegister(AModule *module)
+AMODULE_API long
+AModuleRegister(AModule *module)
 {
 	AModule *pos;
 	INIT_LIST_HEAD(&module->class_list);
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if (_stricmp(module->class_name, pos->class_name) == 0) {
-			list_add(&module->class_list, &pos->class_list);
+		if (_stricmp(pos->class_name, module->class_name) == 0) {
+			list_add_tail(&module->class_list, &pos->class_list);
 			break;
 		}
 	}
-	list_add_tail(&module->global_entry, &module_list);
-	return 1;
+	list_add_tail(&module->global_entry, &g_module);
+
+	long result = 1;
+	if (module->init != NULL) {
+		result = module->init(g_option);
+
+		if (result < 0) {
+			if (module->exit != NULL)
+				module->exit();
+
+			list_del_init(&module->global_entry);
+			if (!list_empty(&module->class_list))
+				list_del_init(&module->class_list);
+		}
+	}
+	return result;
 }
 
-long AModuleInitAll(AOption *option)
+AMODULE_API long
+AModuleInitAll(AOption *option)
 {
 	g_option = option;
 	AModule *pos;
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if ((pos->init != NULL) && (pos->init(option) < 0)) {
 			if (pos->exit != NULL)
@@ -33,10 +49,11 @@ long AModuleInitAll(AOption *option)
 	return 1;
 }
 
-long AModuleExitAll(void)
+AMODULE_API long
+AModuleExitAll(void)
 {
 	AModule *pos;
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if (pos->exit != NULL)
 			pos->exit();
@@ -45,10 +62,11 @@ long AModuleExitAll(void)
 	return 1;
 }
 
-AModule* AModuleFind(const char *class_name, const char *module_name)
+AMODULE_API AModule*
+AModuleFind(const char *class_name, const char *module_name)
 {
 	AModule *pos;
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
 			continue;
@@ -68,10 +86,11 @@ AModule* AModuleFind(const char *class_name, const char *module_name)
 	return NULL;
 }
 
-AModule* AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param)
+AMODULE_API AModule*
+AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 {
 	AModule *pos;
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
 			continue;
@@ -91,14 +110,15 @@ AModule* AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *
 	return NULL;
 }
 
-AModule* AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
+AMODULE_API AModule*
+AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
 	long score = -1;
 	long ret;
 
 	AModule *pos;
-	list_for_each_entry(pos, &module_list, AModule, global_entry)
+	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
 			continue;
@@ -129,9 +149,10 @@ AModule* AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void AObjectInit(AObject *object, AModule *module)
+AMODULE_API void
+AObjectInit(AObject *object, AModule *module)
 {
-	InterlockedExchange(&object->count, 1);
+	object->count = 1;
 	object->release = module->release;
 	object->extend = NULL;
 	object->module = module;
@@ -145,7 +166,8 @@ void AObjectInit(AObject *object, AModule *module)
 	object->close = module->close;
 }
 
-long AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
+AMODULE_API long
+AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
 	const char *class_name = NULL;
 	const char *module_name = NULL;

@@ -1,16 +1,13 @@
 #include "stdafx.h"
 #include "../base/AModule.h"
 #include "AModule_io.h"
-#include "iocp_util.h"
-#include "../base/async_operator.h"
 
 
 struct AsyncTcp;
 struct AsyncOvlp {
-	sysio_operator sysio;
-	AsyncTcp   *tcp;
-	AMessage   *msg;
-	WSABUF      buf;
+	AOperator sysio;
+	AMessage *msg;
+	WSABUF    buf;
 };
 struct AsyncTcp {
 	AObject   object;
@@ -39,8 +36,8 @@ static long AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 	tcp->sock = INVALID_SOCKET;
 	memset(&tcp->send_ovlp, 0, sizeof(tcp->send_ovlp));
 	memset(&tcp->recv_ovlp, 0, sizeof(tcp->recv_ovlp));
-	tcp->send_ovlp.tcp = tcp;
-	tcp->recv_ovlp.tcp = tcp;
+	tcp->send_ovlp.sysio.userdata = tcp;
+	tcp->recv_ovlp.sysio.userdata = tcp;
 
 	*object = &tcp->object;
 	return 1;
@@ -81,37 +78,43 @@ static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 	result = ovlp->msg->done(ovlp->msg, result);
 }
 */
-static void AsyncTcpRequestDone(sysio_operator *sysop, int result)
+static void AsyncTcpRequestDone(AOperator *sysop, int result)
 {
 	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
 
 	if (result <= 0) {
 		result = -EIO;
-	} else if (ovlp->msg->type & AMsgType_Custom) {
-		ovlp->buf.buf += result;
-		ovlp->buf.len -= result;
+		result = ovlp->msg->done(ovlp->msg, -EIO);
+		return;
+	}
 
-		if (ovlp->buf.len == 0) {
-			result = ovlp->msg->size;
-		} else {
-			AsyncTcp *tcp = ovlp->tcp;
-			if (ovlp == &tcp->send_ovlp)
-				result = iocp_send(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
-			else
-				result = iocp_recv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ovlp);
-			if (result == 0)
-				return;
-		}
-	} else {
+	if (!(ovlp->msg->type & AMsgType_Custom)) {
 		ovlp->msg->size = result;
+		result = ovlp->msg->done(ovlp->msg, result);
+		return;
+	}
+
+	ovlp->buf.buf += result;
+	ovlp->buf.len -= result;
+
+	if (ovlp->buf.len == 0) {
+		result = ovlp->msg->size;
+	} else {
+		AsyncTcp *tcp = (AsyncTcp*)ovlp->sysio.userdata;
+		if (ovlp == &tcp->send_ovlp)
+			result = iocp_sendv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
+		else
+			result = iocp_recvv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
+		if (result == 0)
+			return;
 	}
 	result = ovlp->msg->done(ovlp->msg, result);
 }
 
-static void AsyncTcpOpenDone(sysio_operator *sysop, int result)
+static void AsyncTcpOpenDone(AOperator *sysop, int result)
 {
 	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
-	AsyncTcp *tcp = ovlp->tcp;
+	AsyncTcp *tcp = (AsyncTcp*)ovlp->sysio.userdata;
 
 	if (result >= 0)
 		result = iocp_is_connected(tcp->sock);
@@ -132,7 +135,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		tcp->sock = (SOCKET)msg->data;
 		if (tcp->sock != INVALID_SOCKET) {
 			//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-			sysio_bind(NULL, (HANDLE)tcp->sock);
+			AThreadBind(NULL, (HANDLE)tcp->sock);
 			tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
 			tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
 		}
@@ -167,17 +170,15 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		}
 	}
 	//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-	sysio_bind(NULL, (HANDLE)tcp->sock);
+	AThreadBind(NULL, (HANDLE)tcp->sock);
 
 	tcp->send_ovlp.msg = msg;
 	tcp->send_ovlp.sysio.callback = &AsyncTcpOpenDone;
-	long result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ovlp);
+	long result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
 	release_s(ai, freeaddrinfo, NULL);
 
-	if (result != 0) {
-		result = -EIO;
+	if (result != 0)
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-	}
 	return result;
 }
 
@@ -192,13 +193,13 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 		tcp->send_ovlp.msg = msg;
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
-		return iocp_send(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ovlp);
+		return iocp_sendv(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ao_ovlp);
 
 	case Aio_Output:
 		tcp->recv_ovlp.msg = msg;
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
-		return iocp_recv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ovlp);
+		return iocp_recvv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ao_ovlp);
 
 	default:
 		assert(FALSE);
