@@ -1,15 +1,14 @@
 #include "stdafx.h"
-#include "AModule.h"
+#include "AModule_API.h"
 
 
-//////////////////////////////////////////////////////////////////////////
 AMODULE_API void
-AOptionRelease(AOption *option)
+aoption_release(AOption *option)
 {
 	while (!list_empty(&option->children_list)) {
 		AOption *child = list_first_entry(&option->children_list, AOption, brother_entry);
 		list_del_init(&child->brother_entry);
-		AOptionRelease(child);
+		aoption_release(child);
 	}
 
 	assert(list_empty(&option->brother_entry));
@@ -17,7 +16,7 @@ AOptionRelease(AOption *option)
 }
 
 AMODULE_API void
-AOptionInit(AOption *option, AOption *parent)
+aoption_init(AOption *option, AOption *parent)
 {
 	option->name[0] = '\0';
 	option->value[0] = '\0';
@@ -33,11 +32,11 @@ AOptionInit(AOption *option, AOption *parent)
 }
 
 AMODULE_API AOption*
-AOptionCreate(AOption *parent)
+aoption_create(AOption *parent)
 {
 	AOption *option = (AOption*)malloc(sizeof(AOption));
 	if (option != NULL)
-		AOptionInit(option, parent);
+		aoption_init(option, parent);
 	return option;
 }
 
@@ -51,9 +50,9 @@ AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 }
 
 AMODULE_API long
-AOptionDecode(AOption **option, const char *name)
+aoption_decode(AOption **option, const char *name)
 {
-	AOption *current = AOptionCreate(NULL);
+	AOption *current = aoption_create(NULL);
 	if (current == NULL)
 		return -ENOMEM;
 	*option = current;
@@ -76,7 +75,7 @@ AOptionDecode(AOption **option, const char *name)
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);
 
-			current = AOptionCreate(current);
+			current = aoption_create(current);
 			if (current == NULL)
 				return -ENOMEM;
 
@@ -94,7 +93,7 @@ AOptionDecode(AOption **option, const char *name)
 				AOption *empty_option = current;
 				list_del_init(&current->brother_entry);
 				current = current->parent;
-				AOptionRelease(empty_option);
+				aoption_release(empty_option);
 			} else {
 				current = current->parent;
 			}
@@ -110,7 +109,7 @@ AOptionDecode(AOption **option, const char *name)
 			if (layer == 0)
 				return -EINVAL;
 
-			current = AOptionCreate(current->parent);
+			current = aoption_create(current->parent);
 			if (current == NULL)
 				return -ENOMEM;
 
@@ -141,19 +140,19 @@ AOptionDecode(AOption **option, const char *name)
 }
 
 AMODULE_API AOption*
-AOptionClone(AOption *option)
+aoption_clone(AOption *option)
 {
 	if (option == NULL)
 		return NULL;
 
-	AOption *current = AOptionCreate(NULL);
+	AOption *current = aoption_create(NULL);
 	strcpy_s(current->name, option->name);
 	strcpy_s(current->value, option->value);
 
 	AOption *pos;
 	list_for_each_entry(pos, &option->children_list, AOption, brother_entry)
 	{
-		AOption *child = AOptionClone(pos);
+		AOption *child = aoption_clone(pos);
 		child->parent = current;
 		list_add_tail(&child->brother_entry, &current->children_list);
 	}
@@ -161,7 +160,7 @@ AOptionClone(AOption *option)
 }
 
 AMODULE_API AOption*
-AOptionFindChild(AOption *option, const char *name)
+aoption_find_child(AOption *option, const char *name)
 {
 	if (option == NULL)
 		return NULL;

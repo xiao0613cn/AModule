@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "AModule_io.h"
 
 
@@ -32,7 +32,7 @@ static long AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule AsyncTcpModule;
-	AObjectInit(&tcp->object, &AsyncTcpModule);
+	aobject_init(&tcp->object, &AsyncTcpModule);
 	tcp->sock = INVALID_SOCKET;
 	memset(&tcp->send_ovlp, 0, sizeof(tcp->send_ovlp));
 	memset(&tcp->recv_ovlp, 0, sizeof(tcp->recv_ovlp));
@@ -135,7 +135,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		tcp->sock = (SOCKET)msg->data;
 		if (tcp->sock != INVALID_SOCKET) {
 			//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-			AThreadBind(NULL, (HANDLE)tcp->sock);
+			athread_bind(NULL, (HANDLE)tcp->sock);
 			tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
 			tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
 		}
@@ -148,11 +148,11 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	AOption *addr = AOptionFindChild(option, "address");
+	AOption *addr = aoption_find_child(option, "address");
 	if (addr == NULL)
 		return -EINVAL;
 
-	AOption *port = AOptionFindChild(option, "port");
+	AOption *port = aoption_find_child(option, "port");
 	//if (port == NULL)
 	//	return -EINVAL;
 
@@ -170,7 +170,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		}
 	}
 	//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-	AThreadBind(NULL, (HANDLE)tcp->sock);
+	athread_bind(NULL, (HANDLE)tcp->sock);
 
 	tcp->send_ovlp.msg = msg;
 	tcp->send_ovlp.sysio.callback = &AsyncTcpOpenDone;

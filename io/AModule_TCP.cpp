@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "AModule_io.h"
 
 
@@ -24,7 +24,7 @@ static long TCPCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule TCPModule;
-	AObjectInit(&tcp->object, &TCPModule);
+	aobject_init(&tcp->object, &TCPModule);
 	tcp->sock = INVALID_SOCKET;
 
 	*object = &tcp->object;
@@ -49,11 +49,11 @@ static long TCPOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	AOption *addr = AOptionFindChild(option, "address");
+	AOption *addr = aoption_find_child(option, "address");
 	if (addr == NULL)
 		return -EINVAL;
 
-	AOption *port = AOptionFindChild(option, "port");
+	AOption *port = aoption_find_child(option, "port");
 	//if (port == NULL)
 	//	return -EINVAL;
 
@@ -71,7 +71,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	AOption *timeout = AOptionFindChild(option, "timeout");
+	AOption *timeout = aoption_find_child(option, "timeout");
 	long result = tcp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, (timeout?atol(timeout->value):20));
 	release_s(ai, freeaddrinfo, NULL);
 

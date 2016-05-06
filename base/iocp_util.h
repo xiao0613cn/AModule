@@ -9,7 +9,7 @@ AMODULE_API struct addrinfo*
 iocp_getaddrinfo(const char *netaddr, const char *port);
 
 AMODULE_API SOCKET
-bind_socket(int family, int protocol, unsigned short port);
+tcp_bind(int family, int protocol, unsigned short port);
 
 AMODULE_API int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds);

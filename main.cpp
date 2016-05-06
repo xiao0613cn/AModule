@@ -3,7 +3,7 @@
 
 #include "stdafx.h"
 #include <process.h>
-#include "base/AModule.h"
+#include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 
@@ -38,7 +38,7 @@ long CloseDone(AMessage *msg, long result)
 	TRACE("%p: close result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
 
-	AObjectRelease(rm->pvd);
+	aobject_release(rm->pvd);
 	free(rm);
 	return result;
 }
@@ -52,14 +52,14 @@ unsigned int WINAPI RecvCB2(void *p)
 
 	long result;
 	do {
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		amsg_init(&rm->msg, AMsgType_Unknown, NULL, 0);
 		result = rm->pvd->request(rm->pvd, rm->reqix, &rm->msg);
 	} while (!g_abort && (result > 0));
 
 	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
 
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	amsg_init(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
 
 	result = rm->pvd->close(rm->pvd, &rm->msg);
@@ -98,7 +98,7 @@ unsigned int WINAPI SendHeart(void *p)
 	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|Aio_Output, NULL);
 	result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
 
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	amsg_init(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
 	result = rm->pvd->close(rm->pvd, &rm->msg);
 	if (result != 0) {
@@ -140,11 +140,11 @@ void test_pvd(AOption *option, bool reset_option)
 _retry:
 	if (reset_option)
 		ResetOption(option);
-	AMsgInit(&sm, AMsgType_Option, (char*)option, 0);
+	amsg_init(&sm, AMsgType_Option, (char*)option, 0);
 	sm.done = NULL;
 
 	if (_stricmp(option->value, "PVDClient") == 0) {
-		release_s(pvd, AObjectRelease, NULL);
+		release_s(pvd, aobject_release, NULL);
 		//result = SyncControlModule.create(&pvd, NULL, option);
 		result = PVDClientModule.create(&pvd, NULL, option);
 	} else {
@@ -156,13 +156,13 @@ _retry:
 	}
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
-		rm->pvd = pvd; AObjectAddRef(pvd);
+		rm->pvd = pvd; aobject_addref(pvd);
 		rm->reqix = Aio_Output;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
-		rm->pvd = pvd; AObjectAddRef(pvd);
+		rm->pvd = pvd; aobject_addref(pvd);
 		rm->reqix = Aio_Input;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &SendHeart, rm, 0, NULL));
 		rm = NULL;
@@ -178,12 +178,12 @@ _retry:
 	}
 	if (result > 0) {
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
-		rm->pvd = rt; AObjectAddRef(rt);
+		rm->pvd = rt; aobject_addref(rt);
 		rm->reqix = 0;
 		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
 		rm = NULL;
 	}
-	release_s(rt, AObjectRelease, NULL);
+	release_s(rt, aobject_release, NULL);
 
 	//async_thread_end(&at);
 	char str[256];
@@ -195,7 +195,7 @@ _retry:
 		if (str[0] == 'q')
 			break;
 	} while (1);
-	release_s(pvd, AObjectRelease, NULL);
+	release_s(pvd, aobject_release, NULL);
 	g_abort = TRUE;
 	::Sleep(3000);
 }
@@ -225,9 +225,9 @@ void test_proxy(AOption *option, bool reset_option)
 		ResetOption(option);
 
 	AObject *tcp_server = NULL;
-	long result = AObjectCreate(&tcp_server, NULL, option, NULL);
+	long result = aobject_create(&tcp_server, NULL, option, NULL);
 	if (result >= 0) {
-		AMsgInit(&msg, AMsgType_Option, (char*)option, 0);
+		amsg_init(&msg, AMsgType_Option, (char*)option, 0);
 		msg.done = NULL;
 		result = tcp_server->open(tcp_server, &msg);
 	}
@@ -243,7 +243,7 @@ void test_proxy(AOption *option, bool reset_option)
 
 	if (tcp_server != NULL)
 		tcp_server->close(tcp_server, NULL);
-	release_s(tcp_server, AObjectRelease, NULL);
+	release_s(tcp_server, aobject_release, NULL);
 }
 
 int main(int argc, char* argv[])
@@ -251,37 +251,37 @@ int main(int argc, char* argv[])
 	AOption *option = NULL;
 	long result;
 	if (argc > 1) {
-		result = AOptionDecode(&option, argv[1]);
+		result = aoption_decode(&option, argv[1]);
 		if (result < 0)
-			release_s(option, AOptionRelease, NULL);
+			release_s(option, aoption_release, NULL);
 	}
 	if (option == NULL) {
-		result = AOptionDecode(&option, pvd_path);
+		result = aoption_decode(&option, pvd_path);
 		if (option != NULL)
 			ResetOption(option);
 	}
-	AModuleInitAll(option);
+	amodule_init_option(option);
 	option = NULL;
 
-	AThreadBegin(NULL, NULL);
-	extern AModule TCPModule; AModuleRegister(&TCPModule);
-	extern AModule TCPServerModule; AModuleRegister(&TCPServerModule);
-	extern AModule AsyncTcpModule; AModuleRegister(&AsyncTcpModule);
-	extern AModule SyncControlModule; AModuleRegister(&SyncControlModule);
-	extern AModule PVDClientModule; AModuleRegister(&PVDClientModule);
-	extern AModule PVDRTModule; AModuleRegister(&PVDRTModule);
-	extern AModule HTTPProxyModule; AModuleRegister(&HTTPProxyModule);
-	extern AModule PVDProxyModule; AModuleRegister(&PVDProxyModule);
-	extern AModule DumpModule; AModuleRegister(&DumpModule);
-	extern AModule M3U8ProxyModule; AModuleRegister(&M3U8ProxyModule);
-	extern AModule EchoModule; AModuleRegister(&EchoModule);
+	athread_begin(NULL, NULL);
+	extern AModule TCPModule; amodule_register(&TCPModule);
+	extern AModule TCPServerModule; amodule_register(&TCPServerModule);
+	extern AModule AsyncTcpModule; amodule_register(&AsyncTcpModule);
+	extern AModule SyncControlModule; amodule_register(&SyncControlModule);
+	extern AModule PVDClientModule; amodule_register(&PVDClientModule);
+	extern AModule PVDRTModule; amodule_register(&PVDRTModule);
+	extern AModule HTTPProxyModule; amodule_register(&HTTPProxyModule);
+	extern AModule PVDProxyModule; amodule_register(&PVDProxyModule);
+	extern AModule DumpModule; amodule_register(&DumpModule);
+	extern AModule M3U8ProxyModule; amodule_register(&M3U8ProxyModule);
+	extern AModule EchoModule; amodule_register(&EchoModule);
 
 	char str[256];
 	const char *path;
 	if (argc > 2) {
-		result = AOptionDecode(&option, argv[2]);
+		result = aoption_decode(&option, argv[2]);
 		if (result < 0)
-			release_s(option, AOptionRelease, NULL);
+			release_s(option, aoption_release, NULL);
 	}
 	bool reset_option = false;
 	if (option == NULL) {
@@ -299,7 +299,7 @@ int main(int argc, char* argv[])
 				continue;
 			break;
 		} while (1);
-		result = AOptionDecode(&option, path);
+		result = aoption_decode(&option, path);
 	}
 	if (result == 0) {
 		if (_stricmp(option->name, "stream") == 0)
@@ -309,11 +309,11 @@ int main(int argc, char* argv[])
 		else
 			TRACE("unknown test module [%s: %s]...\n", option->name, option->value);
 	}
-	release_s(option, AOptionRelease, NULL);
+	release_s(option, aoption_release, NULL);
 _return:
-	AModuleExitAll();
+	amodule_exit();
 	gets_s(str);
-	AThreadEnd(NULL);
+	athread_end(NULL);
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
 #endif

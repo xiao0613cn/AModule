@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
 
@@ -46,8 +46,8 @@ struct HTTPProxy {
 static void HTTPProxyRelease(AObject *object)
 {
 	HTTPProxy *proxy = to_proxy(object);
-	release_s(proxy->from, AObjectRelease, NULL);
-	release_s(proxy->to, AObjectRelease, NULL);
+	release_s(proxy->from, aobject_release, NULL);
+	release_s(proxy->to, aobject_release, NULL);
 	free(proxy);
 }
 
@@ -58,13 +58,13 @@ static long HTTPProxyCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule HTTPProxyModule;
-	AObjectInit(&proxy->object, &HTTPProxyModule);
-	proxy->from = parent; AObjectAddRef(parent);
+	aobject_init(&proxy->object, &HTTPProxyModule);
+	proxy->from = parent; aobject_addref(parent);
 	proxy->to = NULL;
-	proxy->option = AOptionFindChild(option, "io");
+	proxy->option = aoption_find_child(option, "io");
 	*object = &proxy->object;
 
-	long result = AObjectCreate(&proxy->to, &proxy->object, proxy->option, "tcp");
+	long result = aobject_create(&proxy->to, &proxy->object, proxy->option, "tcp");
 	return result;
 }
 
@@ -75,7 +75,7 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 	while (result > 0)
 	{
 		proxy->outmsg.done = &HTTPProxyOutputTo;
-		AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
+		amsg_init(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
 		result = proxy->to->request(proxy->to, Aio_Output, &proxy->outmsg);
 		if (result > 0)
 		{
@@ -88,7 +88,7 @@ static long HTTPProxyInputFrom(AMessage *msg, long result)
 		}
 	}
 	if (result != 0)
-		AObjectRelease(&proxy->object);
+		aobject_release(&proxy->object);
 	return result;
 }
 static long HTTPProxyOutputTo(AMessage *msg, long result)
@@ -102,12 +102,12 @@ static long HTTPProxyOutputTo(AMessage *msg, long result)
 		if (result > 0)
 		{
 			proxy->outmsg.done = &HTTPProxyOutputTo;
-			AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
+			amsg_init(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
 			result = proxy->to->request(proxy->to, Aio_Output, &proxy->outmsg);
 		}
 	}
 	if (result != 0)
-		AObjectRelease(&proxy->object);
+		aobject_release(&proxy->object);
 	return result;
 }
 
@@ -125,7 +125,7 @@ static long HTTPProxyInputTo(AMessage *msg, long result)
 	while (result > 0)
 	{
 		proxy->inmsg.done = &HTTPProxyOutputFrom;
-		AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
+		amsg_init(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
 		result = proxy->from->request(proxy->from, Aio_Output, &proxy->inmsg);
 		if (result > 0)
 		{
@@ -135,7 +135,7 @@ static long HTTPProxyInputTo(AMessage *msg, long result)
 		}
 	}
 	if (result != 0)
-		AObjectRelease(&proxy->object);
+		aobject_release(&proxy->object);
 	return result;
 }
 
@@ -153,12 +153,12 @@ static long HTTPProxyOutputFrom(AMessage *msg, long result)
 		if (result > 0)
 		{
 			proxy->inmsg.done = &HTTPProxyOutputFrom;
-			AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
+			amsg_init(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
 			result = proxy->from->request(proxy->from, Aio_Output, &proxy->inmsg);
 		}
 	}
 	if (result != 0)
-		AObjectRelease(&proxy->object);
+		aobject_release(&proxy->object);
 	return result;
 }
 
@@ -167,16 +167,16 @@ static void HTTPProxy_OutputFrom_InputTo(HTTPProxy *proxy)
 	AMessage *msg = proxy->openmsg;
 	proxy->openmsg = NULL;
 
-	AObjectAddRef(&proxy->object);
+	aobject_addref(&proxy->object);
 	QueueUserWorkItem(HTTPProxy_OutputTo_InputFrom, &proxy->object, 0);
 
-	AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
-	AMsgCopy(&proxy->inmsg, msg->type, msg->data, msg->size);
+	amsg_init(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
+	amsg_copy(&proxy->inmsg, msg->type, msg->data, msg->size);
 
 	proxy->inmsg.data[proxy->inmsg.size] = '\0';
 	OutputDebugStringA(proxy->inmsg.data);
 
-	AObjectAddRef(&proxy->object);
+	aobject_addref(&proxy->object);
 	HTTPProxyOutputFrom(&proxy->inmsg, 1);
 }
 
@@ -197,7 +197,7 @@ static long HTTPProxyOpen(AObject *object, AMessage *msg)
 	proxy->openmsg = msg;
 	proxy->inmsg.done = &HTTPProxyOpenDone;
 
-	AMsgInit(&proxy->inmsg, AMsgType_Option, (char*)proxy->option, 0);
+	amsg_init(&proxy->inmsg, AMsgType_Option, (char*)proxy->option, 0);
 	long result = proxy->to->open(proxy->to, &proxy->inmsg);
 	if (result > 0) {
 		HTTPProxy_OutputFrom_InputTo(proxy);

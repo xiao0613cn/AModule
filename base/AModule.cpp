@@ -1,11 +1,11 @@
 #include "stdafx.h"
-#include "AModule.h"
+#include "AModule_API.h"
 
 static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
 
 AMODULE_API long
-AModuleRegister(AModule *module)
+amodule_register(AModule *module)
 {
 	AModule *pos;
 	INIT_LIST_HEAD(&module->class_list);
@@ -35,7 +35,7 @@ AModuleRegister(AModule *module)
 }
 
 AMODULE_API long
-AModuleInitAll(AOption *option)
+amodule_init_option(AOption *option)
 {
 	g_option = option;
 	AModule *pos;
@@ -50,7 +50,7 @@ AModuleInitAll(AOption *option)
 }
 
 AMODULE_API long
-AModuleExitAll(void)
+amodule_exit(void)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -58,12 +58,12 @@ AModuleExitAll(void)
 		if (pos->exit != NULL)
 			pos->exit();
 	}
-	release_s(g_option, AOptionRelease, NULL);
+	release_s(g_option, aoption_release, NULL);
 	return 1;
 }
 
 AMODULE_API AModule*
-AModuleFind(const char *class_name, const char *module_name)
+amodule_find(const char *class_name, const char *module_name)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -87,7 +87,7 @@ AModuleFind(const char *class_name, const char *module_name)
 }
 
 AMODULE_API AModule*
-AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param)
+amodule_enum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -111,7 +111,7 @@ AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 }
 
 AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
+amodule_probe(const char *class_name, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
 	long score = -1;
@@ -150,7 +150,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API void
-AObjectInit(AObject *object, AModule *module)
+aobject_init(AObject *object, AModule *module)
 {
 	object->count = 1;
 	object->release = module->release;
@@ -167,7 +167,7 @@ AObjectInit(AObject *object, AModule *module)
 }
 
 AMODULE_API long
-AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
+aobject_create(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
 	const char *class_name = NULL;
 	const char *module_name = NULL;
@@ -183,12 +183,12 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 	if ((class_name == NULL) && (module_name == NULL))
 		return -EINVAL;
 
-	AModule *module = AModuleFind(class_name, module_name);
+	AModule *module = amodule_find(class_name, module_name);
 	if (module == NULL)
 		return -ENOSYS;
 
 	long result = module->create(object, parent, option);
 	if (result < 0)
-		release_s(*object, AObjectRelease, NULL);
+		release_s(*object, aobject_release, NULL);
 	return result;
 }

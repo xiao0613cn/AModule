@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "AModule_io.h"
 
 struct DumpObject;
@@ -41,7 +41,7 @@ static void DumpRelease(AObject *object)
 	DeleteCriticalSection(&dump->req_lock);
 
 	release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
-	release_s(dump->io, AObjectRelease, NULL);
+	release_s(dump->io, aobject_release, NULL);
 
 	free(dump);
 }
@@ -53,7 +53,7 @@ static long DumpCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule DumpModule;
-	AObjectInit(&dump->object, &DumpModule);
+	aobject_init(&dump->object, &DumpModule);
 	dump->file = INVALID_HANDLE_VALUE;
 	dump->file_name[0] = '\0';
 	dump->single_file = FALSE;
@@ -63,9 +63,9 @@ static long DumpCreate(AObject **object, AObject *parent, AOption *option)
 	INIT_LIST_HEAD(&dump->req_list);
 	memset(dump->req_cache, 0, sizeof(dump->req_cache));
 
-	AOption *io_opt = AOptionFindChild(option, "io");
+	AOption *io_opt = aoption_find_child(option, "io");
 	if (io_opt != NULL)
-		AObjectCreate(&dump->io, &dump->object, io_opt, NULL);
+		aobject_create(&dump->io, &dump->object, io_opt, NULL);
 
 	*object = &dump->object;
 	return 1;
@@ -118,7 +118,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
 
 static void OnDumpRequest(DumpReq *req)
 {
-	AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
+	amsg_init(req->from, req->msg.type, req->msg.data, req->msg.size);
 
 	if (req->file != INVALID_HANDLE_VALUE) {
 		DWORD tx = 0;
@@ -153,11 +153,11 @@ static long DumpOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	DumpObject *dump = to_dump(object);
-	AOption *opt = AOptionFindChild((AOption*)msg->data, "file");
+	AOption *opt = aoption_find_child((AOption*)msg->data, "file");
 	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
 		strcpy_s(dump->file_name, opt->value);
 
-	opt = AOptionFindChild((AOption*)msg->data, "single_file");
+	opt = aoption_find_child((AOption*)msg->data, "single_file");
 	if (opt != NULL)
 		dump->single_file = atol(opt->value);
 
@@ -171,9 +171,9 @@ static long DumpOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	opt = AOptionFindChild((AOption*)msg->data, "io");
+	opt = aoption_find_child((AOption*)msg->data, "io");
 	if (dump->io == NULL) {
-		AObjectCreate(&dump->io, &dump->object, opt, NULL);
+		aobject_create(&dump->io, &dump->object, opt, NULL);
 		if (dump->io == NULL)
 			return -ENXIO;
 	}
@@ -182,7 +182,7 @@ static long DumpOpen(AObject *object, AMessage *msg)
 	if (req == NULL)
 		return -ENOMEM;
 
-	AMsgInit(&req->msg, AMsgType_Option, (char*)opt, 0);
+	amsg_init(&req->msg, AMsgType_Option, (char*)opt, 0);
 	req->msg.done = &DumpOpenDone;
 	req->from = msg;
 
@@ -210,7 +210,7 @@ static long DumpRequest(AObject *object, long reqix, AMessage *msg)
 	if (req == NULL)
 		return dump->io->request(dump->io, reqix, msg);
 
-	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
+	amsg_init(&req->msg, msg->type, msg->data, msg->size);
 	req->msg.done = &DumpRequestDone;
 	req->from = msg;
 

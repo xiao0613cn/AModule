@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
 //struct EchoProxy {
@@ -13,7 +13,7 @@ static long EchoCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule EchoModule;
-	AObjectInit(echo, &EchoModule);
+	aobject_init(echo, &EchoModule);
 
 	*object = echo;
 	return 1;
@@ -38,7 +38,7 @@ static long EchoOpen(AObject *echo, AMessage *msg)
 	 || (msg->size != 0))
 		return -EINVAL;
 
-	AObjectAddRef((AObject*)msg->data);
+	aobject_addref((AObject*)msg->data);
 	echo->extend = msg->data;
 	return 1;
 }
@@ -56,13 +56,13 @@ static long EchoCancel(AObject *echo, long reqix, AMessage *msg)
 {
 	if (reqix != Aio_Input)
 		return -ENOSYS;
-	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
+	release_s(*((AObject**)&echo->extend), aobject_release, NULL);
 	return 1;
 }
 
 static long EchoClose(AObject *echo, AMessage *msg)
 {
-	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
+	release_s(*((AObject**)&echo->extend), aobject_release, NULL);
 	return 1;
 }
 

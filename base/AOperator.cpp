@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include <process.h>
-#include "AModule.h"
+#include "AModule_API.h"
 
 enum iocp_key {
 	iocp_key_unknown = 0,
@@ -8,7 +8,7 @@ enum iocp_key {
 	iocp_key_sysio,
 };
 
-static unsigned int __stdcall AThread_run(void *p)
+static unsigned int __stdcall athread_run(void *p)
 {
 	AThread *at = (AThread*)p;
 	AOperator *asop;
@@ -79,7 +79,7 @@ static AThread work_thread[4];
 static int work_thread_begin(AThread *pool)
 {
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
-		AThreadBegin(&work_thread[ix], pool);
+		athread_begin(&work_thread[ix], pool);
 		if (pool == NULL)
 			pool = &work_thread[0];
 	}
@@ -88,16 +88,16 @@ static int work_thread_begin(AThread *pool)
 static int work_thread_end(void)
 {
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
-		AThreadAbort(&work_thread[ix]);
+		athread_abort(&work_thread[ix]);
 	}
 	for (int ix = _countof(work_thread)-1; ix >= 0; --ix) {
-		AThreadEnd(&work_thread[ix]);
+		athread_end(&work_thread[ix]);
 	}
 	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////
-int AThreadBegin(AThread *at, AThread *pool)
+int athread_begin(AThread *at, AThread *pool)
 {
 	if (at == NULL)
 		return work_thread_begin(pool);
@@ -117,11 +117,11 @@ int AThreadBegin(AThread *at, AThread *pool)
 	INIT_LIST_HEAD(&at->ao_pending);
 
 	at->running = TRUE;
-	at->thread = (HANDLE)_beginthreadex(NULL, 0, &AThread_run, at, 0, NULL);
+	at->thread = (HANDLE)_beginthreadex(NULL, 0, &athread_run, at, 0, NULL);
 	return 0;
 }
 
-int AThreadEnd(AThread *at)
+int athread_end(AThread *at)
 {
 	if (at == NULL)
 		return work_thread_end();
@@ -157,14 +157,14 @@ int AThreadEnd(AThread *at)
 	return 0;
 }
 
-int AThreadAbort(AThread *at)
+int athread_abort(AThread *at)
 {
 	at->running = FALSE;
 	PostQueuedCompletionStatus(at->iocp, 0, iocp_key_signal, NULL);
 	return 0;
 }
 
-int AThreadBind(AThread *at, HANDLE file)
+int athread_bind(AThread *at, HANDLE file)
 {
 	if (at == NULL)
 		at = work_thread;
@@ -173,7 +173,7 @@ int AThreadBind(AThread *at, HANDLE file)
 	return (iocp == at->iocp) ? 1 : -GetLastError();
 }
 
-AThread* AThreadDefault(int ix)
+AThread* athread_default(int ix)
 {
 	if (ix >= _countof(work_thread))
 		return NULL;
@@ -181,7 +181,7 @@ AThread* AThreadDefault(int ix)
 }
 
 //////////////////////////////////////////////////////////////////////////
-int AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
+int aoperator_post(AOperator *asop, AThread *at, DWORD tick)
 {
 	if (at == NULL)
 		at = work_thread;
@@ -228,7 +228,7 @@ int AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 	return 0;
 }
 
-int AOperatorSignal(AOperator *asop, AThread *at)
+int aoperator_signal(AOperator *asop, AThread *at)
 {
 	if (at == NULL)
 		at = work_thread;
@@ -260,20 +260,20 @@ int async_test(void)
 {
 	AThread at;
 	memset(&at, 0, sizeof(at));
-	AThreadBegin(&at, NULL);
+	athread_begin(&at, NULL);
 
 	AOperator asop[20];
 	for (int ix = 0; ix < 20; ++ix) {
 		asop[ix].userdata = (void*)(ix*1000);
 		asop[ix].callback = async_test_callback;
-		AOperatorTimewait(&asop[ix], &at, ix*1000);
+		aoperator_timewait(&asop[ix], &at, ix*1000);
 	}
 
 	Sleep(2*1000);
-	AOperatorSignal(&asop[5], &at);
+	aoperator_signal(&asop[5], &at);
 	Sleep(15*1000);
 
-	AThreadEnd(&at);
+	athread_end(&at);
 	getchar();
 	return 0;
 }

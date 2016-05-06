@@ -70,17 +70,17 @@ public:
 	void init(AObject *obj, bool ref) {
 		this->object = obj;
 		if (ref)
-			AObjectAddRef(obj);
+			aobject_addref(obj);
 	}
 	long addref(void) {
-		return AObjectAddRef(this->object);
+		return aobject_addref(this->object);
 	}
 	void release(void) {
-		release_s(this->object, AObjectRelease, NULL);
+		release_s(this->object, aobject_release, NULL);
 	}
 	long create(AObject *parent, AOption *option, const char *default_module) {
 		release();
-		return AObjectCreate(&this->object, parent, option, default_module);
+		return aobject_create(&this->object, parent, option, default_module);
 	}
 
 	IObject& operator=(AObject *other) {

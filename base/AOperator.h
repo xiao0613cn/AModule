@@ -15,19 +15,19 @@ struct AThread {
 };
 
 AMODULE_API int
-AThreadBegin(AThread *at, AThread *pool);
+athread_begin(AThread *at, AThread *pool);
 
 AMODULE_API int
-AThreadEnd(AThread *at);
+athread_end(AThread *at);
 
 AMODULE_API int
-AThreadAbort(AThread *at);
+athread_abort(AThread *at);
 
 AMODULE_API int
-AThreadBind(AThread *at, HANDLE file);
+athread_bind(AThread *at, HANDLE file);
 
 AMODULE_API AThread*
-AThreadDefault(int ix);
+athread_default(int ix);
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -48,19 +48,19 @@ struct AOperator {
 #pragma warning(default: 4201)
 
 AMODULE_API int
-AOperatorPost(AOperator *asop, AThread *at, DWORD tick);
+aoperator_post(AOperator *asop, AThread *at, DWORD tick);
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at);
+aoperator_signal(AOperator *asop, AThread *at);
 
 static inline int
-AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
+aoperator_timewait(AOperator *asop, AThread *at, DWORD timeout) {
 	if ((timeout != 0) && (timeout != INFINITE)) {
 		timeout += GetTickCount();
 		if ((timeout == 0) || (timeout == INFINITE))
 			timeout += 2;
 	}
-	return AOperatorPost(asop, at, timeout);
+	return aoperator_post(asop, at, timeout);
 }
 
 

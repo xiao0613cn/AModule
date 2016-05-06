@@ -1,10 +1,10 @@
 #include "stdafx.h"
-#include "../base/AModule.h"
+#include "../base/AModule_API.h"
 #include "../base/SliceBuffer.h"
 #include "../io/AModule_io.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
-#include "../base/AOperator.h"
+
 
 static AObject *pvd = NULL;
 static STRUCT_SDVR_DEVICE_EX login_data;
@@ -37,8 +37,8 @@ struct HeartMsg {
 static void HeartMsgFree(HeartMsg *sm, long result)
 {
 	TRACE("%p: result = %d.\n", sm->object, result);
-	release_s(sm->object, AObjectRelease, NULL);
-	release_s(sm->option, AOptionRelease, NULL);
+	release_s(sm->object, aobject_release, NULL);
+	release_s(sm->option, aoption_release, NULL);
 	free(sm);
 }
 
@@ -62,7 +62,7 @@ static void PVDProxyRelease(AObject *object)
 {
 	PVDProxy *p = to_proxy(object);
 	//TRACE("%p: free\n", &p->object);
-	release_s(p->client, AObjectRelease, NULL);
+	release_s(p->client, aobject_release, NULL);
 	SliceFree(&p->outbuf);
 
 	while (p->frame_queue.size() != 0) {
@@ -81,10 +81,10 @@ static long PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 		return -ENOMEM;
 
 	extern AModule PVDProxyModule;
-	AObjectInit(&p->object, &PVDProxyModule);
+	aobject_init(&p->object, &PVDProxyModule);
 	p->client = parent;
 	if (parent != NULL)
-		AObjectAddRef(parent);
+		aobject_addref(parent);
 	SliceInit(&p->outbuf);
 	p->reqcount = 0;
 	p->frame_queue.reset();
@@ -113,7 +113,7 @@ static long PVDProxySendDone(AMessage *msg, long result)
 	if (p->outmsg.size == 0) {
 		result = -EFAULT;
 	} else {
-		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
+		amsg_init(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
 		p->inmsg.done = &PVDClientSendDone;
 		result = p->client->request(p->client, Aio_Input, &p->inmsg);
 	}
@@ -130,11 +130,11 @@ static long PVDProxyRecvDone(AMessage *msg, long result)
 		if (p->outmsg.type == p->inmsg.type)
 			return 1;
 		if (long(GetTickCount()-p->outtick) < 5000) {
-			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+			amsg_init(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
 		}
 		TRACE("command(%02x) timeout...\n", p->inmsg.type&~AMsgType_Custom);
-		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
+		amsg_init(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
 	if (SliceReserve(&p->outbuf, p->outmsg.size, 2048) < 0)
@@ -170,12 +170,12 @@ static long PVDProxyRecvStream(AMessage *msg, long result)
 			TRACE("drop stream frame(%d) size = %d...\n",
 				msg->type&~AMsgType_Custom, msg->size);
 		}
-		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
+		amsg_init(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
 	}
 	if (result < 0) {
 		p->reqcount = -1;
-		AObjectRelease(&p->object);
+		aobject_release(&p->object);
 	}
 	return result;
 }
@@ -190,12 +190,12 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		}
 		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
-			AOperatorTimewait(&p->timer, NULL, 10);
+			aoperator_timewait(&p->timer, NULL, 10);
 			return;
 		}
 
 		AMessage &frame = p->frame_queue.front();
-		AMsgInit(&p->inmsg, AMsgType_Custom|frame.type, frame.data, frame.size);
+		amsg_init(&p->inmsg, AMsgType_Custom|frame.type, frame.data, frame.size);
 		result = p->client->request(p->client, Aio_Input, &p->inmsg);
 		if (result <= 0)
 			break;
@@ -205,7 +205,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 	} while (result > 0);
 	if (result != 0) {
 		p->reqcount = -1;
-		AObjectRelease(&p->object);
+		aobject_release(&p->object);
 	}
 }
 static long PVDProxyStreamDone(AMessage *msg, long result)
@@ -217,7 +217,7 @@ static long PVDProxyStreamDone(AMessage *msg, long result)
 		PVDProxySendStream(&p->timer, 1);
 	} else {
 		p->reqcount = -1;
-		AObjectRelease(&p->object);
+		aobject_release(&p->object);
 	}
 	return result;
 }
@@ -226,18 +226,18 @@ static long PVDProxyRTStream(AMessage *msg, long result)
 	PVDProxy *p = from_inmsg(msg);
 	if (result >= 0) {
 		p->frame_queue.reset();
-		AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+		amsg_init(&p->outmsg, AMsgType_Unknown, NULL, 0);
 		p->outmsg.done = &PVDProxyRecvStream;
 
-		AObjectAddRef(&p->object);
+		aobject_addref(&p->object);
 		result = rt->request(rt, Aiosync_NotifyBack|0, &p->outmsg);
 		if (result < 0) {
-			AObjectRelease(&p->object);
+			aobject_release(&p->object);
 		} else {
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.callback = &PVDProxySendStream;
-			AObjectAddRef(&p->object);
-			AOperatorTimewait(&p->timer, NULL, 0);
+			aobject_addref(&p->object);
+			aoperator_timewait(&p->timer, NULL, 0);
 			result = -1;
 		}
 	}
@@ -291,7 +291,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 			assert(p->reqcount == 0);
 			InterlockedExchange(&p->reqcount, 2);
 
-			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+			amsg_init(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			p->outmsg.done = &PVDProxyRecvDone;
 			p->outtick = GetTickCount();
 			result = pvd->request(pvd, Aiosync_NotifyBack|Aio_Output, &p->outmsg);
@@ -309,7 +309,7 @@ static long PVDProxyDispatch(PVDProxy *p)
 			SlicePop(&p->outbuf, p->inmsg.size);
 			if (p->outmsg.size == 0)
 				return -EFAULT;
-			AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
+			amsg_init(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
 			p->inmsg.done = &PVDClientSendDone;
 			result = p->client->request(p->client, Aio_Input, &p->inmsg);
 			continue;
@@ -359,9 +359,9 @@ static long PVDProxyOpen(AObject *object, AMessage *msg)
 	 || (msg->size != 0))
 		return -EINVAL;
 
-	release_s(p->client, AObjectRelease, NULL);
+	release_s(p->client, aobject_release, NULL);
 	p->client = (AObject*)msg->data;
-	AObjectAddRef(p->client);
+	aobject_addref(p->client);
 	return 1;
 }
 
@@ -376,7 +376,7 @@ static long PVDProxyRequest(AObject *object, long reqix, AMessage *msg)
 		return result;
 
 	if (msg->data == NULL) {
-		AMsgInit(msg, AMsgType_Unknown, SliceResPtr(&p->outbuf), SliceResLen(&p->outbuf));
+		amsg_init(msg, AMsgType_Unknown, SliceResPtr(&p->outbuf), SliceResLen(&p->outbuf));
 		return 1;
 	}
 
@@ -417,7 +417,7 @@ static void PVDDoSend(AOperator *asop, int result)
 				break;
 			}
 			sm->msg.type = 0;
-			AOperatorTimewait(&sm->timer, NULL, 3*1000);
+			aoperator_timewait(&sm->timer, NULL, 3*1000);
 			return;
 		}
 		sm->msg.type = AMsgType_Custom|result;
@@ -427,7 +427,7 @@ static void PVDDoSend(AOperator *asop, int result)
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		aoperator_timewait(&sm->timer, NULL, 3*1000);
 	}
 }
 static long PVDSendDone(AMessage *msg, long result)
@@ -436,7 +436,7 @@ static long PVDSendDone(AMessage *msg, long result)
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
 	}
-	AOperatorTimewait(&sm->timer, NULL, 3*1000);
+	aoperator_timewait(&sm->timer, NULL, 3*1000);
 	return result;
 }
 static void PVDDoOpen(AOperator *asop, int result);
@@ -447,7 +447,7 @@ static long PVDCloseDone(AMessage *msg, long result)
 		HeartMsgFree(sm, result);
 	} else {
 		sm->timer.callback = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 10*1000);
+		aoperator_timewait(&sm->timer, NULL, 10*1000);
 	}
 	return result;
 }
@@ -455,7 +455,7 @@ static void PVDDoClose(HeartMsg *sm, long result)
 {
 	TRACE("%s result = %d.\n", (sm->object==pvd)?"client":"realtime", result);
 
-	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	amsg_init(&sm->msg, AMsgType_Unknown, NULL, 0);
 	sm->msg.done = &PVDCloseDone;
 	result = sm->object->close(sm->object, &sm->msg);
 	if (result != 0)
@@ -523,7 +523,7 @@ static long PVDRecvDone(AMessage *msg, long result)
 		memcpy(rt_msg.data, msg->data, msg->size);
 		rt_msg.size = msg->size;
 	}
-	AOperatorTimewait(&sm->timer, NULL, 0);
+	aoperator_timewait(&sm->timer, NULL, 0);
 	return result;
 }
 static void PVDDoRecv(AOperator *asop, int result)
@@ -534,7 +534,7 @@ static void PVDDoRecv(AOperator *asop, int result)
 		return;
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	amsg_init(&sm->msg, AMsgType_Unknown, NULL, 0);
 	result = sm->object->request(sm->object, sm->reqix, &sm->msg);
 	if (result != 0) {
 		sm->msg.done(&sm->msg, result);
@@ -552,7 +552,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 	TRACE("%s result = %d.\n", (sm->object==pvd)?"client":"realtime", result);
 	if (sm->object == pvd) {
 		AOption opt;
-		AOptionInit(&opt, NULL);
+		aoption_init(&opt, NULL);
 
 		strcpy_s(opt.name, "login_data");
 		opt.extend = &login_data;
@@ -562,19 +562,19 @@ static long PVDOpenDone(AMessage *msg, long result)
 		sm->object->getopt(sm->object, &opt);
 		userid = atol(opt.value);
 
-		AOption *opt2 = AOptionFindChild(sm->option, "channel_count");
+		AOption *opt2 = aoption_find_child(sm->option, "channel_count");
 		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
 			login_data.byChanNum = atol(opt2->value);
 
-		opt2 = AOptionFindChild(sm->option, "alarm_in_count");
+		opt2 = aoption_find_child(sm->option, "alarm_in_count");
 		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
 			login_data.byAlarmInPortNum = atol(opt2->value);
 
-		opt2 = AOptionFindChild(sm->option, "alarm_out_count");
+		opt2 = aoption_find_child(sm->option, "alarm_out_count");
 		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
 			login_data.byAlarmOutPortNum = atol(opt2->value);
 
-		opt2 = AOptionFindChild(sm->option, "hdd_count");
+		opt2 = aoption_find_child(sm->option, "hdd_count");
 		if ((opt2 != NULL) && (opt2->value[0] != '\0'))
 			login_data.byDiskNum = atol(opt2->value);
 	} else {
@@ -583,7 +583,7 @@ static long PVDOpenDone(AMessage *msg, long result)
 
 	sm->msg.done = &PVDRecvDone;
 	sm->timer.callback = &PVDDoRecv;
-	AOperatorTimewait(&sm->timer, NULL, 0);
+	aoperator_timewait(&sm->timer, NULL, 0);
 	return result;
 }
 
@@ -597,7 +597,7 @@ static void PVDDoOpen(AOperator *asop, int result)
 
 	if (sm->object == rt) {
 		AOption opt;
-		AOptionInit(&opt, NULL);
+		aoption_init(&opt, NULL);
 
 		strcpy_s(opt.name, "version");
 		_ltoa_s(login_data.byDVRType, opt.value, 10);
@@ -608,7 +608,7 @@ static void PVDDoOpen(AOperator *asop, int result)
 		sm->object->setopt(sm->object, &opt);
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Option, (char*)sm->option, 0);
+	amsg_init(&sm->msg, AMsgType_Option, (char*)sm->option, 0);
 	sm->msg.done = &PVDOpenDone;
 
 	result = sm->object->open(sm->object, &sm->msg);
@@ -623,15 +623,15 @@ long PVDProxyInit(AOption *option)
 	if (_stricmp(option->name, "stream") != 0)
 		return 0;
 
-	AOption *opt2 = AOptionFindChild(option, "force_alarm");
+	AOption *opt2 = aoption_find_child(option, "force_alarm");
 	if (opt2 != NULL)
 		force_alarm = atoi(opt2->value);
 
 	long result = -EFAULT;
 	AOption opt;
-	AOptionInit(&opt, NULL);
+	aoption_init(&opt, NULL);
 
-	AModule *syncControl = AModuleFind("stream", "SyncControl");
+	AModule *syncControl = amodule_find("stream", "SyncControl");
 	if (syncControl != NULL) {
 		strcpy_s(opt.name, "stream");
 		strcpy_s(opt.value, option->value);
@@ -644,13 +644,13 @@ long PVDProxyInit(AOption *option)
 			result = -ENOMEM;
 	}
 	if (result >= 0) {
-		sm->object = pvd; AObjectAddRef(pvd);
+		sm->object = pvd; aobject_addref(pvd);
 		sm->option = NULL;
 
 		sm->msg.type = AMsgType_Option;
 		sm->msg.done = &PVDSendDone;
 		sm->timer.callback = &PVDDoSend;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		aoperator_timewait(&sm->timer, NULL, 3*1000);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -658,12 +658,12 @@ long PVDProxyInit(AOption *option)
 			result = -ENOMEM;
 	}
 	if (result >= 0) {
-		sm->object = pvd; AObjectAddRef(pvd);
-		sm->option = AOptionClone(option);
+		sm->object = pvd; aobject_addref(pvd);
+		sm->option = aoption_clone(option);
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 0);
+		aoperator_timewait(&sm->timer, NULL, 0);
 
 		strcpy_s(opt.value, "PVDRTStream");
 		result = syncControl->create(&rt, NULL, &opt);
@@ -674,12 +674,12 @@ long PVDProxyInit(AOption *option)
 			result = -ENOMEM;
 	}
 	if (result >= 0) {
-		sm->object = rt; AObjectAddRef(rt);
-		sm->option = AOptionClone(option);
+		sm->object = rt; aobject_addref(rt);
+		sm->option = aoption_clone(option);
 		sm->reqix = 0;
 		sm->threadix = 2;
 		sm->timer.callback = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		aoperator_timewait(&sm->timer, NULL, 3*1000);
 	}
 	return result;
 }
@@ -689,13 +689,13 @@ static void PVDProxyExit(void)
 	if (pvd != NULL) {
 		//pvd->cancel(pvd, ARequest_MsgLoop|Aio_Output, NULL);
 		pvd->close(pvd, NULL);
-		AObjectRelease(pvd);
+		aobject_release(pvd);
 		pvd = NULL;
 	}
 	if (rt != NULL) {
 		//rt->cancel(rt, ARequest_MsgLoop|0, NULL);
 		rt->close(rt, NULL);
-		AObjectRelease(rt);
+		aobject_release(rt);
 		rt = NULL;
 	}
 	if (rt_msg.data != NULL) {

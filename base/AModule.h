@@ -21,18 +21,18 @@ struct AObject {
 };
 
 AMODULE_API void
-AObjectInit(AObject *object, AModule *module);
+aobject_init(AObject *object, AModule *module);
 
 AMODULE_API long
-AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module);
+aobject_create(AObject **object, AObject *parent, AOption *option, const char *default_module);
 
 static inline long
-AObjectAddRef(AObject *object) {
+aobject_addref(AObject *object) {
 	return InterlockedIncrement(&object->count);
 }
 
 static inline long
-AObjectRelease(AObject *object) {
+aobject_release(AObject *object) {
 	long result = InterlockedDecrement(&object->count);
 	if (result <= 0)
 		object->release(object);
@@ -40,28 +40,28 @@ AObjectRelease(AObject *object) {
 }
 
 static inline long
-AObjectOpen(AObject *object, AMessage *msg) {
+aobject_open(AObject *object, AMessage *msg) {
 	if (object->open == NULL)
 		return -ENOSYS;
 	return object->open(object, msg);
 }
 
 static inline long
-AObjectRequest(AObject *object, long reqix, AMessage *msg) {
+aobject_request(AObject *object, long reqix, AMessage *msg) {
 	if (object->request == NULL)
 		return -ENOSYS;
 	return object->request(object, reqix, msg);
 }
 
 static inline long
-AObjectCancel(AObject *object, long reqix, AMessage *msg) {
+aobject_cancel(AObject *object, long reqix, AMessage *msg) {
 	if (object->cancel == NULL)
 		return -ENOSYS;
 	return object->cancel(object, reqix, msg);
 }
 
 static inline long
-AObjectClose(AObject *object, AMessage *msg) {
+aobject_close(AObject *object, AMessage *msg) {
 	if (object->close == NULL)
 		return -ENOSYS;
 	return object->close(object, msg);
@@ -91,22 +91,22 @@ struct AModule {
 };
 
 AMODULE_API long
-AModuleRegister(AModule *module);
+amodule_register(AModule *module);
 
 AMODULE_API long
-AModuleInitAll(AOption *option);
+amodule_init_option(AOption *option);
 
 AMODULE_API long
-AModuleExitAll(void);
+amodule_exit(void);
 
 AMODULE_API AModule*
-AModuleFind(const char *class_name, const char *module_name);
+amodule_find(const char *class_name, const char *module_name);
 
 AMODULE_API AModule*
-AModuleEnum(const char *class_name, long(*comp)(void*,AModule*), void *param);
+amodule_enum(const char *class_name, long(*comp)(void*,AModule*), void *param);
 
 AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
+amodule_probe(const char *class_name, AObject *other, AMessage *msg);
 
 
 #endif

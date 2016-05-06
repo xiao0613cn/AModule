@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "AModule.h"
+#include "AModule_API.h"
 
 #ifndef _MSWSOCK_
 #include <MSWSock.h>
@@ -35,7 +35,7 @@ iocp_getaddrinfo(const char *netaddr, const char *port)
 }
 
 AMODULE_API SOCKET
-bind_socket(int family, int protocol, unsigned short port)
+tcp_bind(int family, int protocol, unsigned short port)
 {
 	int type;
 	if (protocol == IPPROTO_TCP)
