@@ -7,22 +7,36 @@
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 
+
+extern AModule TCPModule;
+extern AModule TCPServerModule;
+extern AModule AsyncTcpModule;
+extern AModule SyncControlModule;
+extern AModule PVDClientModule;
+extern AModule PVDRTModule;
+extern AModule HTTPProxyModule;
+extern AModule PVDProxyModule;
+extern AModule DumpModule;
+extern AModule M3U8ProxyModule;
+extern AModule EchoModule;
+
+
 #ifndef _WINDLL
 
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: 127.0.0.1,"
-	"		port: 8000,"
+	"		address: '192.168.20.16',"
+	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
-	"	username: ':40',"
-	"	password: 888888,"
+	"	username: 'admin',"
+	"	password: '888888',"
 	"	force_alarm: 0,"
 	"	channel: 0,"
 	"	linkmode: 0,"
 	"	channel_count: ,"
-	"	m3u8_proxy: 0,"
+	"	m3u8_proxy: 1,"
 	"}";
 
 struct RecvMsg {
@@ -127,9 +141,6 @@ void ResetOption(AOption *option)
 	}
 }
 
-extern AModule PVDClientModule;
-extern AModule PVDRTModule;
-
 void test_pvd(AOption *option, bool reset_option)
 {
 	AObject *pvd = NULL;
@@ -187,14 +198,14 @@ _retry:
 
 	//async_thread_end(&at);
 	char str[256];
-	do {
+	for ( ; ; ) {
 		TRACE("input 'r' for retry, input 'q' for quit...\n");
 		gets_s(str);
 		if (str[0] == 'r')
 			goto _retry;
 		if (str[0] == 'q')
 			break;
-	} while (1);
+	}
 	release_s(pvd, aobject_release, NULL);
 	g_abort = TRUE;
 	::Sleep(3000);
@@ -202,7 +213,7 @@ _retry:
 
 static const char *proxy_path =
 	"server: tcp_server {"
-	"	port: 8101,"
+	"	port: 8080,"
 	"	io: async_tcp,"
 	"	HTTPProxy: bridge {"
 	"		address: www.sina.com.cn,"
@@ -234,12 +245,12 @@ void test_proxy(AOption *option, bool reset_option)
 
 	TRACE("proxy(%s) open = %d.\n", option->name, result);
 	char str[256];
-	do {
+	for ( ; ; ) {
 		TRACE("input 'q' for quit...\n");
 		gets_s(str);
 		if (str[0] == 'q')
 			break;
-	} while (1);
+	}
 
 	if (tcp_server != NULL)
 		tcp_server->close(tcp_server, NULL);
@@ -264,17 +275,17 @@ int main(int argc, char* argv[])
 	option = NULL;
 
 	athread_begin(NULL, NULL);
-	extern AModule TCPModule; amodule_register(&TCPModule);
-	extern AModule TCPServerModule; amodule_register(&TCPServerModule);
-	extern AModule AsyncTcpModule; amodule_register(&AsyncTcpModule);
-	extern AModule SyncControlModule; amodule_register(&SyncControlModule);
-	extern AModule PVDClientModule; amodule_register(&PVDClientModule);
-	extern AModule PVDRTModule; amodule_register(&PVDRTModule);
-	extern AModule HTTPProxyModule; amodule_register(&HTTPProxyModule);
-	extern AModule PVDProxyModule; amodule_register(&PVDProxyModule);
-	extern AModule DumpModule; amodule_register(&DumpModule);
-	extern AModule M3U8ProxyModule; amodule_register(&M3U8ProxyModule);
-	extern AModule EchoModule; amodule_register(&EchoModule);
+	amodule_register(&TCPModule);
+	amodule_register(&TCPServerModule);
+	amodule_register(&AsyncTcpModule);
+	amodule_register(&SyncControlModule);
+	amodule_register(&PVDClientModule);
+	amodule_register(&PVDRTModule);
+	amodule_register(&HTTPProxyModule);
+	amodule_register(&PVDProxyModule);
+	amodule_register(&DumpModule);
+	amodule_register(&M3U8ProxyModule);
+	amodule_register(&EchoModule);
 
 	char str[256];
 	const char *path;
@@ -286,7 +297,7 @@ int main(int argc, char* argv[])
 	bool reset_option = false;
 	if (option == NULL) {
 		reset_option = true;
-		do {
+		for ( ; ; ) {
 			TRACE("input test module: pvd, tcp_server ...\n");
 			gets_s(str);
 			if (_stricmp(str,"pvd") == 0)
@@ -298,7 +309,7 @@ int main(int argc, char* argv[])
 			else
 				continue;
 			break;
-		} while (1);
+		}
 		result = aoption_decode(&option, path);
 	}
 	if (result == 0) {

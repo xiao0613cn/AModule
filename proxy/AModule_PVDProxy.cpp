@@ -21,6 +21,7 @@ static BOOL force_alarm = FALSE;
 AObject *rt = NULL;
 AMessage rt_msg = { 0 };
 
+#pragma warning(disable: 4201)
 struct HeartMsg {
 	AMessage msg;
 	AObject *object;
@@ -34,6 +35,8 @@ struct HeartMsg {
 	};
 	};
 };
+#pragma warning(default: 4201)
+
 static void HeartMsgFree(HeartMsg *sm, long result)
 {
 	TRACE("%p: result = %d.\n", sm->object, result);
