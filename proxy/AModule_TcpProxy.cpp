@@ -1,21 +1,20 @@
 #include "stdafx.h"
-#include <process.h>
 #include <MSWSock.h>
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
 
 struct TCPServer {
-	AObject  object;
-	SOCKET   sock;
-	HANDLE   listen_thread;
-	AOption *option;
+	AObject   object;
+	SOCKET    sock;
+	pthread_t thread;
+	AOption  *option;
 
-	AModule *io_module;
-	long     async_tcp;
-	AOption *default_bridge;
+	AModule  *io_module;
+	int       async_tcp;
+	AOption  *default_bridge;
 
-	long     io_family;
+	int       io_family;
 	struct TCPClient *prepare;
 	LPFN_ACCEPTEX acceptex;
 	AOperator sysio;
@@ -36,57 +35,58 @@ enum TCPStatus {
 	tcp_bridge_output,
 };
 struct TCPClient {
+	AOperator  sysop;
 	TCPServer *server;
 	TCPStatus  status;
 	SOCKET     sock;
 	AObject   *client;
 	AObject   *proxy;
-	long       probe_type;
-	long       probe_size;
+	int        probe_type;
+	int        probe_size;
 	AMessage   inmsg;
 	char       indata[1800];
 };
-#define from_inmsg(msg) container_of(msg, TCPClient, inmsg)
 
 static void TCPClientRelease(TCPClient *client)
 {
 	if ((client->proxy != NULL) && (client->proxy->cancel != NULL))
 		client->proxy->cancel(client->proxy, Aio_Input, NULL);
 	//TRACE("%p: result = %d.\n", client, result);
-	release_s(client->proxy, aobject_release, NULL);
-	release_s(client->client, aobject_release, NULL);
+	release_s(client->proxy, AObjectRelease, NULL);
+	release_s(client->client, AObjectRelease, NULL);
 	release_s(client->sock, closesocket, INVALID_SOCKET);
-	aobject_release(&client->server->object);
+	AObjectRelease(&client->server->object);
 	free(client);
 }
 
-static long TCPClientInmsgDone(AMessage *msg, long result);
+static int TCPClientInmsgDone(AMessage *msg, int result);
+static void TCPClientProcess(AOperator *asop, int result)
+{
+	TCPClient *client = container_of(asop, TCPClient, sysop);
+	TCPClientInmsgDone(&client->inmsg, (result>=0) ? 1 : result);
+}
+
 static TCPClient* TCPClientCreate(TCPServer *server)
 {
 	TCPClient *client = (TCPClient*)malloc(sizeof(TCPClient));
 	if (client != NULL) {
-		client->server = server; aobject_addref(&server->object);
+		client->sysop.callback = &TCPClientProcess;
+		client->server = server; AObjectAddRef(&server->object);
 		client->status = tcp_accept;
 		client->sock = INVALID_SOCKET;
 		client->client = NULL;
 		client->proxy = NULL;
 		client->probe_type = AMsgType_Unknown;
 		client->probe_size = 0;
-		amsg_init(&client->inmsg, AMsgType_Unknown, NULL, 0);
+		AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
 		client->inmsg.done = &TCPClientInmsgDone;
 	}
 	return client;
 }
 
-static DWORD WINAPI TCPClientProcess(void *p)
+static int TCPClientInmsgDone(AMessage *msg, int result)
 {
-	TCPClient *client = (TCPClient*)p;
-	return TCPClientInmsgDone(&client->inmsg, 1);
-}
-
-static long TCPClientInmsgDone(AMessage *msg, long result)
-{
-	TCPClient *client = from_inmsg(msg);
+	TCPClient *client = container_of(msg, TCPClient, inmsg);
 	TCPServer *server = client->server;
 	while (result > 0)
 	{
@@ -98,7 +98,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				break;
 
 			client->status = tcp_client_open;
-			amsg_init(&client->inmsg, AMsgType_Handle, (char*)client->sock, 0);
+			AMsgInit(&client->inmsg, AMsgType_Handle, (char*)client->sock, 0);
 			result = client->client->open(client->client, &client->inmsg);
 			break;
 
@@ -106,11 +106,11 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			client->sock = INVALID_SOCKET;
 			client->status = tcp_recv_probe;
 			if (client->probe_size != 0) {
-				amsg_init(&client->inmsg, client->probe_type, NULL, 0);
+				AMsgInit(&client->inmsg, client->probe_type, NULL, 0);
 				break;
 			}
 
-			amsg_init(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
+			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			result = client->client->request(client->client, Aio_Output, &client->inmsg);
 			break;
 
@@ -118,14 +118,14 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			client->probe_type = client->inmsg.type;
 			client->probe_size += client->inmsg.size;
 			client->indata[client->probe_size] = '\0';
-			amsg_init(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 
 			AModule *module;
-			module = amodule_probe("proxy", client->client, &client->inmsg);
+			module = AModuleProbe("proxy", client->client, &client->inmsg);
 			if ((module == NULL) && (client->inmsg.size < 8))
 			{
 				TRACE("retry probe: %s\n", client->indata);
-				amsg_init(&client->inmsg, AMsgType_Unknown,
+				AMsgInit(&client->inmsg, AMsgType_Unknown,
 					client->indata+client->probe_size,
 					sizeof(client->indata)-1-client->probe_size);
 				result = client->client->request(client->client, Aio_Output, &client->inmsg);
@@ -134,7 +134,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 
 			AOption *proxy_opt;
 			if (module != NULL)
-				proxy_opt = aoption_find_child(server->option, module->module_name);
+				proxy_opt = AOptionFind(server->option, module->module_name);
 			else
 				proxy_opt = NULL;
 			if ((module == NULL) || (proxy_opt != NULL && _stricmp(proxy_opt->value, "bridge") == 0))
@@ -146,13 +146,13 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 				} else {
 					result = server->io_module->create(&client->proxy, client->client, proxy_opt);
 				}
-				amsg_init(&client->inmsg, AMsgType_Option, (char*)proxy_opt, 0);
+				AMsgInit(&client->inmsg, AMsgType_Option, (char*)proxy_opt, 0);
 				client->status = tcp_bridge_open;
 			}
 			else
 			{
 				result = module->create(&client->proxy, client->client, proxy_opt);
-				amsg_init(&client->inmsg, AMsgType_Object, (char*)client->client, 0);
+				AMsgInit(&client->inmsg, AMsgType_Object, (char*)client->client, 0);
 				client->status = tcp_proxy_open;
 			}
 			if (result >= 0) {
@@ -161,7 +161,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			break;
 
 		case tcp_proxy_open:
-			amsg_init(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 
 		case tcp_client_output:
 			if (server->sock == INVALID_SOCKET) {
@@ -174,15 +174,15 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 
 		case tcp_proxy_input:
 			if (client->inmsg.data != NULL) {
-				amsg_init(&client->inmsg, AMsgType_Unknown, NULL, 0);
+				AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
 				if (!server->async_tcp) {
-					QueueUserWorkItem(&TCPClientProcess, client, 0);
+					AOperatorTimewait(&client->sysop, NULL, 0);
 					return 0;
 				}
 			}
 			result = client->proxy->request(client->proxy, Aio_Input, &client->inmsg);
 			if (result < 0) {
-				amsg_init(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
+				AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 				result = 1;
 			}
 			if (result > 0) {
@@ -200,15 +200,11 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			}
 
 			bridge->status = tcp_bridge_input;
-			bridge->client = client->proxy; aobject_addref(client->proxy);
-			bridge->proxy = client->client; aobject_addref(client->client);
-			if (server->async_tcp) {
-				TCPClientProcess(bridge);
-			} else {
-				QueueUserWorkItem(&TCPClientProcess, bridge, 0);
-			}
+			bridge->client = client->proxy; AObjectAddRef(client->proxy);
+			bridge->proxy = client->client; AObjectAddRef(client->client);
+			AOperatorTimewait(&bridge->sysop, NULL, 0);
 
-			amsg_init(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 			msg->data[msg->size] = '\0';
 			OutputDebugStringA(msg->data);
 			fputs(msg->data, stdout);
@@ -224,7 +220,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 			break;
 
 		case tcp_bridge_input:
-			amsg_init(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
+			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			client->status = tcp_bridge_output;
 			result = client->client->request(client->client, Aio_Output, &client->inmsg);
 			break;
@@ -241,7 +237,7 @@ static long TCPClientInmsgDone(AMessage *msg, long result)
 	return result;
 }
 
-static unsigned __stdcall TCPServerProcess(void *p)
+static void* TCPServerProcess(void *p)
 {
 	TCPServer *server = to_server(p);
 	struct sockaddr addr;
@@ -263,14 +259,10 @@ static unsigned __stdcall TCPServerProcess(void *p)
 		}
 
 		client->sock = sock;
-		if (server->async_tcp) {
-			TCPClientProcess(client);
-		} else {
-			QueueUserWorkItem(&TCPClientProcess, client, 0);
-		}
+		AOperatorTimewait(&client->sysop, NULL, 0);
 	}
 	TRACE("%p: quit.\n", &server->object);
-	aobject_release(&server->object);
+	AObjectRelease(&server->object);
 	return 0;
 }
 
@@ -278,22 +270,22 @@ static void TCPServerRelease(AObject *object)
 {
 	TCPServer *server = to_server(object);
 	release_s(server->sock, closesocket, INVALID_SOCKET);
-	release_s(server->listen_thread, CloseHandle, NULL);
-	release_s(server->option, aoption_release, NULL);
+	release_s(server->thread, pthread_detach, pthread_null);
+	release_s(server->option, AOptionRelease, NULL);
 	release_s(server->prepare, TCPClientRelease, NULL);
 	free(server);
 }
 
-static long TCPServerCreate(AObject **object, AObject *parent, AOption *option)
+static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
 	TCPServer *server = (TCPServer*)malloc(sizeof(TCPServer));
 	if (server == NULL)
 		return -ENOMEM;
 
 	extern AModule TCPServerModule;
-	aobject_init(&server->object, &TCPServerModule);
+	AObjectInit(&server->object, &TCPServerModule);
 	server->sock = INVALID_SOCKET;
-	server->listen_thread = NULL;
+	server->thread = NULL;
 	server->option = NULL;
 	server->prepare = NULL;
 
@@ -301,7 +293,7 @@ static long TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;
 }
 
-static long TCPServerDoAcceptEx(TCPServer *server)
+static int TCPServerDoAcceptEx(TCPServer *server)
 {
 	server->prepare = TCPClientCreate(server);
 	if (server->prepare == NULL)
@@ -311,7 +303,7 @@ static long TCPServerDoAcceptEx(TCPServer *server)
 	if (server->prepare->sock == INVALID_SOCKET)
 		return -EFAULT;
 
-	long result = sizeof(struct sockaddr_in)+16;
+	int result = sizeof(struct sockaddr_in)+16;
 	if (server->io_family == AF_INET6)
 		result = sizeof(struct sockaddr_in6)+16;
 
@@ -335,11 +327,7 @@ static void TCPServerAcceptExDone(AOperator *sysop, int result)
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
 	if (result >= 0) {
-		if (server->async_tcp) {
-			TCPClientProcess(server->prepare);
-		} else {
-			QueueUserWorkItem(&TCPClientProcess, server->prepare, 0);
-		}
+		AOperatorTimewait(&server->prepare->sysop, NULL, 0);
 		server->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();
@@ -349,11 +337,11 @@ static void TCPServerAcceptExDone(AOperator *sysop, int result)
 	result = TCPServerDoAcceptEx(server);
 	if (result < 0) {
 		release_s(server->prepare, TCPClientRelease, NULL);
-		aobject_release(&server->object);
+		AObjectRelease(&server->object);
 	}
 }
 
-static long TCPServerOpen(AObject *object, AMessage *msg)
+static int TCPServerOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
@@ -361,18 +349,18 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	TCPServer *server = to_server(object);
-	release_s(server->option, aoption_release, NULL);
-	server->option = aoption_clone((AOption*)msg->data);
+	release_s(server->option, AOptionRelease, NULL);
+	server->option = AOptionClone((AOption*)msg->data);
 	if (server->option == NULL)
 		return -ENOMEM;
 
-	AOption *opt = aoption_find_child(server->option, "family");
+	AOption *opt = AOptionFind(server->option, "family");
 	if ((opt != NULL) && (_stricmp(opt->value, "inet6") == 0))
 		server->io_family = AF_INET6;
 	else
 		server->io_family = AF_INET;
 
-	opt = aoption_find_child(server->option, "port");
+	opt = AOptionFind(server->option, "port");
 	if (opt == NULL)
 		return -EINVAL;
 
@@ -380,22 +368,22 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
-	long backlog = 8;
-	opt = aoption_find_child(server->option, "backlog");
+	int backlog = 8;
+	opt = AOptionFind(server->option, "backlog");
 	if (opt != NULL)
 		backlog = atol(opt->value);
-	long result = listen(server->sock, backlog);
+	int result = listen(server->sock, backlog);
 	if (result != 0)
 		return -EIO;
 
-	opt = aoption_find_child(server->option, "io");
-	server->io_module = amodule_find("io", opt?opt->value:"tcp");
+	opt = AOptionFind(server->option, "io");
+	server->io_module = AModuleFind("io", opt?opt->value:"tcp");
 	server->async_tcp = (_stricmp(server->io_module->module_name, "async_tcp") == 0);
-	server->default_bridge = aoption_find_child(server->option, "default_bridge");
+	server->default_bridge = AOptionFind(server->option, "default_bridge");
 
-	aobject_addref(&server->object);
+	AObjectAddRef(&server->object);
 	if (!server->async_tcp) {
-		server->listen_thread = (HANDLE)_beginthreadex(NULL, 0, &TCPServerProcess, server, 0, NULL);
+		pthread_create(&server->thread, NULL, &TCPServerProcess, server);
 		return 1;
 	}
 
@@ -406,9 +394,8 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	if (result != 0)
 		return -EIO;
 
-	result = athread_bind(NULL, (HANDLE)server->sock);
+	result = AThreadBind(NULL, (HANDLE)server->sock);
 	memset(&server->sysio.ao_ovlp, 0, sizeof(server->sysio.ao_ovlp));
-	server->sysio.userdata = server;
 	server->sysio.callback = &TCPServerAcceptExDone;
 
 	release_s(server->prepare, TCPClientRelease, NULL);
@@ -416,14 +403,13 @@ static long TCPServerOpen(AObject *object, AMessage *msg)
 	return (result >= 0) ? 1 : result;
 }
 
-static long TCPServerClose(AObject *object, AMessage *msg)
+static int TCPServerClose(AObject *object, AMessage *msg)
 {
 	TCPServer *server = to_server(object);
 	release_s(server->sock, closesocket, INVALID_SOCKET);
-	if (server->listen_thread != NULL) {
-		WaitForSingleObject(server->listen_thread, INFINITE);
-		CloseHandle(server->listen_thread);
-		server->listen_thread = NULL;
+	if (server->thread != pthread_null) {
+		pthread_join(server->thread, NULL);
+		server->thread = pthread_null;
 	}
 	return 1;
 }

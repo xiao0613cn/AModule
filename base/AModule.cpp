@@ -4,21 +4,22 @@
 static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
 
-AMODULE_API long
-amodule_register(AModule *module)
+AMODULE_API int
+AModuleRegister(AModule *module)
 {
+	list_add_tail(&module->global_entry, &g_module);
+	INIT_LIST_HEAD(&module->class_entry);
+
 	AModule *pos;
-	INIT_LIST_HEAD(&module->class_list);
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if (_stricmp(pos->class_name, module->class_name) == 0) {
-			list_add_tail(&module->class_list, &pos->class_list);
+			list_add_tail(&module->class_entry, &pos->class_entry);
 			break;
 		}
 	}
-	list_add_tail(&module->global_entry, &g_module);
 
-	long result = 1;
+	int result = 1;
 	if (module->init != NULL) {
 		result = module->init(g_option);
 
@@ -27,15 +28,15 @@ amodule_register(AModule *module)
 				module->exit();
 
 			list_del_init(&module->global_entry);
-			if (!list_empty(&module->class_list))
-				list_del_init(&module->class_list);
+			if (!list_empty(&module->class_entry))
+				list_del_init(&module->class_entry);
 		}
 	}
 	return result;
 }
 
-AMODULE_API long
-amodule_init_option(AOption *option)
+AMODULE_API int
+AModuleInitOption(AOption *option)
 {
 	g_option = option;
 	AModule *pos;
@@ -49,8 +50,8 @@ amodule_init_option(AOption *option)
 	return 1;
 }
 
-AMODULE_API long
-amodule_exit(void)
+AMODULE_API int
+AModuleExit(void)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -58,12 +59,12 @@ amodule_exit(void)
 		if (pos->exit != NULL)
 			pos->exit();
 	}
-	release_s(g_option, aoption_release, NULL);
+	release_s(g_option, AOptionRelease, NULL);
 	return 1;
 }
 
 AMODULE_API AModule*
-amodule_find(const char *class_name, const char *module_name)
+AModuleFind(const char *class_name, const char *module_name)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -76,7 +77,7 @@ amodule_find(const char *class_name, const char *module_name)
 			continue;
 
 		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
 		{
 			if (_stricmp(module_name, class_pos->module_name) == 0)
 				return class_pos;
@@ -87,7 +88,7 @@ amodule_find(const char *class_name, const char *module_name)
 }
 
 AMODULE_API AModule*
-amodule_enum(const char *class_name, long(*comp)(void*,AModule*), void *param)
+AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 {
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -100,7 +101,7 @@ amodule_enum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 			continue;
 
 		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
 		{
 			if (comp(param, class_pos) == 0)
 				return class_pos;
@@ -111,11 +112,11 @@ amodule_enum(const char *class_name, long(*comp)(void*,AModule*), void *param)
 }
 
 AMODULE_API AModule*
-amodule_probe(const char *class_name, AObject *other, AMessage *msg)
+AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
-	long score = -1;
-	long ret;
+	int score = -1;
+	int ret;
 
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
@@ -133,7 +134,7 @@ amodule_probe(const char *class_name, AObject *other, AMessage *msg)
 			continue;
 
 		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_list, AModule, class_list)
+		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
 		{
 			if (pos->probe != NULL) {
 				ret = class_pos->probe(other, msg);
@@ -150,7 +151,7 @@ amodule_probe(const char *class_name, AObject *other, AMessage *msg)
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API void
-aobject_init(AObject *object, AModule *module)
+AObjectInit(AObject *object, AModule *module)
 {
 	object->count = 1;
 	object->release = module->release;
@@ -166,8 +167,8 @@ aobject_init(AObject *object, AModule *module)
 	object->close = module->close;
 }
 
-AMODULE_API long
-aobject_create(AObject **object, AObject *parent, AOption *option, const char *default_module)
+AMODULE_API int
+AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
 	const char *class_name = NULL;
 	const char *module_name = NULL;
@@ -183,12 +184,12 @@ aobject_create(AObject **object, AObject *parent, AOption *option, const char *d
 	if ((class_name == NULL) && (module_name == NULL))
 		return -EINVAL;
 
-	AModule *module = amodule_find(class_name, module_name);
+	AModule *module = AModuleFind(class_name, module_name);
 	if (module == NULL)
 		return -ENOSYS;
 
-	long result = module->create(object, parent, option);
+	int result = module->create(object, parent, option);
 	if (result < 0)
-		release_s(*object, aobject_release, NULL);
+		release_s(*object, AObjectRelease, NULL);
 	return result;
 }

@@ -16,30 +16,30 @@ enum AMsgType {
 
 typedef struct AMessage AMessage;
 struct AMessage {
-	long    type;
+	int     type;
 	char   *data;
-	long    size;
-	long  (*done)(AMessage *msg, long result);
+	int     size;
+	int   (*done)(AMessage *msg, int result);
 	struct list_head entry;
 };
 
 // util function
 static inline void
-amsg_init(AMessage *msg, long type, char *data, long size) {
+AMsgInit(AMessage *msg, int type, char *data, int size) {
 	msg->type = type;
 	msg->data = data;
 	msg->size = size;
 }
 
-static inline long
-amsg_done(AMessage *msg, long result) {
+static inline int
+AMsgDone(AMessage *msg, int result) {
 	if (msg->done == NULL)
 		return result;
 	return msg->done(msg, result);
 }
 
 static inline void
-amsg_copy(AMessage *msg, long type, char *data, long size) {
+AMsgCopy(AMessage *msg, int type, char *data, int size) {
 	msg->type = type;
 	if ((msg->data == NULL) || (msg->size == 0)) {
 		msg->data = data;
@@ -52,7 +52,7 @@ amsg_copy(AMessage *msg, long type, char *data, long size) {
 }
 
 static inline void
-amsg_list_clear(struct list_head *head, long result) {
+AMsgListClear(struct list_head *head, int result) {
 	while (!list_empty(head)) {
 		AMessage *msg = list_first_entry(head, AMessage, entry);
 		list_del_init(&msg->entry);
@@ -64,20 +64,20 @@ amsg_list_clear(struct list_head *head, long result) {
 // extented struct AMessage
 //////////////////////////////////////////////////////////////////////////
 struct AIOMsg {
-	AMessage  msg;
-	long      type;
-	char     *indata;
-	long      insize;
-	char     *outdata;
-	long      outsize;
+	AMessage msg;
+	int      type;
+	char    *indata;
+	int      insize;
+	char    *outdata;
+	int      outsize;
 };
 // AIOMsg::iomsg.type = AMsgType_InOutMsg
 // AIOMsg::iomsg.data = AIOMsg*;
 // AIOMsg::iomsg.size = 0;
 
 static inline void
-amsg_iom_init(AIOMsg *iom, long type, char *indata, long insize) {
-	amsg_init(&iom->msg, AMsgType_InOutMsg, (char*)iom, 0);
+AIOMsgInit(AIOMsg *iom, int type, char *indata, int insize) {
+	AMsgInit(&iom->msg, AMsgType_InOutMsg, (char*)iom, 0);
 	iom->type = type;
 	iom->indata = indata;
 	iom->insize = insize;
@@ -88,28 +88,15 @@ amsg_iom_init(AIOMsg *iom, long type, char *indata, long insize) {
 //////////////////////////////////////////////////////////////////////////
 struct ARefsBuf {
 	long    refs;
-	long    size;
+	int     size;
 	void  (*free)(void*);
 #pragma warning(disable:4200)
 	char    data[0];
 #pragma warning(default:4200)
 };
 
-struct ARefsMsg {
-	AMessage   msg;
-	ARefsBuf  *buf;
-	long       pos;
-	long       type;
-	long       size;
-#ifdef __cplusplus
-	char*      data(void) { return this->buf->data + this->pos; }
-#endif
-};
-// ARefsMsg::msg.type = AMsgType_RefsMsg
-// ARefsMsg::msg.data = ARefsMsg::buf->data + ARefsMsg::pos;
-
 static inline ARefsBuf*
-arb_create(long size) {
+ARefsBufCreate(int size) {
 	ARefsBuf *buf = (ARefsBuf*)malloc(sizeof(ARefsBuf)+size+4);
 	if (buf != NULL) {
 		buf->refs = 1;
@@ -119,26 +106,58 @@ arb_create(long size) {
 	return buf;
 }
 
-static inline long
-arb_addref(ARefsBuf *buf) {
+static inline int
+ARefsBufAddRef(ARefsBuf *buf) {
 	return InterlockedIncrement(&buf->refs);
 }
 
-static inline long
-arb_release(ARefsBuf *buf) {
-	long result = InterlockedDecrement(&buf->refs);
+static inline int
+ARefsBufRelease(ARefsBuf *buf) {
+	int result = InterlockedDecrement(&buf->refs);
 	if (result <= 0)
 		(buf->free)(buf);
 	return result;
 }
 
+// ARefsMsg::msg.type = AMsgType_RefsMsg
+// ARefsMsg::msg.data = ARefsMsg::buf->data + ARefsMsg::pos;
+struct ARefsMsg {
+	AMessage msg;
+	ARefsBuf *buf;
+	int     pos;
+	int     type;
+	int     size;
+#ifdef __cplusplus
+	char*   data(void) { return this->buf->data + this->pos; }
+#endif
+};
+
 static inline void
-amsg_rm_init(ARefsMsg *rm, long type, ARefsBuf *buf, long offset, long size) {
-	amsg_init(&rm->msg, AMsgType_RefsMsg, (char*)rm, 0);
-	rm->buf = buf; // arb_addref(buf);
+ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size) {
+	AMsgInit(&rm->msg, AMsgType_RefsMsg, (char*)rm, 0);
+	rm->buf = buf; // ARefsBufAddRef(buf);
 	rm->pos = offset;
 	rm->type = type;
 	rm->size = size;
+}
+
+static inline int
+ARefsMsgType(AMessage *msg) {
+	assert(msg->type == AMsgType_RefsMsg);
+	return ((ARefsMsg*)msg->data)->type;
+}
+
+static inline char*
+ARefsMsgData(AMessage *msg) {
+	assert(msg->type == AMsgType_RefsMsg);
+	ARefsMsg *rm = (ARefsMsg*)msg->data;
+	return (rm->buf->data + rm->pos);
+}
+
+static inline int
+ARefsMsgSize(AMessage *msg) {
+	assert(msg->type == AMsgType_RefsMsg);
+	return ((ARefsMsg*)msg->data)->size;
 }
 
 //////////////////////////////////////////////////////////////////////////

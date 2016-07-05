@@ -8,6 +8,8 @@
 #include "targetver.h"
 
 #ifdef _DEBUG
+#define _CRT_SECURE_NO_WARNINGS
+
 #pragma warning(disable: 4985)
 #define _CRTDBG_MAP_ALLOC
 #define _CRTDBG_MAP_ALLOC_NEW
@@ -15,14 +17,11 @@
 #pragma warning(default: 4985)
 #endif
 
-#include <stdio.h>
 #include <tchar.h>
-#include <string.h>
-#include <errno.h>
 
 #include <WinSock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #include <Windows.h>
 
 // TODO: 在此处引用程序需要的其他头文件
-#include "base/base.h"
+#include "base/AModule_API.h"

@@ -9,8 +9,8 @@
 #define AMODULE_API
 #endif
 
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4505)
+#pragma warning(disable: 4100) //未引用的形参
+#pragma warning(disable: 4505) //未引用的本地函数已移除
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -23,16 +23,20 @@
 extern "C" {
 #endif
 
+#ifndef _BASE_UTIL_H_
+#include "base.h"
+#endif
+
 #ifndef _LIST_HEAD_H_
 #include "list.h"
 #endif
 
-#ifndef _AOPERATOR_H_
-#include "AOperator.h"
-#endif
-
 #ifndef _IOCP_UTIL_H_
 #include "iocp_util.h"
+#endif
+
+#ifndef _AOPERATOR_H_
+#include "AOperator.h"
 #endif
 
 #ifndef _AOPTION_H_
@@ -70,17 +74,17 @@ public:
 	void init(AObject *obj, bool ref) {
 		this->object = obj;
 		if (ref)
-			aobject_addref(obj);
+			AObjectAddRef(obj);
 	}
 	long addref(void) {
-		return aobject_addref(this->object);
+		return AObjectAddRef(this->object);
 	}
 	void release(void) {
-		release_s(this->object, aobject_release, NULL);
+		release_s(this->object, AObjectRelease, NULL);
 	}
-	long create(AObject *parent, AOption *option, const char *default_module) {
+	int create(AObject *parent, AOption *option, const char *default_module) {
 		release();
-		return aobject_create(&this->object, parent, option, default_module);
+		return AObjectCreate(&this->object, parent, option, default_module);
 	}
 
 	IObject& operator=(AObject *other) {

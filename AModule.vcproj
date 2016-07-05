@@ -630,11 +630,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
+				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
@@ -722,6 +722,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\sys_util.h"
+				>
+			</File>
+			<File
 				RelativePath=".\targetver.h"
 				>
 			</File>
@@ -750,19 +754,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavformat\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File

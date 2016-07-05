@@ -17,21 +17,21 @@ static void TCPRelease(AObject *object)
 	free(tcp);
 }
 
-static long TCPCreate(AObject **object, AObject *parent, AOption *option)
+static int TCPCreate(AObject **object, AObject *parent, AOption *option)
 {
 	TCPObject *tcp = (TCPObject*)malloc(sizeof(TCPObject));
 	if (tcp == NULL)
 		return -ENOMEM;
 
 	extern AModule TCPModule;
-	aobject_init(&tcp->object, &TCPModule);
+	AObjectInit(&tcp->object, &TCPModule);
 	tcp->sock = INVALID_SOCKET;
 
 	*object = &tcp->object;
 	return 1;
 }
 
-static long TCPOpen(AObject *object, AMessage *msg)
+static int TCPOpen(AObject *object, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
 	if (msg->type == AMsgType_Handle) {
@@ -49,11 +49,11 @@ static long TCPOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	AOption *addr = aoption_find_child(option, "address");
+	AOption *addr = AOptionFind(option, "address");
 	if (addr == NULL)
 		return -EINVAL;
 
-	AOption *port = aoption_find_child(option, "port");
+	AOption *port = AOptionFind(option, "port");
 	//if (port == NULL)
 	//	return -EINVAL;
 
@@ -71,8 +71,8 @@ static long TCPOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	AOption *timeout = aoption_find_child(option, "timeout");
-	long result = tcp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, (timeout?atol(timeout->value):20));
+	AOption *timeout = AOptionFind(option, "timeout");
+	int result = tcp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, (timeout?atol(timeout->value):20));
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result < 0) {
@@ -84,7 +84,7 @@ static long TCPOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
-static long TCPSetOption(AObject *object, AOption *option)
+static int TCPSetOption(AObject *object, AOption *option)
 {
 	TCPObject *tcp = to_tcp(object);
 	if (_stricmp(option->name, "socket") == 0) {
@@ -95,10 +95,10 @@ static long TCPSetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static long TCPRequest(AObject *object, long reqix, AMessage *msg)
+static int TCPRequest(AObject *object, int reqix, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
-	long result;
+	int result;
 
 	assert(msg->size != 0);
 	switch (reqix)
@@ -129,7 +129,7 @@ static long TCPRequest(AObject *object, long reqix, AMessage *msg)
 	return result;
 }
 
-static long TcpCancel(AObject *object, long reqix, AMessage *msg)
+static int TcpCancel(AObject *object, int reqix, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
 	if (tcp->sock == INVALID_SOCKET)
@@ -146,7 +146,7 @@ static long TcpCancel(AObject *object, long reqix, AMessage *msg)
 	return 1;
 }
 
-static long TCPClose(AObject *object, AMessage *msg)
+static int TCPClose(AObject *object, AMessage *msg)
 {
 	TCPObject *tcp = to_tcp(object);
 	if (tcp->sock == INVALID_SOCKET)
@@ -160,7 +160,7 @@ static long TCPClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-static long TCPInit(AOption *option)
+static int TCPInit(AOption *option)
 {
 	WSADATA wsadata;
 	WSAStartup(WINSOCK_VERSION, &wsadata);

@@ -4,7 +4,7 @@
 
 struct DumpObject;
 struct DumpReq {
-	long        reqix;
+	int         reqix;
 	DumpObject *dump;
 	HANDLE      file;
 	BOOL        attach;
@@ -19,9 +19,9 @@ struct DumpObject {
 	BOOL     single_file;
 	AObject *io;
 
-	CRITICAL_SECTION req_lock;
+	pthread_mutex_t  req_mutex;
 	struct list_head req_list;
-	DumpReq *req_cache[4];
+	DumpReq         *req_cache[4];
 };
 #define to_dump(obj)   container_of(obj, DumpObject, object)
 
@@ -38,40 +38,40 @@ static void DumpRelease(AObject *object)
 		}
 		free(req);
 	}
-	DeleteCriticalSection(&dump->req_lock);
+	pthread_mutex_destroy(&dump->req_mutex);
 
 	release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
-	release_s(dump->io, aobject_release, NULL);
+	release_s(dump->io, AObjectRelease, NULL);
 
 	free(dump);
 }
 
-static long DumpCreate(AObject **object, AObject *parent, AOption *option)
+static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 {
 	DumpObject *dump = (DumpObject*)malloc(sizeof(DumpObject));
 	if (dump == NULL)
 		return -ENOMEM;
 
 	extern AModule DumpModule;
-	aobject_init(&dump->object, &DumpModule);
+	AObjectInit(&dump->object, &DumpModule);
 	dump->file = INVALID_HANDLE_VALUE;
 	dump->file_name[0] = '\0';
 	dump->single_file = FALSE;
 	dump->io = NULL;
 
-	InitializeCriticalSection(&dump->req_lock);
+	pthread_mutex_init(&dump->req_mutex, NULL);
 	INIT_LIST_HEAD(&dump->req_list);
 	memset(dump->req_cache, 0, sizeof(dump->req_cache));
 
-	AOption *io_opt = aoption_find_child(option, "io");
+	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
-		aobject_create(&dump->io, &dump->object, io_opt, NULL);
+		AObjectCreate(&dump->io, &dump->object, io_opt, NULL);
 
 	*object = &dump->object;
 	return 1;
 }
 
-static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
+static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 {
 	DumpReq *req;
 	if (reqix < _countof(dump->req_cache)) {
@@ -80,10 +80,10 @@ static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
 			return req;
 	}
 
-	EnterCriticalSection(&dump->req_lock);
+	pthread_mutex_lock(&dump->req_mutex);
 	list_for_each_entry(req, &dump->req_list, DumpReq, entry) {
 		if (req->reqix == reqix) {
-			LeaveCriticalSection(&dump->req_lock);
+			pthread_mutex_unlock(&dump->req_mutex);
 			return req;
 		}
 	}
@@ -105,7 +105,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
 		if (reqix < _countof(dump->req_cache))
 			dump->req_cache[reqix] = req;
 	}
-	LeaveCriticalSection(&dump->req_lock);
+	pthread_mutex_unlock(&dump->req_mutex);
 
 	if (!dump->single_file && (req != NULL)) {
 		char file_name[512];
@@ -118,7 +118,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, long reqix)
 
 static void OnDumpRequest(DumpReq *req)
 {
-	amsg_init(req->from, req->msg.type, req->msg.data, req->msg.size);
+	AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
 
 	if (req->file != INVALID_HANDLE_VALUE) {
 		DWORD tx = 0;
@@ -135,7 +135,7 @@ static void OnDumpOpen(DumpObject *dump, DumpReq *req)
 	OnDumpRequest(req);
 }
 
-static long DumpOpenDone(AMessage *msg, long result)
+static int DumpOpenDone(AMessage *msg, int result)
 {
 	DumpReq *req = container_of(msg, DumpReq, msg);
 	if (result >= 0) {
@@ -145,7 +145,7 @@ static long DumpOpenDone(AMessage *msg, long result)
 	return result;
 }
 
-static long DumpOpen(AObject *object, AMessage *msg)
+static int DumpOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
@@ -153,11 +153,11 @@ static long DumpOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	DumpObject *dump = to_dump(object);
-	AOption *opt = aoption_find_child((AOption*)msg->data, "file");
+	AOption *opt = AOptionFind((AOption*)msg->data, "file");
 	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
 		strcpy_s(dump->file_name, opt->value);
 
-	opt = aoption_find_child((AOption*)msg->data, "single_file");
+	opt = AOptionFind((AOption*)msg->data, "single_file");
 	if (opt != NULL)
 		dump->single_file = atol(opt->value);
 
@@ -171,9 +171,9 @@ static long DumpOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	opt = aoption_find_child((AOption*)msg->data, "io");
+	opt = AOptionFind((AOption*)msg->data, "io");
 	if (dump->io == NULL) {
-		aobject_create(&dump->io, &dump->object, opt, NULL);
+		AObjectCreate(&dump->io, &dump->object, opt, NULL);
 		if (dump->io == NULL)
 			return -ENXIO;
 	}
@@ -182,18 +182,18 @@ static long DumpOpen(AObject *object, AMessage *msg)
 	if (req == NULL)
 		return -ENOMEM;
 
-	amsg_init(&req->msg, AMsgType_Option, (char*)opt, 0);
+	AMsgInit(&req->msg, AMsgType_Option, (char*)opt, 0);
 	req->msg.done = &DumpOpenDone;
 	req->from = msg;
 
-	long result = dump->io->open(dump->io, &req->msg);
+	int result = dump->io->open(dump->io, &req->msg);
 	if (result > 0) {
 		OnDumpOpen(dump, req);
 	}
 	return result;
 }
 
-static long DumpRequestDone(AMessage *msg, long result)
+static int DumpRequestDone(AMessage *msg, int result)
 {
 	DumpReq *req = container_of(msg, DumpReq, msg);
 	if (result >= 0) {
@@ -203,31 +203,31 @@ static long DumpRequestDone(AMessage *msg, long result)
 	return result;
 }
 
-static long DumpRequest(AObject *object, long reqix, AMessage *msg)
+static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
 	DumpReq *req = DumpReqGet(dump, reqix);
 	if (req == NULL)
 		return dump->io->request(dump->io, reqix, msg);
 
-	amsg_init(&req->msg, msg->type, msg->data, msg->size);
+	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
 	req->msg.done = &DumpRequestDone;
 	req->from = msg;
 
-	long result = dump->io->request(dump->io, reqix, &req->msg);
+	int result = dump->io->request(dump->io, reqix, &req->msg);
 	if (result > 0) {
 		OnDumpRequest(req);
 	}
 	return result;
 }
 
-static long DumpCancel(AObject *object, long reqix, AMessage *msg)
+static int DumpCancel(AObject *object, int reqix, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
 	return dump->io->cancel(dump->io, reqix, msg);
 }
 
-static long DumpClose(AObject *object, AMessage *msg)
+static int DumpClose(AObject *object, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
 	if (msg != NULL) {

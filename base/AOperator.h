@@ -2,65 +2,70 @@
 #define _AOPERATOR_H_
 
 
+//////////////////////////////////////////////////////////////////////////
 typedef struct AThread AThread;
-struct AThread {
-	BOOL volatile    running;
-	HANDLE           thread;
-	HANDLE           iocp;
-	AThread         *attach;
-
-	CRITICAL_SECTION ao_lock;
-	struct list_head ao_waiting;
-	struct list_head ao_pending;
-};
 
 AMODULE_API int
-athread_begin(AThread *at, AThread *pool);
+AThreadBegin(AThread **at, AThread *pool);
 
 AMODULE_API int
-athread_end(AThread *at);
+AThreadEnd(AThread *at);
 
 AMODULE_API int
-athread_abort(AThread *at);
+AThreadAbort(AThread *at);
 
 AMODULE_API int
-athread_bind(AThread *at, HANDLE file);
+#ifdef _WIN32
+AThreadBind(AThread *at, HANDLE file);
+#else
+AThreadBind(AThread *at, AOperator *asop, uint32_t event);
+#endif
 
 AMODULE_API AThread*
-athread_default(int ix);
+AThreadDefault(int ix);
 
 
 //////////////////////////////////////////////////////////////////////////
-typedef struct AOperator AOperator;
 #pragma warning(disable: 4201)
+typedef struct AOperator AOperator;
 struct AOperator {
-	void   *userdata;
 	void  (*callback)(AOperator *asop, int result);
 
 	union {
 	struct {
+	void            *ao_user;
 	DWORD            ao_tick;
 	struct list_head ao_entry;
 	};
+#ifdef _WIN32
 	OVERLAPPED       ao_ovlp;
+#else
+	struct {
+	int              ao_fd;
+	uint32_t         ao_events;
+	void           (*ao_recv)(AOperator *asop, int result);
+	void           (*ao_send)(AOperator *asop, int result);
+	void           (*ao_error)(AOperator *asop, int result);
+	};
+#endif
 	};
 };
 #pragma warning(default: 4201)
 
 AMODULE_API int
-aoperator_post(AOperator *asop, AThread *at, DWORD tick);
+AOperatorPost(AOperator *asop, AThread *at, DWORD tick);
 
 AMODULE_API int
-aoperator_signal(AOperator *asop, AThread *at);
+AOperatorSignal(AOperator *asop, AThread *at);
 
 static inline int
-aoperator_timewait(AOperator *asop, AThread *at, DWORD timeout) {
+AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
 	if ((timeout != 0) && (timeout != INFINITE)) {
 		timeout += GetTickCount();
 		if ((timeout == 0) || (timeout == INFINITE))
 			timeout += 2;
 	}
-	return aoperator_post(asop, at, timeout);
+	return AOperatorPost(asop, at, timeout);
 }
 
 

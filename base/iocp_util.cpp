@@ -64,12 +64,10 @@ tcp_bind(int family, int protocol, unsigned short port)
 AMODULE_API int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 {
-	u_long nonblocking = 1;
-	int ret = ioctlsocket(sock, FIONBIO, &nonblocking);
-	if (ret != 0)
+	if (tcp_nonblock(sock, 1) != 0)
 		return -EIO;
 
-	ret = connect(sock, name, namelen);
+	int ret = connect(sock, name, namelen);
 
 	// timeout checking
 	struct timeval tv;
@@ -92,13 +90,30 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 		return -EIO;
 
 	// reset to blocking io
-	nonblocking = 0;
-	ret = ioctlsocket(sock, FIONBIO, &nonblocking);
-	if (ret < 0)
+	if (tcp_nonblock(sock, 0) != 0)
 		return -EIO;
 
 	//success
 	return 1;
+}
+
+AMODULE_API int
+tcp_nonblock(SOCKET sock, u_long nonblocking)
+{
+#ifdef _WIN32
+	return ioctlsocket(sock, FIONBIO, &nonblocking);
+#else
+	int flags;
+	if ((flags = fcntl(sock, F_GETFL, NULL)) < 0) {
+		//event_warn("fcntl(%d, F_GETFL)", fd);
+		return -1;
+	}
+	if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+		//event_warn("fcntl(%d, F_SETFL)", fd);
+		return -1;
+	}
+	return 0;
+#endif
 }
 
 //////////////////////////////////////////////////////////////////////////

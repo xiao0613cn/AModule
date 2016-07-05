@@ -6,6 +6,7 @@
 struct AsyncTcp;
 struct AsyncOvlp {
 	AOperator sysio;
+	AsyncTcp *tcp;
 	AMessage *msg;
 	WSABUF    buf;
 };
@@ -25,19 +26,19 @@ static void AsyncTcpRelease(AObject *object)
 	free(tcp);
 }
 
-static long AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
+static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AsyncTcp *tcp = (AsyncTcp*)malloc(sizeof(AsyncTcp));
 	if (tcp == NULL)
 		return -ENOMEM;
 
 	extern AModule AsyncTcpModule;
-	aobject_init(&tcp->object, &AsyncTcpModule);
+	AObjectInit(&tcp->object, &AsyncTcpModule);
 	tcp->sock = INVALID_SOCKET;
 	memset(&tcp->send_ovlp, 0, sizeof(tcp->send_ovlp));
 	memset(&tcp->recv_ovlp, 0, sizeof(tcp->recv_ovlp));
-	tcp->send_ovlp.sysio.userdata = tcp;
-	tcp->recv_ovlp.sysio.userdata = tcp;
+	tcp->send_ovlp.tcp = tcp;
+	tcp->recv_ovlp.tcp = tcp;
 
 	*object = &tcp->object;
 	return 1;
@@ -46,7 +47,7 @@ static long AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 {
 	AsyncOvlp *ovlp = container_of(op, AsyncOvlp, ovlp);
-	long result;
+	int result;
 
 	if (ovlp->msg->type == AMsgType_Option) {
 		result = iocp_is_connected(ovlp->tcp->sock);
@@ -78,9 +79,9 @@ static void WINAPI AsyncTcpDone(DWORD error, DWORD tx, OVERLAPPED *op)
 	result = ovlp->msg->done(ovlp->msg, result);
 }
 */
-static void AsyncTcpRequestDone(AOperator *sysop, int result)
+static void AsyncTcpRequestDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 
 	if (result <= 0) {
 		result = -EIO;
@@ -100,7 +101,7 @@ static void AsyncTcpRequestDone(AOperator *sysop, int result)
 	if (ovlp->buf.len == 0) {
 		result = ovlp->msg->size;
 	} else {
-		AsyncTcp *tcp = (AsyncTcp*)ovlp->sysio.userdata;
+		AsyncTcp *tcp = ovlp->tcp;
 		if (ovlp == &tcp->send_ovlp)
 			result = iocp_sendv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
 		else
@@ -111,10 +112,10 @@ static void AsyncTcpRequestDone(AOperator *sysop, int result)
 	result = ovlp->msg->done(ovlp->msg, result);
 }
 
-static void AsyncTcpOpenDone(AOperator *sysop, int result)
+static void AsyncTcpOpenDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(sysop, AsyncOvlp, sysio);
-	AsyncTcp *tcp = (AsyncTcp*)ovlp->sysio.userdata;
+	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncTcp *tcp = ovlp->tcp;
 
 	if (result >= 0)
 		result = iocp_is_connected(tcp->sock);
@@ -124,7 +125,7 @@ static void AsyncTcpOpenDone(AOperator *sysop, int result)
 	result = ovlp->msg->done(ovlp->msg, result);
 }
 
-static long AsyncTcpOpen(AObject *object, AMessage *msg)
+static int AsyncTcpOpen(AObject *object, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
 	if (msg->type == AMsgType_Handle) {
@@ -135,7 +136,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		tcp->sock = (SOCKET)msg->data;
 		if (tcp->sock != INVALID_SOCKET) {
 			//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-			athread_bind(NULL, (HANDLE)tcp->sock);
+			AThreadBind(NULL, (HANDLE)tcp->sock);
 			tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
 			tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
 		}
@@ -148,11 +149,11 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	AOption *addr = aoption_find_child(option, "address");
+	AOption *addr = AOptionFind(option, "address");
 	if (addr == NULL)
 		return -EINVAL;
 
-	AOption *port = aoption_find_child(option, "port");
+	AOption *port = AOptionFind(option, "port");
 	//if (port == NULL)
 	//	return -EINVAL;
 
@@ -170,11 +171,11 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 		}
 	}
 	//BindIoCompletionCallback((HANDLE)tcp->sock, &AsyncTcpDone, 0);
-	athread_bind(NULL, (HANDLE)tcp->sock);
+	AThreadBind(NULL, (HANDLE)tcp->sock);
 
 	tcp->send_ovlp.msg = msg;
 	tcp->send_ovlp.sysio.callback = &AsyncTcpOpenDone;
-	long result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
+	int result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result != 0)
@@ -182,7 +183,7 @@ static long AsyncTcpOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
-static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
+static int AsyncTcpRequest(AObject *object, int reqix, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
 
@@ -207,7 +208,7 @@ static long AsyncTcpRequest(AObject *object, long reqix, AMessage *msg)
 	}
 }
 
-static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
+static int AsyncTcpCancel(AObject *object, int reqix, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
 	if (tcp->sock == INVALID_SOCKET)
@@ -224,7 +225,7 @@ static long AsyncTcpCancel(AObject *object, long reqix, AMessage *msg)
 	return 1;
 }
 
-static long AsyncTcpClose(AObject *object, AMessage *msg)
+static int AsyncTcpClose(AObject *object, AMessage *msg)
 {
 	AsyncTcp *tcp = to_tcp(object);
 	if (tcp->sock == INVALID_SOCKET)
@@ -238,7 +239,7 @@ static long AsyncTcpClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-static long AsyncTcpInit(AOption *option)
+static int AsyncTcpInit(AOption *option)
 {
 	WSADATA wsadata;
 	WSAStartup(WINSOCK_VERSION, &wsadata);

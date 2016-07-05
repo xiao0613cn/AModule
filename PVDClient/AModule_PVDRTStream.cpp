@@ -12,10 +12,10 @@ struct PVDRTStream {
 	DWORD     userid;
 	DWORD     version;
 
-	AMessage    outmsg;
-	AMessage   *outfrom;
+	AMessage  outmsg;
+	AMessage *outfrom;
 	SliceBuffer outbuf;
-	long        retry_count;
+	int       retry_count;
 };
 #define to_rt(obj) container_of(obj, PVDRTStream, object)
 #define from_outmsg(msg) container_of(msg, PVDRTStream, outmsg)
@@ -26,20 +26,20 @@ struct PVDRTStream {
 static void PVDRTRelease(AObject *object)
 {
 	PVDRTStream *rt = to_rt(object);
-	release_s(rt->io, aobject_release, NULL);
+	release_s(rt->io, AObjectRelease, NULL);
 	SliceFree(&rt->outbuf);
 
 	free(rt);
 }
 
-static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
+static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 {
 	PVDRTStream *rt = (PVDRTStream*)malloc(sizeof(PVDRTStream));
 	if (rt == NULL)
 		return -ENOMEM;
 
 	extern AModule PVDRTModule;
-	aobject_init(&rt->object, &PVDRTModule);
+	AObjectInit(&rt->object, &PVDRTModule);
 
 	rt->io = NULL;
 	rt->status = pvdnet_invalid;
@@ -52,7 +52,7 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 	if (parent != NULL) {
 		AOption opt;
-		aoption_init(&opt, NULL);
+		AOptionInit(&opt, NULL);
 
 		strcpy_s(opt.name, "session_id");
 		if (parent->getopt(parent, &opt) >= 0)
@@ -63,19 +63,19 @@ static long PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 			rt->version = atol(opt.value);
 	}
 
-	AOption *io_option = aoption_find_child(option, "io");
-	long result = aobject_create(&rt->io, &rt->object, io_option, NULL);
+	AOption *io_option = AOptionFind(option, "io");
+	int result = AObjectCreate(&rt->io, &rt->object, io_option, NULL);
 
 	*object = &rt->object;
 	return 1;;//result;
 }
 
-static long PVDRTTryOutput(PVDRTStream *rt)
+static int PVDRTTryOutput(PVDRTStream *rt)
 {
 	rt->outmsg.data = SliceCurPtr(&rt->outbuf);
 	rt->outmsg.size = SliceCurLen(&rt->outbuf);
 
-	long result = MAKE_TAG(rt->outmsg.data);
+	int result = MAKE_TAG(rt->outmsg.data);
 	if (rt->outmsg.size < TAG_SIZE) {
 		result = 0;
 	} else if (ISMSHEAD(rt->outmsg.data)) {
@@ -112,7 +112,7 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 
 	if ((result == 0) || (result > rt->outmsg.size)) {
 		if (max(result,8*1024) > SliceCapacity(&rt->outbuf)) {
-			long error = SliceResize(&rt->outbuf, result, 8*1024);
+			int error = SliceResize(&rt->outbuf, result, 8*1024);
 			if (error < 0)
 				return error;
 			else if (error > 0)
@@ -135,13 +135,13 @@ static long PVDRTTryOutput(PVDRTStream *rt)
 	return result;
 }
 
-static inline long PVDRTDoOutput(PVDRTStream *rt)
+static inline int PVDRTDoOutput(PVDRTStream *rt)
 {
-	amsg_init(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+	AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
 	return rt->io->request(rt->io, Aio_Output, &rt->outmsg);
 }
 
-static long PVDRTOpenStatus(PVDRTStream *rt, long result)
+static int PVDRTOpenStatus(PVDRTStream *rt, int result)
 {
 	do {
 		if ((result < 0) && (rt->status != pvdnet_disconnected))
@@ -169,11 +169,11 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 			memset(rt->outmsg.data+sizeof(pvdnet_head), 0, result);
 			STRUCT_SDVR_REALPLAY *rp = (STRUCT_SDVR_REALPLAY*)(rt->outmsg.data+sizeof(pvdnet_head));
 
-			AOption *channel = aoption_find_child(option, "channel");
+			AOption *channel = AOptionFind(option, "channel");
 			if (channel != NULL)
 				rp->byChannel = atol(channel->value);
 
-			AOption *linkmode = aoption_find_child(option, "linkmode");
+			AOption *linkmode = AOptionFind(option, "linkmode");
 			if (linkmode != NULL)
 				rp->byLinkMode = atol(linkmode->value);
 		}
@@ -211,7 +211,7 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 			return result;
 
 		case pvdnet_closing:
-			amsg_init(&rt->outmsg, AMsgType_Unknown, NULL, 0);
+			AMsgInit(&rt->outmsg, AMsgType_Unknown, NULL, 0);
 			rt->status = pvdnet_disconnected;
 			result = rt->io->close(rt->io, &rt->outmsg);
 			if (result == 0)
@@ -229,7 +229,7 @@ static long PVDRTOpenStatus(PVDRTStream *rt, long result)
 	return result;
 }
 
-static long PVDRTOpenDone(AMessage *msg, long result)
+static int PVDRTOpenDone(AMessage *msg, int result)
 {
 	PVDRTStream *rt = from_outmsg(msg);
 
@@ -239,7 +239,7 @@ static long PVDRTOpenDone(AMessage *msg, long result)
 	return result;
 }
 
-static long PVDRTOpen(AObject *object, AMessage *msg)
+static int PVDRTOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
@@ -251,27 +251,27 @@ static long PVDRTOpen(AObject *object, AMessage *msg)
 	rt->outfrom = msg;
 
 	if (rt->io == NULL) {
-		AOption *io_opt = aoption_find_child((AOption*)rt->outfrom->data, "io");
+		AOption *io_opt = AOptionFind((AOption*)rt->outfrom->data, "io");
 		if (io_opt == NULL)
 			return -EINVAL;
 
-		long result = aobject_create(&rt->io, &rt->object, io_opt, NULL);
+		int result = AObjectCreate(&rt->io, &rt->object, io_opt, NULL);
 		if (result < 0)
 			return result;
 	}
 
 	rt->outmsg.type = AMsgType_Option;
-	rt->outmsg.data = (char*)aoption_find_child((AOption*)msg->data, "io");
+	rt->outmsg.data = (char*)AOptionFind((AOption*)msg->data, "io");
 	rt->outmsg.size = 0;
 
 	rt->status = pvdnet_connecting;
-	long result = rt->io->open(rt->io, &rt->outmsg);
+	int result = rt->io->open(rt->io, &rt->outmsg);
 	if (result != 0)
 		result = PVDRTOpenStatus(rt, result);
 	return result;
 }
 
-static long PVDRTSetOption(AObject *object, AOption *option)
+static int PVDRTSetOption(AObject *object, AOption *option)
 {
 	PVDRTStream *rt = to_rt(object);
 	if (_stricmp(option->name, "version") == 0) {
@@ -285,9 +285,9 @@ static long PVDRTSetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static long PVDRTOutputStatus(PVDRTStream *rt)
+static int PVDRTOutputStatus(PVDRTStream *rt)
 {
-	long result;
+	int result;
 	do {
 		SlicePush(&rt->outbuf, rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
@@ -307,7 +307,7 @@ static long PVDRTOutputStatus(PVDRTStream *rt)
 				rt->retry_count = 0;
 			}
 			SlicePop(&rt->outbuf, rt->outmsg.size);
-			amsg_copy(rt->outfrom, AMsgType_Custom|rt->status, rt->outmsg.data, rt->outmsg.size);
+			AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, rt->outmsg.data, rt->outmsg.size);
 			break;
 		}
 		result = PVDRTDoOutput(rt);
@@ -315,7 +315,7 @@ static long PVDRTOutputStatus(PVDRTStream *rt)
 	return result;
 }
 
-static long PVDRTOutputDone(AMessage *msg, long result)
+static int PVDRTOutputDone(AMessage *msg, int result)
 {
 	PVDRTStream *rt = from_outmsg(msg);
 	if (result >= 0)
@@ -325,7 +325,7 @@ static long PVDRTOutputDone(AMessage *msg, long result)
 	return result;
 }
 
-static long PVDRTRequest(AObject *object, long reqix, AMessage *msg)
+static int PVDRTRequest(AObject *object, int reqix, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
 	if (reqix != 0)
@@ -339,7 +339,7 @@ static long PVDRTRequest(AObject *object, long reqix, AMessage *msg)
 	return PVDRTOutputStatus(rt);
 }
 
-static long PVDRTClose(AObject *object, AMessage *msg)
+static int PVDRTClose(AObject *object, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
 	if (rt->io == NULL)

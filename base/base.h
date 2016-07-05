@@ -1,38 +1,38 @@
-#pragma once
+#ifndef _BASE_UTIL_H_
+#define _BASE_UTIL_H_
 
-#ifdef _DEBUG
-#pragma warning(disable: 4985)
-#define _CRTDBG_MAP_ALLOC
-#define _CRTDBG_MAP_ALLOC_NEW
-#include <crtdbg.h>
-#pragma warning(default: 4985)
+#include <stdio.h>
+#include <memory.h>
+#include <errno.h>
+#include <time.h>
+#include <string.h>
+
+#ifndef _tostring
+#define _tostring(x) #x
 #endif
 
+#ifndef _align_8bytes
+#define _align_8bytes(x) (((x)+7)&~7)
+#endif
 
-#include <errno.h>
-#include <Windows.h>
+#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 
-
-#if 1
+#ifdef _DEBUG
+#include <assert.h>
 
 #ifndef TRACE
-#include <stdio.h>
-#include <time.h>
-static __inline int
+static int
 DTRACE(const char *f, int l, const char *fmt, ...)
 {
 	char outbuf[BUFSIZ];
-	int  outpos;
-
-	struct tm tm;
 	time_t t = time(NULL);
-	localtime_s(&tm, &t);
+	struct tm *tm = localtime(&t);
 
-	outpos = sprintf_s(
+	int outpos = sprintf_s(
 		outbuf, BUFSIZ,
-		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| %s: ",
-		1900+tm.tm_year, 1+tm.tm_mon, tm.tm_mday,
-		tm.tm_hour, tm.tm_min, tm.tm_sec,
+		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| [%s]: ",
+		1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday,
+		tm->tm_hour, tm->tm_min, tm->tm_sec,
 		l, f);
 
 	va_list ap;
@@ -40,7 +40,9 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	outpos += vsprintf_s(outbuf+outpos, BUFSIZ-outpos, fmt, ap);
 	va_end(ap);
 
+#ifdef _WIN32
 	OutputDebugStringA(outbuf);
+#endif
 	fputs(outbuf, stdout);
 	return outpos;
 }
@@ -48,38 +50,119 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
 #endif
 
-#ifndef ASSERT
-#include <assert.h>
-#define ASSERT   assert
-#define VERIFY   assert
-#endif
-
-#else // _DEBUG
-
-#ifndef TRACE
-#define TRACE(fmt, ...) (void)0
-#endif
-
-#ifndef ASSERT
-#define ASSERT(x) (void)(0)
-#define VERIFY(x) (void)(x)
-#endif
+#else //_DEBUG
 
 #ifndef assert
-#define assert(x) (void)(0)
+#define assert(x)  (void)(0)
 #endif
 
-#endif // _RELEASE
-
-
-#ifndef _tostring
-#define _tostring(x) #x
+#ifndef TRACE
+#define TRACE(fmt, ...) (void)(0)
 #endif
 
+#endif //_DEBUG
 
-#ifndef _align_8bytes
-#define _align_8bytes(x) (((x)+7)&~7)
+#ifdef _WIN32
+
+#ifndef _INC_PROCESS
+#include <process.h>
 #endif
 
+#ifndef PTHREAD_H
+#define PTHREAD_H
 
-#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
+typedef CRITICAL_SECTION pthread_mutex_t;
+typedef struct pthread_mutexattr_t pthread_mutexattr_t;
+
+static inline int 
+pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) {
+	InitializeCriticalSection(mutex);
+	return 0;
+}
+
+static inline int 
+pthread_mutex_lock(pthread_mutex_t *mutex) {
+	EnterCriticalSection(mutex);
+	return 0;
+}
+
+static inline int 
+pthread_mutex_trylock(pthread_mutex_t *mutex) {
+	return !TryEnterCriticalSection(mutex);
+}
+
+static inline int 
+pthread_mutex_unlock(pthread_mutex_t *mutex) {
+	LeaveCriticalSection(mutex);
+	return 0;
+}
+
+static inline int 
+pthread_mutex_destroy(pthread_mutex_t *mutex) {
+	DeleteCriticalSection(mutex);
+	return 0;
+}
+
+typedef HANDLE pthread_t;
+typedef struct pthread_attr_t pthread_attr_t;
+#define pthread_null  NULL
+
+static inline int 
+pthread_create(pthread_t *tid, const pthread_attr_t *attr, void*(*start)(void*), void *arg) {
+	*tid = (pthread_t)_beginthreadex(NULL, 0, (unsigned int(__stdcall*)(void*))start, arg, 0, NULL);
+	return (*tid ? 0 : errno);
+}
+
+static inline int 
+pthread_detach(pthread_t tid) {
+	CloseHandle(tid);
+	return 0;
+}
+
+static inline int 
+pthread_join(pthread_t tid, void **value_ptr) {
+	WaitForSingleObject(tid, INFINITE);
+	if (value_ptr != NULL)
+		GetExitCodeThread(tid, (LPDWORD)value_ptr);
+	CloseHandle(tid);
+	return 0;
+}
+#endif
+
+#else //_WIN32
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+
+#include <pthread.h>
+static const pthread_t pthread_null = { 0 };
+
+typedef unsigned long  u_long;
+typedef unsigned long  DWORD;
+
+#ifndef INFINITE
+#define INFINITE  -1
+#endif
+
+#define _countof(a)  (sizeof(a)/sizeof(a[0]))
+
+static inline DWORD 
+GetTickCount(void) {
+	timespec ts;
+	syscall(SYS_clock_gettime, CLOCK_MONOTONIC_RAW, &ts);
+	return ts.tv_sec*1000 + ts.tv_nsec/(1000*1000);
+}
+
+static void 
+Sleep(DWORD ms) {
+	usleep(ms*1000);
+}
+
+#endif //_WIN32
+
+
+#endif
+

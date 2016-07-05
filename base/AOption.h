@@ -14,22 +14,22 @@ typedef struct AOption {
 } AOption;
 
 AMODULE_API void
-aoption_init(AOption *option, AOption *parent);
+AOptionInit(AOption *option, AOption *parent);
 
 AMODULE_API AOption*
-aoption_create(AOption *parent);
+AOptionCreate(AOption *parent);
 
-AMODULE_API long
-aoption_decode(AOption **option, const char *name);
-
-AMODULE_API AOption*
-aoption_clone(AOption *option);
+AMODULE_API int
+AOptionDecode(AOption **option, const char *name);
 
 AMODULE_API AOption*
-aoption_find_child(AOption *option, const char *name);
+AOptionClone(AOption *option);
+
+AMODULE_API AOption*
+AOptionFind(AOption *option, const char *name);
 
 AMODULE_API void
-aoption_release(AOption *option);
+AOptionRelease(AOption *option);
 
 
 #endif

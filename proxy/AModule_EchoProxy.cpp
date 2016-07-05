@@ -6,14 +6,14 @@
 //	AObject   object;
 //};
 
-static long EchoCreate(AObject **object, AObject *parent, AOption *option)
+static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AObject *echo = (AObject*)malloc(sizeof(AObject));
 	if (echo == NULL)
 		return -ENOMEM;
 
 	extern AModule EchoModule;
-	aobject_init(echo, &EchoModule);
+	AObjectInit(echo, &EchoModule);
 
 	*object = echo;
 	return 1;
@@ -24,26 +24,26 @@ static void EchoRelease(AObject *echo)
 	free(echo);
 }
 
-static long EchoProbe(AObject *object, AMessage *msg)
+static int EchoProbe(AObject *object, AMessage *msg)
 {
 	if (msg->size < 4)
 		return -1;
 	return ((_strnicmp(msg->data, "echo", 4) == 0) ? 100 : 0);
 }
 
-static long EchoOpen(AObject *echo, AMessage *msg)
+static int EchoOpen(AObject *echo, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Object)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;
 
-	aobject_addref((AObject*)msg->data);
+	AObjectAddRef((AObject*)msg->data);
 	echo->extend = msg->data;
 	return 1;
 }
 
-static long EchoRequest(AObject *echo, long reqix, AMessage *msg)
+static int EchoRequest(AObject *echo, int reqix, AMessage *msg)
 {
 	if (reqix != Aio_Input)
 		return -ENOSYS;
@@ -52,17 +52,17 @@ static long EchoRequest(AObject *echo, long reqix, AMessage *msg)
 	return ((AObject*)echo->extend)->request((AObject*)echo->extend, reqix, msg);
 }
 
-static long EchoCancel(AObject *echo, long reqix, AMessage *msg)
+static int EchoCancel(AObject *echo, int reqix, AMessage *msg)
 {
 	if (reqix != Aio_Input)
 		return -ENOSYS;
-	release_s(*((AObject**)&echo->extend), aobject_release, NULL);
+	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
 	return 1;
 }
 
-static long EchoClose(AObject *echo, AMessage *msg)
+static int EchoClose(AObject *echo, AMessage *msg)
 {
-	release_s(*((AObject**)&echo->extend), aobject_release, NULL);
+	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
 	return 1;
 }
 
