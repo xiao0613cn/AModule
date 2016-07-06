@@ -5,7 +5,7 @@
 //////////////////////////////////////////////////////////////////////////
 typedef struct AOption {
 	char        name[64];
-	char        value[MAX_PATH];
+	char        value[BUFSIZ];
 	void       *extend;
 
 	struct list_head children_list;

@@ -50,7 +50,7 @@ inline int PVDCmdDecode(unsigned long user_id, void *data, int size)
 	}
 
 	if (phead->uFlag != NET_CMD_HEAD_FLAG) {
-		return -ERROR_INVALID_DATA;
+		return -EINVAL;
 	}
 
 	if ((user_id != 0) && (user_id != phead->uUserId)) {

@@ -8,9 +8,9 @@
 
 
 AMODULE_API struct addrinfo*
-iocp_getaddrinfo(const char *netaddr, const char *port)
+tcp_getaddrinfo(const char *netaddr, const char *port)
 {
-	char ipaddr[MAX_PATH];
+	char ipaddr[BUFSIZ];
 	if (port != NULL) {
 		strcpy_s(ipaddr, netaddr);
 		if (port == INVALID_HANDLE_VALUE)
@@ -117,6 +117,7 @@ tcp_nonblock(SOCKET sock, u_long nonblocking)
 }
 
 //////////////////////////////////////////////////////////////////////////
+#ifdef _WIN32
 AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp)
 {
@@ -232,3 +233,4 @@ iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp)
 
 	return 0;
 }
+#endif

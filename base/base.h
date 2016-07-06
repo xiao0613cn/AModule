@@ -2,6 +2,7 @@
 #define _BASE_UTIL_H_
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <memory.h>
 #include <errno.h>
 #include <time.h>
@@ -14,8 +15,6 @@
 #ifndef _align_8bytes
 #define _align_8bytes(x) (((x)+7)&~7)
 #endif
-
-#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 
 #ifdef _DEBUG
 #include <assert.h>
@@ -140,14 +139,35 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #include <pthread.h>
 static const pthread_t pthread_null = { 0 };
 
-typedef unsigned long  u_long;
-typedef unsigned long  DWORD;
-
+#ifndef _stricmp
+#define _stricmp     strcasecmp
+#endif
+#ifndef _strnicmp
+#define _strnicmp    strncasecmp
+#endif
+#ifndef strcpy_s
+#define strcpy_s(dest, src)  strncpy(dest, sizeof(dest)-1, src)
+#endif
+#ifndef SOCKET
+typedef int SOCKET;
+#define closesocket(fd) close(fd)
+#endif
 #ifndef INFINITE
 #define INFINITE  -1
 #endif
-
+#ifndef _countof
 #define _countof(a)  (sizeof(a)/sizeof(a[0]))
+#endif
+
+typedef unsigned long  u_long;
+typedef unsigned long  DWORD;
+typedef unsigned int   UINT;
+typedef short          SHORT;
+typedef unsigned short WORD;
+typedef unsigned char  BYTE;
+typedef int            BOOL;
+#define TRUE      1
+#define FALSE     0
 
 static inline DWORD 
 GetTickCount(void) {
@@ -161,7 +181,20 @@ Sleep(DWORD ms) {
 	usleep(ms*1000);
 }
 
+static inline long
+InterlockedIncrement(long volatile *count) {
+	return __sync_add_and_fetch(count, 1);
+}
+
+static inline long
+InterlockedDecrement(long volatile *count) {
+	return __sync_add_and_fetch(count, -1);
+}
+
+
 #endif //_WIN32
+
+#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 
 
 #endif

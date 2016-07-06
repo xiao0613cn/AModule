@@ -83,7 +83,7 @@ struct RecvMsg {
 
 int CloseDone(AMessage *msg, int result)
 {
-	RecvMsg *rm = CONTAINING_RECORD(msg, RecvMsg, msg);
+	RecvMsg *rm = container_of(msg, RecvMsg, msg);
 	TRACE("%p: close result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
 
@@ -94,7 +94,7 @@ int CloseDone(AMessage *msg, int result)
 
 static BOOL g_abort = FALSE;
 
-unsigned int WINAPI RecvCB2(void *p)
+void* RecvCB2(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
 	rm->msg.done = NULL;
@@ -114,11 +114,11 @@ unsigned int WINAPI RecvCB2(void *p)
 	result = rm->pvd->close(rm->pvd, &rm->msg);
 	if (result != 0)
 		CloseDone(&rm->msg, result);
-	return result;
+	return NULL;
 }
 int RecvCB(AOperator *op, int result)
 {
-	RecvMsg *rm = CONTAINING_RECORD(op, RecvMsg, op);
+	RecvMsg *rm = container_of(op, RecvMsg, op);
 	if (result >= 0) {
 		RecvCB2(rm);
 	} else {
@@ -126,7 +126,7 @@ int RecvCB(AOperator *op, int result)
 	}
 	return 0;
 }
-unsigned int WINAPI SendHeart(void *p)
+void* SendHeart(void *p)
 {
 	RecvMsg *rm = (RecvMsg*)p;
 
@@ -154,16 +154,16 @@ unsigned int WINAPI SendHeart(void *p)
 	if (result != 0) {
 		CloseDone(&rm->msg, result);
 	}
-	return result;
+	return NULL;
 }
 
 void ResetOption(AOption *option)
 {
 	TRACE("%s[%s] = ", option->name, option->value);
 
-	char value[MAX_PATH];
+	char value[BUFSIZ];
 	value[0] = '\0';
-	if (gets_s(value) == NULL)
+	if (fgets(value, sizeof(value), stdin) == NULL)
 		return;
 
 	if (value[0] == ' ')
@@ -184,6 +184,7 @@ void test_pvd(AOption *option, bool reset_option)
 	RecvMsg *rm;
 	AMessage sm;
 	int result;
+	pthread_t thread;
 _retry:
 	if (reset_option)
 		ResetOption(option);
@@ -205,13 +206,15 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = Aio_Output;
-		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
+		pthread_create(&thread, NULL, &RecvCB2, rm);
+		pthread_detach(thread);
 		rm = NULL;
 
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = Aio_Input;
-		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &SendHeart, rm, 0, NULL));
+		pthread_create(&thread, NULL, &SendHeart, rm);
+		pthread_detach(thread);
 		rm = NULL;
 	}
 	if (pvd != NULL) {
@@ -227,7 +230,8 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = rt; AObjectAddRef(rt);
 		rm->reqix = 0;
-		CloseHandle((HANDLE)_beginthreadex(NULL, 0, &RecvCB2, rm, 0, NULL));
+		pthread_create(&thread, NULL, &RecvCB2, rm);
+		pthread_detach(thread);
 		rm = NULL;
 	}
 	release_s(rt, AObjectRelease, NULL);
@@ -236,7 +240,7 @@ _retry:
 	char str[256];
 	for ( ; ; ) {
 		TRACE("input 'r' for retry, input 'q' for quit...\n");
-		gets_s(str);
+		fgets(str, sizeof(str), stdin);
 		if (str[0] == 'r')
 			goto _retry;
 		if (str[0] == 'q')
@@ -283,7 +287,7 @@ void test_proxy(AOption *option, bool reset_option)
 	char str[256];
 	for ( ; ; ) {
 		TRACE("input 'q' for quit...\n");
-		gets_s(str);
+		fgets(str, sizeof(str), stdin);
 		if (str[0] == 'q')
 			break;
 	}
@@ -337,7 +341,7 @@ int main(int argc, char* argv[])
 		reset_option = true;
 		for ( ; ; ) {
 			TRACE("input test module: pvd, tcp_server ...\n");
-			gets_s(str);
+			fgets(str, sizeof(str), stdin);
 			if (_stricmp(str,"pvd") == 0)
 				path = pvd_path;
 			else if (/*str[0] == '\0' || */_stricmp(str,"tcp_server") == 0)
@@ -361,7 +365,7 @@ int main(int argc, char* argv[])
 	release_s(option, AOptionRelease, NULL);
 _return:
 	AModuleExit();
-	gets_s(str);
+	fgets(str, sizeof(str), stdin);
 	AThreadEnd(NULL);
 #ifdef _DEBUG
 	_CrtDumpMemoryLeaks();

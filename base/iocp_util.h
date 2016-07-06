@@ -10,7 +10,7 @@
 #endif
 
 AMODULE_API struct addrinfo*
-iocp_getaddrinfo(const char *netaddr, const char *port);
+tcp_getaddrinfo(const char *netaddr, const char *port);
 
 AMODULE_API SOCKET
 tcp_bind(int family, int protocol, unsigned short port);
@@ -50,6 +50,7 @@ tcp_recv(SOCKET sock, char *data, int size, int flags)
 }
 
 //////////////////////////////////////////////////////////////////////////
+#ifdef _WIN32
 AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp);
 
@@ -74,5 +75,6 @@ iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp);
 
 AMODULE_API int
 iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp);
+#endif
 
 #endif
