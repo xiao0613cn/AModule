@@ -5,6 +5,7 @@
 
 #pragma once
 
+#ifdef _WIN32
 #include "targetver.h"
 
 #ifdef _DEBUG
@@ -22,6 +23,7 @@
 #include <WinSock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #include <Windows.h>
+#endif
 
 // TODO: 在此处引用程序需要的其他头文件
 #include "base/AModule_API.h"
