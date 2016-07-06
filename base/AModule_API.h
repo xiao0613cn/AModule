@@ -1,12 +1,20 @@
 #ifndef _AMODULE_API_H_
 #define _AMODULE_API_H_
 
-#if defined(AMODULE_API_EXPORTS)
-#define AMODULE_API   __declspec(dllexport)
-#elif !defined(AMODULE_API_INNER)
-#define AMODULE_API   __declspec(dllimport)
+#ifndef EXTERN_C
+#ifdef __cplusplus
+#define EXTERN_C     extern "C"
 #else
-#define AMODULE_API
+#define EXTERN_C     extern
+#endif
+#endif
+
+#if defined(AMODULE_API_EXPORTS)
+#define AMODULE_API  EXTERN_C __declspec(dllexport)
+#elif defined(_WIN32) && !defined(AMODULE_API_INNER)
+#define AMODULE_API  EXTERN_C __declspec(dllimport)
+#else
+#define AMODULE_API  EXTERN_C
 #endif
 
 #pragma warning(disable: 4100) //未引用的形参
@@ -18,10 +26,6 @@
 // > 0: completed with success
 // = 0: pending with success, will callback msg->done()
 // < 0: call failed, return error code
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #ifndef _BASE_UTIL_H_
 #include "base.h"
@@ -61,8 +65,6 @@ extern "C" {
 
 
 #ifdef __cplusplus
-};
-
 struct IObject {
 public:
 	AObject *object;

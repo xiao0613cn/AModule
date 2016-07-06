@@ -43,10 +43,11 @@ AOptionCreate(AOption *parent)
 static void
 AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 {
-	if (!option->name[0])
-		strncpy_s(option->name, str, len);
-	else if (!option->value[0])
-		strncpy_s(option->value, str, len);
+	if (!option->name[0]) {
+		strncpy(option->name, str, max(sizeof(option->name),len));
+	} else if (!option->value[0]) {
+		strncpy(option->value, str, max(sizeof(option->value),len));
+	}
 }
 
 AMODULE_API int

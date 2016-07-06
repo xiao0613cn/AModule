@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "AModule_API.h"
 
+#ifdef _WIN32
 #ifndef _MSWSOCK_
 #include <MSWSock.h>
 #endif
 #pragma comment(lib, "ws2_32.lib")
-
+#endif
 
 AMODULE_API struct addrinfo*
 tcp_getaddrinfo(const char *netaddr, const char *port)
@@ -13,10 +14,10 @@ tcp_getaddrinfo(const char *netaddr, const char *port)
 	char ipaddr[BUFSIZ];
 	if (port != NULL) {
 		strcpy_s(ipaddr, netaddr);
-		if (port == INVALID_HANDLE_VALUE)
+		if (port == (void*)-1)
 			port = NULL;
 	} else if ((port = strchr(netaddr, ':')) != NULL) {
-		strncpy_s(ipaddr, sizeof(ipaddr), netaddr, port-netaddr);
+		strncpy(ipaddr, netaddr, max(sizeof(ipaddr),port-netaddr));
 		port += 1;
 	} else {
 		strcpy_s(ipaddr, netaddr);
@@ -74,7 +75,7 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 	tv.tv_sec = seconds;
 	tv.tv_usec = 0;
 
-	struct fd_set wfds;
+	fd_set wfds;
 	FD_ZERO(&wfds);
 	FD_SET(sock, &wfds);
 
@@ -84,7 +85,7 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 
 	// error checking
 	int error = 0;
-	int errorlen = sizeof(error);
+	socklen_t errorlen = sizeof(error);
 	ret = getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&error, &errorlen);
 	if ((ret != 0) || (error != 0))
 		return -EIO;

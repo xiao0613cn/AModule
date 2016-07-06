@@ -127,9 +127,6 @@ struct ARefsMsg {
 	int     pos;
 	int     type;
 	int     size;
-#ifdef __cplusplus
-	char*   data(void) { return this->buf->data + this->pos; }
-#endif
 };
 
 static inline void

@@ -146,10 +146,17 @@ static const pthread_t pthread_null = { 0 };
 #define _strnicmp    strncasecmp
 #endif
 #ifndef strcpy_s
-#define strcpy_s(dest, src)  strncpy(dest, sizeof(dest)-1, src)
+#define strcpy_s(dest, src)  strncpy(dest, src, sizeof(dest)-1)
+#endif
+#ifndef max
+#define max(a, b)    (((a) > (b)) ? (a) : (b))
+#endif
+#ifndef min
+#define min(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef SOCKET
 typedef int SOCKET;
+#define INVALID_SOCKET  -1
 #define closesocket(fd) close(fd)
 #endif
 #ifndef INFINITE
