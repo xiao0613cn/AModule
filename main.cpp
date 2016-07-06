@@ -11,7 +11,7 @@ DWORD async_test_tick;
 void async_test_callback(AOperator *asop, int result)
 {
 	TRACE("asop->timeout = %d, diff = %d, result = %d.\n",
-		asop->ao_ovlp.hEvent, GetTickCount()-async_test_tick, result);
+		(int)asop->ao_user, GetTickCount()-async_test_tick, result);
 }
 
 int async_test(void)
@@ -24,7 +24,7 @@ int async_test(void)
 
 	AOperator asop[20];
 	for (int ix = 0; ix < _countof(asop); ++ix) {
-		asop[ix].ao_ovlp.hEvent = (HANDLE)ix;
+		asop[ix].ao_user = (void*)ix;
 		asop[ix].callback = async_test_callback;
 		AOperatorPost(&asop[ix], at, async_test_tick+ix/2*diff*2);
 	}

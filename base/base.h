@@ -132,9 +132,11 @@ pthread_join(pthread_t tid, void **value_ptr) {
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <netdb.h>
 
 #include <pthread.h>
 static const pthread_t pthread_null = { 0 };
@@ -168,6 +170,9 @@ typedef int SOCKET;
 
 typedef unsigned long  u_long;
 typedef unsigned long  DWORD;
+typedef long long      LONGLONG;
+typedef unsigned long long ULONGLONG;
+typedef unsigned long long DWORDLONG;
 typedef unsigned int   UINT;
 typedef short          SHORT;
 typedef unsigned short WORD;
