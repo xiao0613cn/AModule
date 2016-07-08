@@ -176,7 +176,7 @@ static int SyncControlOpenStatus(SyncRequest *req, int &result)
 			return 0;
 
 	case stream_closing:
-		result = InterlockedDecrement(&sc->request_count);
+		result = InterlockedAdd(&sc->request_count, -1);
 		assert(result == 0);
 		result = sc->open_result;
 
@@ -223,7 +223,7 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 		sc->object.reqix_count = 1;
 	}
 
-	result = InterlockedIncrement(&sc->request_count);
+	result = InterlockedAdd(&sc->request_count, 1);
 	assert(result == 1);
 
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
@@ -365,7 +365,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 			return;
 	}
 
-	if (InterlockedDecrement(&sc->request_count) == 0) {
+	if (InterlockedAdd(&sc->request_count, -1) == 0) {
 		result = SyncControlDoClose(sc, req);
 		if (result != 0) {
 			msg = sc->close_msg;
@@ -476,7 +476,7 @@ static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 			if (req->from == NULL) {
 				assert(list_empty(&req->request_list));
 				req->from = msg;
-				result = InterlockedIncrement(&sc->request_count);
+				result = InterlockedAdd(&sc->request_count, 1);
 				assert(result > 1);
 			} else if (flag == Aiosync_RequestFront) {
 				list_add(&msg->entry, &req->request_list);
@@ -587,7 +587,7 @@ static int SyncControlClose(AObject *object, AMessage *msg)
 	}
 
 	sc->close_msg = msg;
-	if (InterlockedDecrement(&sc->request_count) != 0)
+	if (InterlockedAdd(&sc->request_count, -1) != 0)
 		return 0;
 
 	req = SyncRequestGet(sc, 0);

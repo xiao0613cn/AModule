@@ -128,6 +128,10 @@ pthread_join(pthread_t tid, void **value_ptr) {
 }
 #endif
 
+#ifndef InterlockedAdd
+#define InterlockedAdd(count, value)   (InterlockedExchangeAdd(count,value) + value)
+#endif
+
 #else //_WIN32
 
 #include <unistd.h>
@@ -157,7 +161,7 @@ static const pthread_t pthread_null = { 0 };
 #define min(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
 #ifndef SOCKET
-typedef int SOCKET;
+typedef int             SOCKET;
 #define INVALID_SOCKET  -1
 #define closesocket(fd) close(fd)
 #endif
@@ -194,13 +198,18 @@ Sleep(DWORD ms) {
 }
 
 static inline long
-InterlockedIncrement(long volatile *count) {
-	return __sync_add_and_fetch(count, 1);
+InterlockedAdd(long volatile *count, long value) {
+	return __sync_add_and_fetch(count, value);
 }
 
 static inline long
-InterlockedDecrement(long volatile *count) {
-	return __sync_add_and_fetch(count, -1);
+InterlockedCompareExchange(long volatile *count, long change, long compare) {
+	return __sync_val_compare_and_swap(count, compare, change);
+}
+
+static inline long
+InterlockedExchange(long volatile *count, long value) {
+	return __sync_lock_test_and_set(count, value);
 }
 
 

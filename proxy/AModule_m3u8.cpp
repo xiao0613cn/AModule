@@ -224,7 +224,7 @@ static void M3U8ProxyRelease(AObject *object)
 	release_s(p->file_outctx, avformat_close_output, NULL);
 
 	free(p);
-	long ret = InterlockedDecrement(&alloc_count);
+	long ret = InterlockedAdd(&alloc_count, -1);
 	TRACE("m3u8 proxy alloc count = %d.\n", ret);
 }
 
@@ -249,7 +249,7 @@ static int M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
 	p->file_inctx = NULL;
 	p->file_outctx = NULL;
 
-	InterlockedIncrement(&alloc_count);
+	InterlockedAdd(&alloc_count, 1);
 	*object = &p->object;
 	return 1;
 }

@@ -14,11 +14,14 @@ AThreadEnd(AThread *at);
 AMODULE_API int
 AThreadAbort(AThread *at);
 
-AMODULE_API int
 #ifdef _WIN32
+AMODULE_API int
 AThreadBind(AThread *at, HANDLE file);
 #else
+AMODULE_API int
 AThreadBind(AThread *at, AOperator *asop, uint32_t event);
+
+#define AThreadUnbind(asop)  AThreadBind(NULL, asop, 0)
 #endif
 
 AMODULE_API AThread*
@@ -43,9 +46,7 @@ struct AOperator {
 	struct {
 	int              ao_fd;
 	uint32_t         ao_events;
-	void           (*ao_recv)(AOperator *asop, int result);
-	void           (*ao_send)(AOperator *asop, int result);
-	void           (*ao_error)(AOperator *asop, int result);
+	AThread         *ao_thread;
 	};
 #endif
 	};
@@ -56,7 +57,7 @@ AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick);
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at);
+AOperatorSignal(AOperator *asop, AThread *at, int cancel);
 
 static inline int
 AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {

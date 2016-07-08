@@ -106,14 +106,14 @@ ARefsBufCreate(int size) {
 	return buf;
 }
 
-static inline int
+static inline long
 ARefsBufAddRef(ARefsBuf *buf) {
-	return InterlockedIncrement(&buf->refs);
+	return InterlockedAdd(&buf->refs, 1);
 }
 
-static inline int
+static inline long
 ARefsBufRelease(ARefsBuf *buf) {
-	int result = InterlockedDecrement(&buf->refs);
+	long result = InterlockedAdd(&buf->refs, -1);
 	if (result <= 0)
 		(buf->free)(buf);
 	return result;

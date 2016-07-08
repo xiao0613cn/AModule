@@ -30,9 +30,9 @@ int async_test(void)
 	}
 
 	Sleep(diff);
-	AOperatorSignal(&asop[5], at);
+	AOperatorSignal(&asop[5], at, 0);
 	Sleep(12*diff);
-	AOperatorSignal(&asop[18], at);
+	AOperatorSignal(&asop[18], at, 0);
 
 	getchar();
 	AThreadEnd(at);

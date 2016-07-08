@@ -109,7 +109,7 @@ static int PVDClientSendDone(AMessage *msg, int result)
 static int PVDProxySendDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
-	if (InterlockedDecrement(&p->reqcount) != 0)
+	if (InterlockedAdd(&p->reqcount, -1) != 0)
 		return 0;
 
 	SlicePop(&p->outbuf, p->inmsg.size);
@@ -309,7 +309,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 			result = pvd->request(pvd, Aio_Input, &p->inmsg);
 			if (result == 0)
 				return 0;
-			if (InterlockedDecrement(&p->reqcount) != 0)
+			if (InterlockedAdd(&p->reqcount, -1) != 0)
 				return 0;
 			SlicePop(&p->outbuf, p->inmsg.size);
 			if (p->outmsg.size == 0)

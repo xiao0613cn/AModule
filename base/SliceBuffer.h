@@ -165,11 +165,11 @@ static RTBuffer* RTBufferAlloc(int size) {
 }
 
 static long RTBufferAddRef(RTBuffer *buffer) {
-	return InterlockedIncrement(&buffer->refs);
+	return InterlockedAdd(&buffer->refs, 1);
 }
 
 static void RTBufferFree(RTBuffer *buffer) {
-	long ret = InterlockedDecrement(&buffer->refs);
+	long ret = InterlockedAdd(&buffer->refs, -1);
 	if (ret <= 0)
 		(buffer->free)(buffer);
 }

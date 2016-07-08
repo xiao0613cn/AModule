@@ -26,14 +26,14 @@ AObjectInit(AObject *object, AModule *module);
 AMODULE_API int
 AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module);
 
-static inline int
+static inline long
 AObjectAddRef(AObject *object) {
-	return InterlockedIncrement(&object->count);
+	return InterlockedAdd(&object->count, 1);
 }
 
-static inline int
+static inline long
 AObjectRelease(AObject *object) {
-	int result = InterlockedDecrement(&object->count);
+	long result = InterlockedAdd(&object->count, -1);
 	if (result <= 0)
 		object->release(object);
 	return result;
