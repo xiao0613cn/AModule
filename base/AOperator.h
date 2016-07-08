@@ -1,10 +1,10 @@
 #ifndef _AOPERATOR_H_
 #define _AOPERATOR_H_
 
+typedef struct AThread AThread;
+typedef struct AOperator AOperator;
 
 //////////////////////////////////////////////////////////////////////////
-typedef struct AThread AThread;
-
 AMODULE_API int
 AThreadBegin(AThread **at, AThread *pool);
 
@@ -30,7 +30,6 @@ AThreadDefault(int ix);
 
 //////////////////////////////////////////////////////////////////////////
 #pragma warning(disable: 4201)
-typedef struct AOperator AOperator;
 struct AOperator {
 	void  (*callback)(AOperator *asop, int result);
 
