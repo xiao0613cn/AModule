@@ -16,6 +16,9 @@ void async_test_callback(AOperator *asop, int result)
 
 int main(void)
 {
+	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
+		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
+
 	AThread *at;
 	int result = AThreadBegin(&at, NULL);
 	TRACE("AThreadBegin(%p) = %d...\n", at, result);

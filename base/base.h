@@ -45,8 +45,12 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	fputs(outbuf, stdout);
 	return outpos;
 }
+#ifdef _WIN32
 #define TRACE2(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
 #define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
+#else
+#define TRACE2(fmt, args...)  DTRACE(__FILE__, __LINE__, fmt, ##args)
+#define TRACE(fmt, args...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##args)
 #endif
 
 #else //_DEBUG
