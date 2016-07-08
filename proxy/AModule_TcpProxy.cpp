@@ -293,6 +293,7 @@ static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;
 }
 
+#ifdef _WIN32
 static int TCPServerDoAcceptEx(TCPServer *server)
 {
 	server->prepare = TCPClientCreate(server);
@@ -340,6 +341,7 @@ static void TCPServerAcceptExDone(AOperator *sysop, int result)
 		AObjectRelease(&server->object);
 	}
 }
+#endif
 
 static int TCPServerOpen(AObject *object, AMessage *msg)
 {
@@ -382,6 +384,10 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	server->default_bridge = AOptionFind(server->option, "default_bridge");
 
 	AObjectAddRef(&server->object);
+#ifndef _WIN32
+	pthread_create(&server->thread, NULL, &TCPServerProcess, server);
+	return 1;
+#else
 	if (!server->async_tcp) {
 		pthread_create(&server->thread, NULL, &TCPServerProcess, server);
 		return 1;
@@ -401,6 +407,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	release_s(server->prepare, TCPClientRelease, NULL);
 	result = TCPServerDoAcceptEx(server);
 	return (result >= 0) ? 1 : result;
+#endif
 }
 
 static int TCPServerClose(AObject *object, AMessage *msg)
