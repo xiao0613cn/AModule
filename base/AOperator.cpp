@@ -168,7 +168,7 @@ static int work_thread_begin(void)
 #ifdef _WIN32
 	AThread *pool = work_thread[0];
 #else
-	AThread *poll = NULL;
+	AThread *pool = NULL;
 #endif
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadBegin(&work_thread[ix], pool);
@@ -195,7 +195,6 @@ AThreadBegin(AThread **p, AThread *pool)
 		return work_thread_begin();
 
 	AThread *at = new AThread();
-	*p = at;
 	at->attach = pool;
 
 #ifdef _WIN32
@@ -211,7 +210,17 @@ AThreadBegin(AThread **p, AThread *pool)
 		at->signal[1] = pool->signal[1];
 	} else {
 		at->epoll = epoll_create(32000);
-		socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal);
+		if (at->epoll < 0) {
+			delete at;
+			return -EFAULT;
+		}
+
+		if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
+			close(at->epoll);
+			delete at;
+			return -EFAULT;
+		}
+
 		at->bind_count = 0;
 		INIT_LIST_HEAD(&at->working_list);
 
@@ -229,6 +238,7 @@ AThreadBegin(AThread **p, AThread *pool)
 		INIT_LIST_HEAD(&at->pending_list);
 	}
 
+	*p = at;
 	at->running = 1;
 	pthread_create(&at->thread, NULL, &AThreadRun, at);
 	return 1;

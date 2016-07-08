@@ -14,10 +14,11 @@ void async_test_callback(AOperator *asop, int result)
 		(int)asop->ao_user, GetTickCount()-async_test_tick, result);
 }
 
-int async_test(void)
+int main(void)
 {
 	AThread *at;
-	AThreadBegin(&at, NULL);
+	int result = AThreadBegin(&at, NULL);
+	TRACE("AThreadBegin(%p) = %d...\n", at, result);
 
 	async_test_tick = GetTickCount();
 	int diff = 100;
@@ -42,7 +43,7 @@ int async_test(void)
 	return 0;
 }
 
-
+#if 0
 extern AModule TCPModule;
 extern AModule TCPServerModule;
 extern AModule AsyncTcpModule;
@@ -391,4 +392,5 @@ BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
 	return TRUE;
 }
 
+#endif
 #endif
