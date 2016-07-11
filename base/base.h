@@ -16,55 +16,6 @@
 #define _align_8bytes(x) (((x)+7)&~7)
 #endif
 
-#ifdef _DEBUG
-#include <assert.h>
-
-#ifndef TRACE
-static int
-DTRACE(const char *f, int l, const char *fmt, ...)
-{
-	char outbuf[BUFSIZ];
-	time_t t = time(NULL);
-	struct tm *tm = localtime(&t);
-
-	int outpos = sprintf_s(
-		outbuf, BUFSIZ,
-		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| [%s]: ",
-		1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday,
-		tm->tm_hour, tm->tm_min, tm->tm_sec,
-		l, f);
-
-	va_list ap;
-	va_start(ap, fmt);
-	outpos += vsprintf_s(outbuf+outpos, BUFSIZ-outpos, fmt, ap);
-	va_end(ap);
-
-#ifdef _WIN32
-	OutputDebugStringA(outbuf);
-#endif
-	fputs(outbuf, stdout);
-	return outpos;
-}
-#ifdef _WIN32
-#define TRACE2(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
-#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
-#else
-#define TRACE2(fmt, args...)  DTRACE(__FILE__, __LINE__, fmt, ##args)
-#define TRACE(fmt, args...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##args)
-#endif
-
-#else //_DEBUG
-
-#ifndef assert
-#define assert(x)  (void)(0)
-#endif
-
-#ifndef TRACE
-#define TRACE(fmt, ...) (void)(0)
-#endif
-
-#endif //_DEBUG
-
 #ifdef _WIN32
 
 #ifndef _INC_PROCESS
@@ -134,6 +85,9 @@ pthread_join(pthread_t tid, void **value_ptr) {
 
 #ifndef InterlockedAdd
 #define InterlockedAdd(count, value)   (InterlockedExchangeAdd(count,value) + value)
+#endif
+#ifndef snprintf
+#define snprintf  _snprintf
 #endif
 
 #else //_WIN32
@@ -216,10 +170,62 @@ InterlockedExchange(long volatile *count, long value) {
 	return __sync_lock_test_and_set(count, value);
 }
 
-
 #endif //_WIN32
 
 #define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
+
+#ifdef _DEBUG
+#include <assert.h>
+#include <stdarg.h>
+
+#ifndef TRACE
+static int
+DTRACE(const char *f, int l, const char *fmt, ...)
+{
+	char outbuf[BUFSIZ];
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+
+	int outpos = snprintf(
+		outbuf, BUFSIZ,
+		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| [%s]: ",
+		1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday,
+		tm->tm_hour, tm->tm_min, tm->tm_sec,
+		l, f);
+
+	va_list ap;
+	va_start(ap, fmt);
+	outpos += vsnprintf(outbuf+outpos, BUFSIZ-outpos, fmt, ap);
+	va_end(ap);
+
+#ifdef _WIN32
+	OutputDebugStringA(outbuf);
+#endif
+	fputs(outbuf, stdout);
+	return outpos;
+}
+
+#ifdef _WIN32
+#define TRACE2(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
+#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
+#else
+#define TRACE2(fmt, args...)  DTRACE(__FILE__, __LINE__, fmt, ##args)
+#define TRACE(fmt, args...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##args)
+#endif
+#endif //TRACE
+
+#else //_DEBUG
+
+#ifndef assert
+#define assert(x)  (void)(0)
+#endif
+
+#ifndef TRACE
+#define TRACE2(fmt, ...)  (void)(0)
+#define TRACE(fmt, ...)  (void)(0)
+#endif
+
+#endif //_DEBUG
 
 
 #endif

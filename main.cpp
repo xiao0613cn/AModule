@@ -40,7 +40,7 @@ int main(void)
 
 	getchar();
 	AThreadEnd(at);
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_WIN32)
 	_CrtDumpMemoryLeaks();
 #endif
 	return 0;
@@ -371,7 +371,7 @@ _return:
 	AModuleExit();
 	fgets(str, sizeof(str), stdin);
 	AThreadEnd(NULL);
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_WIN32)
 	_CrtDumpMemoryLeaks();
 #endif
 	return 0;
