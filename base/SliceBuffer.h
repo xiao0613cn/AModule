@@ -43,7 +43,7 @@ struct SliceBuffer {
 		this->buf = new char[len];
 		if (this->buf == NULL) {
 			delete [] ptr;
-			return -ERROR_OUTOFMEMORY;
+			return -ENOMEM;
 		}
 
 		this->siz = len;
