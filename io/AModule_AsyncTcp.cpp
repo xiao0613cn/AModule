@@ -242,11 +242,6 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 	tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
 	int result = AThreadBind(NULL, (HANDLE)tcp->sock);
 #else
-	int result = tcp_nonblock(tcp->sock, 1);
-	TRACE("tcp_nonblock(1) = %d.\n", result);
-	if (result != 0)
-		return -EIO;
-
 	tcp->send_ovlp.status = (msg ? op_pending : op_none);
 	tcp->send_ovlp.sysio.ao_fd = tcp->sock;
 
@@ -255,11 +250,10 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 	tcp->recv_ovlp.sysio.callback = &AsyncTcpCloseDone;
 	AObjectAddRef(&tcp->object);
 
-	result = AThreadBind(NULL, &tcp->send_ovlp.sysio, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
-	TRACE("AThreadBind() = %d.\n", result);
+	int result = AThreadBind(NULL, &tcp->send_ovlp.sysio, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
 	if (result < 0) {
 		AObjectRelease(&tcp->object);
-		return -EIO;
+		result = -EIO;
 	}
 #endif
 	return (result < 0 ? result : 1);
@@ -308,27 +302,22 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		return -EFAULT;
 	}
 
-	int result = AsyncTcpBind(tcp, msg);
-	if (result < 0) {
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-		return -EIO;
-	}
-
 #ifdef _WIN32
-	result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
+	int result = AsyncTcpBind(tcp, msg);
+	if (result >= 0)
+		result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
 	if (result > 0)
 		result = 0;
 #else
-	result = connect(tcp->sock, ai->ai_addr, ai->ai_addrlen);
-	TRACE("connect(%s) = %d, errno = %d.\n", addr->value, result, errno);
+	int result = tcp_nonblock(tcp->sock, 1);
+	if (result == 0)
+		result = connect(tcp->sock, ai->ai_addr, ai->ai_addrlen);
 
-	if ((result == 0) || (errno == EAGAIN)) {
-		result = 0;
+	if ((result != 0) && (errno != EINPROGRESS)) {
+		result = -EIO;
 	} else {
-		result = InterlockedCompareExchange(&tcp->send_ovlp.status, op_none, op_pending);
-		if (result == op_pending)
-			result = -EIO;
-		else
+		result = AsyncTcpBind(tcp, msg);
+		if (result >= 0)
 			result = 0;
 	}
 #endif
