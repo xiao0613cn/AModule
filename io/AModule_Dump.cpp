@@ -109,7 +109,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 
 	if (!dump->single_file && (req != NULL)) {
 		char file_name[512];
-		sprintf_s(file_name, "%s_%d.dmp", dump->file_name, reqix);
+		snprintf(file_name, sizeof(file_name), "%s_%d.dmp", dump->file_name, reqix);
 		req->file = fopen(file_name, "ba+");
 	}
 	return req;
