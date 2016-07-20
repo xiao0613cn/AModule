@@ -21,7 +21,9 @@ struct TCPServer {
 
 	int       io_family;
 	struct TCPClient *prepare;
+#ifdef _WIN32
 	LPFN_ACCEPTEX acceptex;
+#endif
 	AOperator sysio;
 };
 #define to_server(obj) container_of(obj, TCPServer, object)
@@ -211,7 +213,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 
 			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 			msg->data[msg->size] = '\0';
-			OutputDebugStringA(msg->data);
+			//OutputDebugStringA(msg->data);
 			fputs(msg->data, stdout);
 
 		case tcp_bridge_output:
@@ -246,7 +248,7 @@ static void* TCPServerProcess(void *p)
 {
 	TCPServer *server = to_server(p);
 	struct sockaddr addr;
-	int addrlen;
+	socklen_t addrlen;
 	SOCKET sock;
 
 	for ( ; ; ) {
@@ -290,7 +292,7 @@ static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 	extern AModule TCPServerModule;
 	AObjectInit(&server->object, &TCPServerModule);
 	server->sock = INVALID_SOCKET;
-	server->thread = NULL;
+	server->thread = pthread_null;
 	server->option = NULL;
 	server->prepare = NULL;
 
