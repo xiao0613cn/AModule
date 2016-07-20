@@ -122,6 +122,9 @@ static const pthread_t pthread_null = { 0 };
 typedef int             SOCKET;
 #define INVALID_SOCKET  -1
 #define closesocket(fd) close(fd)
+#define SD_RECEIVE      SHUT_RD
+#define SD_SEND         SHUT_WR
+#define SD_BOTH         SHUT_RDWR
 #endif
 #ifndef INFINITE
 #define INFINITE  -1

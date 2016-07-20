@@ -59,7 +59,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 
 	struct addrinfo *ai = tcp_getaddrinfo(addr->value, port?port->value:NULL);
 	if (ai == NULL) {
-		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", WSAGetLastError());
+		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", errno);
 		return -EIO;
 	}
 
@@ -162,8 +162,10 @@ static int TCPClose(AObject *object, AMessage *msg)
 
 static int TCPInit(AOption *option)
 {
+#ifdef _WIN32
 	WSADATA wsadata;
 	WSAStartup(WINSOCK_VERSION, &wsadata);
+#endif
 	return 1;
 }
 
