@@ -57,7 +57,9 @@ extern AModule PVDRTModule;
 extern AModule HTTPProxyModule;
 extern AModule PVDProxyModule;
 extern AModule DumpModule;
+#ifdef _WIN32
 extern AModule M3U8ProxyModule;
+#endif
 extern AModule EchoModule;
 
 
@@ -392,7 +394,7 @@ void test_proactive(AOption *option, bool reset_option)
 			if (result < 0)
 				break;
 
-			RecvMsg *rm = new RecvMsg;
+			RecvMsg *rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 			rm->msg.done = &proactive_done;
 			rm->op.callback = &proactive_wait;
 			rm->pvd = p;
@@ -438,7 +440,9 @@ int main(int argc, char* argv[])
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
 	AModuleRegister(&DumpModule);
+#ifdef _WIN32
 	AModuleRegister(&M3U8ProxyModule);
+#endif
 	AModuleRegister(&EchoModule);
 
 	char str[256];

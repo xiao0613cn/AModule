@@ -25,7 +25,7 @@ struct SliceBuffer {
 	inline int   ResizeCapacity(int len)
 	{
 		if (len == 0) {
-			delete [] this->buf;
+			free(ptr);
 			Init();
 			return 1;
 		}
@@ -40,15 +40,15 @@ struct SliceBuffer {
 		char *ptr = this->buf;
 		len = ((len+7) & ~7);
 
-		this->buf = new char[len];
+		this->buf = (char*)malloc(len);
 		if (this->buf == NULL) {
-			delete [] ptr;
+			free(ptr);
 			return -ENOMEM;
 		}
 
 		this->siz = len;
 		memcpy(this->buf, ptr+this->bgn, CurrentLen());
-		delete [] ptr;
+		free(ptr);
 
 		this->end = CurrentLen();
 		this->bgn = 0;
