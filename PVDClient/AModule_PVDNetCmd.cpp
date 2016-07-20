@@ -306,11 +306,11 @@ static int PVDGetOption(AObject *object, AOption *option)
 {
 	PVDClient *pvd = to_pvd(object);
 	if (_stricmp(option->name, "version") == 0) {
-		itoa(pvd->device2.byDVRType, option->value, 10);
+		sprintf(option->value, "%d", pvd->device2.byDVRType);
 		return 1;
 	}
 	if (_stricmp(option->name, "session_id") == 0) {
-		itoa(pvd->userid, option->value, 10);
+		sprintf(option->value, "%d", pvd->userid);
 		return 1;
 	}
 	if (_stricmp(option->name, "login_data") == 0) {
