@@ -272,7 +272,10 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		tcp->sock = (SOCKET)msg->data;
 		if (tcp->sock == INVALID_SOCKET)
 			return 1;
-
+#ifndef _WIN32
+		if (tcp_nonblock(tcp->sock, 1) != 0)
+			return -EIO;
+#endif
 		return AsyncTcpBind(tcp, NULL);
 	}
 
