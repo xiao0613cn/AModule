@@ -202,7 +202,7 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 	}
 }
 
-static int AsyncTcpOpenDone(AOperator *asop, int result)
+static void AsyncTcpOpenDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 	AsyncTcp *tcp = ovlp->tcp;
@@ -223,7 +223,7 @@ static int AsyncTcpOpenDone(AOperator *asop, int result)
 
 		result = InterlockedCompareExchange(&tcp->send_ovlp.status, op_none, op_pending);
 		if (result == op_pending) {
-			ovlp->callback = &AsyncTcpRequestDone;
+			ovlp->sysio.callback = &AsyncTcpRequestDone;
 			result = tcp->send_ovlp.msg->done(tcp->send_ovlp.msg, error);
 		}
 	}
@@ -296,7 +296,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 
 	struct addrinfo *ai = tcp_getaddrinfo(addr->value, port?port->value:NULL);
 	if (ai == NULL) {
-		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", WSAGetLastError());
+		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", errno);
 		return -EFAULT;
 	}
 
