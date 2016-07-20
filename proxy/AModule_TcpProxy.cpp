@@ -1,5 +1,10 @@
 #include "stdafx.h"
+#ifdef _WIN32
+#ifndef _MSWSOCK_
 #include <MSWSock.h>
+#endif
+#pragma comment(lib, "ws2_32.lib")
+#endif
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
