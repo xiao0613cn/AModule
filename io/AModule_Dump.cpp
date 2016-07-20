@@ -6,7 +6,7 @@ struct DumpObject;
 struct DumpReq {
 	int         reqix;
 	DumpObject *dump;
-	HANDLE      file;
+	FILE       *file;
 	BOOL        attach;
 	AMessage    msg;
 	AMessage   *from;
@@ -14,7 +14,7 @@ struct DumpReq {
 };
 struct DumpObject {
 	AObject  object;
-	HANDLE   file;
+	FILE    *file;
 	char     file_name[512];
 	BOOL     single_file;
 	AObject *io;
@@ -34,13 +34,13 @@ static void DumpRelease(AObject *object)
 		list_del_init(&req->entry);
 
 		if (!req->attach) {
-			release_s(req->file, CloseHandle, INVALID_HANDLE_VALUE);
+			release_s(req->file, fclose, NULL);
 		}
 		free(req);
 	}
 	pthread_mutex_destroy(&dump->req_mutex);
 
-	release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
+	release_s(dump->file, fclose, NULL);
 	release_s(dump->io, AObjectRelease, NULL);
 
 	free(dump);
@@ -54,7 +54,7 @@ static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 
 	extern AModule DumpModule;
 	AObjectInit(&dump->object, &DumpModule);
-	dump->file = INVALID_HANDLE_VALUE;
+	dump->file = NULL;
 	dump->file_name[0] = '\0';
 	dump->single_file = FALSE;
 	dump->io = NULL;
@@ -96,7 +96,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 			req->file = dump->file;
 			req->attach = TRUE;
 		} else {
-			req->file = INVALID_HANDLE_VALUE;
+			req->file = NULL;
 			req->attach = FALSE;
 		}
 		req->from = NULL;
@@ -110,8 +110,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 	if (!dump->single_file && (req != NULL)) {
 		char file_name[512];
 		sprintf_s(file_name, "%s_%d.dmp", dump->file_name, reqix);
-		req->file = CreateFileA(file_name, GENERIC_WRITE, FILE_SHARE_READ,
-		                        NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		req->file = fopen(file_name, "ba+");
 	}
 	return req;
 }
@@ -120,9 +119,8 @@ static void OnDumpRequest(DumpReq *req)
 {
 	AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
 
-	if (req->file != INVALID_HANDLE_VALUE) {
-		DWORD tx = 0;
-		WriteFile(req->file, req->msg.data, req->msg.size, &tx, NULL);
+	if (req->file != NULL) {
+		fwrite(req->msg.data, req->msg.size, 1, req->file);
 	} else {
 		TRACE("dump(%s): reqix = %d, type = %08x, size = %d.\n",
 			req->dump->file_name, req->reqix, req->msg.type, req->msg.size);
@@ -162,12 +160,11 @@ static int DumpOpen(AObject *object, AMessage *msg)
 		dump->single_file = atol(opt->value);
 
 	if (dump->single_file && (dump->file_name[0] != '\0')) {
-		release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
+		release_s(dump->file, fclose, NULL);
 
-		dump->file = CreateFileA(dump->file_name, GENERIC_WRITE, FILE_SHARE_READ,
-		                         NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (dump->file == INVALID_HANDLE_VALUE) {
-			TRACE("dump(%s): create file error = %d.\n", dump->file_name, GetLastError());
+		dump->file = fopen(dump->file_name, "ba+");
+		if (dump->file == NULL) {
+			TRACE("dump(%s): create file error = %d.\n", dump->file_name, errno);
 		}
 	}
 
@@ -191,6 +188,30 @@ static int DumpOpen(AObject *object, AMessage *msg)
 		OnDumpOpen(dump, req);
 	}
 	return result;
+}
+
+static int DumpSetOption(AObject *object, AOption *option)
+{
+	DumpObject *dump = to_dump(object);
+	if (dump->io == NULL)
+		return -ENOENT;
+
+	if (dump->io->setopt == NULL)
+		return -ENOSYS;
+
+	return dump->io->setopt(dump->io, option);
+}
+
+static int DumpGetOption(AObject *object, AOption *option)
+{
+	DumpObject *dump = to_dump(object);
+	if (dump->io == NULL)
+		return -ENOENT;
+
+	if (dump->io->getopt == NULL)
+		return -ENOSYS;
+
+	return dump->io->getopt(dump->io, option);
 }
 
 static int DumpRequestDone(AMessage *msg, int result)
@@ -231,7 +252,7 @@ static int DumpClose(AObject *object, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
 	if (msg != NULL) {
-		release_s(dump->file, CloseHandle, INVALID_HANDLE_VALUE);
+		release_s(dump->file, fclose, NULL);
 	}
 	return dump->io->close(dump->io, msg);
 }
@@ -246,8 +267,8 @@ AModule DumpModule = {
 	NULL,
 	2,
 	&DumpOpen,
-	NULL,
-	NULL,
+	&DumpSetOption,
+	&DumpGetOption,
 	&DumpRequest,
 	&DumpCancel,
 	&DumpClose,
