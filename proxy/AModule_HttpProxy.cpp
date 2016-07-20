@@ -38,6 +38,7 @@ struct HTTPProxy {
 
 	AMessage  outmsg;
 	char      outdata[2048];
+	AOperator asop;
 };
 #define to_proxy(obj) container_of(obj, HTTPProxy, object)
 #define from_inmsg(msg) container_of(msg, HTTPProxy, inmsg)
@@ -111,11 +112,10 @@ static int HTTPProxyOutputTo(AMessage *msg, int result)
 	return result;
 }
 
-static DWORD WINAPI HTTPProxy_OutputTo_InputFrom(void *p)
+static void HTTPProxy_OutputTo_InputFrom(AOperator *asop, int result)
 {
-	HTTPProxy *proxy = to_proxy(p);
-	int result = HTTPProxyInputFrom(&proxy->outmsg, 1);
-	return result;
+	HTTPProxy *proxy = container_of(asop, HTTPProxy, asop);
+	result = HTTPProxyInputFrom(&proxy->outmsg, 1);
 }
 
 static int HTTPProxyOutputFrom(AMessage *msg, int result);
@@ -168,13 +168,14 @@ static void HTTPProxy_OutputFrom_InputTo(HTTPProxy *proxy)
 	proxy->openmsg = NULL;
 
 	AObjectAddRef(&proxy->object);
-	QueueUserWorkItem(HTTPProxy_OutputTo_InputFrom, &proxy->object, 0);
+	proxy->asop.callback = &HTTPProxy_OutputTo_InputFrom;
+	AOperatorTimewait(&proxy->asop, NULL, 0);
 
 	AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
 	AMsgCopy(&proxy->inmsg, msg->type, msg->data, msg->size);
 
 	proxy->inmsg.data[proxy->inmsg.size] = '\0';
-	OutputDebugStringA(proxy->inmsg.data);
+	fputs(proxy->inmsg.data, stdout);
 
 	AObjectAddRef(&proxy->object);
 	HTTPProxyOutputFrom(&proxy->inmsg, 1);
