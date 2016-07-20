@@ -25,7 +25,7 @@ struct SliceBuffer {
 	inline int   ResizeCapacity(int len)
 	{
 		if (len == 0) {
-			free(ptr);
+			free(this->buf);
 			Init();
 			return 1;
 		}

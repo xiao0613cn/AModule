@@ -243,6 +243,7 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 	int result = AThreadBind(NULL, (HANDLE)tcp->sock);
 #else
 	int result = tcp_nonblock(tcp->sock, 1);
+	TRACE("tcp_nonblock(1) = %d.\n", result);
 	if (result != 0)
 		return -EIO;
 
@@ -255,6 +256,7 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 	AObjectAddRef(&tcp->object);
 
 	result = AThreadBind(NULL, &tcp->send_ovlp.sysio, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
+	TRACE("AThreadBind() = %d.\n", result);
 	if (result < 0) {
 		AObjectRelease(&tcp->object);
 		return -EIO;
@@ -318,6 +320,8 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		result = 0;
 #else
 	result = connect(tcp->sock, ai->ai_addr, ai->ai_addrlen);
+	TRACE("connect(%s) = %d, errno = %d.\n", addr->value, result, errno);
+
 	if ((result == 0) || (errno == EAGAIN)) {
 		result = 0;
 	} else {
