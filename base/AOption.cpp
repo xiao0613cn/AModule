@@ -18,9 +18,7 @@ AOptionRelease(AOption *option)
 AMODULE_API void
 AOptionInit(AOption *option, AOption *parent)
 {
-	option->name[0] = '\0';
-	option->value[0] = '\0';
-	option->extend = NULL;
+	memset(option, 0, sizeof(*option));
 	INIT_LIST_HEAD(&option->children_list);
 
 	option->parent = parent;
@@ -44,9 +42,9 @@ static void
 AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 {
 	if (!option->name[0]) {
-		strncpy(option->name, str, max(sizeof(option->name),len));
+		strncpy(option->name, str, min(sizeof(option->name)-1,len));
 	} else if (!option->value[0]) {
-		strncpy(option->value, str, max(sizeof(option->value),len));
+		strncpy(option->value, str, min(sizeof(option->value)-1,len));
 	}
 }
 

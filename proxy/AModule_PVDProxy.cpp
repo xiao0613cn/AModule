@@ -14,9 +14,14 @@ static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 static STRUCT_SDVR_DEVICEINFO devcfg_info;
 static STRUCT_SDVR_NETINFO netcfg_info;
 static STRUCT_SDVR_DEVICEINFO_EX devinfo_ex;
-DWORD  userid;
+static DWORD  userid;
 static DWORD rt_active = 0;
 static BOOL force_alarm = FALSE;
+
+static AOption *proactive_option = NULL;
+static AOption *proactive_io = NULL;
+static const char *proactive_prefix = "";
+static long volatile proactive_first = 0;
 
 AObject *rt = NULL;
 AMessage rt_msg = { 0 };
@@ -56,6 +61,8 @@ struct PVDProxy {
 	AMessage     *outfrom;
 	srsw_queue<AMessage,64> frame_queue;
 	AOperator timer;
+	pvdnet_head  null_cmd;
+	long volatile proactive_id;
 };
 #define to_proxy(obj) container_of(obj, PVDProxy, object)
 #define from_inmsg(msg) container_of(msg, PVDProxy, inmsg)
@@ -76,7 +83,7 @@ static void PVDProxyRelease(AObject *object)
 }
 static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 {
-	if ((pvd == NULL) || (parent == NULL))
+	if ((pvd == NULL) /*|| (parent == NULL)*/)
 		return -EFAULT;
 
 	PVDProxy *p = (PVDProxy*)malloc(sizeof(PVDProxy));
@@ -91,6 +98,7 @@ static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 	SliceInit(&p->outbuf);
 	p->reqcount = 0;
 	p->frame_queue.reset();
+	p->proactive_id = 0;
 
 	*object = &p->object;
 	return 1;
@@ -216,9 +224,9 @@ static int PVDProxyStreamDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
-		AMessage &frame = p->frame_queue.front();
 		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
 		p->frame_queue.get_front();
+
 		PVDProxySendStream(&p->timer, 1);
 	} else {
 		p->reqcount = -1;
@@ -231,6 +239,8 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 	PVDProxy *p = from_inmsg(msg);
 	if (result >= 0) {
 		p->frame_queue.reset();
+		p->outtick = GetTickCount();
+
 		AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 		p->outmsg.done = &PVDProxyRecvStream;
 
@@ -251,6 +261,60 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 	}
 	return result;
 }
+
+static int PVDProactiveRTPlay(AMessage *msg, int result)
+{
+	PVDProxy *p = from_inmsg(msg);
+	result = PVDProxyRTStream(msg, result);
+	AObjectRelease(&p->object);
+	return result;
+}
+
+static int PVDProactiveRTConnect(AMessage *msg, int result)
+{
+	PVDProxy *p = from_outmsg(msg);
+	if (result < 0) {
+		AObjectRelease(&p->object);
+		return result;
+	}
+
+	result = PVDCmdEncode(userid, &p->null_cmd, NET_SDVR_REAL_PLAY_EX, sizeof(long));
+	AMsgInit(&p->inmsg, AMsgType_Custom|NET_SDVR_REAL_PLAY_EX, (char*)&p->null_cmd, result);
+
+	p->inmsg.done = &PVDProactiveRTPlay;
+	p->outfrom = NULL;
+
+	result = p->client->request(p->client, Aio_Input, &p->inmsg);
+	if (result != 0)
+		PVDProactiveRTPlay(&p->inmsg, result);
+	return result;
+}
+
+static int PVDProactiveRTStream(PVDProxy *p)
+{
+	AObject *io;
+	int result = AObjectCreate(&io, NULL, proactive_io, NULL);
+	if (result < 0)
+		return result;
+
+	AObject *obj;
+	result = PVDProxyCreate(&obj, io, NULL);
+	AObjectRelease(io);
+	if (result < 0)
+		return result;
+
+	PVDProxy *p_rt; p_rt = to_proxy(obj);
+	p_rt->proactive_id = ((STRUCT_SDVR_REALPLAY_INITIATIVE*)(p->inmsg.data+sizeof(pvdnet_head)))->msgid;
+
+	AMsgInit(&p_rt->outmsg, AMsgType_Option, (char*)proactive_io, 0);
+	p_rt->outmsg.done = &PVDProactiveRTConnect;
+
+	result = p_rt->client->open(p_rt->client, &p_rt->outmsg);
+	if (result != 0)
+		result = PVDProactiveRTConnect(&p_rt->outmsg, result);
+	return result;
+}
+
 extern int PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg);
 static int PVDProxyDispatch(PVDProxy *p)
 {
@@ -285,13 +349,23 @@ static int PVDProxyDispatch(PVDProxy *p)
 			phead->uResult = 1;
 			p->inmsg.size = sizeof(pvdnet_head) + 0;
 			p->inmsg.done = &PVDProxyRTStream;
-			p->outtick = GetTickCount();
+
 			result = p->client->request(p->client, Aio_Input, &p->inmsg);
 			if (result != 0) {
 				p->outfrom = NULL;
 				result = PVDProxyRTStream(&p->inmsg, result);
 			}
 			return result;
+
+		case NET_SDVR_INITIATIVE_LOGIN:
+			SlicePop(&p->outbuf, p->inmsg.size);
+			continue;
+
+		case NET_SDVR_REAL_PLAY_EX:
+			PVDProactiveRTStream(p);
+			SlicePop(&p->outbuf, p->inmsg.size);
+			continue;
+
 		default:
 			assert(p->reqcount == 0);
 			InterlockedExchange(&p->reqcount, 2);
@@ -356,9 +430,79 @@ static int PVDProxyDispatch(PVDProxy *p)
 	return result;
 }
 
+static int PVDProactiveOpenStatus(PVDProxy *p, int result)
+{
+	if (p->outmsg.type != AMsgType_Option)
+		return 1;
+
+	if (p->proactive_id == 0)
+		p->proactive_id = InterlockedExchangeAdd(&proactive_first, 1);
+
+	SliceReset(&p->outbuf);
+	result = SliceResize(&p->outbuf, max(sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN),8192), 2048);
+	if (result < 0)
+		return result;
+
+	p->outmsg.type = AMsgType_Custom|NET_SDVR_INITIATIVE_LOGIN;
+	p->outmsg.data = SliceResPtr(&p->outbuf);
+	p->outmsg.size = PVDCmdEncode(userid, p->outmsg.data, NET_SDVR_INITIATIVE_LOGIN, sizeof(STRUCT_SDVR_INITIATIVE_LOGIN));
+
+	STRUCT_SDVR_INITIATIVE_LOGIN *login = (STRUCT_SDVR_INITIATIVE_LOGIN*)(p->outmsg.data + sizeof(pvdnet_head));
+	snprintf(login->sDVRID, sizeof(login->sDVRID), "%s%ld", proactive_prefix, p->proactive_id);
+	if (login_data.sSerialNumber[0] != '\0')
+		strcpy_s(login->sSerialNumber, login_data.sSerialNumber);
+	else
+		strcpy_s(login->sSerialNumber, (char*)devcfg_info.sSerialNumber);
+	login->byAlarmInPortNum = login_data.byAlarmInPortNum;
+	login->byAlarmOutPortNum = login_data.byAlarmOutPortNum;
+	login->byDiskNum = login_data.byDiskNum;
+	login->byProtocol = PROTOCOL_V3;
+	login->byChanNum = login_data.byChanNum;
+	login->byEncodeType = login_data.byStartChan;
+	memset(login->reserve, 0, sizeof(login->reserve));
+	strcpy_s(login->sDvrName, login_data.szDvrName);
+	memcpy(login->sChanName, login_data.szChanName, min(sizeof(login->sChanName), sizeof(login_data.szChanName)));
+
+	result = p->client->request(p->client, Aio_Input, &p->outmsg);
+	return result;
+}
+
+static int PVDProactiveOpenDone(AMessage *msg, int result)
+{
+	PVDProxy *p = from_outmsg(msg);
+	if (result >= 0)
+		result = PVDProactiveOpenStatus(p, result);
+	if (result != 0)
+		result = p->outfrom->done(p->outfrom, result);
+	return result;
+}
+
 static int PVDProxyOpen(AObject *object, AMessage *msg)
 {
 	PVDProxy *p = to_proxy(object);
+	if ((msg->data == NULL)
+	 && (msg->size == 0))
+	{
+		if (proactive_io == NULL)
+			return -EINVAL;
+
+		release_s(p->client, AObjectRelease, NULL);
+		int result = AObjectCreate(&p->client, NULL, proactive_io, NULL);
+		if (result < 0)
+			return result;
+
+		AMsgInit(&p->inmsg, AMsgType_Unknown, NULL, 0);
+		AMsgInit(&p->outmsg, AMsgType_Option, (char*)proactive_io, 0);
+		p->inmsg.done = &PVDProactiveOpenDone;
+		p->outmsg.done = &PVDProactiveOpenDone;
+
+		p->outfrom = msg;
+		result = p->client->open(p->client, &p->outmsg);
+		if (result > 0)
+			result = PVDProactiveOpenStatus(p, result);
+		return result;
+	}
+
 	if ((msg->type != AMsgType_Object)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
@@ -373,8 +517,12 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg)
 {
 	PVDProxy *p = to_proxy(object);
-	if (reqix != Aio_Input)
-		return -ENOSYS;
+	if (reqix != Aio_Input) {
+		if ((reqix != Aio_Output) || (p->proactive_id == 0))
+			return -ENOSYS;
+
+		return p->client->request(p->client, reqix, msg);
+	}
 
 	int result = SliceReserve(&p->outbuf, max(msg->size,1024), 2048);
 	if (result < 0)
@@ -392,6 +540,14 @@ static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg)
 	p->outfrom = msg;
 	result = PVDProxyDispatch(p);
 	return result;
+}
+
+static int PVDProxyClose(AObject *object, AMessage *msg)
+{
+	PVDProxy *p = to_proxy(object);
+	if (p->client == NULL)
+		return -ENOENT;
+	return p->client->close(p->client, msg);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -625,6 +781,17 @@ int PVDProxyInit(AOption *option)
 {
 	if (option == NULL)
 		return 0;
+
+	proactive_option = AOptionFind(option, "proactive");
+	if ((proactive_option != NULL) && (atoi(proactive_option->value) == 0))
+		proactive_option = NULL;
+	if (proactive_option != NULL) {
+		proactive_io = AOptionFind(proactive_option, "io");
+		proactive_prefix = AOptionChild(proactive_option, "prefix");
+		const char *first = AOptionChild(proactive_option, "first");
+		proactive_first = (first ? atoi(first) : 1);
+	}
+
 	if (_stricmp(option->name, "stream") != 0)
 		return 0;
 
@@ -732,5 +899,5 @@ AModule PVDProxyModule = {
 	NULL,
 	&PVDProxyRequest,
 	NULL,
-	NULL,
+	&PVDProxyClose,
 };

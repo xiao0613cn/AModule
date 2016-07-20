@@ -28,6 +28,14 @@ AOptionClone(AOption *option);
 AMODULE_API AOption*
 AOptionFind(AOption *option, const char *name);
 
+static inline char*
+AOptionChild(AOption *option, const char *name) {
+	AOption *child = AOptionFind(option, name);
+	if (child == NULL)
+		return NULL;
+	return child->value;
+}
+
 AMODULE_API void
 AOptionRelease(AOption *option);
 

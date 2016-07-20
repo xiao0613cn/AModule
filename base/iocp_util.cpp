@@ -17,7 +17,8 @@ tcp_getaddrinfo(const char *netaddr, const char *port)
 		if (port == (void*)-1)
 			port = NULL;
 	} else if ((port = strchr(netaddr, ':')) != NULL) {
-		strncpy(ipaddr, netaddr, max(sizeof(ipaddr),port-netaddr));
+		int len = min(sizeof(ipaddr)-1,port-netaddr);
+		strncpy(ipaddr, netaddr, len); ipaddr[len] = '\0';
 		port += 1;
 	} else {
 		strcpy_s(ipaddr, netaddr);

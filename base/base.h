@@ -174,8 +174,6 @@ InterlockedExchange(long volatile *count, long value) {
 
 #define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 
-#ifdef _DEBUG
-#include <assert.h>
 #include <stdarg.h>
 
 #ifndef TRACE
@@ -214,6 +212,8 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #endif
 #endif //TRACE
 
+#ifdef _DEBUG
+#include <assert.h>
 #else //_DEBUG
 
 #ifndef assert

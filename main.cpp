@@ -14,7 +14,7 @@ void async_test_callback(AOperator *asop, int result)
 		(int)asop->ao_user, GetTickCount()-async_test_tick, result);
 }
 
-int main(void)
+int async_test(void)
 {
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
@@ -38,7 +38,8 @@ int main(void)
 	Sleep(12*diff);
 	AOperatorSignal(&asop[18], at, 0);
 
-	getchar();
+	char buf[BUFSIZ];
+	fgets(buf, sizeof(buf), stdin);
 	AThreadEnd(at);
 #if defined(_DEBUG) && defined(_WIN32)
 	_CrtDumpMemoryLeaks();
@@ -46,7 +47,7 @@ int main(void)
 	return 0;
 }
 
-#if 0
+#if 1
 extern AModule TCPModule;
 extern AModule TCPServerModule;
 extern AModule AsyncTcpModule;
@@ -65,7 +66,7 @@ extern AModule EchoModule;
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: '192.168.90.222',"
+	"		address: '192.168.90.221',"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -76,6 +77,15 @@ static const char *pvd_path =
 	"	linkmode: 0,"
 	"	channel_count: ,"
 	"	m3u8_proxy: 0,"
+	"	proactive: 1 {"
+	"		io: async_tcp {"
+	"			address: '192.168.20.16',"
+	"			port: 8000,"
+	"			timeout: 5,"
+	"		},"
+	"		prefix: ,"
+	"		first: 100,"
+	"	},"
 	"}";
 
 struct RecvMsg {
@@ -169,6 +179,9 @@ void ResetOption(AOption *option)
 	value[0] = '\0';
 	if (fgets(value, sizeof(value), stdin) == NULL)
 		return;
+
+	size_t sep = strcspn(value, " \r\n");
+	value[sep] = '\0';
 
 	if (value[0] == ' ')
 		option->value[0] = '\0';
@@ -301,9 +314,104 @@ void test_proxy(AOption *option, bool reset_option)
 	release_s(tcp_server, AObjectRelease, NULL);
 }
 
+static const char *proactive_path =
+	"proactive: 1 {"
+	"	create: 1,"
+	"	first_delay: 5000,"
+	"	duration: 1000,"
+	"},";
+
+void proactive_wait(AOperator *asop, int result)
+{
+	RecvMsg *rm = container_of(asop, RecvMsg, op);
+
+	rm->reqix = 1;
+	AMsgInit(&rm->msg, AMsgType_Option, NULL, 0);
+
+	result = rm->pvd->open(rm->pvd, &rm->msg);
+	if (result != 0)
+		result = rm->msg.done(&rm->msg, result);
+}
+
+int proactive_done(AMessage *msg, int result)
+{
+	RecvMsg *rm = container_of(msg, RecvMsg, msg);
+
+	if (rm->reqix == 4) {
+		TRACE("proactive close done = %d.\n", result);
+		AOperatorTimewait(&rm->op, NULL, 15*1000);
+		return result;
+	}
+
+	if (rm->reqix == 1) {
+		TRACE("proactive open done = %d.\n", result);
+		if (result == 0)
+			result = 1;
+	}
+
+	while (result > 0) {
+		if (rm->reqix != 2) {
+			rm->reqix = 2;
+			AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		} else {
+			rm->reqix = 3;
+		}
+
+		result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
+		if (result <= 0)
+			break;
+
+		if (rm->reqix == 2)
+			result = rm->pvd->request(rm->pvd, Aio_Output, &rm->msg);
+	}
+
+	if (result < 0) {
+		TRACE("proactive request error = %d.\n", result);
+		rm->reqix = 4;
+		result = rm->pvd->close(rm->pvd, &rm->msg);
+		if (result != 0)
+			rm->msg.done(&rm->msg, result);
+	}
+	return result;
+}
+
+void test_proactive(AOption *option, bool reset_option)
+{
+	char str[BUFSIZ];
+	for ( ; ; ) {
+		if (reset_option)
+			ResetOption(option);
+
+		int delay = atoi(AOptionChild(option, "first_delay"));
+		int duration = atoi(AOptionChild(option, "duration"));
+
+		int create = atoi(AOptionChild(option, "create"));
+		for (int ix = 0; ix < create; ++ix) {
+			AObject *p = NULL;
+			int result = AObjectCreate(&p, NULL, NULL, "PVDProxy");
+			if (result < 0)
+				break;
+
+			RecvMsg *rm = new RecvMsg;
+			rm->msg.done = &proactive_done;
+			rm->op.callback = &proactive_wait;
+			rm->pvd = p;
+
+			result = AOperatorTimewait(&rm->op, NULL, delay+ix*duration);
+		}
+		AOptionChild(option, "create")[0] = '\0';
+		AOptionChild(option, "first_delay")[0] = '\0';
+
+		TRACE("input 'q' for quit...\n");
+		fgets(str, sizeof(str), stdin);
+		if (str[0] == 'q')
+			break;
+	}
+}
+
 int main(int argc, char* argv[])
 {
-	return async_test();
+	//async_test();
 
 	AOption *option = NULL;
 	int result;
@@ -344,12 +452,14 @@ int main(int argc, char* argv[])
 	if (option == NULL) {
 		reset_option = true;
 		for ( ; ; ) {
-			TRACE("input test module: pvd, tcp_server ...\n");
+			TRACE("input test module: pvd, tcp_server, proactive ...\n");
 			fgets(str, sizeof(str), stdin);
-			if (_stricmp(str,"pvd") == 0)
+			if (strnicmp_c(str, "pvd") == 0)
 				path = pvd_path;
-			else if (/*str[0] == '\0' || */_stricmp(str,"tcp_server") == 0)
+			else if (/*str[0] == '\0' || */strnicmp_c(str, "tcp_server") == 0)
 				path = proxy_path;
+			else if (strnicmp_c(str, "proactive") == 0)
+				path = proactive_path;
 			else if (str[0] == 'q')
 				goto _return;
 			else
@@ -359,15 +469,19 @@ int main(int argc, char* argv[])
 		result = AOptionDecode(&option, path);
 	}
 	if (result == 0) {
-		if (_stricmp(option->name, "stream") == 0)
+		if (_stricmp(option->name, "stream") == 0) {
 			test_pvd(option, reset_option);
-		else if (_stricmp(option->name, "server") == 0)
+		} else if (_stricmp(option->name, "server") == 0) {
 			test_proxy(option, reset_option);
-		else
+		} else if (_stricmp(option->name, "proactive") == 0) {
+			test_proactive(option, reset_option);
+		} else {
 			TRACE("unknown test module [%s: %s]...\n", option->name, option->value);
+		}
 	}
 	release_s(option, AOptionRelease, NULL);
 _return:
+	fgets(str, sizeof(str), stdin);
 	AModuleExit();
 	fgets(str, sizeof(str), stdin);
 	AThreadEnd(NULL);
