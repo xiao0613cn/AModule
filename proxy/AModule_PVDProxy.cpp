@@ -436,7 +436,7 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 		return 1;
 
 	if (p->proactive_id == 0)
-		p->proactive_id = InterlockedExchangeAdd(&proactive_first, 1);
+		p->proactive_id = InterlockedAdd(&proactive_first, 1) - 1;
 
 	SliceReset(&p->outbuf);
 	result = SliceResize(&p->outbuf, max(sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN),8192), 2048);
@@ -761,11 +761,11 @@ static void PVDDoOpen(AOperator *asop, int result)
 		AOptionInit(&opt, NULL);
 
 		strcpy_s(opt.name, "version");
-		_ltoa_s(login_data.byDVRType, opt.value, 10);
+		sprintf(opt.value, "%d", login_data.byDVRType);
 		sm->object->setopt(sm->object, &opt);
 
 		strcpy_s(opt.name, "session_id");
-		_ltoa_s(userid, opt.value, 10);
+		sprintf(opt.value, "%ld", userid);
 		sm->object->setopt(sm->object, &opt);
 	}
 

@@ -8,9 +8,9 @@
 #ifdef _WIN32
 #include "targetver.h"
 
-#ifdef _DEBUG
 #define _CRT_SECURE_NO_WARNINGS
 
+#ifdef _DEBUG
 #pragma warning(disable: 4985)
 #define _CRTDBG_MAP_ALLOC
 #define _CRTDBG_MAP_ALLOC_NEW

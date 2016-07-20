@@ -64,7 +64,7 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 	}
 
 	AOption *io_option = AOptionFind(option, "io");
-	int result = AObjectCreate(&rt->io, &rt->object, io_option, NULL);
+	AObjectCreate(&rt->io, &rt->object, io_option, NULL);
 
 	*object = &rt->object;
 	return 1;;//result;

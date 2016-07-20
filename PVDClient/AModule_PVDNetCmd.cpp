@@ -52,7 +52,7 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 	SliceInit(&pvd->outbuf);
 
 	AOption *io_opt = AOptionFind(option, "io");
-	int result = AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
+	AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
 
 	*object = &pvd->object;
 	return 1;//result;
@@ -310,7 +310,7 @@ static int PVDGetOption(AObject *object, AOption *option)
 		return 1;
 	}
 	if (_stricmp(option->name, "session_id") == 0) {
-		sprintf(option->value, "%d", pvd->userid);
+		sprintf(option->value, "%ld", pvd->userid);
 		return 1;
 	}
 	if (_stricmp(option->name, "login_data") == 0) {
