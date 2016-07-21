@@ -107,10 +107,10 @@ static void* AThreadRun(void *p)
 
 		DWORD new_timetick = GetTickCount();
 		max_timewait -= (new_timetick - cur_timetick);
-		cur_timetick = new_timetick;
 
+		cur_timetick = new_timetick;
 		if (max_timewait < 0)
-			max_timewait = 0;
+			continue;
 #ifdef _WIN32
 		DWORD tx = 0;
 		ULONG_PTR key = iocp_key_unknown;
