@@ -169,6 +169,13 @@ static int work_thread_begin(void)
 	AThread *pool = work_thread[0];
 #else
 	AThread *pool = NULL;
+
+	//SIGPIPE ignore
+	struct sigaction act;
+	act.sa_handler = SIG_IGN;
+
+	int result = sigaction(SIGPIPE, &act, NULL);
+	TRACE("SIGPIPE ignore, result = %d.\n", result);
 #endif
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadBegin(&work_thread[ix], pool);

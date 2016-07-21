@@ -94,6 +94,7 @@ pthread_join(pthread_t tid, void **value_ptr) {
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
