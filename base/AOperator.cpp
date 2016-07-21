@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include <map>
+#ifndef _WIN32
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif
 #include "AModule_API.h"
 
 enum iocp_key {
@@ -176,6 +180,17 @@ static int work_thread_begin(void)
 
 	int result = sigaction(SIGPIPE, &act, NULL);
 	TRACE("SIGPIPE ignore, result = %d.\n", result);
+
+	//
+	struct rlimit rl;
+	result = getrlimit(RLIMIT_NOFILE, &rl);
+
+	if (result == 0) {
+		rl.rlim_cur = rl.rlim_max;
+
+		result = setrlimit(RLIMIT_NOFILE, &rl);
+		TRACE("setrlimit(%d, %d) = %d.\n", RLIMIT_NOFILE, rl.rlim_cur, result);
+	}
 #endif
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadBegin(&work_thread[ix], pool);
