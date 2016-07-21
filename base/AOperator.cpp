@@ -326,7 +326,10 @@ AThreadBind(AThread *at, AOperator *asop, uint32_t event)
 	} else {
 		op = EPOLL_CTL_ADD;
 		if (at == NULL) {
-			int ix = min(1, _countof(work_thread)-1);
+			int ix = 1;
+			if (_countof(work_thread) <= 1)
+				ix = 0;
+
 			at = work_thread[ix];
 			while (++ix < _countof(work_thread)) {
 				if (work_thread[ix]->bind_count < at->bind_count)

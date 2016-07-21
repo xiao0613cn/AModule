@@ -4,6 +4,9 @@
 #include <MSWSock.h>
 #endif
 #pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/time.h>
+#include <sys/resource.h>
 #endif
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
@@ -260,8 +263,13 @@ static void* TCPServerProcess(void *p)
 		if (sock == INVALID_SOCKET) {
 			TRACE("accept(%d) failed, errno = %d.\n", server->port, errno);
 
-			if (errno == EINTR)
+			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
+
+			if ((errno == ENFILE) || (errno == EMFILE)) {
+				Sleep(1000);
+				continue;
+			}
 			break;
 		}
 
@@ -399,6 +407,18 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 
 	AObjectAddRef(&server->object);
 #ifndef _WIN32
+	struct rlimit rl = { RLIM_INFINITY, RLIM_INFINITY };
+
+	opt = AOptionFind(server->option, "rlim_cur");
+	if (opt != NULL)
+		rl.rlim_cur = atoi(opt->value);
+
+	opt = AOptionFind(server->option, "rlim_max");
+	if (opt != NULL)
+		rl.rlim_max = atoi(opt->value);
+
+	setrlimit(RLIMIT_NOFILE, &rl);
+
 	pthread_create(&server->thread, NULL, &TCPServerProcess, server);
 	return 1;
 #else
