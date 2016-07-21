@@ -12,6 +12,7 @@
 struct TCPServer {
 	AObject   object;
 	SOCKET    sock;
+	u_short   port;
 	pthread_t thread;
 	AOption  *option;
 
@@ -256,8 +257,13 @@ static void* TCPServerProcess(void *p)
 		addrlen = sizeof(addr);
 
 		sock = accept(server->sock, &addr, &addrlen);
-		if (sock == INVALID_SOCKET)
+		if (sock == INVALID_SOCKET) {
+			TRACE("accept(%d) failed, errno = %d.\n", server->port, errno);
+
+			if (errno == EINTR)
+				continue;
 			break;
+		}
 
 		TCPClient *client = TCPClientCreate(server);
 		if (client == NULL) {
@@ -373,7 +379,8 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (opt == NULL)
 		return -EINVAL;
 
-	server->sock = tcp_bind(server->io_family, IPPROTO_TCP, (u_short)atoi(opt->value));
+	server->port = (u_short)atoi(opt->value);
+	server->sock = tcp_bind(server->io_family, IPPROTO_TCP, server->port);
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
