@@ -111,6 +111,8 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 		} else {
 			result = recv(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, 0);
 		}
+		if (result == 0)
+			return -EIO;
 
 		if (result > 0) {
 			ovlp->pos += result;
@@ -119,19 +121,23 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 				ovlp->msg->size = ovlp->pos;
 				return ovlp->pos;
 			}
-			continue;
+		} else {
+			if ((errno == EINTR) || (errno == EWOULDBLOCK))
+				continue;
+			if (errno != EAGAIN) {
+				TRACE("%s(%d - %d) = %d, errno = %d.\n",
+					(ovlp==&tcp->send_ovlp)?"send":"recv",
+					ovlp->msg->size, ovlp->pos, result, errno);
+				return -EIO;
+			}
 		}
-
-		if (errno != EAGAIN)
-			return -EIO;
 
 		result = InterlockedCompareExchange(&ovlp->status, op_pending, op_none);
 		if (result == op_none)
 			return 0;
-		if (result == op_error)
+		if (result != op_signal)
 			return -EIO;
 
-		assert(result != op_pending);
 		result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
 		if (result != op_signal)
 			return -EIO;
@@ -141,12 +147,13 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 
 static void AsyncOvlpSignal(AsyncTcp *tcp, AsyncOvlp *ovlp)
 {
-	int result = InterlockedCompareExchange(&ovlp->status, op_signal, op_none);
-	if (result == op_pending)
-		result = InterlockedCompareExchange(&ovlp->status, op_none, op_pending);
+	int result = InterlockedExchange(&ovlp->status, op_signal);
 	assert(result != op_error);
 
 	if (result == op_pending) {
+		result = InterlockedExchange(&ovlp->status, op_none);
+		assert(result == op_signal);
+
 		result = AsyncOvlpProc(tcp, ovlp);
 		if (result != 0)
 			result = ovlp->msg->done(ovlp->msg, result);
@@ -167,9 +174,10 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 	result = tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, 1);
 }
 
-static void AsyncOvlpError(AsyncTcp *tcp)
+static void AsyncOvlpError(AsyncTcp *tcp, int events)
 {
 	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
+	TRACE("epoll event = %d, unbind = %d.\n", events, unbind);
 
 	int result = InterlockedExchange(&tcp->recv_ovlp.status, op_error);
 	if (result == op_pending)
@@ -192,7 +200,7 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 	assert(ovlp == &tcp->send_ovlp);
 
 	if (result & (EPOLLHUP|EPOLLERR)) {
-		AsyncOvlpError(tcp);
+		AsyncOvlpError(tcp, result);
 	} else {
 		if (result & EPOLLOUT)
 			AsyncOvlpSignal(tcp, &tcp->send_ovlp);
@@ -209,7 +217,7 @@ static void AsyncTcpOpenDone(AOperator *asop, int result)
 	assert(ovlp == &tcp->send_ovlp);
 
 	if (result & (EPOLLHUP|EPOLLERR)) {
-		AsyncOvlpError(tcp);
+		AsyncOvlpError(tcp, result);
 	}
 	else if (result & EPOLLOUT) { // checking connect
 		int error = 0;
