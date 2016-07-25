@@ -76,7 +76,6 @@ static int TCPOpen(AObject *object, AMessage *msg)
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result < 0) {
-		result = -EIO;
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	} else {
 		result = 1;

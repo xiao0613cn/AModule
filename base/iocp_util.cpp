@@ -76,11 +76,11 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 	tv.tv_sec = seconds;
 	tv.tv_usec = 0;
 
-	fd_set wfds;
+	struct fd_set wfds;
 	FD_ZERO(&wfds);
 	FD_SET(sock, &wfds);
 
-	ret = select(sock, NULL, &wfds, NULL, &tv);
+	ret = select(sock+1, NULL, &wfds, NULL, &tv);
 	if (ret <= 0)
 		return -EAGAIN;
 

@@ -122,7 +122,7 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 				return ovlp->pos;
 			}
 		} else {
-			if ((errno == EINTR) || (errno == EWOULDBLOCK))
+			if (errno == EINTR)
 				continue;
 			if (errno != EAGAIN) {
 				TRACE("%s(%d - %d) = %d, errno = %d.\n",
