@@ -76,7 +76,7 @@ tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds)
 	tv.tv_sec = seconds;
 	tv.tv_usec = 0;
 
-	struct fd_set wfds;
+	fd_set wfds;
 	FD_ZERO(&wfds);
 	FD_SET(sock, &wfds);
 
@@ -110,7 +110,13 @@ tcp_nonblock(SOCKET sock, u_long nonblocking)
 		//event_warn("fcntl(%d, F_GETFL)", fd);
 		return -1;
 	}
-	if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+
+	if (nonblocking)
+		flags |= O_NONBLOCK;
+	else
+		flags &= ~O_NONBLOCK;
+
+	if (fcntl(sock, F_SETFL, flags) == -1) {
 		//event_warn("fcntl(%d, F_SETFL)", fd);
 		return -1;
 	}
