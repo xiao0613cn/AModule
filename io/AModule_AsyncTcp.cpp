@@ -125,8 +125,8 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 			if (errno == EINTR)
 				continue;
 			if (errno != EAGAIN) {
-				TRACE("%s(%d - %d) = %d, errno = %d.\n",
-					(ovlp==&tcp->send_ovlp)?"send":"recv",
+				TRACE("%s(%d, %d - %d) = %d, errno = %d.\n",
+					(ovlp==&tcp->send_ovlp)?"send":"recv", tcp->sock,
 					ovlp->msg->size, ovlp->pos, result, errno);
 				return -EIO;
 			}
@@ -141,6 +141,9 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 		result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
 		if (result != op_signal)
 			return -EIO;
+		TRACE("%s(%d, %d - %d) retry again, errno = %d.\n",
+			(ovlp==&tcp->send_ovlp)?"send":"recv", tcp->sock,
+			ovlp->msg->size, ovlp->pos, result, errno);
 	}
 	return -EIO;
 }
@@ -169,6 +172,7 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
 	if (unbind >= 0)
 		AObjectRelease(&tcp->object);
+	TRACE("tcp close(%d) done, unbind = %d.\n", tcp->sock, unbind);
 
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	result = tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, 1);
@@ -177,7 +181,7 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 static void AsyncOvlpError(AsyncTcp *tcp, int events)
 {
 	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
-	TRACE("epoll event = %d, unbind = %d.\n", events, unbind);
+	TRACE("tcp epoll(%d) event = %d, unbind = %d.\n", tcp->sock, events, unbind);
 
 	int result = InterlockedExchange(&tcp->recv_ovlp.status, op_error);
 	if (result == op_pending)
@@ -201,13 +205,14 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 
 	if (result & (EPOLLHUP|EPOLLERR)) {
 		AsyncOvlpError(tcp, result);
-	} else {
-		if (result & EPOLLOUT)
-			AsyncOvlpSignal(tcp, &tcp->send_ovlp);
-
-		if (result & EPOLLIN)
-			AsyncOvlpSignal(tcp, &tcp->recv_ovlp);
+		return;
 	}
+
+	if (result & EPOLLOUT)
+		AsyncOvlpSignal(tcp, &tcp->send_ovlp);
+
+	if (result & EPOLLIN)
+		AsyncOvlpSignal(tcp, &tcp->recv_ovlp);
 }
 
 static void AsyncTcpOpenDone(AOperator *asop, int result)
@@ -218,8 +223,10 @@ static void AsyncTcpOpenDone(AOperator *asop, int result)
 
 	if (result & (EPOLLHUP|EPOLLERR)) {
 		AsyncOvlpError(tcp, result);
+		return;
 	}
-	else if (result & EPOLLOUT) { // checking connect
+	
+	if (result & (EPOLLIN|EPOLLOUT)) { // checking connect
 		int error = 0;
 		socklen_t errorlen = sizeof(error);
 

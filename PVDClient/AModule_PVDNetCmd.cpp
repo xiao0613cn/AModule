@@ -327,14 +327,15 @@ static int PVDOutputStatus(PVDClient *pvd)
 	do {
 		SlicePush(&pvd->outbuf, pvd->outmsg.size);
 		result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
-		if (result < 0) {
+		if (result < 0)
 			break;
-		}
-		if (result > 0) {
-			SlicePop(&pvd->outbuf, pvd->outmsg.size);
 
+		if (result > 0) {
 			pvdnet_head *phead = (pvdnet_head*)pvd->outmsg.data;
+			pvd->userid = phead->uUserId;
 			AMsgCopy(pvd->outfrom, AMsgType_Custom|phead->uCmd, pvd->outmsg.data, pvd->outmsg.size);
+
+			SlicePop(&pvd->outbuf, pvd->outmsg.size);
 			break;
 		}
 		result = PVDDoOutput(pvd);
