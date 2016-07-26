@@ -208,25 +208,23 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 }
 
 #ifdef _WIN32
-#define TRACE2(fmt, ...)   DTRACE(__FILE__, __LINE__, fmt, __VA_ARGS__)
 #define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
 #else
-#define TRACE2(fmt, args...)  DTRACE(__FILE__, __LINE__, fmt, ##args)
 #define TRACE(fmt, args...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##args)
 #endif
 #endif //TRACE
 
 #ifdef _DEBUG
 #include <assert.h>
+#define TRACE2     TRACE
 #else //_DEBUG
 
 #ifndef assert
 #define assert(x)  (void)(0)
 #endif
 
-#ifndef TRACE
+#ifndef TRACE2
 #define TRACE2(fmt, ...)  (void)(0)
-#define TRACE(fmt, ...)  (void)(0)
 #endif
 
 #endif //_DEBUG

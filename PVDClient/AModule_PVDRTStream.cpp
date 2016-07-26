@@ -105,7 +105,7 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 			return result;
 		}
 	} else {
-		//TRACE("%p: unsupport format: 0x%p.\n", rt, result);
+		TRACE2("%p: unsupport format: 0x%p.\n", rt, result);
 		//assert(FALSE);
 		return -EAGAIN;
 	}

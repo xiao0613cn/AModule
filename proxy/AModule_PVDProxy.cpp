@@ -190,6 +190,12 @@ static int PVDProxyRecvStream(AMessage *msg, int result)
 	}
 	return result;
 }
+static int PVDProxyCloseStream(AMessage *msg, int result)
+{
+	PVDProxy *p = from_inmsg(msg);
+	AObjectRelease(&p->object);
+	return result;
+}
 static void PVDProxySendStream(AOperator *asop, int result)
 {
 	PVDProxy *p = container_of(asop, PVDProxy, timer);
@@ -217,7 +223,12 @@ static void PVDProxySendStream(AOperator *asop, int result)
 	} while (result > 0);
 	if (result != 0) {
 		p->reqcount = -1;
-		AObjectRelease(&p->object);
+
+		AMsgInit(&p->inmsg, AMsgType_Unknown, NULL, 0);
+		p->inmsg.done = &PVDProxyCloseStream;
+		result = p->client->close(p->client, &p->inmsg);
+		if (result != 0)
+			result = p->inmsg.done(&p->inmsg, result);
 	}
 }
 static int PVDProxyStreamDone(AMessage *msg, int result)

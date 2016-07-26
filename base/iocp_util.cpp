@@ -49,13 +49,20 @@ tcp_bind(int family, int protocol, unsigned short port)
 	if (sock == INVALID_SOCKET)
 		return INVALID_SOCKET;
 
+	int opt = 1;
+	int result = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(&opt));
+	//if (result < 0) {
+	//	closesocket(sock);
+	//	return INVALID_SOCKET;
+	//}
+
 	sockaddr_in addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port = htons(port);
 
-	int result = bind(sock, (const sockaddr*)&addr, sizeof(sockaddr_in));
+	result = bind(sock, (const sockaddr*)&addr, sizeof(sockaddr_in));
 	if (result != 0) {
 		closesocket(sock);
 		return INVALID_SOCKET;
