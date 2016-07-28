@@ -141,9 +141,9 @@ static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 		result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
 		if (result != op_signal)
 			return -EIO;
-		TRACE2("%s(%d, %d - %d) retry again, errno = %d.\n",
-			(ovlp==&tcp->send_ovlp)?"send":"recv", tcp->sock,
-			ovlp->msg->size, ovlp->pos, result, errno);
+		//TRACE2("%s(%d, %d - %d) retry again, errno = %d.\n",
+		//	(ovlp==&tcp->send_ovlp)?"send":"recv", tcp->sock,
+		//	ovlp->msg->size, ovlp->pos, result, errno);
 	}
 	return -EIO;
 }

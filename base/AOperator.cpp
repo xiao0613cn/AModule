@@ -419,7 +419,7 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 		INIT_LIST_HEAD(&asop->ao_entry);
 	} else {
 		list_add_tail(&asop->ao_entry, &it->second->ao_entry);
-		TRACE2("combine list timewait = %d.\n", tick);
+		//TRACE2("combine list timewait = %d.\n", tick);
 	}
 	pthread_mutex_unlock(&at->mutex);
 
