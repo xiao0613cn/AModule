@@ -13,9 +13,6 @@
 #ifndef HLIST_POISON2
 #define HLIST_POISON2  ((struct hlist_node **) 0x00200200)
 #endif
-#ifndef container_of
-#define container_of(ptr, type, member)   ((type*)((char*)(ptr) - (char*)(&((type*)0)->member)))
-#endif
 
 /*
  * Simple doubly linked list implementation.

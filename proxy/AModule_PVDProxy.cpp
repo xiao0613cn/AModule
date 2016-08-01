@@ -805,6 +805,8 @@ int PVDProxyInit(AOption *option)
 
 	if (_stricmp(option->name, "stream") != 0)
 		return 0;
+	if (strcmp(option->value, "PVDClient") != 0)
+		return 0;
 
 	AOption *opt2 = AOptionFind(option, "force_alarm");
 	if (opt2 != NULL)

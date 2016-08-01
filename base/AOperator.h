@@ -33,11 +33,12 @@ AThreadDefault(int ix);
 struct AOperator {
 	void  (*callback)(AOperator *asop, int result);
 
+	AThread         *ao_thread;
 	union {
 	struct {
-	void            *ao_user;
 	DWORD            ao_tick;
-	struct list_head ao_entry;
+	struct rb_node   ao_tree;
+	struct list_head ao_list;
 	};
 #ifdef _WIN32
 	OVERLAPPED       ao_ovlp;
@@ -45,7 +46,6 @@ struct AOperator {
 	struct {
 	int              ao_fd;
 	uint32_t         ao_events;
-	AThread         *ao_thread;
 	};
 #endif
 	};

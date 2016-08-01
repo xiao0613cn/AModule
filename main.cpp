@@ -1,17 +1,15 @@
-// InterfaceMethod.cpp : 定义控制台应用程序的入口点。
-//
-
 #include "stdafx.h"
 #include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 
 DWORD async_test_tick;
+AOperator asop_list[20];
 
 void async_test_callback(AOperator *asop, int result)
 {
 	TRACE("asop->timeout = %d, diff = %d, result = %d.\n",
-		(int)asop->ao_user, GetTickCount()-async_test_tick, result);
+		int(asop-asop_list), GetTickCount()-async_test_tick, result);
 }
 
 int async_test(void)
@@ -26,17 +24,15 @@ int async_test(void)
 	async_test_tick = GetTickCount();
 	int diff = 100;
 
-	AOperator asop[20];
-	for (int ix = 0; ix < _countof(asop); ++ix) {
-		asop[ix].ao_user = (void*)ix;
-		asop[ix].callback = async_test_callback;
-		AOperatorPost(&asop[ix], at, async_test_tick+ix/2*diff*2);
+	for (int ix = 0; ix < _countof(asop_list); ++ix) {
+		asop_list[ix].callback = async_test_callback;
+		AOperatorPost(&asop_list[ix], at, async_test_tick+ix/2*diff*2);
 	}
 
 	Sleep(diff);
-	AOperatorSignal(&asop[5], at, 0);
+	AOperatorSignal(&asop_list[5], at, 0);
 	Sleep(12*diff);
-	AOperatorSignal(&asop[18], at, 0);
+	AOperatorSignal(&asop_list[18], at, 0);
 
 	char buf[BUFSIZ];
 	fgets(buf, sizeof(buf), stdin);
@@ -45,6 +41,76 @@ int async_test(void)
 	_CrtDumpMemoryLeaks();
 #endif
 	return 0;
+}
+
+struct myrb_node {
+	struct rb_node  rb_node;
+	int    key;
+};
+static inline int myrb_cmp(int key, myrb_node *data)
+{
+	if (key < data->key)
+		return -1;
+	if (key > data->key)
+		return 1;
+	return 0;
+}
+rb_tree_define(myrb_node, rb_node, int, myrb_cmp)
+
+void rbtree_test()
+{
+	srand(rand());
+	struct rb_root root;
+	INIT_RB_ROOT(&root);
+
+	myrb_node *r;
+	int test_count = 20000;
+	int insert_count = 0;
+	int search_count = test_count*1000;
+
+	for (int ix = 0; ix < test_count; ++ix) {
+		r = (myrb_node*)malloc(sizeof(myrb_node));
+		r->key = rand();
+
+		int result = rb_insert_myrb_node(&root, r, r->key);
+		if (!result)
+			free(r);
+		else
+			++insert_count;
+	}
+	TRACE("rbtree insert = %d.\n", insert_count);
+
+	DWORD tick = GetTickCount();
+	for (int ix = 0; ix < search_count; ++ix) {
+		r = rb_search_myrb_node(&root, ix);
+	}
+	TRACE("rbtree search %d times, tick = %d.\n", search_count, GetTickCount()-tick);
+
+	//
+	/*std::map<int, myrb_node> map;
+	myrb_node r2;
+
+	insert_count = 0;
+	for (int ix = 0; ix < test_count; ++ix) {
+		r2.key = rand();
+		if (map.insert(std::make_pair(r2.key, r2)).second)
+			++insert_count;
+	}
+	TRACE("map<int> insert = %d, size = %d.\n", insert_count, map.size());
+
+	tick = GetTickCount();
+	for (int ix = 0; ix < search_count; ++ix) {
+		map.find(ix);
+	}
+	TRACE("map<int> search %d times, tick = %d.\n", search_count, GetTickCount()-tick);*/
+
+	while (!RB_EMPTY_ROOT(&root)) {
+		r = rb_entry(rb_first(&root), myrb_node, rb_node);
+
+		rb_erase(&r->rb_node, &root);
+		free(r);
+	}
+	getchar();
 }
 
 #if 1
@@ -414,6 +480,7 @@ void test_proactive(AOption *option, bool reset_option)
 int main(int argc, char* argv[])
 {
 	//async_test();
+	rbtree_test();
 
 	AOption *option = NULL;
 	int result;

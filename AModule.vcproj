@@ -392,6 +392,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\rbtree.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.cpp"
 				>
 				<FileConfiguration
@@ -694,6 +698,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\rbtree.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\samplefmt.h"
 				>
 			</File>
@@ -754,11 +762,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
@@ -766,7 +774,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File

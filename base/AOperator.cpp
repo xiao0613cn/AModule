@@ -12,13 +12,11 @@ enum iocp_key {
 	iocp_key_sysio,
 };
 
-struct AOperatorTimewaitCompare {
-bool operator()(const DWORD left, const DWORD right) const
+static inline int AOperatorTimewaitCompare(DWORD tick, AOperator *asop)
 {
-	return (int(left-right) < 0);
+	return int(tick - asop->ao_tick);
 }
-};
-typedef std::map<DWORD, AOperator*, AOperatorTimewaitCompare> TimewaitMap;
+rb_tree_define(AOperator, ao_tree, DWORD, AOperatorTimewaitCompare)
 
 struct AThread {
 	int volatile     running;
@@ -35,7 +33,7 @@ struct AThread {
 	struct list_head working_list;
 #endif
 	pthread_mutex_t  mutex;
-	TimewaitMap      waiting_list;
+	struct rb_root   waiting_tree;
 	struct list_head pending_list;
 };
 
@@ -53,27 +51,27 @@ static int AThreadCheckTimewait(AThread *at)
 	pthread_mutex_lock(&at->mutex);
 	DWORD curtick = GetTickCount();
 
-	while (!at->waiting_list.empty()) {
-		TimewaitMap::iterator it = at->waiting_list.begin();
+	while (!RB_EMPTY_ROOT(&at->waiting_tree)) {
+		asop = rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree);
 
-		int diff = int(curtick - it->first);
-		if (diff < 1) {
+		int diff = AOperatorTimewaitCompare(curtick, asop);
+		if (diff < -1) {
 			max_timewait = -diff;
 			break;
 		}
 
-		list_for_each_entry(asop, &it->second->ao_entry, AOperator, ao_entry) {
+		list_for_each_entry(asop, &asop->ao_list, AOperator, ao_list) {
 			asop->ao_tick = 0;
 		}
-		it->second->ao_tick = 0;
+		asop->ao_tick = 0;
 
-		struct list_head *last = it->second->ao_entry.prev;
-		it->second->ao_entry.prev = timeout_list.prev;
-		timeout_list.prev->next = &it->second->ao_entry;
+		struct list_head *last = asop->ao_list.prev;
+		asop->ao_list.prev = timeout_list.prev;
+		timeout_list.prev->next = &asop->ao_list;
 
 		last->next = &timeout_list;
 		timeout_list.prev = last;
-		at->waiting_list.erase(it);
+		rb_erase(&asop->ao_tree, &at->waiting_tree);
 	}
 #ifndef _WIN32
 	list_splice_init(&at->working_list, &working_list);
@@ -81,14 +79,14 @@ static int AThreadCheckTimewait(AThread *at)
 	pthread_mutex_unlock(&at->mutex);
 
 	while (!list_empty(&timeout_list)) {
-		asop = list_first_entry(&timeout_list, AOperator, ao_entry);
-		list_del_init(&asop->ao_entry);
+		asop = list_first_entry(&timeout_list, AOperator, ao_list);
+		list_del_init(&asop->ao_list);
 		asop->callback(asop, 0);
 	}
 #ifndef _WIN32
 	while (!list_empty(&working_list)) {
-		asop = list_first_entry(&working_list, AOperator, ao_entry);
-		list_del_init(&asop->ao_entry);
+		asop = list_first_entry(&working_list, AOperator, ao_list);
+		list_del_init(&asop->ao_list);
 		asop->callback(asop, 1);
 	}
 #endif
@@ -138,7 +136,7 @@ static void* AThreadRun(void *p)
 			if (asop != NULL) {
 				asop->callback(asop, events[ix].events);
 			} else {
-				while (recv(at->signal[1], sigbuf, sizeof(at->sigbuf), 0) > 0)
+				while (recv(at->signal[1], sigbuf, sizeof(at->sigbuf), 0) == sizeof(at->sigbuf))
 					;
 				max_timewait = 0;
 			}
@@ -156,7 +154,7 @@ static inline void AThreadWakeup(AThread *at, AOperator *asop)
 	if (asop != NULL) {
 		pthread_mutex_lock(&at->mutex);
 		int first = list_empty(&at->working_list);
-		list_add_tail(&asop->ao_entry, &at->working_list);
+		list_add_tail(&asop->ao_list, &at->working_list);
 		pthread_mutex_unlock(&at->mutex);
 		if (!first)
 			return;
@@ -216,7 +214,7 @@ AThreadBegin(AThread **p, AThread *pool)
 	if (p == NULL)
 		return work_thread_begin();
 
-	AThread *at = new AThread();
+	AThread *at = (AThread*)malloc(sizeof(AThread));
 	at->attach = pool;
 
 #ifdef _WIN32
@@ -257,6 +255,7 @@ AThreadBegin(AThread **p, AThread *pool)
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
+		INIT_RB_ROOT(&at->waiting_tree);
 		INIT_LIST_HEAD(&at->pending_list);
 	}
 
@@ -276,7 +275,7 @@ AThreadEnd(AThread *at)
 	pthread_join(at->thread, NULL);
 
 	if (at->attach != NULL) {
-		delete at;
+		free(at);
 		return 1;
 	}
 #ifdef _WIN32
@@ -289,24 +288,24 @@ AThreadEnd(AThread *at)
 	pthread_mutex_destroy(&at->mutex);
 
 	AOperator *asop;
-	while (!at->waiting_list.empty()) {
-		TimewaitMap::iterator it = at->waiting_list.begin();
+	while (!RB_EMPTY_ROOT(&at->waiting_tree)) {
+		asop = rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree);
 
-		while (!list_empty(&it->second->ao_entry)) {
-			asop = list_first_entry(&it->second->ao_entry, AOperator, ao_entry);
-			list_del_init(&asop->ao_entry);
-			asop->callback(asop, -EINTR);
+		while (!list_empty(&asop->ao_list)) {
+			AOperator *asop2 = list_first_entry(&asop->ao_list, AOperator, ao_list);
+			list_del_init(&asop2->ao_list);
+			asop2->callback(asop2, -EINTR);
 		}
 
-		it->second->callback(it->second, -EINTR);
-		at->waiting_list.erase(it);
-	}
-	while (!list_empty(&at->pending_list)) {
-		asop = list_first_entry(&at->pending_list, AOperator, ao_entry);
-		list_del_init(&asop->ao_entry);
+		rb_erase(&asop->ao_tree, &at->waiting_tree);
 		asop->callback(asop, -EINTR);
 	}
-	delete at;
+	while (!list_empty(&at->pending_list)) {
+		asop = list_first_entry(&at->pending_list, AOperator, ao_list);
+		list_del_init(&asop->ao_list);
+		asop->callback(asop, -EINTR);
+	}
+	free(at);
 	return 1;
 }
 
@@ -403,22 +402,23 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 
 	if (tick == INFINITE) {
 		pthread_mutex_lock(&at->mutex);
-		list_add_tail(&asop->ao_entry, &at->pending_list);
+		list_add_tail(&asop->ao_list, &at->pending_list);
 		pthread_mutex_unlock(&at->mutex);
 		return 0;
 	}
 
 	pthread_mutex_lock(&at->mutex);
-	TimewaitMap::iterator it = at->waiting_list.find(asop->ao_tick);
-	if (at->waiting_list.empty()
-	 || ((it == at->waiting_list.end()) && int(asop->ao_tick-at->waiting_list.begin()->first) < 0))
+	AOperator *node = rb_search_AOperator(&at->waiting_tree, asop->ao_tick);
+
+	if (RB_EMPTY_ROOT(&at->waiting_tree)
+	 || ((node == NULL) && (AOperatorTimewaitCompare(asop->ao_tick, node) < 0)))
 		tick = 0;
 
-	if ((it == at->waiting_list.end()) || (it->first != asop->ao_tick)) {
-		at->waiting_list.insert(std::make_pair(asop->ao_tick, asop));
-		INIT_LIST_HEAD(&asop->ao_entry);
+	if ((node == NULL) || (node->ao_tick != asop->ao_tick)) {
+		rb_insert_AOperator(&at->waiting_tree, asop, asop->ao_tick);
+		INIT_LIST_HEAD(&asop->ao_list);
 	} else {
-		list_add_tail(&asop->ao_entry, &it->second->ao_entry);
+		list_add_tail(&asop->ao_list, &node->ao_list);
 		//TRACE2("combine list timewait = %d.\n", tick);
 	}
 	pthread_mutex_unlock(&at->mutex);
@@ -441,21 +441,26 @@ AOperatorSignal(AOperator *asop, AThread *at, int cancel)
 	int signal = (asop->ao_tick != 0);
 	if (asop->ao_tick == INFINITE) {
 		asop->ao_tick = 0;
-		list_del_init(&asop->ao_entry);
+		list_del_init(&asop->ao_list);
 	}
 	else if (asop->ao_tick != 0) {
-		TimewaitMap::iterator it = at->waiting_list.find(asop->ao_tick);
-		if (it == at->waiting_list.end()) {
+		AOperator *node = rb_search_AOperator(&at->waiting_tree, asop->ao_tick);
+		if (node == NULL) {
 			assert(0);
 			signal = 0;
-		} else if (asop != it->second) {
-			assert(!list_empty(&asop->ao_entry));
-			list_del_init(&asop->ao_entry);
-		} else if (list_empty(&asop->ao_entry)) {
-			at->waiting_list.erase(it);
-		} else {
-			it->second = list_first_entry(&asop->ao_entry, AOperator, ao_entry);
-			list_del_init(&asop->ao_entry);
+		}
+		else if (asop != node) {
+			assert(!list_empty(&node->ao_list));
+			assert(!list_empty(&asop->ao_list));
+			list_del_init(&asop->ao_list);
+		}
+		else if (list_empty(&asop->ao_list)) {
+			rb_erase(&asop->ao_tree, &at->waiting_tree);
+		}
+		else {
+			node = list_first_entry(&asop->ao_list, AOperator, ao_list);
+			rb_replace_node(&asop->ao_tree, &node->ao_tree, &at->waiting_tree);
+			list_del_init(&asop->ao_list);
 		}
 		asop->ao_tick = 0;
 	}

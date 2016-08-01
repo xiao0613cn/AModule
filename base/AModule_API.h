@@ -35,6 +35,10 @@
 #include "list.h"
 #endif
 
+#ifndef _LINUX_RBTREE_H
+#include "rbtree.h"
+#endif
+
 #ifndef _IOCP_UTIL_H_
 #include "iocp_util.h"
 #endif

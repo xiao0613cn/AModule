@@ -11,9 +11,14 @@
 #ifndef _tostring
 #define _tostring(x) #x
 #endif
-
 #ifndef _align_8bytes
 #define _align_8bytes(x) (((x)+7)&~7)
+#endif
+#ifndef container_of
+#define container_of(ptr, type, member)   ((type*)((char*)(ptr) - (char*)(&((type*)0)->member)))
+#endif
+#ifndef __attribute__
+#define __attribute__(x) 
 #endif
 
 #ifdef _WIN32
@@ -102,7 +107,7 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #include <netdb.h>
 
 #include <pthread.h>
-static const pthread_t pthread_null = { 0 };
+#define  pthread_null  0
 
 #ifndef _stricmp
 #define _stricmp     strcasecmp

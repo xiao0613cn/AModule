@@ -1,6 +1,6 @@
 
 CXX:= g++
-CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++
+CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive
 
 TAR:= ./build/AModule
 LIB_DEPEND:= -lpthread
