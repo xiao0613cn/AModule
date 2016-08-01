@@ -134,11 +134,11 @@ static inline void rb_set_color(struct rb_node *rb, int color)
 {
 	rb->rb_parent_color = (rb->rb_parent_color & ~1) | color;
 }
-#ifndef _WIN32
-#define RB_ROOT	(struct rb_root) { NULL, }
-#else
+//#ifndef _WIN32
+//#define RB_ROOT	(struct rb_root) { NULL, }
+//#else
 #define INIT_RB_ROOT(root)       ((root)->rb_node = NULL)
-#endif
+//#endif
 #define	rb_entry(ptr, type, member) container_of(ptr, type, member)
 
 #define RB_EMPTY_ROOT(root)	((root)->rb_node == NULL)
