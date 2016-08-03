@@ -33,7 +33,6 @@ AThreadDefault(int ix);
 struct AOperator {
 	void  (*callback)(AOperator *asop, int result);
 
-	AThread         *ao_thread;
 	union {
 	struct {
 	DWORD            ao_tick;
@@ -46,6 +45,7 @@ struct AOperator {
 	struct {
 	int              ao_fd;
 	uint32_t         ao_events;
+	AThread         *ao_thread;
 	};
 #endif
 	};

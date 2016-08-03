@@ -479,7 +479,7 @@ void test_proactive(AOption *option, bool reset_option)
 
 int main(int argc, char* argv[])
 {
-	//async_test();
+	async_test();
 	rbtree_test();
 
 	AOption *option = NULL;

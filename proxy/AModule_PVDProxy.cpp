@@ -369,8 +369,12 @@ static int PVDProxyDispatch(PVDProxy *p)
 			return result;
 
 		case NET_SDVR_INITIATIVE_LOGIN:
-			SlicePop(&p->outbuf, p->inmsg.size);
-			continue;
+			if (p->inmsg.size < sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN)) {
+				SlicePop(&p->outbuf, p->inmsg.size);
+				continue;
+			}
+			p->outmsg.size = sizeof(pvdnet_head);
+			break;
 
 		case NET_SDVR_REAL_PLAY_EX:
 			PVDProactiveRTStream(p);
@@ -429,6 +433,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:
+		case NET_SDVR_INITIATIVE_LOGIN:
 			break;
 		default:
 			assert(FALSE);

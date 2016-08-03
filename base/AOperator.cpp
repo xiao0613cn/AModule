@@ -60,8 +60,9 @@ static int AThreadCheckTimewait(AThread *at)
 			break;
 		}
 
-		list_for_each_entry(asop, &asop->ao_list, AOperator, ao_list) {
-			asop->ao_tick = 0;
+		AOperator *pos;
+		list_for_each_entry(pos, &asop->ao_list, AOperator, ao_list) {
+			pos->ao_tick = 0;
 		}
 		asop->ao_tick = 0;
 
@@ -96,8 +97,7 @@ static int AThreadCheckTimewait(AThread *at)
 static void* AThreadRun(void *p)
 {
 	AThread *at = (AThread*)p;
-	if (at->attach != NULL)
-		at = at->attach;
+	AThread *pool = (at->attach ? at->attach : at);
 
 	int max_timewait = 0;
 	DWORD cur_timetick = GetTickCount();
@@ -105,7 +105,7 @@ static void* AThreadRun(void *p)
 	while (at->running)
 	{
 		if (max_timewait <= 0)
-			max_timewait = AThreadCheckTimewait(at);
+			max_timewait = AThreadCheckTimewait(pool);
 
 		DWORD new_timetick = GetTickCount();
 		max_timewait -= (new_timetick - cur_timetick);
@@ -126,17 +126,14 @@ static void* AThreadRun(void *p)
 			asop->callback(asop, tx);
 		}
 #else
-		char *sigbuf = ((AThread*)p)->sigbuf;
-		struct epoll_event *events = ((AThread*)p)->events;
-
-		int count = epoll_wait(at->epoll, events, _countof(at->events), max_timewait);
+		int count = epoll_wait(at->epoll, at->events, _countof(at->events), max_timewait);
 		for (int ix = 0; ix < count; ++ix)
 		{
-			AOperator *asop = (AOperator*)events[ix].data.ptr;
+			AOperator *asop = (AOperator*)at->events[ix].data.ptr;
 			if (asop != NULL) {
-				asop->callback(asop, events[ix].events);
+				asop->callback(asop, at->events[ix].events);
 			} else {
-				while (recv(at->signal[1], sigbuf, sizeof(at->sigbuf), 0) == sizeof(at->sigbuf))
+				while (recv(at->signal[1], at->sigbuf, sizeof(at->sigbuf), 0) == sizeof(at->sigbuf))
 					;
 				max_timewait = 0;
 			}
@@ -168,7 +165,7 @@ static AThread *work_thread[4];
 static int work_thread_begin(void)
 {
 #ifdef _WIN32
-	AThread *pool = work_thread[0];
+	AThread *&pool = work_thread[0];
 #else
 	AThread *pool = NULL;
 
@@ -411,7 +408,8 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 	AOperator *node = rb_search_AOperator(&at->waiting_tree, asop->ao_tick);
 
 	if (RB_EMPTY_ROOT(&at->waiting_tree)
-	 || ((node == NULL) && (AOperatorTimewaitCompare(asop->ao_tick, node) < 0)))
+	 || ((node == NULL) && (AOperatorTimewaitCompare(asop->ao_tick,
+	                        rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree)) < 0)))
 		tick = 0;
 
 	if ((node == NULL) || (node->ao_tick != asop->ao_tick)) {
