@@ -2,6 +2,9 @@
 #include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
+extern "C" {
+#include "http/http_parser.h"
+};
 
 DWORD async_test_tick;
 AOperator asop_list[20];
@@ -477,10 +480,105 @@ void test_proactive(AOption *option, bool reset_option)
 	}
 }
 
+int http_cb_name(http_parser *parser, const char *name)
+{
+	TRACE("%s...\n", name);
+	return 0;
+}
+int http_data_cb_name(http_parser *parser, const char *at, size_t len, const char *name)
+{
+	AMessage *msg = (AMessage*)parser->data;
+	strncpy(msg->data+msg->size, at, len);
+	msg->size += len;
+
+	if (!http_data_is_final(parser)) {
+		return 0;
+	}
+
+	msg->data[msg->size] = '\0';
+	TRACE("%s: %s, len = %d.\n", name, msg->data, msg->size);
+	msg->size = 0;
+	return 0;
+}
+
+#define http_cb_test(name)  \
+int http_cb_##name(http_parser *parser) { \
+	return http_cb_name(parser, #name); \
+}
+#define http_data_cb_test(name) \
+int http_data_cb_##name(http_parser *parser, const char *at, size_t len) { \
+	return http_data_cb_name(parser, at, len, #name); \
+}
+
+http_cb_test(message_begin)
+http_data_cb_test(url)
+http_data_cb_test(status)
+http_data_cb_test(header_field)
+http_data_cb_test(header_value)
+http_cb_test(headers_complete)
+http_data_cb_test(body)
+http_cb_test(message_complete)
+http_cb_test(chunk_header)
+http_cb_test(chunk_complete)
+
+#define http_parser_settings_cb_test(settings, name) \
+	settings.on_##name = &http_cb_##name;
+#define http_parser_settings_data_cb_test(settings, name) \
+	settings.on_##name = &http_data_cb_##name;
+
+void http_parser_test()
+{
+	char buf[BUFSIZ];
+	AMessage msg;
+	AMsgInit(&msg, 0, buf, 0);
+
+	struct http_parser parser;
+	parser.data = &msg;
+	http_parser_init(&parser, HTTP_BOTH);
+	parser.flags |= F_UPGRADE;
+
+	struct http_parser_settings settings;
+	http_parser_settings_init(&settings);
+	http_parser_settings_cb_test(settings, message_begin);
+	http_parser_settings_data_cb_test(settings, url);
+	http_parser_settings_data_cb_test(settings, status);
+	http_parser_settings_data_cb_test(settings, header_field);
+	http_parser_settings_data_cb_test(settings, header_value);
+	http_parser_settings_cb_test(settings, headers_complete);
+	http_parser_settings_data_cb_test(settings, body);
+	http_parser_settings_cb_test(settings, message_complete);
+	http_parser_settings_cb_test(settings, chunk_header);
+	http_parser_settings_cb_test(settings, chunk_complete);
+
+	const char *str = "GET /test/b HTTP/1.1\r\n"
+         "User-Agent: curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1\r\n"
+         "Host: 0.0.0.0=5000\r\n"
+         "Accept: */*\r\n"
+         "\r\n"
+	 "body=xxx";
+
+	size_t len = strlen(str);
+	for (int ix = 0; ix < len; ) {
+		size_t ret = http_parser_execute(&parser, &settings, str+ix, 5);
+		TRACE(": http_parser_execute(%d) = %d, http_errno = %d.\n",
+			5, ret, parser.http_errno);
+		if (parser.http_errno != HPE_OK)
+			break;
+		ix += ret;
+	}
+
+	size_t ret = http_parser_execute(&parser, &settings, NULL, 0);
+	TRACE(": http_parser_execute(%d) = %d, http_errno = %d.\n",
+		5, ret, parser.http_errno);
+
+	fgets(buf, BUFSIZ, stdin);
+}
+
 int main(int argc, char* argv[])
 {
-	async_test();
-	rbtree_test();
+	//async_test();
+	//rbtree_test();
+	http_parser_test();
 
 	AOption *option = NULL;
 	int result;

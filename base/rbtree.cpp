@@ -20,11 +20,19 @@
   linux/lib/rbtree.c
 */
 
-#include "stdafx.h"
-#include "rbtree.h"
+#ifdef _WIN32
+#define __attribute__(x)  
 #pragma warning(disable: 4706)
+#endif
+#ifndef NULL
+#define NULL  0
+#endif
+#ifndef EXPORT_SYMBOL
 #define EXPORT_SYMBOL(x)
+#endif
+#include "rbtree.h"
 //#include <linux/module.h>
+
 
 static void __rb_rotate_left(struct rb_node *node, struct rb_root *root)
 {
