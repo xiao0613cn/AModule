@@ -106,9 +106,13 @@ static void AsyncTcpOpenDone(AOperator *asop, int result)
 #else
 static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 {
-	int result = 0;
-	if (ovlp->perform_count != ovlp->signal_count) {
+	int result;
 _retry:
+	result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
+	if (result == op_error)
+		return -EIO;
+
+	if ((result == op_signal) || (ovlp->perform_count != ovlp->signal_count)) {
 		if (ovlp == &tcp->send_ovlp) {
 			result = send(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, 0);
 		} else {
@@ -138,8 +142,13 @@ _retry:
 					ovlp->msg->size, ovlp->pos, result, errno);
 				return -EIO;
 			}
-			ovlp->perform_count += 1;
+			//ovlp->perform_count += 1;
 		}
+	} else {
+		TRACE2("tcp(%d): skip %s(%d-%d), size(%d), pos(%d), errno = %d.\n",
+			tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
+			ovlp->perform_count, ovlp->signal_count,
+			ovlp->msg->size, ovlp->pos, errno);
 	}
 
 	result = InterlockedCompareExchange(&ovlp->status, op_pending, op_none);
@@ -148,9 +157,6 @@ _retry:
 	if (result != op_signal)
 		return -EIO;
 
-	result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
-	if (result != op_signal)
-		return -EIO;
 	TRACE2("tcp(%d): %s(%d-%d), size(%d), pos(%d), retry again, errno = %d.\n",
 		tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 		ovlp->perform_count, ovlp->signal_count,
@@ -161,13 +167,13 @@ _retry:
 static void AsyncOvlpSignal(AsyncTcp *tcp, AsyncOvlp *ovlp)
 {
 	ovlp->signal_count += 1;
+	if (ovlp->signal_count == ovlp->perform_count)
+		ovlp->signal_count += 256;
+
 	int result = InterlockedExchange(&ovlp->status, op_signal);
 	assert(result != op_error);
 
 	if (result == op_pending) {
-		result = InterlockedExchange(&ovlp->status, op_none);
-		assert(result == op_signal);
-
 		if (ovlp->signal_count != ovlp->perform_count+1) {
 			TRACE2("tcp(%d): reset %s, perform_count(%d) to signal_count(%d).\n",
 				tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
