@@ -12,6 +12,9 @@ AMODULE_API int
 AThreadEnd(AThread *at);
 
 AMODULE_API int
+AThreadWakeup(AThread *at, AOperator *asop);
+
+AMODULE_API int
 AThreadAbort(AThread *at);
 
 #ifdef _WIN32

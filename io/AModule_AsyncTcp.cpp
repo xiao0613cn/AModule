@@ -114,7 +114,7 @@ _retry:
 
 	if ((result == op_signal) || (ovlp->perform_count != ovlp->signal_count)) {
 		if (ovlp == &tcp->send_ovlp) {
-			result = send(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, 0);
+			result = send(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, MSG_NOSIGNAL);
 		} else {
 			result = recv(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, 0);
 		}
@@ -144,7 +144,7 @@ _retry:
 			}
 			//ovlp->perform_count += 1;
 		}
-	} else {
+	} else if (ovlp->perform_count != ovlp->signal_count) {
 		TRACE2("tcp(%d): skip %s(%d-%d), size(%d), pos(%d), errno = %d.\n",
 			tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 			ovlp->perform_count, ovlp->signal_count,

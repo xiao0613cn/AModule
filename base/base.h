@@ -182,7 +182,9 @@ InterlockedExchange(long volatile *count, long value) {
 #endif //_WIN32
 
 #define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
-
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL  0
+#endif
 #include <stdarg.h>
 
 #ifndef TRACE

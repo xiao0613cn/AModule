@@ -104,9 +104,9 @@ static int TCPRequest(AObject *object, int reqix, AMessage *msg)
 	{
 	case Aio_Input:
 		if (msg->type & AMsgType_Custom)
-			return tcp_send(tcp->sock, msg->data, msg->size, 0);
+			return tcp_send(tcp->sock, msg->data, msg->size, MSG_NOSIGNAL);
 
-		result = send(tcp->sock, msg->data, msg->size, 0);
+		result = send(tcp->sock, msg->data, msg->size, MSG_NOSIGNAL);
 		break;
 
 	case Aio_Output:

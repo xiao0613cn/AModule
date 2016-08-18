@@ -27,8 +27,6 @@ struct AThread {
 #else
 	int              epoll;
 	int              signal[2];
-	struct epoll_event events[64];
-	char             sigbuf[128];
 	long volatile    bind_count;
 	struct list_head working_list;
 #endif
@@ -101,7 +99,11 @@ static void* AThreadRun(void *p)
 
 	int max_timewait = 0;
 	DWORD cur_timetick = GetTickCount();
-
+#ifdef _WIN32
+#else
+	struct epoll_event events[64];
+	char sigbuf[128];
+#endif
 	while (at->running)
 	{
 		if (max_timewait <= 0)
@@ -126,15 +128,16 @@ static void* AThreadRun(void *p)
 			asop->callback(asop, tx);
 		}
 #else
-		int count = epoll_wait(at->epoll, at->events, _countof(at->events), max_timewait);
+		int count = epoll_wait(at->epoll, events, _countof(events), max_timewait);
 		for (int ix = 0; ix < count; ++ix)
 		{
-			AOperator *asop = (AOperator*)at->events[ix].data.ptr;
+			AOperator *asop = (AOperator*)events[ix].data.ptr;
 			if (asop != NULL) {
-				asop->callback(asop, at->events[ix].events);
+				asop->callback(asop, events[ix].events);
 			} else {
-				while (recv(at->signal[1], at->sigbuf, sizeof(at->sigbuf), 0) == sizeof(at->sigbuf))
+				while (recv(at->signal[1], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
 					;
+				TRACE2("%d: wakeup for signal...\n", at->thread);
 				max_timewait = 0;
 			}
 		}
@@ -143,7 +146,8 @@ static void* AThreadRun(void *p)
 	return 0;
 }
 
-static inline void AThreadWakeup(AThread *at, AOperator *asop)
+AMODULE_API int
+AThreadWakeup(AThread *at, AOperator *asop)
 {
 #ifdef _WIN32
 	PostQueuedCompletionStatus(at->iocp, !!asop, iocp_key_signal, (asop ? &asop->ao_ovlp : NULL));
@@ -156,25 +160,23 @@ static inline void AThreadWakeup(AThread *at, AOperator *asop)
 		if (!first)
 			return;
 	}
-	send(at->signal[0], "a", 1, 0);
+	send(at->signal[0], "a", 1, MSG_NOSIGNAL);
 #endif
+	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////
 static AThread *work_thread[4];
 static int work_thread_begin(void)
 {
-#ifdef _WIN32
 	AThread *&pool = work_thread[0];
-#else
-	AThread *pool = NULL;
-
+#ifndef _WIN32
 	//SIGPIPE ignore
-	struct sigaction act;
-	act.sa_handler = SIG_IGN;
+	//struct sigaction act;
+	//act.sa_handler = SIG_IGN;
 
-	int result = sigaction(SIGPIPE, &act, NULL);
-	TRACE("SIGPIPE ignore, result = %d.\n", result);
+	//int result = sigaction(SIGPIPE, &act, NULL);
+	//TRACE("SIGPIPE ignore, result = %d.\n", result);
 
 	//
 	struct rlimit rl;
@@ -221,34 +223,33 @@ AThreadBegin(AThread **p, AThread *pool)
 		at->iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	}
 #else
+	at->epoll = epoll_create(32000);
+	if (at->epoll < 0) {
+		free(at);
+		return -EFAULT;
+	}
+
+	at->bind_count = 0;
 	if (pool != NULL) {
-		at->epoll = pool->epoll;
 		at->signal[0] = pool->signal[0];
 		at->signal[1] = pool->signal[1];
 	} else {
-		at->epoll = epoll_create(32000);
-		if (at->epoll < 0) {
-			delete at;
-			return -EFAULT;
-		}
+		INIT_LIST_HEAD(&at->working_list);
 
 		if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
 			close(at->epoll);
-			delete at;
+			free(at);
 			return -EFAULT;
 		}
 
-		at->bind_count = 0;
-		INIT_LIST_HEAD(&at->working_list);
-
 		tcp_nonblock(at->signal[0], 1);
 		tcp_nonblock(at->signal[1], 1);
-
-		struct epoll_event epev;
-		epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
-		epev.data.ptr = NULL;
-		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
 	}
+
+	struct epoll_event epev;
+	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
+	epev.data.ptr = NULL;
+	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
@@ -272,6 +273,9 @@ AThreadEnd(AThread *at)
 	pthread_join(at->thread, NULL);
 
 	if (at->attach != NULL) {
+#ifndef _WIN32
+		close(at->epoll);
+#endif
 		free(at);
 		return 1;
 	}

@@ -490,11 +490,11 @@ int http_data_cb_name(http_parser *parser, const char *at, size_t len, const cha
 	AMessage *msg = (AMessage*)parser->data;
 	strncpy(msg->data+msg->size, at, len);
 	msg->size += len;
-
+#ifdef _WIN32
 	if (!http_data_is_final(parser)) {
 		return 0;
 	}
-
+#endif
 	msg->data[msg->size] = '\0';
 	TRACE("%s: %s, len = %d.\n", name, msg->data, msg->size);
 	msg->size = 0;
@@ -528,6 +528,7 @@ http_cb_test(chunk_complete)
 
 void http_parser_test()
 {
+#ifdef _WIN32
 	char buf[BUFSIZ];
 	AMessage msg;
 	AMsgInit(&msg, 0, buf, 0);
@@ -572,6 +573,7 @@ void http_parser_test()
 		5, ret, parser.http_errno);
 
 	fgets(buf, BUFSIZ, stdin);
+#endif
 }
 
 int main(int argc, char* argv[])
