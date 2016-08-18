@@ -35,7 +35,7 @@ struct AThread {
 	struct list_head pending_list;
 };
 
-static int AThreadCheckTimewait(AThread *at)
+static int AThreadCheckTimewait(AThread *pool, AThread *at)
 {
 	int max_timewait = 20*1000;
 	AOperator *asop;
@@ -46,14 +46,24 @@ static int AThreadCheckTimewait(AThread *at)
 	struct list_head working_list;
 	INIT_LIST_HEAD(&working_list);
 #endif
-	pthread_mutex_lock(&at->mutex);
+	pthread_mutex_lock(&pool->mutex);
 	DWORD curtick = GetTickCount();
 
-	while (!RB_EMPTY_ROOT(&at->waiting_tree)) {
-		asop = rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree);
+	//while (!RB_EMPTY_ROOT(&pool->waiting_tree)) {
+	//	asop = rb_entry(rb_first(&pool->waiting_tree), AOperator, ao_tree);
+	for (struct rb_node *node = rb_first(&pool->waiting_tree); node != NULL; ) {
+		asop = rb_entry(node, AOperator, ao_tree);
 
 		int diff = AOperatorTimewaitCompare(curtick, asop);
 		if (diff < -1) {
+			if (asop->ao_thread == NULL) {
+				asop->ao_thread = at;
+			} else if (asop->ao_thread == at) {
+				;
+			} else {
+				node = rb_next(node);
+				continue;
+			}
 			max_timewait = -diff;
 			break;
 		}
@@ -70,12 +80,15 @@ static int AThreadCheckTimewait(AThread *at)
 
 		last->next = &timeout_list;
 		timeout_list.prev = last;
-		rb_erase(&asop->ao_tree, &at->waiting_tree);
+		rb_erase(&asop->ao_tree, &pool->waiting_tree);
+		node = rb_first(&pool->waiting_tree);
 	}
 #ifndef _WIN32
-	list_splice_init(&at->working_list, &working_list);
+	list_splice_init(&pool->working_list, &working_list);
+	if (pool != at)
+		list_splice_init(&at->working_list, &working_list);
 #endif
-	pthread_mutex_unlock(&at->mutex);
+	pthread_mutex_unlock(&pool->mutex);
 
 	while (!list_empty(&timeout_list)) {
 		asop = list_first_entry(&timeout_list, AOperator, ao_list);
@@ -107,7 +120,7 @@ static void* AThreadRun(void *p)
 	while (at->running)
 	{
 		if (max_timewait <= 0)
-			max_timewait = AThreadCheckTimewait(pool);
+			max_timewait = AThreadCheckTimewait(pool, at);
 
 		DWORD new_timetick = GetTickCount();
 		max_timewait -= (new_timetick - cur_timetick);
@@ -137,7 +150,7 @@ static void* AThreadRun(void *p)
 			} else {
 				while (recv(at->signal[1], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
 					;
-				TRACE2("%d: wakeup for signal...\n", at->thread);
+				//TRACE2("%d: wakeup for signal...\n", syscall(__NR_gettid));
 				max_timewait = 0;
 			}
 		}
@@ -153,12 +166,14 @@ AThreadWakeup(AThread *at, AOperator *asop)
 	PostQueuedCompletionStatus(at->iocp, !!asop, iocp_key_signal, (asop ? &asop->ao_ovlp : NULL));
 #else
 	if (asop != NULL) {
-		pthread_mutex_lock(&at->mutex);
-		int first = list_empty(&at->working_list);
+		AThread *pool = (at->attach ? at->attach : at);
+
+		pthread_mutex_lock(&pool->mutex);
+		int first = (list_empty(&pool->working_list) && list_empty(&at->working_list));
 		list_add_tail(&asop->ao_list, &at->working_list);
-		pthread_mutex_unlock(&at->mutex);
+		pthread_mutex_unlock(&pool->mutex);
 		if (!first)
-			return;
+			return 0;
 	}
 	send(at->signal[0], "a", 1, MSG_NOSIGNAL);
 #endif
@@ -180,7 +195,7 @@ static int work_thread_begin(void)
 
 	//
 	struct rlimit rl;
-	result = getrlimit(RLIMIT_NOFILE, &rl);
+	int result = getrlimit(RLIMIT_NOFILE, &rl);
 
 	if (result == 0) {
 		rl.rlim_cur = rl.rlim_max;
@@ -229,13 +244,10 @@ AThreadBegin(AThread **p, AThread *pool)
 		return -EFAULT;
 	}
 
-	at->bind_count = 0;
 	if (pool != NULL) {
 		at->signal[0] = pool->signal[0];
 		at->signal[1] = pool->signal[1];
 	} else {
-		INIT_LIST_HEAD(&at->working_list);
-
 		if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
 			close(at->epoll);
 			free(at);
@@ -250,6 +262,9 @@ AThreadBegin(AThread **p, AThread *pool)
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
 	epev.data.ptr = NULL;
 	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
+
+	at->bind_count = 0;
+	INIT_LIST_HEAD(&at->working_list);
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
@@ -390,6 +405,7 @@ AThreadDefault(int ix)
 AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 {
+	asop->ao_thread = at;
 	if (at == NULL)
 		at = work_thread[0];
 	if (at->attach != NULL)
