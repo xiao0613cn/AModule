@@ -68,6 +68,7 @@ AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
 		if ((timeout == 0) || (timeout == INFINITE))
 			timeout += 2;
 	}
+	asop->ao_thread = NULL;
 	return AOperatorPost(asop, at, timeout);
 }
 

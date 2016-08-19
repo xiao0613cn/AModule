@@ -21,7 +21,7 @@ rb_tree_define(AOperator, ao_tree, DWORD, AOperatorTimewaitCompare)
 struct AThread {
 	int volatile     running;
 	pthread_t        thread;
-	AThread         *attach;
+	AThread         *pool;
 #ifdef _WIN32
 	HANDLE           iocp;
 #else
@@ -29,6 +29,7 @@ struct AThread {
 	int              signal[2];
 	long volatile    bind_count;
 	struct list_head working_list;
+	struct list_head private_list;
 #endif
 	pthread_mutex_t  mutex;
 	struct rb_root   waiting_tree;
@@ -85,8 +86,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 	}
 #ifndef _WIN32
 	list_splice_init(&pool->working_list, &working_list);
-	if (pool != at)
-		list_splice_init(&at->working_list, &working_list);
+	list_splice_init(&at->private_list, &working_list);
 #endif
 	pthread_mutex_unlock(&pool->mutex);
 
@@ -108,7 +108,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 static void* AThreadRun(void *p)
 {
 	AThread *at = (AThread*)p;
-	AThread *pool = (at->attach ? at->attach : at);
+	AThread *pool = (at->pool ? at->pool : at);
 
 	int max_timewait = 0;
 	DWORD cur_timetick = GetTickCount();
@@ -133,6 +133,7 @@ static void* AThreadRun(void *p)
 		ULONG_PTR key = iocp_key_unknown;
 		OVERLAPPED *ovlp = NULL;
 		GetQueuedCompletionStatus(at->iocp, &tx, &key, &ovlp, max_timewait);
+
 		if (ovlp == NULL) {
 			if (key == iocp_key_signal)
 				max_timewait = 0;
@@ -144,14 +145,21 @@ static void* AThreadRun(void *p)
 		int count = epoll_wait(at->epoll, events, _countof(events), max_timewait);
 		for (int ix = 0; ix < count; ++ix)
 		{
-			AOperator *asop = (AOperator*)events[ix].data.ptr;
-			if (asop != NULL) {
-				asop->callback(asop, events[ix].events);
-			} else {
-				while (recv(at->signal[1], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
+			if (events[ix].data.u64 == 0) {
+				while (recv(pool->signal[1], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
 					;
-				//TRACE2("%d: wakeup for signal...\n", syscall(__NR_gettid));
+				//TRACE2("%d: wakeup for working_list...\n", syscall(__NR_gettid));
 				max_timewait = 0;
+			}
+			else if (events[ix].data.u64 == 1) {
+				while (recv(at->signal[0], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
+					;
+				TRACE2("%d: wakeup for private_list...\n", syscall(__NR_gettid));
+				max_timewait = 0;
+			}
+			else {
+				AOperator *asop = (AOperator*)events[ix].data.ptr;
+				asop->callback(asop, events[ix].events);
 			}
 		}
 #endif
@@ -165,17 +173,26 @@ AThreadWakeup(AThread *at, AOperator *asop)
 #ifdef _WIN32
 	PostQueuedCompletionStatus(at->iocp, !!asop, iocp_key_signal, (asop ? &asop->ao_ovlp : NULL));
 #else
-	if (asop != NULL) {
-		AThread *pool = (at->attach ? at->attach : at);
-
-		pthread_mutex_lock(&pool->mutex);
-		int first = (list_empty(&pool->working_list) && list_empty(&at->working_list));
-		list_add_tail(&asop->ao_list, &at->working_list);
-		pthread_mutex_unlock(&pool->mutex);
-		if (!first)
-			return 0;
+	AThread *pool = (at->pool ? at->pool : at);
+	if (asop == NULL) {
+		send(pool->signal[0], "a", 1, MSG_NOSIGNAL);
+		return 0;
 	}
-	send(at->signal[0], "a", 1, MSG_NOSIGNAL);
+
+	int first;
+	pthread_mutex_lock(&pool->mutex);
+	if (asop->ao_thread == at) {
+		first = (list_empty(&at->private_list) ? 2 : 0);
+		list_add_tail(&asop->ao_list, &at->private_list);
+	} else {
+		first = list_empty(&pool->working_list);
+		at = pool;
+		list_add_tail(&asop->ao_list, &pool->working_list);
+	}
+	pthread_mutex_unlock(&pool->mutex);
+
+	if (first != 0)
+		send(at->signal[first-1], "a", 1, MSG_NOSIGNAL);
 #endif
 	return 0;
 }
@@ -229,7 +246,7 @@ AThreadBegin(AThread **p, AThread *pool)
 		return work_thread_begin();
 
 	AThread *at = (AThread*)malloc(sizeof(AThread));
-	at->attach = pool;
+	at->pool = pool;
 
 #ifdef _WIN32
 	if (pool != NULL) {
@@ -244,27 +261,33 @@ AThreadBegin(AThread **p, AThread *pool)
 		return -EFAULT;
 	}
 
-	if (pool != NULL) {
-		at->signal[0] = pool->signal[0];
-		at->signal[1] = pool->signal[1];
-	} else {
-		if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
-			close(at->epoll);
-			free(at);
-			return -EFAULT;
-		}
-
-		tcp_nonblock(at->signal[0], 1);
-		tcp_nonblock(at->signal[1], 1);
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
+		close(at->epoll);
+		free(at);
+		return -EFAULT;
 	}
 
+	tcp_nonblock(at->signal[0], 1);
+	tcp_nonblock(at->signal[1], 1);
+
+	//private_list signal
 	struct epoll_event epev;
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
-	epev.data.ptr = NULL;
-	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
+	epev.data.u64 = 1;
+	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[0], &epev);
+
+	//working_list signal
+	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
+	epev.data.u64 = 0;
+	if (pool != NULL) {
+		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
+	} else {
+		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
+		INIT_LIST_HEAD(&at->working_list);
+	}
 
 	at->bind_count = 0;
-	INIT_LIST_HEAD(&at->working_list);
+	INIT_LIST_HEAD(&at->private_list);
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
@@ -287,19 +310,28 @@ AThreadEnd(AThread *at)
 	AThreadAbort(at);
 	pthread_join(at->thread, NULL);
 
-	if (at->attach != NULL) {
-#ifndef _WIN32
-		close(at->epoll);
-#endif
+#ifdef _WIN32
+	if (at->pool != NULL) {
 		free(at);
 		return 1;
 	}
-#ifdef _WIN32
 	CloseHandle(at->iocp);
 #else
 	close(at->signal[0]);
 	close(at->signal[1]);
 	close(at->epoll);
+
+	while (!list_empty(&at->private_list)) {
+		AOperator *asop = list_first_entry(&at->private_list, AOperator, ao_list);
+		list_del_init(&asop->ao_list);
+		asop->callback(asop, -EINTR);
+	}
+	if (at->pool != NULL) {
+		free(at);
+		return 1;
+	}
+
+	list_splice_init(&at->working_list, &at->pending_list);
 #endif
 	pthread_mutex_destroy(&at->mutex);
 
@@ -329,9 +361,8 @@ int AThreadAbort(AThread *at)
 {
 	if (at == NULL)
 		at = work_thread[0];
+
 	at->running = 0;
-	if (at->attach != NULL)
-		at = at->attach;
 	AThreadWakeup(at, NULL);
 	return 1;
 }
@@ -341,8 +372,6 @@ AThreadBind(AThread *at, HANDLE file)
 {
 	if (at == NULL)
 		at = work_thread[0];
-	if (at->attach != NULL)
-		at = at->attach;
 
 	HANDLE iocp = CreateIoCompletionPort(file, at->iocp, iocp_key_sysio, 0);
 	return (iocp == at->iocp) ? 1 : -int(GetLastError());
@@ -405,11 +434,9 @@ AThreadDefault(int ix)
 AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 {
-	asop->ao_thread = at;
 	if (at == NULL)
 		at = work_thread[0];
-	if (at->attach != NULL)
-		at = at->attach;
+	AThread *pool = (at->pool ? at->pool : at);
 
 	asop->ao_tick = tick;
 	if (tick == 0) {
@@ -418,28 +445,32 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 	}
 
 	if (tick == INFINITE) {
-		pthread_mutex_lock(&at->mutex);
-		list_add_tail(&asop->ao_list, &at->pending_list);
-		pthread_mutex_unlock(&at->mutex);
+		pthread_mutex_lock(&pool->mutex);
+		list_add_tail(&asop->ao_list, &pool->pending_list);
+		pthread_mutex_unlock(&pool->mutex);
 		return 0;
 	}
 
-	pthread_mutex_lock(&at->mutex);
-	AOperator *node = rb_search_AOperator(&at->waiting_tree, asop->ao_tick);
+	AOperator *node = NULL;
+	pthread_mutex_lock(&pool->mutex);
 
-	if (RB_EMPTY_ROOT(&at->waiting_tree)
-	 || ((node == NULL) && (AOperatorTimewaitCompare(asop->ao_tick,
-	                        rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree)) < 0)))
+	if (RB_EMPTY_ROOT(&pool->waiting_tree)) {
 		tick = 0;
+	} else if ((node = rb_search_AOperator(&pool->waiting_tree, asop->ao_tick)) == NULL) {
+		node = rb_entry(rb_first(&pool->waiting_tree), AOperator, ao_tree);
+		if (AOperatorTimewaitCompare(asop->ao_tick, node) < 0)
+			tick = 0;
+		node = NULL;
+	}
 
-	if ((node == NULL) || (node->ao_tick != asop->ao_tick)) {
-		rb_insert_AOperator(&at->waiting_tree, asop, asop->ao_tick);
+	if (node == NULL) {
+		rb_insert_AOperator(&pool->waiting_tree, asop, asop->ao_tick);
 		INIT_LIST_HEAD(&asop->ao_list);
 	} else {
 		list_add_tail(&asop->ao_list, &node->ao_list);
 		//TRACE2("combine list timewait = %d.\n", tick);
 	}
-	pthread_mutex_unlock(&at->mutex);
+	pthread_mutex_unlock(&pool->mutex);
 
 	if (tick == 0) {
 		AThreadWakeup(at, NULL);
@@ -452,20 +483,21 @@ AOperatorSignal(AOperator *asop, AThread *at, int cancel)
 {
 	if (at == NULL)
 		at = work_thread[0];
-	if (at->attach != NULL)
-		at = at->attach;
+	AThread *pool = (at->pool ? at->pool : at);
 
-	pthread_mutex_lock(&at->mutex);
-	int signal = (asop->ao_tick != 0);
+	pthread_mutex_lock(&pool->mutex);
+	int signal = (asop->ao_tick ? 1 : -1);
+
 	if (asop->ao_tick == INFINITE) {
 		asop->ao_tick = 0;
 		list_del_init(&asop->ao_list);
 	}
 	else if (asop->ao_tick != 0) {
-		AOperator *node = rb_search_AOperator(&at->waiting_tree, asop->ao_tick);
+		AOperator *node = rb_search_AOperator(&pool->waiting_tree, asop->ao_tick);
+
 		if (node == NULL) {
 			assert(0);
-			signal = 0;
+			signal = -1;
 		}
 		else if (asop != node) {
 			assert(!list_empty(&node->ao_list));
@@ -473,19 +505,38 @@ AOperatorSignal(AOperator *asop, AThread *at, int cancel)
 			list_del_init(&asop->ao_list);
 		}
 		else if (list_empty(&asop->ao_list)) {
-			rb_erase(&asop->ao_tree, &at->waiting_tree);
+			rb_erase(&asop->ao_tree, &pool->waiting_tree);
 		}
 		else {
 			node = list_first_entry(&asop->ao_list, AOperator, ao_list);
-			rb_replace_node(&asop->ao_tree, &node->ao_tree, &at->waiting_tree);
+			rb_replace_node(&asop->ao_tree, &node->ao_tree, &pool->waiting_tree);
 			list_del_init(&asop->ao_list);
 		}
 		asop->ao_tick = 0;
 	}
-	pthread_mutex_unlock(&at->mutex);
+#ifndef _WIN32
+	int first = 0;
+	if ((signal == 1) && !cancel) {
+		if (asop->ao_thread == at) {
+			first = (list_empty(&at->private_list) ? 2 : 0);
+			list_add_tail(&asop->ao_list, &at->private_list);
+		} else {
+			first = list_empty(&pool->working_list);
+			at = pool;
+			list_add_tail(&asop->ao_list, &pool->working_list);
+		}
+	}
+#endif
+	pthread_mutex_unlock(&pool->mutex);
 
-	if (signal && !cancel) {
-		AThreadWakeup(at, asop);
+	if ((signal == 1) && !cancel) {
+		signal = 0;
+#ifdef _WIN32
+		PostQueuedCompletionStatus(pool->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
+#else
+		if (first != 0)
+			send(at->signal[first-1], "a", 1, MSG_NOSIGNAL);
+#endif
 	}
 	return signal;
 }

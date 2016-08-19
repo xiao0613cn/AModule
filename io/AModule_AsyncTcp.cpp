@@ -196,6 +196,7 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
 	if (unbind >= 0)
 		AObjectRelease(&tcp->object);
+
 	TRACE2("tcp(%d): close done, unbind = %d, send(%d-%d), recv(%d-%d).\n",
 		tcp->sock, unbind,
 		tcp->send_ovlp.perform_count, tcp->send_ovlp.signal_count,
@@ -208,6 +209,7 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 static void AsyncOvlpError(AsyncTcp *tcp, int events)
 {
 	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
+
 	TRACE2("tcp(%d): epoll event = %d, unbind = %d, send(%d-%d), recv(%d-%d).\n",
 		tcp->sock, events, unbind,
 		tcp->send_ovlp.perform_count, tcp->send_ovlp.signal_count,
@@ -448,6 +450,9 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	return 1;
 #else
+	assert(tcp->send_ovlp.status != op_pending);
+	assert(tcp->recv_ovlp.status != op_pending);
+
 	if (tcp->send_ovlp.sysio.ao_events == 0) {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 		return 1;
@@ -455,6 +460,7 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 
 	tcp->recv_ovlp.msg = msg;
 	tcp->recv_ovlp.sysio.callback = &AsyncTcpCloseDone;
+	tcp->recv_ovlp.sysio.ao_thread = tcp->send_ovlp.sysio.ao_thread;
 
 	int result = AThreadWakeup(tcp->send_ovlp.sysio.ao_thread, &tcp->recv_ovlp.sysio);
 	return (result < 0 ? result : 0);
