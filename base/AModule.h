@@ -39,34 +39,6 @@ AObjectRelease(AObject *object) {
 	return result;
 }
 
-static inline int
-AObjectOpen(AObject *object, AMessage *msg) {
-	if (object->open == NULL)
-		return -ENOSYS;
-	return object->open(object, msg);
-}
-
-static inline int
-AObjectRequest(AObject *object, int reqix, AMessage *msg) {
-	if (object->request == NULL)
-		return -ENOSYS;
-	return object->request(object, reqix, msg);
-}
-
-static inline int
-AObjectCancel(AObject *object, int reqix, AMessage *msg) {
-	if (object->cancel == NULL)
-		return -ENOSYS;
-	return object->cancel(object, reqix, msg);
-}
-
-static inline int
-AObjectClose(AObject *object, AMessage *msg) {
-	if (object->close == NULL)
-		return -ENOSYS;
-	return object->close(object, msg);
-}
-
 
 struct AModule {
 	const char *class_name;

@@ -22,36 +22,35 @@ struct AThread {
 	int volatile     running;
 	pthread_t        thread;
 	AThread         *pool;
+	int              max_timewait;
 #ifdef _WIN32
 	HANDLE           iocp;
 #else
 	int              epoll;
 	int              signal[2];
 	long volatile    bind_count;
-	struct list_head working_list;
 	struct list_head private_list;
 #endif
 	pthread_mutex_t  mutex;
+	struct list_head working_list;
 	struct rb_root   waiting_tree;
 	struct list_head pending_list;
 };
 
 static int AThreadCheckTimewait(AThread *pool, AThread *at)
 {
-	int max_timewait = 20*1000;
+	int max_timewait = at->max_timewait;
 	AOperator *asop;
 
 	struct list_head timeout_list;
 	INIT_LIST_HEAD(&timeout_list);
-#ifndef _WIN32
+
 	struct list_head working_list;
 	INIT_LIST_HEAD(&working_list);
-#endif
-	pthread_mutex_lock(&pool->mutex);
-	DWORD curtick = GetTickCount();
 
-	//while (!RB_EMPTY_ROOT(&pool->waiting_tree)) {
-	//	asop = rb_entry(rb_first(&pool->waiting_tree), AOperator, ao_tree);
+	DWORD curtick = GetTickCount();
+	pthread_mutex_lock(&pool->mutex);
+
 	for (struct rb_node *node = rb_first(&pool->waiting_tree); node != NULL; ) {
 		asop = rb_entry(node, AOperator, ao_tree);
 
@@ -65,7 +64,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 				node = rb_next(node);
 				continue;
 			}
-			max_timewait = -diff;
+			max_timewait = min(at->max_timewait, -diff);
 			break;
 		}
 
@@ -84,8 +83,9 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 		rb_erase(&asop->ao_tree, &pool->waiting_tree);
 		node = rb_first(&pool->waiting_tree);
 	}
-#ifndef _WIN32
+
 	list_splice_init(&pool->working_list, &working_list);
+#ifndef _WIN32
 	list_splice_init(&at->private_list, &working_list);
 #endif
 	pthread_mutex_unlock(&pool->mutex);
@@ -95,13 +95,12 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 		list_del_init(&asop->ao_list);
 		asop->callback(asop, 0);
 	}
-#ifndef _WIN32
+
 	while (!list_empty(&working_list)) {
 		asop = list_first_entry(&working_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
 		asop->callback(asop, 1);
 	}
-#endif
 	return max_timewait;
 }
 
@@ -167,41 +166,20 @@ static void* AThreadRun(void *p)
 	return 0;
 }
 
-AMODULE_API int
-AThreadWakeup(AThread *at, AOperator *asop)
+static inline void
+AThreadWakeup(AThread *at, BOOL is_pool)
 {
 #ifdef _WIN32
-	PostQueuedCompletionStatus(at->iocp, !!asop, iocp_key_signal, (asop ? &asop->ao_ovlp : NULL));
+	PostQueuedCompletionStatus(at->iocp, 0, iocp_key_signal, NULL);
 #else
-	AThread *pool = (at->pool ? at->pool : at);
-	if (asop == NULL) {
-		send(pool->signal[0], "a", 1, MSG_NOSIGNAL);
-		return 0;
-	}
-
-	int first;
-	pthread_mutex_lock(&pool->mutex);
-	if (asop->ao_thread == at) {
-		first = (list_empty(&at->private_list) ? 2 : 0);
-		list_add_tail(&asop->ao_list, &at->private_list);
-	} else {
-		first = list_empty(&pool->working_list);
-		at = pool;
-		list_add_tail(&asop->ao_list, &pool->working_list);
-	}
-	pthread_mutex_unlock(&pool->mutex);
-
-	if (first != 0)
-		send(at->signal[first-1], "a", 1, MSG_NOSIGNAL);
+	send(at->signal[!is_pool], "a", 1, MSG_NOSIGNAL);
 #endif
-	return 0;
 }
 
 //////////////////////////////////////////////////////////////////////////
 static AThread *work_thread[4];
-static int work_thread_begin(void)
+static int work_thread_begin(int max_timewait)
 {
-	AThread *&pool = work_thread[0];
 #ifndef _WIN32
 	//SIGPIPE ignore
 	//struct sigaction act;
@@ -221,8 +199,10 @@ static int work_thread_begin(void)
 		TRACE("setrlimit(%d, %d) = %d.\n", RLIMIT_NOFILE, rl.rlim_cur, result);
 	}
 #endif
+	AThread *&pool = work_thread[0];
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
-		AThreadBegin(&work_thread[ix], pool);
+		AThreadBegin(&work_thread[ix], pool, max_timewait);
+		max_timewait += max_timewait;
 	}
 	return 1;
 }
@@ -240,13 +220,14 @@ static int work_thread_end(void)
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API int
-AThreadBegin(AThread **p, AThread *pool)
+AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 {
 	if (p == NULL)
-		return work_thread_begin();
+		return work_thread_begin(max_timewait);
 
 	AThread *at = (AThread*)malloc(sizeof(AThread));
 	at->pool = pool;
+	at->max_timewait = max_timewait;
 
 #ifdef _WIN32
 	if (pool != NULL) {
@@ -283,7 +264,6 @@ AThreadBegin(AThread **p, AThread *pool)
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
 	} else {
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
-		INIT_LIST_HEAD(&at->working_list);
 	}
 
 	at->bind_count = 0;
@@ -291,6 +271,7 @@ AThreadBegin(AThread **p, AThread *pool)
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
+		INIT_LIST_HEAD(&at->working_list);
 		INIT_RB_ROOT(&at->waiting_tree);
 		INIT_LIST_HEAD(&at->pending_list);
 	}
@@ -330,8 +311,6 @@ AThreadEnd(AThread *at)
 		free(at);
 		return 1;
 	}
-
-	list_splice_init(&at->working_list, &at->pending_list);
 #endif
 	pthread_mutex_destroy(&at->mutex);
 
@@ -348,6 +327,7 @@ AThreadEnd(AThread *at)
 		rb_erase(&asop->ao_tree, &at->waiting_tree);
 		asop->callback(asop, -EINTR);
 	}
+	list_splice_init(&at->working_list, &at->pending_list);
 	while (!list_empty(&at->pending_list)) {
 		asop = list_first_entry(&at->pending_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
@@ -357,13 +337,50 @@ AThreadEnd(AThread *at)
 	return 1;
 }
 
+AMODULE_API int
+AThreadPost(AThread *at, AOperator *asop, BOOL signal)
+{
+	if (at == NULL)
+		at = work_thread[0];
+	AThread *pool = (at->pool ? at->pool : at);
+
+	if (asop == NULL) {
+		AThreadWakeup(pool, TRUE);
+		return 0;
+	}
+#ifdef _WIN32
+	if (signal) {
+		PostQueuedCompletionStatus(at->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
+		return 0;
+	}
+#endif
+	int first;
+	pthread_mutex_lock(&pool->mutex);
+#ifndef _WIN32
+	if (asop->ao_thread == at) {
+		first = (list_empty(&at->private_list) ? 2 : 0);
+		list_add_tail(&asop->ao_list, &at->private_list);
+	} else
+#endif
+	{
+		first = (list_empty(&pool->working_list) ? 1 : 0);
+		list_add_tail(&asop->ao_list, &pool->working_list);
+		at = pool;
+	}
+	pthread_mutex_unlock(&pool->mutex);
+
+	if ((first != 0) && signal)
+		AThreadWakeup(at, (first==1));
+	return 0;
+}
+
 int AThreadAbort(AThread *at)
 {
 	if (at == NULL)
 		at = work_thread[0];
 
 	at->running = 0;
-	AThreadWakeup(at, NULL);
+	AThreadWakeup(at, FALSE);
 	return 1;
 }
 #ifdef _WIN32
@@ -392,12 +409,9 @@ AThreadBind(AThread *at, AOperator *asop, uint32_t event)
 	} else {
 		op = EPOLL_CTL_ADD;
 		if (at == NULL) {
-			int ix = 1;
-			if (_countof(work_thread) <= 1)
-				ix = 0;
+			at = work_thread[0];
 
-			at = work_thread[ix];
-			while (++ix < _countof(work_thread)) {
+			for (int ix = 1; ix < _countof(work_thread); ++ix) {
 				if (work_thread[ix]->bind_count < at->bind_count)
 					at = work_thread[ix];
 			}
@@ -438,9 +452,10 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 		at = work_thread[0];
 	AThread *pool = (at->pool ? at->pool : at);
 
+	asop->ao_thread = NULL;
 	asop->ao_tick = tick;
 	if (tick == 0) {
-		AThreadWakeup(at, asop);
+		AThreadPost(pool, asop, TRUE);
 		return 0;
 	}
 
@@ -453,12 +468,13 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 
 	AOperator *node = NULL;
 	pthread_mutex_lock(&pool->mutex);
-
 	if (RB_EMPTY_ROOT(&pool->waiting_tree)) {
 		tick = 0;
-	} else if ((node = rb_search_AOperator(&pool->waiting_tree, asop->ao_tick)) == NULL) {
+	}
+	else if ((node = rb_search_AOperator(&pool->waiting_tree, tick)) == NULL) {
 		node = rb_entry(rb_first(&pool->waiting_tree), AOperator, ao_tree);
-		if (AOperatorTimewaitCompare(asop->ao_tick, node) < 0)
+
+		if (AOperatorTimewaitCompare(tick, node) < 0)
 			tick = 0;
 		node = NULL;
 	}
@@ -473,13 +489,13 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 	pthread_mutex_unlock(&pool->mutex);
 
 	if (tick == 0) {
-		AThreadWakeup(at, NULL);
+		AThreadWakeup(pool, TRUE);
 	}
 	return 0;
 }
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at, int cancel)
+AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 {
 	if (at == NULL)
 		at = work_thread[0];
@@ -515,13 +531,12 @@ AOperatorSignal(AOperator *asop, AThread *at, int cancel)
 		asop->ao_tick = 0;
 	}
 #ifndef _WIN32
-	int first = 0;
-	if ((signal == 1) && !cancel) {
+	if ((signal > 0) && !cancel) {
 		if (asop->ao_thread == at) {
-			first = (list_empty(&at->private_list) ? 2 : 0);
+			signal = (list_empty(&at->private_list) ? 2 : 0);
 			list_add_tail(&asop->ao_list, &at->private_list);
 		} else {
-			first = list_empty(&pool->working_list);
+			signal = (list_empty(&pool->working_list) ? 1 : 0);
 			at = pool;
 			list_add_tail(&asop->ao_list, &pool->working_list);
 		}
@@ -529,14 +544,14 @@ AOperatorSignal(AOperator *asop, AThread *at, int cancel)
 #endif
 	pthread_mutex_unlock(&pool->mutex);
 
-	if ((signal == 1) && !cancel) {
-		signal = 0;
+	if ((signal > 0) && !cancel) {
 #ifdef _WIN32
 		PostQueuedCompletionStatus(pool->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
 #else
-		if (first != 0)
-			send(at->signal[first-1], "a", 1, MSG_NOSIGNAL);
+		AThreadWakeup(at, (signal==1));
+		//send(at->signal[signal-1], "a", 1, MSG_NOSIGNAL);
 #endif
+		signal = 0;
 	}
 	return signal;
 }

@@ -6,13 +6,13 @@ typedef struct AOperator AOperator;
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API int
-AThreadBegin(AThread **at, AThread *pool);
+AThreadBegin(AThread **at, AThread *pool, int max_timewait);
 
 AMODULE_API int
 AThreadEnd(AThread *at);
 
 AMODULE_API int
-AThreadWakeup(AThread *at, AOperator *asop);
+AThreadPost(AThread *at, AOperator *asop, BOOL signal);
 
 AMODULE_API int
 AThreadAbort(AThread *at);
@@ -59,7 +59,7 @@ AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick);
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at, int cancel);
+AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel);
 
 static inline int
 AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
@@ -68,7 +68,6 @@ AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
 		if ((timeout == 0) || (timeout == INFINITE))
 			timeout += 2;
 	}
-	asop->ao_thread = NULL;
 	return AOperatorPost(asop, at, timeout);
 }
 

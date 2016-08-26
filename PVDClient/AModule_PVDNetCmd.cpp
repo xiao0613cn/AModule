@@ -251,15 +251,6 @@ static int PVDOpenStatus(PVDClient *pvd, int result)
 	return result;
 }
 
-static int PVDOpenDone(AMessage *msg, int result)
-{
-	PVDClient *pvd = from_outmsg(msg);
-	result = PVDOpenStatus(pvd, result);
-	if (result != 0)
-		result = pvd->outfrom->done(pvd->outfrom, result);
-	return result;
-}
-
 static int PVDOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
@@ -268,7 +259,7 @@ static int PVDOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	PVDClient *pvd = to_pvd(object);
-	pvd->outmsg.done = &PVDOpenDone;
+	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDOpenStatus);
 	pvd->outfrom = msg;
 
 	if (pvd->io == NULL) {
@@ -321,9 +312,10 @@ static int PVDGetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static int PVDOutputStatus(PVDClient *pvd)
+static int PVDOutputStatus(PVDClient *pvd, int result)
 {
-	int result;
+	if (result < 0)
+		pvd->outmsg.size = 0;
 	do {
 		SlicePush(&pvd->outbuf, pvd->outmsg.size);
 		result = PVDTryOutput(pvd->userid, &pvd->outbuf, &pvd->outmsg);
@@ -343,16 +335,6 @@ static int PVDOutputStatus(PVDClient *pvd)
 	return result;
 }
 
-static int PVDOutputDone(AMessage *msg, int result)
-{
-	PVDClient *pvd = from_outmsg(msg);
-	if (result >= 0)
-		result = PVDOutputStatus(pvd);
-	if (result != 0)
-		result = pvd->outfrom->done(pvd->outfrom, result);
-	return result;
-}
-
 static int PVDRequest(AObject *object, int reqix, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
@@ -365,12 +347,12 @@ static int PVDRequest(AObject *object, int reqix, AMessage *msg)
 		return pvd->io->request(pvd->io, reqix, msg);
 	}
 
-	pvd->outmsg.done = &PVDOutputDone;
+	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDOutputStatus); //&PVDOutputDone;
 	pvd->outfrom = msg;
 
 	pvd->outmsg.data = NULL;
 	pvd->outmsg.size = 0;
-	return PVDOutputStatus(pvd);
+	return PVDOutputStatus(pvd, 0);
 }
 
 static int PVDCancel(AObject *object, int reqix, AMessage *msg)
@@ -432,15 +414,6 @@ static int PVDCloseStatus(PVDClient *pvd, int result)
 	return result;
 }
 
-static int PVDCloseDone(AMessage *msg, int result)
-{
-	PVDClient *pvd = from_outmsg(msg);
-	result = PVDCloseStatus(pvd, result);
-	if (result != 0)
-		result = pvd->outfrom->done(pvd->outfrom, result);
-	return result;
-}
-
 static int PVDClose(AObject *object, AMessage *msg)
 {
 	PVDClient *pvd = to_pvd(object);
@@ -450,7 +423,7 @@ static int PVDClose(AObject *object, AMessage *msg)
 	if (msg == NULL)
 		return pvd->io->close(pvd->io, NULL);
 
-	pvd->outmsg.done = &PVDCloseDone;
+	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDCloseStatus);
 	pvd->outfrom = msg;
 
 	int result;

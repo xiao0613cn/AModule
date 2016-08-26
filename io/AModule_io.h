@@ -15,20 +15,5 @@ enum AModule_ioRequest {
 	Aiosync_NotifyDispath = 0x05000000,
 };
 
-static inline long
-AioInput(AObject *obj, AMessage *msg) {
-	if (obj->request == NULL)
-		return -ENOSYS;
-	return obj->request(obj, Aio_Input, msg);
-}
-
-static inline long
-AioOutput(AObject *obj, AMessage *msg) {
-	if (obj->request == NULL)
-		return -ENOSYS;
-	return obj->request(obj, Aio_Output, msg);
-}
-
-
 
 #endif

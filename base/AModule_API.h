@@ -69,6 +69,42 @@
 
 
 #ifdef __cplusplus
+template <typename TObject, size_t offset_msg, size_t offset_from, int OnMsgDone(TObject*,int)>
+int TObjectMsgDone(AMessage *msg, int result)
+{
+	TObject *p = (TObject*)((char*)msg - offset_msg);
+	if (result >= 0)
+		result = OnMsgDone(p, result);
+
+	if (result != 0) {
+		msg = *(AMessage**)((char*)p + offset_from);
+		result = msg->done(msg, result);
+	}
+	return result;
+}
+#define TObjectDone(type, msg, from, done) \
+	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
+
+template <typename TObject, size_t offset_msg, size_t offset_from, int OnMsgDone(TObject*,int)>
+int TObjectMsgDone2(AMessage *msg, int result)
+{
+	TObject *p = (TObject*)((char*)msg - offset_msg);
+	result = OnMsgDone(p, result);
+
+	if (result != 0) {
+		msg = (AMessage*)((char*)msg - offset_from);
+		result = msg->done(msg, result);
+	}
+	return result;
+}
+#define TObjectDone2(type, msg, from, done) \
+	TObjectMsgDone2<type, offsetof(type, msg), offsetof(type, from), done>
+
+template <typename TObject>
+int TObjectNullOpen(AObject *object, AMessage *msg) {
+	return -ENOSYS;
+}
+
 struct IObject {
 public:
 	AObject *object;

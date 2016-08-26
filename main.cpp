@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <map>
 #include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
@@ -17,11 +18,8 @@ void async_test_callback(AOperator *asop, int result)
 
 int async_test(void)
 {
-	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
-		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
-
 	AThread *at;
-	int result = AThreadBegin(&at, NULL);
+	int result = AThreadBegin(&at, NULL, 20*1000);
 	TRACE("AThreadBegin(%p) = %d...\n", at, result);
 
 	async_test_tick = GetTickCount();
@@ -62,6 +60,17 @@ rb_tree_define(myrb_node, rb_node, int, myrb_cmp)
 
 void rbtree_test()
 {
+	std::map<int, int> test_set;
+	test_set.insert(std::make_pair(5, 5));
+	test_set.insert(std::make_pair(9, 9));
+	test_set.insert(std::make_pair(14, 14));
+	test_set.insert(std::make_pair(18, 18));
+
+	std::map<int, int>::iterator it = test_set.upper_bound(3);
+	it = test_set.upper_bound(8);
+	it = test_set.upper_bound(14);
+	it = test_set.upper_bound(24);
+
 	srand(rand());
 	struct rb_root root;
 	INIT_RB_ROOT(&root);
@@ -578,9 +587,11 @@ void http_parser_test()
 
 int main(int argc, char* argv[])
 {
-	//async_test();
+	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
+		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
+	async_test();
 	//rbtree_test();
-	http_parser_test();
+	//http_parser_test();
 
 	AOption *option = NULL;
 	int result;
@@ -597,7 +608,7 @@ int main(int argc, char* argv[])
 	AModuleInitOption(option);
 	option = NULL;
 
-	AThreadBegin(NULL, NULL);
+	AThreadBegin(NULL, NULL, 20);
 	AModuleRegister(&TCPModule);
 	AModuleRegister(&TCPServerModule);
 	AModuleRegister(&AsyncTcpModule);
