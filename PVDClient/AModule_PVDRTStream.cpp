@@ -229,16 +229,6 @@ static int PVDRTOpenStatus(PVDRTStream *rt, int result)
 	return result;
 }
 
-static int PVDRTOpenDone(AMessage *msg, int result)
-{
-	PVDRTStream *rt = from_outmsg(msg);
-
-	result = PVDRTOpenStatus(rt, result);
-	if (result != 0)
-		result = rt->outfrom->done(rt->outfrom, result);
-	return result;
-}
-
 static int PVDRTOpen(AObject *object, AMessage *msg)
 {
 	if ((msg->type != AMsgType_Option)
@@ -247,7 +237,7 @@ static int PVDRTOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	PVDRTStream *rt = to_rt(object);
-	rt->outmsg.done = &PVDRTOpenDone;
+	rt->outmsg.done = &TObjectDone(PVDRTStream, outmsg, outfrom, PVDRTOpenStatus);
 	rt->outfrom = msg;
 
 	if (rt->io == NULL) {
@@ -285,9 +275,10 @@ static int PVDRTSetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static int PVDRTOutputStatus(PVDRTStream *rt)
+static int PVDRTOutputStatus(PVDRTStream *rt, int result)
 {
-	int result;
+	if (result < 0)
+		rt->outmsg.size = 0;
 	do {
 		SlicePush(&rt->outbuf, rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
@@ -315,28 +306,18 @@ static int PVDRTOutputStatus(PVDRTStream *rt)
 	return result;
 }
 
-static int PVDRTOutputDone(AMessage *msg, int result)
-{
-	PVDRTStream *rt = from_outmsg(msg);
-	if (result >= 0)
-		result = PVDRTOutputStatus(rt);
-	if (result != 0)
-		result = rt->outfrom->done(rt->outfrom, result);
-	return result;
-}
-
 static int PVDRTRequest(AObject *object, int reqix, AMessage *msg)
 {
 	PVDRTStream *rt = to_rt(object);
 	if (reqix != 0)
 		return -ENOSYS;
 
-	rt->outmsg.done = &PVDRTOutputDone;
+	rt->outmsg.done = &TObjectDone(PVDRTStream, outmsg, outfrom, PVDRTOutputStatus);
 	rt->outfrom = msg;
 
 	rt->outmsg.data = NULL;
 	rt->outmsg.size = 0;
-	return PVDRTOutputStatus(rt);
+	return PVDRTOutputStatus(rt, 0);
 }
 
 static int PVDRTClose(AObject *object, AMessage *msg)

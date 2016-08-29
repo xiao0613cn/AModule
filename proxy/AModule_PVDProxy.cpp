@@ -207,8 +207,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		}
 		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
-			//AOperatorTimewait(&p->timer, NULL, 10);
-			AThreadPost(NULL, &p->timer, FALSE);
+			AOperatorTimewait(&p->timer, NULL, 10);
 			return;
 		}
 
@@ -264,8 +263,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.callback = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
-			//AOperatorTimewait(&p->timer, NULL, 0);
-			AThreadPost(NULL, &p->timer, FALSE);
+			AOperatorTimewait(&p->timer, NULL, 0);
 			result = -1;
 		}
 	}

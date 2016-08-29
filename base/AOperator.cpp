@@ -29,10 +29,10 @@ struct AThread {
 	int              epoll;
 	int              signal[2];
 	long volatile    bind_count;
+	struct list_head working_list;
 	struct list_head private_list;
 #endif
 	pthread_mutex_t  mutex;
-	struct list_head working_list;
 	struct rb_root   waiting_tree;
 	struct list_head pending_list;
 };
@@ -44,10 +44,10 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 
 	struct list_head timeout_list;
 	INIT_LIST_HEAD(&timeout_list);
-
+#ifndef _WIN32
 	struct list_head working_list;
 	INIT_LIST_HEAD(&working_list);
-
+#endif
 	DWORD curtick = GetTickCount();
 	pthread_mutex_lock(&pool->mutex);
 
@@ -68,11 +68,11 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 			break;
 		}
 
-		AOperator *pos;
+		/*AOperator *pos;
 		list_for_each_entry(pos, &asop->ao_list, AOperator, ao_list) {
 			pos->ao_tick = 0;
 		}
-		asop->ao_tick = 0;
+		asop->ao_tick = 0;*/
 
 		struct list_head *last = asop->ao_list.prev;
 		asop->ao_list.prev = timeout_list.prev;
@@ -83,9 +83,8 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 		rb_erase(&asop->ao_tree, &pool->waiting_tree);
 		node = rb_first(&pool->waiting_tree);
 	}
-
-	list_splice_init(&pool->working_list, &working_list);
 #ifndef _WIN32
+	list_splice_init(&pool->working_list, &working_list);
 	list_splice_init(&at->private_list, &working_list);
 #endif
 	pthread_mutex_unlock(&pool->mutex);
@@ -93,14 +92,16 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 	while (!list_empty(&timeout_list)) {
 		asop = list_first_entry(&timeout_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
+		asop->ao_tick = 0;
 		asop->callback(asop, 0);
 	}
-
+#ifndef _WIN32
 	while (!list_empty(&working_list)) {
 		asop = list_first_entry(&working_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
 		asop->callback(asop, 1);
 	}
+#endif
 	return max_timewait;
 }
 
@@ -202,7 +203,6 @@ static int work_thread_begin(int max_timewait)
 	AThread *&pool = work_thread[0];
 	for (int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadBegin(&work_thread[ix], pool, max_timewait);
-		max_timewait += max_timewait;
 	}
 	return 1;
 }
@@ -264,6 +264,7 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
 	} else {
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
+		INIT_LIST_HEAD(&at->working_list);
 	}
 
 	at->bind_count = 0;
@@ -271,7 +272,6 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 #endif
 	if (pool == NULL) {
 		pthread_mutex_init(&at->mutex, NULL);
-		INIT_LIST_HEAD(&at->working_list);
 		INIT_RB_ROOT(&at->waiting_tree);
 		INIT_LIST_HEAD(&at->pending_list);
 	}
@@ -311,6 +311,8 @@ AThreadEnd(AThread *at)
 		free(at);
 		return 1;
 	}
+
+	list_splice_init(&at->working_list, &at->pending_list);
 #endif
 	pthread_mutex_destroy(&at->mutex);
 
@@ -327,7 +329,6 @@ AThreadEnd(AThread *at)
 		rb_erase(&asop->ao_tree, &at->waiting_tree);
 		asop->callback(asop, -EINTR);
 	}
-	list_splice_init(&at->working_list, &at->pending_list);
 	while (!list_empty(&at->pending_list)) {
 		asop = list_first_entry(&at->pending_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
@@ -349,20 +350,14 @@ AThreadPost(AThread *at, AOperator *asop, BOOL signal)
 		return 0;
 	}
 #ifdef _WIN32
-	if (signal) {
-		PostQueuedCompletionStatus(at->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
-		return 0;
-	}
-#endif
+	PostQueuedCompletionStatus(at->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
+#else
 	int first;
 	pthread_mutex_lock(&pool->mutex);
-#ifndef _WIN32
 	if (asop->ao_thread == at) {
 		first = (list_empty(&at->private_list) ? 2 : 0);
 		list_add_tail(&asop->ao_list, &at->private_list);
-	} else
-#endif
-	{
+	} else {
 		first = (list_empty(&pool->working_list) ? 1 : 0);
 		list_add_tail(&asop->ao_list, &pool->working_list);
 		at = pool;
@@ -371,6 +366,7 @@ AThreadPost(AThread *at, AOperator *asop, BOOL signal)
 
 	if ((first != 0) && signal)
 		AThreadWakeup(at, (first==1));
+#endif
 	return 0;
 }
 
@@ -448,16 +444,15 @@ AThreadDefault(int ix)
 AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 {
+	asop->ao_tick = tick;
+	if (tick == 0) {
+		AThreadPost(at, asop, TRUE);
+		return 0;
+	}
+
 	if (at == NULL)
 		at = work_thread[0];
 	AThread *pool = (at->pool ? at->pool : at);
-
-	asop->ao_thread = NULL;
-	asop->ao_tick = tick;
-	if (tick == 0) {
-		AThreadPost(pool, asop, TRUE);
-		return 0;
-	}
 
 	if (tick == INFINITE) {
 		pthread_mutex_lock(&pool->mutex);
@@ -466,25 +461,16 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 		return 0;
 	}
 
-	AOperator *node = NULL;
+	asop->ao_thread = NULL;
+	INIT_LIST_HEAD(&asop->ao_list);
+
 	pthread_mutex_lock(&pool->mutex);
-	if (RB_EMPTY_ROOT(&pool->waiting_tree)) {
-		tick = 0;
-	}
-	else if ((node = rb_search_AOperator(&pool->waiting_tree, tick)) == NULL) {
-		node = rb_entry(rb_first(&pool->waiting_tree), AOperator, ao_tree);
-
-		if (AOperatorTimewaitCompare(tick, node) < 0)
-			tick = 0;
-		node = NULL;
-	}
-
-	if (node == NULL) {
-		rb_insert_AOperator(&pool->waiting_tree, asop, asop->ao_tick);
-		INIT_LIST_HEAD(&asop->ao_list);
-	} else {
+	AOperator *node = rb_insert_AOperator(&pool->waiting_tree, asop, tick);
+	if (node != NULL) {
 		list_add_tail(&asop->ao_list, &node->ao_list);
-		//TRACE2("combine list timewait = %d.\n", tick);
+	} else {
+		if (&asop->ao_tree == rb_first(&pool->waiting_tree))
+			tick = 0;
 	}
 	pthread_mutex_unlock(&pool->mutex);
 
@@ -510,6 +496,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 	}
 	else if (asop->ao_tick != 0) {
 		AOperator *node = rb_search_AOperator(&pool->waiting_tree, asop->ao_tick);
+		asop->ao_tick = 0;
 
 		if (node == NULL) {
 			assert(0);
@@ -528,7 +515,6 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 			rb_replace_node(&asop->ao_tree, &node->ao_tree, &pool->waiting_tree);
 			list_del_init(&asop->ao_list);
 		}
-		asop->ao_tick = 0;
 	}
 #ifndef _WIN32
 	if ((signal > 0) && !cancel) {
@@ -549,7 +535,6 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 		PostQueuedCompletionStatus(pool->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
 #else
 		AThreadWakeup(at, (signal==1));
-		//send(at->signal[signal-1], "a", 1, MSG_NOSIGNAL);
 #endif
 		signal = 0;
 	}

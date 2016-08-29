@@ -259,7 +259,7 @@ static int PVDOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	PVDClient *pvd = to_pvd(object);
-	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDOpenStatus);
+	pvd->outmsg.done = &TObjectDone(PVDClient, outmsg, outfrom, PVDOpenStatus);
 	pvd->outfrom = msg;
 
 	if (pvd->io == NULL) {
@@ -347,7 +347,7 @@ static int PVDRequest(AObject *object, int reqix, AMessage *msg)
 		return pvd->io->request(pvd->io, reqix, msg);
 	}
 
-	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDOutputStatus); //&PVDOutputDone;
+	pvd->outmsg.done = &TObjectDone(PVDClient, outmsg, outfrom, PVDOutputStatus);
 	pvd->outfrom = msg;
 
 	pvd->outmsg.data = NULL;
@@ -423,7 +423,7 @@ static int PVDClose(AObject *object, AMessage *msg)
 	if (msg == NULL)
 		return pvd->io->close(pvd->io, NULL);
 
-	pvd->outmsg.done = &TObjectDone2(PVDClient, outmsg, outfrom, PVDCloseStatus);
+	pvd->outmsg.done = &TObjectDone(PVDClient, outmsg, outfrom, PVDCloseStatus);
 	pvd->outfrom = msg;
 
 	int result;

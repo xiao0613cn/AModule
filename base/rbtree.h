@@ -169,13 +169,11 @@ static inline void rb_link_node(struct rb_node * node, struct rb_node * parent,
 type* rb_search_##type(struct rb_root *root, keytype key) \
 { \
 	struct rb_node *node = root->rb_node; \
-	type *data; \
-	int result; \
 	\
 	while (node != NULL) \
 	{ \
-		data = rb_entry(node, type, member); \
-		result = keycmp(key, data); \
+		type *data = rb_entry(node, type, member); \
+		int result = keycmp(key, data); \
 		\
 		if (result < 0) \
 			node = node->rb_left; \
@@ -186,30 +184,30 @@ type* rb_search_##type(struct rb_root *root, keytype key) \
 	} \
 	return NULL; \
 } \
-int rb_insert_##type(struct rb_root *root, type *data, keytype key) \
+type* rb_insert_##type(struct rb_root *root, type *data, keytype key) \
 { \
-	struct rb_node **link = &(root->rb_node), *parent = NULL; \
+	struct rb_node **link = &(root->rb_node); \
+	struct rb_node *parent = NULL; \
 	\
 	/* Figure out where to put new node */ \
-	while (*link) { \
+	while (*link) \
+	{ \
 		type *data2 = container_of(*link, type, member); \
 		int result = keycmp(key, data2); \
 		\
 		parent = *link; \
 		if (result < 0) \
-			link = &((*link)->rb_left); \
+			link = &(parent->rb_left); \
 		else if (result > 0) \
-			link = &((*link)->rb_right); \
-		else {\
-			rb_set_parent(&data->member, *link); \
-			return FALSE; \
-		} \
+			link = &(parent->rb_right); \
+		else \
+			return data2; \
 	} \
 	\
 	/* Add new node and rebalance tree. */ \
 	rb_link_node(&data->member, parent, link); \
 	rb_insert_color(&data->member, root); \
-	return TRUE; \
+	return NULL; \
 }
 
 #endif	/* _LINUX_RBTREE_H */

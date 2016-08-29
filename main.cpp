@@ -84,8 +84,7 @@ void rbtree_test()
 		r = (myrb_node*)malloc(sizeof(myrb_node));
 		r->key = rand();
 
-		int result = rb_insert_myrb_node(&root, r, r->key);
-		if (!result)
+		if (rb_insert_myrb_node(&root, r, r->key) != NULL)
 			free(r);
 		else
 			++insert_count;
@@ -608,7 +607,7 @@ int main(int argc, char* argv[])
 	AModuleInitOption(option);
 	option = NULL;
 
-	AThreadBegin(NULL, NULL, 20);
+	AThreadBegin(NULL, NULL, 20*1000);
 	AModuleRegister(&TCPModule);
 	AModuleRegister(&TCPServerModule);
 	AModuleRegister(&AsyncTcpModule);
