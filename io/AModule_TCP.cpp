@@ -19,15 +19,8 @@ static void TCPRelease(AObject *object)
 
 static int TCPCreate(AObject **object, AObject *parent, AOption *option)
 {
-	TCPObject *tcp = (TCPObject*)malloc(sizeof(TCPObject));
-	if (tcp == NULL)
-		return -ENOMEM;
-
-	extern AModule TCPModule;
-	AObjectInit(&tcp->object, &TCPModule);
+	TCPObject *tcp = (TCPObject*)*object;
 	tcp->sock = INVALID_SOCKET;
-
-	*object = &tcp->object;
 	return 1;
 }
 

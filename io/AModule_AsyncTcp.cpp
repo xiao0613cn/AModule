@@ -41,19 +41,13 @@ static void AsyncTcpRelease(AObject *object)
 
 static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AsyncTcp *tcp = (AsyncTcp*)malloc(sizeof(AsyncTcp));
-	if (tcp == NULL)
-		return -ENOMEM;
-
-	extern AModule AsyncTcpModule;
-	AObjectInit(&tcp->object, &AsyncTcpModule);
+	AsyncTcp *tcp = (AsyncTcp*)*object;
 	tcp->sock = INVALID_SOCKET;
+
 	memset(&tcp->send_ovlp, 0, sizeof(tcp->send_ovlp));
 	memset(&tcp->recv_ovlp, 0, sizeof(tcp->recv_ovlp));
 	tcp->send_ovlp.tcp = tcp;
 	tcp->recv_ovlp.tcp = tcp;
-
-	*object = &tcp->object;
 	return 1;
 }
 

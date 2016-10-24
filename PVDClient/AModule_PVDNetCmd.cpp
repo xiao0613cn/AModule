@@ -35,13 +35,7 @@ static void PVDRelease(AObject *object)
 
 static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 {
-	PVDClient *pvd = (PVDClient*)malloc(sizeof(PVDClient));
-	if (pvd == NULL)
-		return -ENOMEM;
-
-	extern AModule PVDClientModule;
-	AObjectInit(&pvd->object, &PVDClientModule);
-
+	PVDClient *pvd = (PVDClient*)*object;
 	pvd->io = NULL;
 	pvd->status = pvdnet_invalid;
 	pvd->userid = 0;
@@ -53,8 +47,6 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 
 	AOption *io_opt = AOptionFind(option, "io");
 	AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
-
-	*object = &pvd->object;
 	return 1;//result;
 }
 

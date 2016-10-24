@@ -34,13 +34,7 @@ static void PVDRTRelease(AObject *object)
 
 static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 {
-	PVDRTStream *rt = (PVDRTStream*)malloc(sizeof(PVDRTStream));
-	if (rt == NULL)
-		return -ENOMEM;
-
-	extern AModule PVDRTModule;
-	AObjectInit(&rt->object, &PVDRTModule);
-
+	PVDRTStream *rt = (PVDRTStream*)*object;
 	rt->io = NULL;
 	rt->status = pvdnet_invalid;
 	rt->userid = 0;
@@ -65,8 +59,6 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 	AOption *io_option = AOptionFind(option, "io");
 	AObjectCreate(&rt->io, &rt->object, io_option, NULL);
-
-	*object = &rt->object;
 	return 1;;//result;
 }
 

@@ -47,12 +47,7 @@ static void DumpRelease(AObject *object)
 
 static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 {
-	DumpObject *dump = (DumpObject*)malloc(sizeof(DumpObject));
-	if (dump == NULL)
-		return -ENOMEM;
-
-	extern AModule DumpModule;
-	AObjectInit(&dump->object, &DumpModule);
+	DumpObject *dump = (DumpObject*)*object;
 	dump->file = NULL;
 	dump->file_name[0] = '\0';
 	dump->single_file = FALSE;
@@ -65,8 +60,6 @@ static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
 		AObjectCreate(&dump->io, &dump->object, io_opt, NULL);
-
-	*object = &dump->object;
 	return 1;
 }
 

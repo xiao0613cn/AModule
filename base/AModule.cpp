@@ -153,7 +153,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 AMODULE_API void
 AObjectInit(AObject *object, AModule *module)
 {
-	object->count = 1;
+	object->refcount = 1;
 	object->release = module->release;
 	object->extend = NULL;
 	object->module = module;
@@ -187,6 +187,16 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 	AModule *module = AModuleFind(class_name, module_name);
 	if (module == NULL)
 		return -ENOSYS;
+
+	if (module->object_size > 0) {
+		*object = (AObject*)malloc(module->object_size);
+		if (*object == NULL)
+			return -ENOMEM;
+
+		AObjectInit(*object, module);
+	} else {
+		*object = NULL;
+	}
 
 	int result = module->create(object, parent, option);
 	if (result < 0)

@@ -296,18 +296,11 @@ static void TCPServerRelease(AObject *object)
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
-	TCPServer *server = (TCPServer*)malloc(sizeof(TCPServer));
-	if (server == NULL)
-		return -ENOMEM;
-
-	extern AModule TCPServerModule;
-	AObjectInit(&server->object, &TCPServerModule);
+	TCPServer *server = (TCPServer*)*object;
 	server->sock = INVALID_SOCKET;
 	server->thread = pthread_null;
 	server->option = NULL;
 	server->prepare = NULL;
-
-	*object = &server->object;
 	return 1;
 }
 

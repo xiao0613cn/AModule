@@ -54,16 +54,10 @@ static void HTTPProxyRelease(AObject *object)
 
 static int HTTPProxyCreate(AObject **object, AObject *parent, AOption *option)
 {
-	HTTPProxy *proxy = (HTTPProxy*)malloc(sizeof(HTTPProxy));
-	if (proxy == NULL)
-		return -ENOMEM;
-
-	extern AModule HTTPProxyModule;
-	AObjectInit(&proxy->object, &HTTPProxyModule);
+	HTTPProxy *proxy = (HTTPProxy*)*object;
 	proxy->from = parent; AObjectAddRef(parent);
 	proxy->to = NULL;
 	proxy->option = AOptionFind(option, "io");
-	*object = &proxy->object;
 
 	int result = AObjectCreate(&proxy->to, &proxy->object, proxy->option, "tcp");
 	return result;

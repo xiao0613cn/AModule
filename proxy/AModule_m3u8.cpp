@@ -230,19 +230,14 @@ static void M3U8ProxyRelease(AObject *object)
 
 static int M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
 {
-	extern AModule M3U8ProxyModule;
-	M3U8ProxyModule.init(NULL);
 	if ((rt == NULL) || (rt_seq == 0))
 		return -EFAULT;
 
-	M3U8Proxy *p = (M3U8Proxy*)malloc(sizeof(M3U8Proxy));
-	if (p == NULL)
-		return -ENOMEM;
-
-	AObjectInit(&p->object, &M3U8ProxyModule);
+	M3U8Proxy *p = (M3U8Proxy*)*object;
 	p->client = parent;
 	if (parent != NULL)
 		AObjectAddRef(parent);
+
 	memset(&p->reply_file, 0, sizeof(p->reply_file));
 	p->reply_index = 0;
 	p->last_seq = 0;
@@ -250,7 +245,6 @@ static int M3U8ProxyCreate(AObject **object, AObject *parent, AOption *option)
 	p->file_outctx = NULL;
 
 	InterlockedAdd(&alloc_count, 1);
-	*object = &p->object;
 	return 1;
 }
 

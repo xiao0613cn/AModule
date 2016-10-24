@@ -6,7 +6,7 @@ typedef struct AModule AModule;
 typedef struct AObject AObject;
 
 struct AObject {
-	long volatile count;
+	long volatile refcount;
 	void  (*release)(AObject *object);
 	void   *extend;
 	AModule *module;
@@ -28,12 +28,12 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 
 static inline long
 AObjectAddRef(AObject *object) {
-	return InterlockedAdd(&object->count, 1);
+	return InterlockedAdd(&object->refcount, 1);
 }
 
 static inline long
 AObjectRelease(AObject *object) {
-	long result = InterlockedAdd(&object->count, -1);
+	long result = InterlockedAdd(&object->refcount, -1);
 	if (result <= 0)
 		object->release(object);
 	return result;

@@ -110,13 +110,7 @@ static void SyncControlRelease(AObject *object)
 
 static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 {
-	SyncControl *sc = (SyncControl*)malloc(sizeof(SyncControl));
-	if (sc == NULL)
-		return -ENOMEM;
-
-	extern AModule SyncControlModule;
-	AObjectInit(&sc->object, &SyncControlModule);
-
+	SyncControl *sc = (SyncControl*)*object;
 	sc->stream = NULL;
 	sc->open_result = 0;
 	sc->close_msg = NULL;
@@ -125,7 +119,6 @@ static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 	INIT_LIST_HEAD(&sc->syncreq_list);
 	memset(sc->syncreq_cache_list, 0, sizeof(sc->syncreq_cache_list));
 
-	*object = &sc->object;
 	int result = AObjectCreate(&sc->stream, parent, option, NULL);
 	return result;
 }

@@ -86,21 +86,15 @@ static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 	if ((pvd == NULL) /*|| (parent == NULL)*/)
 		return -EFAULT;
 
-	PVDProxy *p = (PVDProxy*)malloc(sizeof(PVDProxy));
-	if (p == NULL)
-		return -ENOMEM;
-
-	extern AModule PVDProxyModule;
-	AObjectInit(&p->object, &PVDProxyModule);
+	PVDProxy *p = (PVDProxy*)*object;
 	p->client = parent;
 	if (parent != NULL)
 		AObjectAddRef(parent);
+
 	SliceInit(&p->outbuf);
 	p->reqcount = 0;
 	p->frame_queue.reset();
 	p->proactive_id = 0;
-
-	*object = &p->object;
 	return 1;
 }
 

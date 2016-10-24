@@ -8,14 +8,7 @@
 
 static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AObject *echo = (AObject*)malloc(sizeof(AObject));
-	if (echo == NULL)
-		return -ENOMEM;
-
-	extern AModule EchoModule;
-	AObjectInit(echo, &EchoModule);
-
-	*object = echo;
+	AObject *echo = (AObject*)*object;
 	return 1;
 }
 
