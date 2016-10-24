@@ -3,7 +3,8 @@
 
 
 //////////////////////////////////////////////////////////////////////////
-typedef struct AOption {
+typedef struct AOption
+{
 	char        name[64];
 	char        value[BUFSIZ];
 	void       *extend;
@@ -29,7 +30,8 @@ AMODULE_API AOption*
 AOptionFind(AOption *option, const char *name);
 
 static inline char*
-AOptionChild(AOption *option, const char *name) {
+AOptionChild(AOption *option, const char *name)
+{
 	AOption *child = AOptionFind(option, name);
 	if (child == NULL)
 		return NULL;

@@ -7,6 +7,7 @@
 enum AModule_ioRequest {
 	Aio_Input = 0,
 	Aio_Output,
+	Aio_Error,
 
 	Aiosync_IndexMask    = 0x00ffffff,
 	Aiosync_RequestFront = 0x02000000,

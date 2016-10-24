@@ -338,7 +338,7 @@ static int M3U8OutputFile(void *opaque, uint8_t *data, int size)
 		if (p->reply_file.nb_buffers >= _countof(p->reply_file.buffers))
 			return -ENOMEM;
 
-		buf = ARefsBufCreate(1024*1024);
+		buf = ARefsBufCreate(1024*1024, NULL, NULL);
 		if (buf == NULL)
 			return -ENOMEM;
 
@@ -612,7 +612,7 @@ static int tmp_avio_write(void *opaque, uint8_t *data, int size)
 			RTStreamPush();
 		}
 
-		buf = ARefsBufCreate(max(1024*1024, 10*size));
+		buf = ARefsBufCreate(max(1024*1024, 10*size), NULL, NULL);
 		if (buf == NULL)
 			return -ENOMEM;
 

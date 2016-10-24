@@ -64,7 +64,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 				node = rb_next(node);
 				continue;
 			}
-			max_timewait = min(at->max_timewait, -diff);
+			max_timewait = std::min(at->max_timewait, -diff);
 			break;
 		}
 

@@ -105,7 +105,8 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 			return result;
 		}
 	} else {
-		TRACE2("%p: unsupport format: 0x%p.\n", rt, result);
+		if (rt->retry_count == 0)
+			TRACE2("%p: unsupport format: 0x%p, left size = %d.\n", rt, result, rt->outmsg.size);
 		//assert(FALSE);
 		return -EAGAIN;
 	}
@@ -141,7 +142,7 @@ static inline int PVDRTDoOutput(PVDRTStream *rt)
 	return rt->io->request(rt->io, Aio_Output, &rt->outmsg);
 }
 
-static int PVDRTOpenStatus(PVDRTStream *rt, int result)
+int PVDRTOpenStatus(PVDRTStream *rt, int result)
 {
 	do {
 		if ((result < 0) && (rt->status != pvdnet_disconnected))
@@ -275,7 +276,7 @@ static int PVDRTSetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static int PVDRTOutputStatus(PVDRTStream *rt, int result)
+int PVDRTOutputStatus(PVDRTStream *rt, int result)
 {
 	if (result < 0)
 		rt->outmsg.size = 0;

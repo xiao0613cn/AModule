@@ -145,7 +145,7 @@ static int PVDDoLogin(PVDClient *pvd, PVDStatus status)
 	return pvd->io->request(pvd->io, Aio_Input, &pvd->outmsg);
 }
 
-static int PVDOpenStatus(PVDClient *pvd, int result)
+int PVDOpenStatus(PVDClient *pvd, int result)
 {
 	pvdnet_head *phead;
 	do {
@@ -312,7 +312,7 @@ static int PVDGetOption(AObject *object, AOption *option)
 	return -ENOSYS;
 }
 
-static int PVDOutputStatus(PVDClient *pvd, int result)
+int PVDOutputStatus(PVDClient *pvd, int result)
 {
 	if (result < 0)
 		pvd->outmsg.size = 0;
@@ -364,7 +364,7 @@ static int PVDCancel(AObject *object, int reqix, AMessage *msg)
 	return p->io->cancel(p->io, reqix, msg);
 }
 
-static int PVDCloseStatus(PVDClient *pvd, int result)
+int PVDCloseStatus(PVDClient *pvd, int result)
 {
 	pvdnet_head *phead;
 	do {

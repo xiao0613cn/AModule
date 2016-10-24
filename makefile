@@ -4,6 +4,7 @@ CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive
 
 TAR:= ./build/AModule
 LIB_DEPEND:= -lpthread
+LOG:= 2>./build/log
 
 vpath %.h ./
 
@@ -12,29 +13,29 @@ objects := $(patsubst %.cpp, ./build/%.o, $(notdir $(sources)))
 dependence := $(patsubst %.o, %.d, $(objects))
 
 all: $(objects)
-	$(CXX) $(CFLAGS) $^ -o ./$(TAR) $(LIB_DEPEND) 2>./build/log
+	$(CXX) $(CFLAGS) $^ -o ./$(TAR) $(LIB_DEPEND) $(LOG)
 
 ./build/%.o: %.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 
 ./build/%.o: ./base/%.cpp
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 
 ./build/%.o: ./io/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 
 ./build/%.o: ./SyncControl/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 
 ./build/%.o: ./PVDClient/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 
 ./build/%.o: $(filter-out ./proxy/AModule_m3u8.cpp, ./proxy/%.cpp)
-	$(CXX) -c $(CFLAGS) $< -o $@ 
+	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
 	
 define gen_dep 
 	set -e; rm -f $@; \
-	$(CXX) -MM $(CFLAGS) $< > $@.tmp; \
+	$(CXX) -MM $(CFLAGS) $< > $@.tmp $(LOG); \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.tmp > $@; \
 	rm -f $@.tmp
 endef

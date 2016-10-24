@@ -167,12 +167,9 @@ _retry:
 static void AsyncOvlpSignal(AsyncTcp *tcp, AsyncOvlp *ovlp)
 {
 	ovlp->signal_count += 1;
-	if (ovlp->signal_count == ovlp->perform_count)
-		ovlp->signal_count += 256;
-
 	int result = InterlockedExchange(&ovlp->status, op_signal);
-	assert(result != op_error);
 
+	assert(result != op_error);
 	if (result == op_pending) {
 		if (ovlp->signal_count != ovlp->perform_count+1) {
 			TRACE2("tcp(%d): reset %s, perform_count(%d) to signal_count(%d).\n",
