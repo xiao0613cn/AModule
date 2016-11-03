@@ -64,7 +64,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 				node = rb_next(node);
 				continue;
 			}
-			max_timewait = std::min(at->max_timewait, -diff);
+			max_timewait = min(at->max_timewait, -diff);
 			break;
 		}
 
@@ -445,6 +445,7 @@ AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 {
 	asop->ao_tick = tick;
+	asop->ao_thread = NULL;
 	if (tick == 0) {
 		AThreadPost(at, asop, TRUE);
 		return 0;
@@ -461,7 +462,6 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 		return 0;
 	}
 
-	asop->ao_thread = NULL;
 	INIT_LIST_HEAD(&asop->ao_list);
 
 	pthread_mutex_lock(&pool->mutex);

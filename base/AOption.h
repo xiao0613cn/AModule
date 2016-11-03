@@ -17,6 +17,9 @@ typedef struct AOption
 AMODULE_API void
 AOptionInit(AOption *option, AOption *parent);
 
+AMODULE_API void
+AOptionExit(AOption *option);
+
 AMODULE_API AOption*
 AOptionCreate(AOption *parent);
 
@@ -24,7 +27,7 @@ AMODULE_API int
 AOptionDecode(AOption **option, const char *name);
 
 AMODULE_API AOption*
-AOptionClone(AOption *option);
+AOptionClone(AOption *option, AOption *parent);
 
 AMODULE_API AOption*
 AOptionFind(AOption *option, const char *name);

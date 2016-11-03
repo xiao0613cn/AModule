@@ -12,7 +12,8 @@ enum AMsgTypes
 	AMsgType_OtherMsg, /* data = AMessage*, size = 0 */
 	AMsgType_IOMsg,    /* data = AIOMsg*,  size = 0 */
 	AMsgType_RefsMsg,  /* data = ARefMsg*, size = 0 */
-	AMsgType_Custom = 0x80000000,
+	AMsgType_Class   = 0x40000000, /* class defined */
+	AMsgType_Private = 0x80000000, /* module defined */
 };
 
 typedef struct AMessage AMessage;
@@ -27,27 +28,19 @@ struct AMessage
 
 // util function
 static inline void
-AMsgInit(AMessage *msg, int type, char *data, int size)
+AMsgInit(AMessage *msg, int type, const void *data, int size)
 {
 	msg->type = type;
-	msg->data = data;
+	msg->data = (char*)data;
 	msg->size = size;
 }
 
-static inline int
-AMsgDone(AMessage *msg, int result)
-{
-	if (msg->done == NULL)
-		return result;
-	return msg->done(msg, result);
-}
-
 static inline void
-AMsgCopy(AMessage *msg, int type, char *data, int size)
+AMsgCopy(AMessage *msg, int type, const void *data, int size)
 {
 	msg->type = type;
 	if ((msg->data == NULL) || (msg->size == 0)) {
-		msg->data = data;
+		msg->data = (char*)data;
 		msg->size = size;
 	} else {
 		if (msg->size > size)
@@ -84,7 +77,7 @@ struct AIOMsg
 static inline void
 AIOMsgInit(AIOMsg *iom, int type, char *indata, int insize)
 {
-	AMsgInit(&iom->msg, AMsgType_IOMsg, (char*)iom, 0);
+	AMsgInit(&iom->msg, AMsgType_IOMsg, iom, 0);
 	iom->type = type;
 	iom->indata = indata;
 	iom->insize = insize;
@@ -149,7 +142,7 @@ struct ARefsMsg
 static inline void
 ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 {
-	AMsgInit(&rm->msg, AMsgType_RefsMsg, (char*)rm, 0);
+	AMsgInit(&rm->msg, AMsgType_RefsMsg, rm, 0);
 	rm->buf = buf; // ARefsBufAddRef(buf);
 	rm->pos = offset;
 	rm->type = type;

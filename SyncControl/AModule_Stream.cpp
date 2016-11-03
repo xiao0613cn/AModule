@@ -407,7 +407,7 @@ static int SyncRequestCancelDispath(SyncRequest *req, AMessage *from)
 	AMessage *pos;
 	list_for_each_entry(pos, &req->notify_list, AMessage, entry)
 	{
-		AMsgInit(from, AMsgType_OtherMsg, (char*)pos, 0);
+		AMsgInit(from, AMsgType_OtherMsg, pos, 0);
 		int result = from->done(from, 0);
 		if (result == 0)
 			continue;

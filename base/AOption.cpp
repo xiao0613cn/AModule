@@ -3,7 +3,7 @@
 
 
 AMODULE_API void
-AOptionRelease(AOption *option)
+AOptionExit(AOption *option)
 {
 	while (!list_empty(&option->children_list)) {
 		AOption *child = list_first_entry(&option->children_list, AOption, brother_entry);
@@ -11,7 +11,15 @@ AOptionRelease(AOption *option)
 		AOptionRelease(child);
 	}
 
-	assert(list_empty(&option->brother_entry));
+	if (!list_empty(&option->brother_entry)) {
+		list_del_init(&option->brother_entry);
+	}
+}
+
+AMODULE_API void
+AOptionRelease(AOption *option)
+{
+	AOptionExit(option);
 	free(option);
 }
 
@@ -99,7 +107,6 @@ AOptionDecode(AOption **option, const char *name)
 
 			if ((current->name[0] == '\0') && list_empty(&current->children_list)) {
 				AOption *empty_option = current;
-				list_del_init(&current->brother_entry);
 				current = current->parent;
 				AOptionRelease(empty_option);
 			} else {
@@ -157,12 +164,12 @@ _return:
 }
 
 AMODULE_API AOption*
-AOptionClone(AOption *option)
+AOptionClone(AOption *option, AOption *parent)
 {
 	if (option == NULL)
 		return NULL;
 
-	AOption *current = AOptionCreate(NULL);
+	AOption *current = AOptionCreate(parent);
 	if (current == NULL)
 		return NULL;
 
@@ -172,14 +179,11 @@ AOptionClone(AOption *option)
 	AOption *pos;
 	list_for_each_entry(pos, &option->children_list, AOption, brother_entry)
 	{
-		AOption *child = AOptionClone(pos);
+		AOption *child = AOptionClone(pos, current);
 		if (child == NULL) {
 			AOptionRelease(current);
 			return NULL;
 		}
-
-		child->parent = current;
-		list_add_tail(&child->brother_entry, &current->children_list);
 	}
 	return current;
 }

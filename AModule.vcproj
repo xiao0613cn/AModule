@@ -340,6 +340,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\http\AModule_HttpClient.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\proxy\AModule_HttpProxy.cpp"
 				>
 			</File>

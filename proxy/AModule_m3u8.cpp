@@ -285,7 +285,7 @@ static int OnMp4AckDone(M3U8Proxy *p)
 			continue;
 		}
 
-		p->outmsg.type = AMsgType_Custom;
+		p->outmsg.type = ioMsgType_Block;
 		p->outmsg.data = buf->data;
 		p->outmsg.size = buf->size;
 
@@ -475,7 +475,7 @@ static int M3U8ProxyRequest(AObject *object, int reqix, AMessage *msg)
 		int head_len = sprintf_s(p->reply, 200, m3u8_ack, m3u8_len);
 		memmove(p->reply+head_len, content, m3u8_len+1);
 
-		p->outmsg.type = AMsgType_Custom;
+		p->outmsg.type = ioMsgType_Block;
 		p->outmsg.data = p->reply;
 		p->outmsg.size = head_len + m3u8_len;
 		p->outmsg.done = &M3U8AckDone;
@@ -518,7 +518,7 @@ _reply:
 		} else {
 			p->outmsg.size = sprintf_s(p->reply, media_404);
 		}
-		p->outmsg.type = AMsgType_Custom;
+		p->outmsg.type = ioMsgType_Block;
 		p->outmsg.data = p->reply;
 		p->outmsg.done = &Mp4AckDone;
 		OutputDebugStringA(p->outmsg.data);

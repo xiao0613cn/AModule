@@ -96,14 +96,14 @@ static int TCPRequest(AObject *object, int reqix, AMessage *msg)
 	switch (reqix)
 	{
 	case Aio_Input:
-		if (msg->type & AMsgType_Custom)
+		if (ioMsgType_isBlock(msg->type))
 			return tcp_send(tcp->sock, msg->data, msg->size, MSG_NOSIGNAL);
 
 		result = send(tcp->sock, msg->data, msg->size, MSG_NOSIGNAL);
 		break;
 
 	case Aio_Output:
-		if (msg->type & AMsgType_Custom)
+		if (ioMsgType_isBlock(msg->type))
 			return tcp_recv(tcp->sock, msg->data, msg->size, 0);
 
 		result = recv(tcp->sock, msg->data, msg->size, 0);

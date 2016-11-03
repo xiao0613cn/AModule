@@ -120,7 +120,7 @@ static int PVDProxySendDone(AMessage *msg, int result)
 	} else {
 		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
 		p->inmsg.done = &PVDClientSendDone;
-		result = p->client->request(p->client, Aio_Input, &p->inmsg);
+		result = ioInput(p->client, &p->inmsg);
 	}
 	if (result > 0)
 		result = PVDProxyDispatch(p);
@@ -138,7 +138,7 @@ static int PVDProxyRecvDone(AMessage *msg, int result)
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
 		}
-		TRACE("command(%02x) timeout...\n", p->inmsg.type&~AMsgType_Custom);
+		TRACE("command(%02x) timeout...\n", p->inmsg.type&~AMsgType_Private);
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
@@ -147,7 +147,7 @@ static int PVDProxyRecvDone(AMessage *msg, int result)
 	if (p->outmsg.size != 0) {
 		if (p->outmsg.data == NULL) {
 			p->outmsg.data = SliceResPtr(&p->outbuf);
-			result = PVDCmdEncode(userid, p->outmsg.data, p->outmsg.type&~AMsgType_Custom, 0);
+			result = PVDCmdEncode(userid, p->outmsg.data, p->outmsg.type&~AMsgType_Private, 0);
 			assert(result == p->outmsg.size);
 		} else {
 			memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, p->outmsg.size);
@@ -173,7 +173,7 @@ static int PVDProxyRecvStream(AMessage *msg, int result)
 			if (int(GetTickCount()-p->outtick) > 15000)
 				return -1;
 			TRACE("drop stream frame(%d) size = %d...\n",
-				msg->type&~AMsgType_Custom, msg->size);
+				msg->type&~AMsgType_Private, msg->size);
 		}
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
@@ -206,9 +206,9 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		}
 
 		AMessage &frame = p->frame_queue.front();
-		AMsgInit(&p->inmsg, AMsgType_Custom|frame.type, frame.data, frame.size);
+		AMsgInit(&p->inmsg, AMsgType_Private|frame.type, frame.data, frame.size);
 
-		result = p->client->request(p->client, Aio_Input, &p->inmsg);
+		result = ioInput(p->client, &p->inmsg);
 		if (result <= 0)
 			break;
 
@@ -284,12 +284,12 @@ static int PVDProactiveRTConnect(AMessage *msg, int result)
 	}
 
 	result = PVDCmdEncode(userid, &p->null_cmd, NET_SDVR_REAL_PLAY_EX, sizeof(long));
-	AMsgInit(&p->inmsg, AMsgType_Custom|NET_SDVR_REAL_PLAY_EX, (char*)&p->null_cmd, result);
+	AMsgInit(&p->inmsg, AMsgType_Private|NET_SDVR_REAL_PLAY_EX, &p->null_cmd, result);
 
 	p->inmsg.done = &PVDProactiveRTPlay;
 	p->outfrom = NULL;
 
-	result = p->client->request(p->client, Aio_Input, &p->inmsg);
+	result = ioInput(p->client, &p->inmsg);
 	if (result != 0)
 		PVDProactiveRTPlay(&p->inmsg, result);
 	return result;
@@ -311,7 +311,7 @@ static int PVDProactiveRTStream(PVDProxy *p)
 	PVDProxy *p_rt; p_rt = to_proxy(obj);
 	p_rt->proactive_id = ((STRUCT_SDVR_REALPLAY_INITIATIVE*)(p->inmsg.data+sizeof(pvdnet_head)))->msgid;
 
-	AMsgInit(&p_rt->outmsg, AMsgType_Option, (char*)proactive_io, 0);
+	AMsgInit(&p_rt->outmsg, AMsgType_Option, proactive_io, 0);
 	p_rt->outmsg.done = &PVDProactiveRTConnect;
 
 	result = p_rt->client->open(p_rt->client, &p_rt->outmsg);
@@ -333,7 +333,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 			return p->outfrom->size;
 
 		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
-		p->inmsg.type = AMsgType_Custom|phead->uCmd;
+		p->inmsg.type = AMsgType_Private|phead->uCmd;
 		switch (phead->uCmd)
 		{
 		case NET_SDVR_MD5ID_GET:   p->outmsg.size = sizeof(pvdnet_head) + 4; break;
@@ -355,7 +355,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 			p->inmsg.size = sizeof(pvdnet_head) + 0;
 			p->inmsg.done = &PVDProxyRTStream;
 
-			result = p->client->request(p->client, Aio_Input, &p->inmsg);
+			result = ioInput(p->client, &p->inmsg);
 			if (result != 0) {
 				p->outfrom = NULL;
 				result = PVDProxyRTStream(&p->inmsg, result);
@@ -389,7 +389,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 			}
 
 			p->inmsg.done = &PVDProxySendDone;
-			result = pvd->request(pvd, Aio_Input, &p->inmsg);
+			result = ioInput(pvd, &p->inmsg);
 			if (result == 0)
 				return 0;
 			if (InterlockedAdd(&p->reqcount, -1) != 0)
@@ -399,7 +399,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 				return -EFAULT;
 			AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
 			p->inmsg.done = &PVDClientSendDone;
-			result = p->client->request(p->client, Aio_Input, &p->inmsg);
+			result = ioInput(p->client, &p->inmsg);
 			continue;
 		}
 
@@ -409,7 +409,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 			break;
 
 		p->inmsg.data = SliceResPtr(&p->outbuf);
-		p->inmsg.size = PVDCmdEncode(userid, p->inmsg.data, p->inmsg.type&~AMsgType_Custom, p->outmsg.size-sizeof(pvdnet_head));
+		p->inmsg.size = PVDCmdEncode(userid, p->inmsg.data, p->inmsg.type&~AMsgType_Private, p->outmsg.size-sizeof(pvdnet_head));
 		assert(p->inmsg.size == p->outmsg.size);
 
 		phead = (pvdnet_head*)p->inmsg.data;
@@ -435,7 +435,7 @@ static int PVDProxyDispatch(PVDProxy *p)
 		}
 
 		p->inmsg.done = &PVDClientSendDone;
-		result = p->client->request(p->client, Aio_Input, &p->inmsg);
+		result = ioInput(p->client, &p->inmsg);
 	} while (result > 0);
 	return result;
 }
@@ -453,7 +453,7 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 	if (result < 0)
 		return result;
 
-	p->outmsg.type = AMsgType_Custom|NET_SDVR_INITIATIVE_LOGIN;
+	p->outmsg.type = AMsgType_Private|NET_SDVR_INITIATIVE_LOGIN;
 	p->outmsg.data = SliceResPtr(&p->outbuf);
 	p->outmsg.size = PVDCmdEncode(userid, p->outmsg.data, NET_SDVR_INITIATIVE_LOGIN, sizeof(STRUCT_SDVR_INITIATIVE_LOGIN));
 
@@ -473,7 +473,7 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 	strcpy_s(login->sDvrName, login_data.szDvrName);
 	memcpy(login->sChanName, login_data.szChanName, min(sizeof(login->sChanName), sizeof(login_data.szChanName)));
 
-	result = p->client->request(p->client, Aio_Input, &p->outmsg);
+	result = ioInput(p->client, &p->outmsg);
 	return result;
 }
 
@@ -502,7 +502,7 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 			return result;
 
 		AMsgInit(&p->inmsg, AMsgType_Unknown, NULL, 0);
-		AMsgInit(&p->outmsg, AMsgType_Option, (char*)proactive_io, 0);
+		AMsgInit(&p->outmsg, AMsgType_Option, proactive_io, 0);
 		p->inmsg.done = &PVDProactiveOpenDone;
 		p->outmsg.done = &PVDProactiveOpenDone;
 
@@ -578,12 +578,12 @@ static void PVDDoSend(AOperator *asop, int result)
 		switch (sm->msg.type)
 		{
 		case AMsgType_Option: result = NET_SDVR_GET_DVRTYPE; break;
-		case (AMsgType_Custom|NET_SDVR_GET_DVRTYPE): result = NET_SDVR_SUPPORT_FUNC; break;
-		case (AMsgType_Custom|NET_SDVR_SUPPORT_FUNC): result = NET_SDVR_DEVICECFG_GET; break;
-		case (AMsgType_Custom|NET_SDVR_DEVICECFG_GET): result = NET_SDVR_DEVICECFG_GET_EX; break;
-		case (AMsgType_Custom|NET_SDVR_DEVICECFG_GET_EX): result = NET_SDVR_NETCFG_GET; break;
+		case (AMsgType_Private|NET_SDVR_GET_DVRTYPE): result = NET_SDVR_SUPPORT_FUNC; break;
+		case (AMsgType_Private|NET_SDVR_SUPPORT_FUNC): result = NET_SDVR_DEVICECFG_GET; break;
+		case (AMsgType_Private|NET_SDVR_DEVICECFG_GET): result = NET_SDVR_DEVICECFG_GET_EX; break;
+		case (AMsgType_Private|NET_SDVR_DEVICECFG_GET_EX): result = NET_SDVR_NETCFG_GET; break;
 		default:
-			if (sm->msg.type != (AMsgType_Custom|NET_SDVR_SHAKEHAND)) {
+			if (sm->msg.type != (AMsgType_Private|NET_SDVR_SHAKEHAND)) {
 				result = NET_SDVR_SHAKEHAND;
 				break;
 			}
@@ -591,10 +591,10 @@ static void PVDDoSend(AOperator *asop, int result)
 			AOperatorTimewait(&sm->timer, NULL, 3*1000);
 			return;
 		}
-		sm->msg.type = AMsgType_Custom|result;
+		sm->msg.type = AMsgType_Private|result;
 		sm->msg.data = (char*)&sm->heart;
 		sm->msg.size = PVDCmdEncode(0, &sm->heart, result, 0);
-		result = sm->object->request(sm->object, Aio_Input, &sm->msg);
+		result = ioInput(sm->object, &sm->msg);
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
@@ -779,7 +779,7 @@ static void PVDDoOpen(AOperator *asop, int result)
 		sm->object->setopt(sm->object, &opt);
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Option, (char*)sm->option, 0);
+	AMsgInit(&sm->msg, AMsgType_Option, sm->option, 0);
 	sm->msg.done = &PVDOpenDone;
 
 	result = sm->object->open(sm->object, &sm->msg);
@@ -843,7 +843,7 @@ int PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = pvd; AObjectAddRef(pvd);
-		sm->option = AOptionClone(option);
+		sm->option = AOptionClone(option, NULL);
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
@@ -859,7 +859,7 @@ int PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = rt; AObjectAddRef(rt);
-		sm->option = AOptionClone(option);
+		sm->option = AOptionClone(option, NULL);
 		sm->reqix = 0;
 		sm->threadix = 2;
 		sm->timer.callback = &PVDDoOpen;

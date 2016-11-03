@@ -113,7 +113,7 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 					rt, (error?"resize":"rewind"), rt->outbuf.siz, result, rt->outmsg.size);
 			rt->outmsg.data = SliceCurPtr(&rt->outbuf);
 		}
-		if (!(rt->outmsg.type & AMsgType_Custom)) {
+		if (!ioMsgType_isBlock(rt->outmsg.type)) {
 			return 0;
 		}
 		if (result == 0) {
@@ -131,7 +131,7 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 static inline int PVDRTDoOutput(PVDRTStream *rt)
 {
 	AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
-	return rt->io->request(rt->io, Aio_Output, &rt->outmsg);
+	return ioOutput(rt->io, &rt->outmsg);
 }
 
 int PVDRTOpenStatus(PVDRTStream *rt, int result)
@@ -155,7 +155,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 				result = sizeof(STRUCT_SDVR_REALPLAY_EX);
 			}
 
-			rt->outmsg.type = AMsgType_Custom|NET_SDVR_REAL_PLAY;
+			rt->outmsg.type = ioMsgType_Block;
 			rt->outmsg.data = SliceResPtr(&rt->outbuf);
 			rt->outmsg.size = PVDCmdEncode(rt->userid, rt->outmsg.data, NET_SDVR_REAL_PLAY, result);
 
@@ -171,7 +171,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 				rp->byLinkMode = atol(linkmode->value);
 		}
 			rt->status = pvdnet_syn_login;
-			result = rt->io->request(rt->io, Aio_Input, &rt->outmsg);
+			result = ioInput(rt->io, &rt->outmsg);
 			break;
 
 		case pvdnet_syn_login:
@@ -291,7 +291,7 @@ int PVDRTOutputStatus(PVDRTStream *rt, int result)
 				rt->retry_count = 0;
 			}
 			SlicePop(&rt->outbuf, rt->outmsg.size);
-			AMsgCopy(rt->outfrom, AMsgType_Custom|rt->status, rt->outmsg.data, rt->outmsg.size);
+			AMsgCopy(rt->outfrom, AMsgType_Private|rt->status, rt->outmsg.data, rt->outmsg.size);
 			break;
 		}
 		result = PVDRTDoOutput(rt);

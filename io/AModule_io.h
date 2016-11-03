@@ -16,5 +16,16 @@ enum AModule_ioRequest {
 	Aiosync_NotifyDispath = 0x05000000,
 };
 
+static inline int ioInput(AObject *io, AMessage *msg) {
+	return io->request(io, Aio_Input, msg);
+}
+
+static inline int ioOutput(AObject *io, AMessage *msg) {
+	return io->request(io, Aio_Output, msg);
+}
+
+#define ioMsgType_Block           (AMsgType_Class|0)
+#define ioMsgType_isBlock(type)   ((type) & (AMsgType_Class|AMsgType_Private))
+
 
 #endif

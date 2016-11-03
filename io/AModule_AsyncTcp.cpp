@@ -62,7 +62,7 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 		return;
 	}
 
-	if (!(ovlp->msg->type & AMsgType_Custom)) {
+	if (!ioMsgType_isBlock(ovlp->msg->type)) {
 		ovlp->msg->size = result;
 		result = ovlp->msg->done(ovlp->msg, result);
 		return;
@@ -121,7 +121,7 @@ _retry:
 				return ovlp->pos;
 
 			ovlp->perform_count += 1;
-			if (!(ovlp->msg->type & AMsgType_Custom)) {
+			if (!ioMsgType_isBlock(ovlp->msg->type)) {
 				ovlp->msg->size = ovlp->pos;
 				return ovlp->pos;
 			}

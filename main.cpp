@@ -70,6 +70,7 @@ void rbtree_test()
 	it = test_set.upper_bound(8);
 	it = test_set.upper_bound(14);
 	it = test_set.upper_bound(24);
+	it = test_set.lower_bound(14);
 
 	srand(rand());
 	struct rb_root root;
@@ -178,7 +179,7 @@ int CloseDone(AMessage *msg, int result)
 {
 	RecvMsg *rm = container_of(msg, RecvMsg, msg);
 	TRACE("%p: close result = %d, msg type = %d, size = %d.\n",
-		rm->pvd, result, msg->type&~AMsgType_Custom, msg->size);
+		rm->pvd, result, msg->type&~AMsgType_Private, msg->size);
 
 	AObjectRelease(rm->pvd);
 	free(rm);
@@ -199,7 +200,7 @@ void* RecvCB2(void *p)
 	} while (!g_abort && (result > 0));
 
 	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
-		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+		rm->pvd, result, rm->msg.type&~AMsgType_Private, rm->msg.size);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
@@ -224,7 +225,7 @@ void* SendHeart(void *p)
 	RecvMsg *rm = (RecvMsg*)p;
 
 	pvdnet_head header;
-	rm->msg.type = AMsgType_Custom|NET_SDVR_SHAKEHAND;
+	rm->msg.type = AMsgType_Private|NET_SDVR_SHAKEHAND;
 	rm->msg.data = (char*)&header;
 	rm->msg.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
 	rm->msg.done = NULL;
@@ -232,14 +233,14 @@ void* SendHeart(void *p)
 	int result;
 	do {
 		::Sleep(3000);
-		result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
+		result = ioInput(rm->pvd, &rm->msg);
 	} while (!g_abort && (result > 0));
 
 	TRACE("%p: send result = %d, msg type = %d, size = %d.\n",
-		rm->pvd, result, rm->msg.type&~AMsgType_Custom, rm->msg.size);
+		rm->pvd, result, rm->msg.type&~AMsgType_Private, rm->msg.size);
 
 	//result = rm->pvd->cancel(rm->pvd, ARequest_MsgLoop|Aio_Output, NULL);
-	result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
+	result = ioInput(rm->pvd, &rm->msg);
 
 	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
 	rm->msg.done = CloseDone;
@@ -284,7 +285,7 @@ void test_pvd(AOption *option, bool reset_option)
 _retry:
 	if (reset_option)
 		ResetOption(option);
-	AMsgInit(&sm, AMsgType_Option, (char*)option, 0);
+	AMsgInit(&sm, AMsgType_Option, option, 0);
 	sm.done = NULL;
 
 	if (_stricmp(option->value, "PVDClient") == 0) {
@@ -374,7 +375,7 @@ void test_proxy(AOption *option, bool reset_option)
 	AObject *tcp_server = NULL;
 	int result = AObjectCreate(&tcp_server, NULL, option, NULL);
 	if (result >= 0) {
-		AMsgInit(&msg, AMsgType_Option, (char*)option, 0);
+		AMsgInit(&msg, AMsgType_Option, option, 0);
 		msg.done = NULL;
 		result = tcp_server->open(tcp_server, &msg);
 	}
@@ -436,12 +437,12 @@ int proactive_done(AMessage *msg, int result)
 			rm->reqix = 3;
 		}
 
-		result = rm->pvd->request(rm->pvd, Aio_Input, &rm->msg);
+		result = ioInput(rm->pvd, &rm->msg);
 		if (result <= 0)
 			break;
 
 		if (rm->reqix == 2)
-			result = rm->pvd->request(rm->pvd, Aio_Output, &rm->msg);
+			result = ioOutput(rm->pvd, &rm->msg);
 	}
 
 	if (result < 0) {
@@ -588,9 +589,9 @@ int main(int argc, char* argv[])
 {
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
-	async_test();
+	//async_test();
 	//rbtree_test();
-	//http_parser_test();
+	http_parser_test();
 
 	AOption *option = NULL;
 	int result;

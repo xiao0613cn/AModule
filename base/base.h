@@ -226,15 +226,12 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #include <assert.h>
 #define TRACE2     TRACE
 #else //_DEBUG
-
 #ifndef assert
 #define assert(x)  (void)(0)
 #endif
-
 #ifndef TRACE2
 #define TRACE2(fmt, ...)  (void)(0)
 #endif
-
 #endif //_DEBUG
 
 

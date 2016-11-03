@@ -163,7 +163,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 	if (req == NULL)
 		return -ENOMEM;
 
-	AMsgInit(&req->msg, AMsgType_Option, (char*)opt, 0);
+	AMsgInit(&req->msg, AMsgType_Option, opt, 0);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 

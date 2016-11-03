@@ -84,10 +84,6 @@ int TObjectMsgDone(AMessage *msg, int result)
 #define TObjectDone(type, msg, from, done) \
 	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
 
-template <typename TObject>
-int TObjectNullOpen(AObject *object, AMessage *msg) {
-	return -ENOSYS;
-}
 
 struct IObject {
 public:
