@@ -79,7 +79,6 @@ static void PVDProxyRelease(AObject *object)
 		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
 		p->frame_queue.get_front();
 	}
-	free(p);
 }
 static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 {

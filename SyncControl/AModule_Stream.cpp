@@ -105,7 +105,6 @@ static void SyncControlRelease(AObject *object)
 		pthread_mutex_destroy(&req->mutex);
 		free(req);
 	}
-	free(sc);
 }
 
 static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)

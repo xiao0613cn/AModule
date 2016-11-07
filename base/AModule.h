@@ -39,6 +39,9 @@ AObjectRelease(AObject *object) {
 	return result;
 }
 
+AMODULE_API void
+AObjectFree(AObject *object);
+
 
 struct AModule {
 	const char *class_name;

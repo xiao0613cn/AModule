@@ -41,8 +41,6 @@ static void DumpRelease(AObject *object)
 
 	release_s(dump->file, fclose, NULL);
 	release_s(dump->io, AObjectRelease, NULL);
-
-	free(dump);
 }
 
 static int DumpCreate(AObject **object, AObject *parent, AOption *option)

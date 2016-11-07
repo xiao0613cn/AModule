@@ -28,8 +28,6 @@ static void PVDRTRelease(AObject *object)
 	PVDRTStream *rt = to_rt(object);
 	release_s(rt->io, AObjectRelease, NULL);
 	SliceFree(&rt->outbuf);
-
-	free(rt);
 }
 
 static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)

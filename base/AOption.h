@@ -15,22 +15,51 @@ typedef struct AOption
 } AOption;
 
 AMODULE_API void
-AOptionInit(AOption *option, AOption *parent);
+AOptionInit(AOption *option, struct list_head *list);
 
 AMODULE_API void
 AOptionExit(AOption *option);
 
 AMODULE_API AOption*
-AOptionCreate(AOption *parent);
+AOptionCreate2(struct list_head *list);
+
+static inline AOption*
+AOptionCreate(AOption *parent)
+{
+	AOption *option = AOptionCreate2(parent ? &parent->children_list : NULL);
+	if (option != NULL)
+		option->parent = parent;
+	return option;
+}
 
 AMODULE_API int
 AOptionDecode(AOption **option, const char *name);
 
 AMODULE_API AOption*
-AOptionClone(AOption *option, AOption *parent);
+AOptionFind2(struct list_head *list, const char *name);
+
+static inline AOption*
+AOptionFind(AOption *option, const char *name)
+{
+	if (option == NULL)
+		return NULL;
+	return AOptionFind2(&option->children_list, name);
+}
 
 AMODULE_API AOption*
-AOptionFind(AOption *option, const char *name);
+AOptionClone2(AOption *option, struct list_head *list);
+
+static inline AOption*
+AOptionClone(AOption *option, AOption *parent)
+{
+	AOption *child = AOptionClone2(option, parent ? &parent->children_list : NULL);
+	if (child != NULL)
+		child->parent = parent;
+	return child;
+}
+
+AMODULE_API void
+AOptionRelease(AOption *option);
 
 static inline char*
 AOptionChild(AOption *option, const char *name)
@@ -41,8 +70,21 @@ AOptionChild(AOption *option, const char *name)
 	return child->value;
 }
 
-AMODULE_API void
-AOptionRelease(AOption *option);
+static inline char*
+AOptionChild2(struct list_head *list, const char *name)
+{
+	AOption *child = AOptionFind2(list, name);
+	if (child == NULL)
+		return NULL;
+	return child->value;
+}
 
+static inline void
+AOptionClear(struct list_head *list)
+{
+	while (!list_empty(list)) {
+		AOptionRelease(list_first_entry(list, AOption, brother_entry));
+	}
+}
 
 #endif

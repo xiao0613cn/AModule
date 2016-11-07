@@ -35,8 +35,6 @@ static void AsyncTcpRelease(AObject *object)
 {
 	AsyncTcp *tcp = to_tcp(object);
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
-
-	free(tcp);
 }
 
 static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)

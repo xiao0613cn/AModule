@@ -8,7 +8,7 @@ struct HttpClient {
 	AObject   object;
 	AObject  *io;
 	ARefsBuf *buf;
-	AOption   request_headers;
+	struct list_head request_headers;
 	char      url[BUFSIZ];
 	char      version[32];
 
@@ -18,7 +18,7 @@ struct HttpClient {
 	AMessage *from;
 	int       reqix;
 	int       resp_size;
-	int       content_offset;
+	int       content_length;
 };
 #define to_http(obj)   container_of(obj, HttpClient, object)
 
@@ -27,21 +27,15 @@ static void HttpClientRelease(AObject *object)
 	HttpClient *p = to_http(object);
 	release_s(p->io, AObjectRelease, NULL);
 	release_s(p->buf, ARefsBufRelease, NULL);
-	AOptionExit(&p->request_headers);
-	free(p);
+	AOptionClear(&p->request_headers);
 }
 
 static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 {
 	HttpClient *p = (HttpClient*)*object;
 	p->io = NULL;
-	p->buf = ARefsBufCreate(1024*1024, NULL, NULL);
-	AOptionInit(&p->request_headers, NULL);
-	if (p->buf == NULL)
-		return -ENOMEM;
-
-	p->content_offset = 0;
-	strcpy_s(p->request_headers.name, "request_headers");
+	p->buf = NULL;
+	INIT_LIST_HEAD(&p->request_headers);
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
@@ -53,11 +47,6 @@ int HttpClientOnOpen(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
-
-	p->parser.data = p;
-	http_parser_init(&p->parser, HTTP_RESPONSE);
-	http_parser_settings_init(&p->cbset);
-
 	AOption *option = (AOption*)p->from->data;
 
 	// method
@@ -66,11 +55,11 @@ int HttpClientOnOpen(HttpClient *p, int result)
 	if (str != NULL)
 	{
 		int ix = 0;
-		for (const char *method = NULL;
-			((method = http_method_str((enum http_method)ix)) != NULL) && (method[0] != '<');
+		for (const char *m = NULL;
+			((m = http_method_str((enum http_method)ix)) != NULL) && (m[0] != '<');
 			++ix)
 		{
-			if (_stricmp(str, method) == 0) {
+			if (_stricmp(str, m) == 0) {
 				p->parser.method = ix;
 				break;
 			}
@@ -97,12 +86,12 @@ int HttpClientOnOpen(HttpClient *p, int result)
 
 		AOption *header = NULL;
 		if (pos->name[0] == ':')
-			header = AOptionFind(&p->request_headers, pos->name);
+			header = AOptionFind2(&p->request_headers, pos->name);
 
 		if (header != NULL) {
 			strcpy_s(header->value, pos->value);
 		} else {
-			header = AOptionClone(pos, &p->request_headers);
+			header = AOptionClone2(pos, &p->request_headers);
 			if (header == NULL)
 				return -ENOMEM;
 		}
@@ -137,30 +126,35 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 	return result;
 }
 
+int on_h_done(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	return 1;
+}
+
+int on_m_done(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	return 1;
+}
+
+static const struct http_parser_settings cb_sets = {
+	NULL, NULL, NULL, NULL, NULL,
+	&on_h_done, NULL, &on_m_done, NULL, NULL
+};
+
 int HttpClientOnResponse(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
-
 	do {
 		p->resp_size += p->msg.size;
-		do {
-			result = http_parser_execute(&p->parser, &p->cbset, p->msg.data, p->msg.size);
-			if (result == 0) {
-				//return -EILSEQ;
-				break;
-			}
+		p->msg.data[p->msg.size] = '\0';
 
-			p->msg.data += result;
-			p->msg.size -= result;
-		} while (p->msg.size > 0);
-
-		if (p->parser.http_errno != HPE_OK)
-			return -(AMsgType_Class|p->parser.http_errno);
-
-		if (http_body_is_final(&p->parser)) {
-			AMsgInit(p->from, AMsgType_Unknown, p->buf->data+p->content_offset, p->parser.content_length);
-			return p->parser.status_code;
+		result = http_parser_execute(&p->parser, &p->cbset, p->msg.data, p->msg.size);
+		if (p->parser.http_errno != HPE_OK) {
+			TRACE("http_errno_name = %s.\n", http_parser_error(&p->parser));
+			return -(AMsgType_Private|p->parser.http_errno);
 		}
 
 		if (p->resp_size+16*1024 >= p->buf->size) {
@@ -184,9 +178,13 @@ int HttpClientOnSendContent(HttpClient *p, int result)
 	if (result < 0)
 		return result;
 
+	p->parser.data = p;
+	http_parser_init(&p->parser, HTTP_RESPONSE);
+	p->resp_size = 0;
+	p->content_length = 0;
+
 	AMsgInit(&p->msg, AMsgType_Unknown, p->buf->data, p->buf->size);
 	p->msg.done = &TObjectDone(HttpClient, msg, from, HttpClientOnResponse);
-	p->resp_size = 0;
 
 	result = ioOutput(p->io, &p->msg);
 	if (result != 0)
@@ -221,7 +219,7 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 		http_method_str((enum http_method)p->parser.method), p->url, p->version);
 
 	AOption *pos;
-	list_for_each_entry(pos, &p->request_headers.children_list, AOption, brother_entry) {
+	list_for_each_entry(pos, &p->request_headers, AOption, brother_entry) {
 		if ((pos->name[0] != ':') && (pos->name[0] != '+'))
 			continue;
 		if (pos->value[0] == '\0')
@@ -230,13 +228,13 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 		reqlen += snprintf(p->buf->data+reqlen, p->buf->size-reqlen,
 			"%s: %s\r\n", pos->name+1, pos->value);
 	}
-
 	if ((reqix == Aio_Input) && (msg->size != 0)) {
 		reqlen += snprintf(p->buf->data+reqlen, p->buf->size-reqlen,
 			"Content-Length: %d\r\n", msg->size);
 	}
 	if (reqlen+2 >= p->buf->size)
 		return -ENOMEM;
+
 	strcpy(p->buf->data+reqlen, "\r\n");
 	reqlen += 2;
 

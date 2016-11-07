@@ -14,7 +14,6 @@ static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 
 static void EchoRelease(AObject *echo)
 {
-	free(echo);
 }
 
 static int EchoProbe(AObject *object, AMessage *msg)

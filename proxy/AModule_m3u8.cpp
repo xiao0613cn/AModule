@@ -223,7 +223,6 @@ static void M3U8ProxyRelease(AObject *object)
 	if (p->file_inctx != NULL) avformat_close_input(&p->file_inctx);
 	release_s(p->file_outctx, avformat_close_output, NULL);
 
-	free(p);
 	long ret = InterlockedAdd(&alloc_count, -1);
 	TRACE("m3u8 proxy alloc count = %d.\n", ret);
 }

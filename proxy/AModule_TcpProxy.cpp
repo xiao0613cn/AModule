@@ -291,7 +291,6 @@ static void TCPServerRelease(AObject *object)
 	release_s(server->thread, pthread_detach, pthread_null);
 	release_s(server->option, AOptionRelease, NULL);
 	release_s(server->prepare, TCPClientRelease, NULL);
-	free(server);
 }
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)

@@ -49,7 +49,6 @@ static void HTTPProxyRelease(AObject *object)
 	HTTPProxy *proxy = to_proxy(object);
 	release_s(proxy->from, AObjectRelease, NULL);
 	release_s(proxy->to, AObjectRelease, NULL);
-	free(proxy);
 }
 
 static int HTTPProxyCreate(AObject **object, AObject *parent, AOption *option)

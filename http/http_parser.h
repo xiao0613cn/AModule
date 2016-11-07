@@ -339,6 +339,11 @@ const char *http_method_str(enum http_method m);
 /* Return a string name of the given error */
 const char *http_errno_name(enum http_errno err);
 
+static __inline const char *
+http_parser_error(const http_parser *parser) {
+	return http_errno_name((enum http_errno)parser->http_errno);
+}
+
 /* Return a string description of the given error */
 const char *http_errno_description(enum http_errno err);
 

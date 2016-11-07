@@ -13,8 +13,6 @@ static void TCPRelease(AObject *object)
 {
 	TCPObject *tcp = to_tcp(object);
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
-
-	free(tcp);
 }
 
 static int TCPCreate(AObject **object, AObject *parent, AOption *option)

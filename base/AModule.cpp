@@ -194,6 +194,7 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 			return -ENOMEM;
 
 		AObjectInit(*object, module);
+		(*object)->release = &AObjectFree;
 	} else {
 		*object = NULL;
 	}
@@ -202,4 +203,11 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 	if (result < 0)
 		release_s(*object, AObjectRelease, NULL);
 	return result;
+}
+
+AMODULE_API void
+AObjectFree(AObject *object)
+{
+	object->module->release(object);
+	free(object);
 }

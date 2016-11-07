@@ -5,11 +5,7 @@
 AMODULE_API void
 AOptionExit(AOption *option)
 {
-	while (!list_empty(&option->children_list)) {
-		AOption *child = list_first_entry(&option->children_list, AOption, brother_entry);
-		list_del_init(&child->brother_entry);
-		AOptionRelease(child);
-	}
+	AOptionClear(&option->children_list);
 
 	if (!list_empty(&option->brother_entry)) {
 		list_del_init(&option->brother_entry);
@@ -24,25 +20,27 @@ AOptionRelease(AOption *option)
 }
 
 AMODULE_API void
-AOptionInit(AOption *option, AOption *parent)
+AOptionInit(AOption *option, struct list_head *list)
 {
-	memset(option, 0, sizeof(*option));
+	option->name[0] = '\0';
+	option->value[0] = '\0';
+	option->extend = NULL;
 	INIT_LIST_HEAD(&option->children_list);
 
-	option->parent = parent;
-	if (parent != NULL) {
-		list_add_tail(&option->brother_entry, &parent->children_list);
+	option->parent = NULL;
+	if (list != NULL) {
+		list_add_tail(&option->brother_entry, list);
 	} else {
 		INIT_LIST_HEAD(&option->brother_entry);
 	}
 }
 
 AMODULE_API AOption*
-AOptionCreate(AOption *parent)
+AOptionCreate2(struct list_head *list)
 {
 	AOption *option = (AOption*)malloc(sizeof(AOption));
 	if (option != NULL)
-		AOptionInit(option, parent);
+		AOptionInit(option, list);
 	return option;
 }
 
@@ -60,12 +58,11 @@ AMODULE_API int
 AOptionDecode(AOption **option, const char *name)
 {
 	AOption *current = AOptionCreate(NULL);
+	*option = current;
 	if (current == NULL)
 		return -ENOMEM;
 
-	*option = current;
 	int result = -EINVAL;
-
 	char ident = '\0';
 	int layer = 0;
 	for (const char *sep = name; ; ++sep)
@@ -164,12 +161,12 @@ _return:
 }
 
 AMODULE_API AOption*
-AOptionClone(AOption *option, AOption *parent)
+AOptionClone2(AOption *option, struct list_head *list)
 {
 	if (option == NULL)
 		return NULL;
 
-	AOption *current = AOptionCreate(parent);
+	AOption *current = AOptionCreate2(list);
 	if (current == NULL)
 		return NULL;
 
@@ -189,13 +186,10 @@ AOptionClone(AOption *option, AOption *parent)
 }
 
 AMODULE_API AOption*
-AOptionFind(AOption *option, const char *name)
+AOptionFind2(struct list_head *list, const char *name)
 {
-	if (option == NULL)
-		return NULL;
-
 	AOption *child;
-	list_for_each_entry(child, &option->children_list, AOption, brother_entry)
+	list_for_each_entry(child, list, AOption, brother_entry)
 	{
 		if (_stricmp(child->name, name) == 0) {
 			return child;

@@ -30,8 +30,6 @@ static void PVDRelease(AObject *object)
 	PVDClient *pvd = to_pvd(object);
 	release_s(pvd->io, AObjectRelease, NULL);
 	SliceFree(&pvd->outbuf);
-
-	free(pvd);
 }
 
 static int PVDCreate(AObject **object, AObject *parent, AOption *option)

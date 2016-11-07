@@ -136,20 +136,20 @@ tcp_nonblock(SOCKET sock, u_long nonblocking)
 AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp)
 {
-	SOCKADDR_IN addr;
+	/*SOCKADDR_IN addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family      = name->sa_family;
 	addr.sin_port        = htons(0);
 	addr.sin_addr.s_addr = htonl(ADDR_ANY);
 	int ret = bind(sock, (const sockaddr*)&addr, sizeof(addr));
 	if (ret != 0)
-		return -EIO;
+		return -EIO;*/
 
 	DWORD tx;
 	LPFN_CONNECTEX ConnectEx = NULL;
 	GUID ConnectEx_GUID = WSAID_CONNECTEX;
 
-	ret = WSAIoctl(
+	int ret = WSAIoctl(
 		sock, SIO_GET_EXTENSION_FUNCTION_POINTER,
 		&ConnectEx_GUID, sizeof(ConnectEx_GUID), &ConnectEx, sizeof(ConnectEx),
 		&tx, NULL, NULL);
@@ -180,72 +180,4 @@ iocp_is_connected(SOCKET sock)
 	return 1;
 }
 
-AMODULE_API int
-iocp_sendv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
-{
-	DWORD tx = 0;
-	DWORD flag = 0;
-
-	int ret = WSASend(sock, buffer, count, &tx, flag, ovlp, NULL);
-	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
-		return -EIO;
-
-	return 0;
-}
-
-AMODULE_API int
-iocp_send(SOCKET sock, const char *data, int size, WSAOVERLAPPED *ovlp)
-{
-	WSABUF buffer;
-	buffer.buf = (char*)data;
-	buffer.len = size;
-
-	return iocp_sendv(sock, &buffer, 1, ovlp);
-}
-
-AMODULE_API int
-iocp_recvv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
-{
-	DWORD tx = 0;
-	DWORD flag = 0;
-
-	int ret = WSARecv(sock, buffer, count, &tx, &flag, ovlp, NULL);
-	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
-		return -EIO;
-
-	return 0;
-}
-
-AMODULE_API int
-iocp_recv(SOCKET sock, char *data, int size, WSAOVERLAPPED *ovlp)
-{
-	WSABUF buffer;
-	buffer.buf = data;
-	buffer.len = size;
-
-	return iocp_recvv(sock, &buffer, 1, ovlp);
-}
-
-//
-AMODULE_API int
-iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp)
-{
-	DWORD tx = 0;
-	BOOL ret = WriteFile(file, data, size, &tx, ovlp);
-	if (!ret && (GetLastError() != ERROR_IO_PENDING))
-		return -EIO;
-
-	return 0;
-}
-
-AMODULE_API int
-iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp)
-{
-	DWORD tx = 0;
-	BOOL ret = ReadFile(file, data, size, &tx, ovlp);
-	if (!ret && (GetLastError() != ERROR_IO_PENDING))
-		return -EIO;
-
-	return 0;
-}
 #endif

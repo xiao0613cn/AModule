@@ -564,25 +564,57 @@ void http_parser_test()
          "User-Agent: curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1\r\n"
          "Host: 0.0.0.0=5000\r\n"
          "Accept: */*\r\n"
+	 "Content-Length: 8\r\n"
          "\r\n"
 	 "body=xxx";
 
 	size_t len = strlen(str);
-	for (int ix = 0; ix < len; ) {
+	int ix = 0;
+	while (ix < len) {
 		size_t ret = http_parser_execute(&parser, &settings, str+ix, 5);
-		TRACE(": http_parser_execute(%d) = %d, http_errno = %d.\n",
-			5, ret, parser.http_errno);
+		TRACE("http_parser_execute(%d) = %d, http_errno = %s.\n",
+			5, ret, http_parser_error(&parser));
 		if (parser.http_errno != HPE_OK)
 			break;
 		ix += ret;
 	}
 
-	size_t ret = http_parser_execute(&parser, &settings, NULL, 0);
-	TRACE(": http_parser_execute(%d) = %d, http_errno = %d.\n",
-		5, ret, parser.http_errno);
-
 	fgets(buf, BUFSIZ, stdin);
 #endif
+}
+
+int test_run(AOption *option, bool reset_option)
+{
+	AOption *opt = AOptionFind(option, "object");
+	AMessage msg = { 0 };
+
+	AObject *object = NULL;
+	int ret = AObjectCreate(&object, NULL, NULL, opt?opt->value:NULL);
+	if (ret >= 0) {
+		opt = AOptionFind(option, "open");
+		AMsgInit(&msg, AMsgType_Option, opt, 0);
+
+		ret = object->open(object, &msg);
+		TRACE("open(%s) = %d.\n", opt?opt->value:"", ret);
+	}
+	if (ret >= 0) {
+		const char *str = AOptionChild(option, "reqix");
+		int reqix = str ? atoi(str) : 0;
+
+		str = AOptionChild(option, "request");
+		if (str == NULL) str = "";
+		AMsgInit(&msg, AMsgType_Unknown, str, strlen(str));
+
+		ret = object->request(object, reqix, &msg);
+		TRACE("request(%d, %s) = %d.\n", reqix, str, ret);
+	}
+	if (object != NULL) {
+		ret = object->close(object, &msg);
+		TRACE("close() = %d.\n", ret);
+
+		AObjectRelease(object);
+	}
+	return ret;
 }
 
 int main(int argc, char* argv[])
@@ -597,10 +629,7 @@ int main(int argc, char* argv[])
 	int result;
 	if (argc > 1) {
 		result = AOptionDecode(&option, argv[1]);
-		if (result < 0)
-			release_s(option, AOptionRelease, NULL);
-	}
-	if (option == NULL) {
+	} else if (option == NULL) {
 		result = AOptionDecode(&option, pvd_path);
 		if (option != NULL)
 			ResetOption(option);
@@ -627,8 +656,6 @@ int main(int argc, char* argv[])
 	const char *path;
 	if (argc > 2) {
 		result = AOptionDecode(&option, argv[2]);
-		if (result < 0)
-			release_s(option, AOptionRelease, NULL);
 	}
 	bool reset_option = false;
 	if (option == NULL) {
@@ -657,6 +684,8 @@ int main(int argc, char* argv[])
 			test_proxy(option, reset_option);
 		} else if (_stricmp(option->name, "proactive") == 0) {
 			test_proactive(option, reset_option);
+		} else if (_stricmp(option->name, "test_run") == 0) {
+			test_run(option, reset_option);
 		} else {
 			TRACE("unknown test module [%s: %s]...\n", option->name, option->value);
 		}
