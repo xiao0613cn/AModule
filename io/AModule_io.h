@@ -8,6 +8,7 @@ enum AModule_ioRequest {
 	Aio_Input = 0,
 	Aio_Output,
 	Aio_Error,
+	Aio_InOutPair, // msg type: AMsgType_IOMsg
 
 	Aiosync_IndexMask    = 0x00ffffff,
 	Aiosync_RequestFront = 0x02000000,
@@ -16,11 +17,13 @@ enum AModule_ioRequest {
 	Aiosync_NotifyDispath = 0x05000000,
 };
 
-static inline int ioInput(AObject *io, AMessage *msg) {
+static inline int
+ioInput(AObject *io, AMessage *msg) {
 	return io->request(io, Aio_Input, msg);
 }
 
-static inline int ioOutput(AObject *io, AMessage *msg) {
+static inline int
+ioOutput(AObject *io, AMessage *msg) {
 	return io->request(io, Aio_Output, msg);
 }
 

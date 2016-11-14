@@ -13,15 +13,14 @@ tcp_getaddrinfo(const char *netaddr, const char *port)
 {
 	char ipaddr[BUFSIZ];
 	if (port != NULL) {
-		strcpy_s(ipaddr, netaddr);
+		strcpy_sz(ipaddr, netaddr);
 		if (port == (void*)-1)
 			port = NULL;
 	} else if ((port = strchr(netaddr, ':')) != NULL) {
-		int len = min(sizeof(ipaddr)-1,port-netaddr);
-		strncpy(ipaddr, netaddr, len); ipaddr[len] = '\0';
+		strncpy_sz(ipaddr, netaddr, port-netaddr);
 		port += 1;
 	} else {
-		strcpy_s(ipaddr, netaddr);
+		strcpy_sz(ipaddr, netaddr);
 	}
 
 	struct addrinfo ai;
@@ -136,20 +135,20 @@ tcp_nonblock(SOCKET sock, u_long nonblocking)
 AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp)
 {
-	/*SOCKADDR_IN addr;
+	SOCKADDR_IN addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family      = name->sa_family;
 	addr.sin_port        = htons(0);
 	addr.sin_addr.s_addr = htonl(ADDR_ANY);
 	int ret = bind(sock, (const sockaddr*)&addr, sizeof(addr));
 	if (ret != 0)
-		return -EIO;*/
+		return -EIO;
 
 	DWORD tx;
 	LPFN_CONNECTEX ConnectEx = NULL;
 	GUID ConnectEx_GUID = WSAID_CONNECTEX;
 
-	int ret = WSAIoctl(
+	ret = WSAIoctl(
 		sock, SIO_GET_EXTENSION_FUNCTION_POINTER,
 		&ConnectEx_GUID, sizeof(ConnectEx_GUID), &ConnectEx, sizeof(ConnectEx),
 		&tx, NULL, NULL);

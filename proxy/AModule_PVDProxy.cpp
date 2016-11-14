@@ -459,9 +459,9 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 	STRUCT_SDVR_INITIATIVE_LOGIN *login = (STRUCT_SDVR_INITIATIVE_LOGIN*)(p->outmsg.data + sizeof(pvdnet_head));
 	snprintf(login->sDVRID, sizeof(login->sDVRID), "%s%ld", proactive_prefix, p->proactive_id);
 	if (login_data.sSerialNumber[0] != '\0')
-		strcpy_s(login->sSerialNumber, login_data.sSerialNumber);
+		strcpy_sz(login->sSerialNumber, login_data.sSerialNumber);
 	else
-		strcpy_s(login->sSerialNumber, (char*)devcfg_info.sSerialNumber);
+		strcpy_sz(login->sSerialNumber, (char*)devcfg_info.sSerialNumber);
 	login->byAlarmInPortNum = login_data.byAlarmInPortNum;
 	login->byAlarmOutPortNum = login_data.byAlarmOutPortNum;
 	login->byDiskNum = login_data.byDiskNum;
@@ -469,7 +469,7 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 	login->byChanNum = login_data.byChanNum;
 	login->byEncodeType = login_data.byStartChan;
 	memset(login->reserve, 0, sizeof(login->reserve));
-	strcpy_s(login->sDvrName, login_data.szDvrName);
+	strcpy_sz(login->sDvrName, login_data.szDvrName);
 	memcpy(login->sChanName, login_data.szChanName, min(sizeof(login->sChanName), sizeof(login_data.szChanName)));
 
 	result = ioInput(p->client, &p->outmsg);
@@ -724,11 +724,11 @@ static int PVDOpenDone(AMessage *msg, int result)
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
-		strcpy_s(opt.name, "login_data");
+		strcpy_sz(opt.name, "login_data");
 		opt.extend = &login_data;
 		sm->object->getopt(sm->object, &opt);
 
-		strcpy_s(opt.name, "session_id");
+		strcpy_sz(opt.name, "session_id");
 		sm->object->getopt(sm->object, &opt);
 		userid = atol(opt.value);
 
@@ -769,11 +769,11 @@ static void PVDDoOpen(AOperator *asop, int result)
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
-		strcpy_s(opt.name, "version");
+		strcpy_sz(opt.name, "version");
 		sprintf(opt.value, "%d", login_data.byDVRType);
 		sm->object->setopt(sm->object, &opt);
 
-		strcpy_s(opt.name, "session_id");
+		strcpy_sz(opt.name, "session_id");
 		sprintf(opt.value, "%ld", userid);
 		sm->object->setopt(sm->object, &opt);
 	}
@@ -816,8 +816,8 @@ int PVDProxyInit(AOption *option)
 
 	AModule *syncControl = AModuleFind("stream", "SyncControl");
 	if (syncControl != NULL) {
-		strcpy_s(opt.name, "stream");
-		strcpy_s(opt.value, option->value);
+		strcpy_sz(opt.name, "stream");
+		strcpy_sz(opt.value, option->value);
 		result = syncControl->create(&pvd, NULL, &opt);
 	}
 	HeartMsg *sm = NULL;
@@ -848,7 +848,7 @@ int PVDProxyInit(AOption *option)
 		sm->timer.callback = &PVDDoOpen;
 		AOperatorTimewait(&sm->timer, NULL, 0);
 
-		strcpy_s(opt.value, "PVDRTStream");
+		strcpy_sz(opt.value, "PVDRTStream");
 		result = syncControl->create(&rt, NULL, &opt);
 	}
 	if (result >= 0) {

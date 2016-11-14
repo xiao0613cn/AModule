@@ -1,6 +1,6 @@
 
 CXX:= g++
-CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive
+CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive -g
 
 TAR:= ./build/AModule
 LIB_DEPEND:= -lpthread
@@ -13,7 +13,7 @@ objects := $(patsubst %.cpp, ./build/%.o, $(notdir $(sources)))
 dependence := $(patsubst %.o, %.d, $(objects))
 
 all: $(objects)
-	$(CXX) $(CFLAGS) $^ -o ./$(TAR) $(LIB_DEPEND) $(LOG)
+	$(CXX) $(CFLAGS) $^ -o $(TAR) $(LIB_DEPEND) $(LOG)
 
 ./build/%.o: %.cpp 
 	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
@@ -51,7 +51,7 @@ endef
 .PHONY: clean echo debug
 clean:
 	rm -f ./build/*
-	rm -f ./$(TAR)
+	rm -f $(TAR)
 	
 echo:   # debug util
 	@echo sources=$(sources)  

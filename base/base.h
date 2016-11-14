@@ -8,10 +8,9 @@
 #include <errno.h>
 #include <time.h>
 #include <string.h>
+#include <limits>
+#include "str_util.h"
 
-#ifndef _tostring
-#define _tostring(x) #x
-#endif
 #ifndef _align_8bytes
 #define _align_8bytes(x) (((x)+7)&~7)
 #endif
@@ -92,9 +91,6 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #ifndef InterlockedAdd
 #define InterlockedAdd(count, value)   (InterlockedExchangeAdd(count,value) + value)
 #endif
-#ifndef snprintf
-#define snprintf  _snprintf
-#endif
 
 #else //_WIN32
 
@@ -110,15 +106,6 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #include <pthread.h>
 #define  pthread_null  0
 
-#ifndef _stricmp
-#define _stricmp     strcasecmp
-#endif
-#ifndef _strnicmp
-#define _strnicmp    strncasecmp
-#endif
-#ifndef strcpy_s
-#define strcpy_s(dest, src)  strncpy(dest, src, sizeof(dest)-1)
-#endif
 #ifndef max
 #define max(a, b)    (((a) > (b)) ? (a) : (b))
 #endif
@@ -182,7 +169,6 @@ InterlockedExchange(long volatile *count, long value) {
 
 #endif //_WIN32
 
-#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL  0
 #endif
@@ -196,8 +182,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	time_t t = time(NULL);
 	struct tm *tm = localtime(&t);
 
-	int outpos = snprintf(
-		outbuf, BUFSIZ,
+	int outpos = snprintf(outbuf, BUFSIZ,
 		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| [%s]: ",
 		1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday,
 		tm->tm_hour, tm->tm_min, tm->tm_sec,

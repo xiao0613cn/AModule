@@ -10,10 +10,10 @@ enum AMsgTypes
 	AMsgType_Object,   /* data = AObject*, size = 0 */
 	AMsgType_Module,   /* data = AModule*, size = 0 */
 	AMsgType_OtherMsg, /* data = AMessage*, size = 0 */
-	AMsgType_IOMsg,    /* data = AIOMsg*,  size = 0 */
+	AMsgType_InOutMsg, /* data = AInOutMsg*, size = 0 */
 	AMsgType_RefsMsg,  /* data = ARefMsg*, size = 0 */
-	AMsgType_Class   = 0x40000000, /* class defined */
-	AMsgType_Private = 0x80000000, /* module defined */
+	AMsgType_Class   = 0x20000000, /* class defined */
+	AMsgType_Private = 0x40000000, /* module defined */
 };
 
 typedef struct AMessage AMessage;
@@ -62,27 +62,29 @@ AMsgListClear(struct list_head *head, int result)
 
 // extented struct AMessage
 //////////////////////////////////////////////////////////////////////////
-// AIOMsg::msg.type = AMsgType_IOMsg
-typedef struct AIOMsg AIOMsg;
-struct AIOMsg
+// AIOMsg::msg.type = AMsgType_InOutMsg
+typedef struct AInOutMsg AInOutMsg;
+struct AInOutMsg
 {
 	AMessage msg;
-	int     type;
-	char   *indata;
+	int     intype;
 	int     insize;
-	char   *outdata;
+	char   *indata;
+	int     outtype;
 	int     outsize;
+	char   *outdata;
 };
 
 static inline void
-AIOMsgInit(AIOMsg *iom, int type, char *indata, int insize)
+AIOMsgInit(AInOutMsg *iom, int type, char *indata, int insize)
 {
-	AMsgInit(&iom->msg, AMsgType_IOMsg, iom, 0);
-	iom->type = type;
-	iom->indata = indata;
+	AMsgInit(&iom->msg, AMsgType_InOutMsg, iom, 0);
+	iom->intype = type;
 	iom->insize = insize;
-	iom->outdata = NULL;
+	iom->indata = indata;
+	iom->outtype = AMsgType_Unknown;
 	iom->outsize = 0;
+	iom->outdata = NULL;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -168,7 +170,7 @@ _retry:
 
 	case AMsgType_IOMsg:
 		assert(size == 0);
-		type = ((AIOMsg*)data)->type;
+		type = ((AIOMsg*)data)->intype;
 		size = ((AIOMsg*)data)->insize;
 		data = ((AIOMsg*)data)->indata;
 		goto _retry;

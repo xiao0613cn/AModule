@@ -30,6 +30,7 @@ enum StreamStatus {
 struct SyncControl {
 	AObject   object;
 	AObject  *stream;
+	int       alloc_self;
 	int       open_result;
 	AMessage *close_msg;
 
@@ -105,11 +106,26 @@ static void SyncControlRelease(AObject *object)
 		pthread_mutex_destroy(&req->mutex);
 		free(req);
 	}
+	if (sc->alloc_self)
+		free(sc);
 }
 
 static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 {
 	SyncControl *sc = (SyncControl*)*object;
+	if (sc == NULL) {
+		sc = (SyncControl*)malloc(sizeof(SyncControl));
+		if (sc == NULL)
+			return -ENOMEM;
+
+		*object = &sc->object;
+		extern AModule SyncControlModule;
+		AObjectInit(&sc->object, &SyncControlModule);
+		sc->alloc_self = TRUE;
+	} else {
+		sc->alloc_self = FALSE;
+	}
+
 	sc->stream = NULL;
 	sc->open_result = 0;
 	sc->close_msg = NULL;

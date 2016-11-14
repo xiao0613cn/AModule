@@ -339,11 +339,6 @@ const char *http_method_str(enum http_method m);
 /* Return a string name of the given error */
 const char *http_errno_name(enum http_errno err);
 
-static __inline const char *
-http_parser_error(const http_parser *parser) {
-	return http_errno_name((enum http_errno)parser->http_errno);
-}
-
 /* Return a string description of the given error */
 const char *http_errno_description(enum http_errno err);
 
@@ -360,6 +355,17 @@ void http_parser_pause(http_parser *parser, int paused);
 
 /* Checks if this is the final chunk of the body. */
 int http_body_is_final(const http_parser *parser);
+
+//////////////////////////////////////////////////////////////////////////
+static __inline const char *
+http_parser_error(const http_parser *parser) {
+	return http_errno_name((enum http_errno)parser->http_errno);
+}
+
+static __inline const char *
+http_parser_method(const http_parser *parser) {
+	return http_method_str((enum http_method)parser->method);
+}
 
 int http_data_is_final(const http_parser *parser);
 

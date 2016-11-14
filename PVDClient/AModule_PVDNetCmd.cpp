@@ -126,7 +126,7 @@ static int PVDDoLogin(PVDClient *pvd, PVDStatus status)
 		pwd = "888888";
 
 	STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(pvd->outmsg.data+sizeof(pvdnet_head));
-	strcpy_s(login->szUserName, usr);
+	strcpy_sz(login->szUserName, usr);
 	MD5_enc(pvd->md5id, (BYTE*)pwd, strlen(pwd), (BYTE*)login->szPassWord);
 
 	login->dwNamelen = strlen(usr);

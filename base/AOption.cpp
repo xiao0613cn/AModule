@@ -48,9 +48,9 @@ static void
 AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
 {
 	if (!option->name[0]) {
-		strncpy(option->name, str, min(sizeof(option->name)-1,len));
+		strncpy_sz(option->name, str, len);
 	} else if (!option->value[0]) {
-		strncpy(option->value, str, min(sizeof(option->value)-1,len));
+		strncpy_sz(option->value, str, len);
 	}
 }
 
@@ -170,8 +170,8 @@ AOptionClone2(AOption *option, struct list_head *list)
 	if (current == NULL)
 		return NULL;
 
-	strcpy_s(current->name, option->name);
-	strcpy_s(current->value, option->value);
+	strcpy_sz(current->name, option->name);
+	strcpy_sz(current->value, option->value);
 
 	AOption *pos;
 	list_for_each_entry(pos, &option->children_list, AOption, brother_entry)

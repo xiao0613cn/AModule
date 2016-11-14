@@ -14,7 +14,7 @@ struct DumpReq {
 struct DumpObject {
 	AObject  object;
 	FILE    *file;
-	char     file_name[512];
+	char     file_name[BUFSIZ];
 	BOOL     single_file;
 	AObject *io;
 
@@ -135,7 +135,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 
 	AOption *opt = AOptionFind(msg_opt, "file");
 	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
-		strcpy_s(dump->file_name, opt->value);
+		strcpy_sz(dump->file_name, opt->value);
 
 	opt = AOptionFind(msg_opt, "single_file");
 	if (opt != NULL)

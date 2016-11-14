@@ -772,6 +772,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\str_util.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libswscale\swscale.h"
 				>
 			</File>
@@ -812,7 +816,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
@@ -820,7 +824,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File

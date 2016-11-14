@@ -266,7 +266,7 @@ void ResetOption(AOption *option)
 	if (value[0] == ' ')
 		option->value[0] = '\0';
 	else if (value[0] != '\0')
-		strcpy_s(option->value, value);
+		strcpy_sz(option->value, value);
 
 	AOption *child;
 	list_for_each_entry(child, &option->children_list, AOption, brother_entry) {
@@ -315,7 +315,7 @@ _retry:
 		rm = NULL;
 	}
 	if (pvd != NULL) {
-		strcpy_s(option->value, "PVDRTStream");
+		strcpy_sz(option->value, "PVDRTStream");
 		//result = SyncControlModule.create(&rt, pvd, option);
 		result = PVDRTModule.create(&rt, pvd, option);
 	}
@@ -575,6 +575,8 @@ void http_parser_test()
 		TRACE("http_parser_execute(%d) = %d, http_errno = %s.\n",
 			5, ret, http_parser_error(&parser));
 		if (parser.http_errno != HPE_OK)
+			break;
+		if (http_body_is_final(&parser))
 			break;
 		ix += ret;
 	}

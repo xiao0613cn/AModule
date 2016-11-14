@@ -46,11 +46,11 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 		AOption opt;
 		AOptionInit(&opt, NULL);
 
-		strcpy_s(opt.name, "session_id");
+		strcpy_sz(opt.name, "session_id");
 		if (parent->getopt(parent, &opt) >= 0)
 			rt->userid = atol(opt.value);
 
-		strcpy_s(opt.name, "version");
+		strcpy_sz(opt.name, "version");
 		if (parent->getopt(parent, &opt) >= 0)
 			rt->version = atol(opt.value);
 	}
