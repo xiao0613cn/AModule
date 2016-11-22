@@ -168,11 +168,11 @@ _retry:
 		data = ((AMessage*)data)->data;
 		goto _retry;
 
-	case AMsgType_IOMsg:
+	case AMsgType_InOutMsg:
 		assert(size == 0);
-		type = ((AIOMsg*)data)->intype;
-		size = ((AIOMsg*)data)->insize;
-		data = ((AIOMsg*)data)->indata;
+		type = ((AInOutMsg*)data)->intype;
+		size = ((AInOutMsg*)data)->insize;
+		data = ((AInOutMsg*)data)->indata;
 		goto _retry;
 
 	case AMsgType_RefsMsg:

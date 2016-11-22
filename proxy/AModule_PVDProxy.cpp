@@ -13,6 +13,8 @@ static STRUCT_SDVR_INFO dvr_info;
 static STRUCT_SDVR_SUPPORT_FUNC supp_func;
 static STRUCT_SDVR_DEVICEINFO devcfg_info;
 static STRUCT_SDVR_NETINFO netcfg_info;
+static STRUCT_SDVR_REIPCWORKPARAM ipc_work;
+static STRUCT_SDVR_WORKSTATE_EX work_status;
 static STRUCT_SDVR_DEVICEINFO_EX devinfo_ex;
 static DWORD  userid;
 static DWORD rt_active = 0;
@@ -38,6 +40,7 @@ struct HeartMsg {
 	int     reqix;
 	int     threadix;
 	};
+	STRUCT_SDVR_REQIPCWORKPARAM ipcreq;
 	};
 };
 #pragma warning(default: 4201)
@@ -137,7 +140,8 @@ static int PVDProxyRecvDone(AMessage *msg, int result)
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
 		}
-		TRACE("command(%02x) timeout...\n", p->inmsg.type&~AMsgType_Private);
+		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
+		TRACE("command(%02x) timeout...\n", phead->uCmd);
 		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
@@ -343,9 +347,11 @@ static int PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_DEVICECFG_GET_EX: p->outmsg.size = sizeof(pvdnet_head) + sizeof(devinfo_ex); break;
 		case NET_SDVR_NETCFG_GET:  p->outmsg.size = sizeof(pvdnet_head) + sizeof(netcfg_info); break;
 		case NET_SDVR_SHAKEHAND:   p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data); break;
+		case NET_SDVR_IPCWORKPARAM_GET: p->outmsg.size = sizeof(pvdnet_head) + sizeof(ipc_work); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:      p->outmsg.size = sizeof(pvdnet_head) + 0; break;
+		case NET_SDVR_WORK_STATE: p->outmsg.size = sizeof(pvdnet_head) + sizeof(STRUCT_SDVR_WORKSTATE_EX); break;
 		case NET_SDVR_REAL_PLAY:
 		case NETCOM_VOD_RECFILE_REQ:
 		case NETCOM_VOD_RECFILE_REQ_EX:
@@ -423,11 +429,13 @@ static int PVDProxyDispatch(PVDProxy *p)
 		case NET_SDVR_DEVICECFG_GET_EX: memcpy(phead+1, &devinfo_ex, sizeof(devinfo_ex)); break;
 		case NET_SDVR_NETCFG_GET:  memcpy(phead+1, &netcfg_info, sizeof(netcfg_info)); break;
 		case NET_SDVR_SHAKEHAND:   memcpy(phead+1, &heart_data, sizeof(heart_data)); break;
+		case NET_SDVR_IPCWORKPARAM_GET: memcpy(phead+1, &ipc_work, sizeof(ipc_work)); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:
 		case NET_SDVR_INITIATIVE_LOGIN:
 			break;
+		case NET_SDVR_WORK_STATE: memcpy(phead+1, &work_status, sizeof(work_status)); break;
 		default:
 			assert(FALSE);
 			break;
@@ -574,13 +582,25 @@ static void PVDDoSend(AOperator *asop, int result)
 		rt_active = tick;
 	}
 	do {
-		switch (sm->msg.type)
+		switch (sm->heart.uCmd)
 		{
-		case AMsgType_Option: result = NET_SDVR_GET_DVRTYPE; break;
-		case (AMsgType_Private|NET_SDVR_GET_DVRTYPE): result = NET_SDVR_SUPPORT_FUNC; break;
-		case (AMsgType_Private|NET_SDVR_SUPPORT_FUNC): result = NET_SDVR_DEVICECFG_GET; break;
-		case (AMsgType_Private|NET_SDVR_DEVICECFG_GET): result = NET_SDVR_DEVICECFG_GET_EX; break;
-		case (AMsgType_Private|NET_SDVR_DEVICECFG_GET_EX): result = NET_SDVR_NETCFG_GET; break;
+		case NET_SDVR_LOGIN: result = NET_SDVR_GET_DVRTYPE; break;
+		case NET_SDVR_GET_DVRTYPE: result = NET_SDVR_SUPPORT_FUNC; break;
+		case NET_SDVR_SUPPORT_FUNC: result = NET_SDVR_DEVICECFG_GET; break;
+		case NET_SDVR_DEVICECFG_GET: result = NET_SDVR_DEVICECFG_GET_EX; break;
+		case NET_SDVR_DEVICECFG_GET_EX: result = NET_SDVR_NETCFG_GET; break;
+		case NET_SDVR_NETCFG_GET: result = NET_SDVR_WORK_STATE; break;
+		case NET_SDVR_WORK_STATE:
+			if (devinfo_ex.byChanNum == 1) {
+				sm->msg.type = AMsgType_Private|NET_SDVR_IPCWORKPARAM_GET;
+				sm->msg.data = (char*)&sm->heart;
+				sm->msg.size = PVDCmdEncode(0, &sm->heart, NET_SDVR_IPCWORKPARAM_GET, sizeof(sm->ipcreq));
+
+				memset(&sm->ipcreq, 0, sizeof(sm->ipcreq));
+				sm->ipcreq.cbStreamType = 1;
+				result = ioInput(sm->object, &sm->msg);
+				continue;
+			}
 		default:
 			if (sm->msg.type != (AMsgType_Private|NET_SDVR_SHAKEHAND)) {
 				result = NET_SDVR_SHAKEHAND;
@@ -660,6 +680,8 @@ static int PVDRecvDone(AMessage *msg, int result)
 		case NET_SDVR_DEVICECFG_GET: ptr = &devcfg_info; len = sizeof(devcfg_info); break;
 		case NET_SDVR_DEVICECFG_GET_EX: ptr = &devinfo_ex; len = sizeof(devinfo_ex); break;
 		case NET_SDVR_NETCFG_GET: ptr = &netcfg_info; len = sizeof(netcfg_info); break;
+		case NET_SDVR_IPCWORKPARAM_GET: ptr = &ipc_work; len = sizeof(ipc_work); break;
+		case NET_SDVR_WORK_STATE: ptr = &work_status; len = sizeof(work_status); break;
 		}
 		if (ptr != NULL) {
 			memcpy(ptr, phead+1, min(len,msg->size-sizeof(pvdnet_head)));
@@ -832,6 +854,7 @@ int PVDProxyInit(AOption *option)
 
 		sm->msg.type = AMsgType_Option;
 		sm->msg.done = &PVDSendDone;
+		sm->heart.uCmd = NET_SDVR_LOGIN;
 		sm->timer.callback = &PVDDoSend;
 		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}

@@ -135,7 +135,7 @@ extern AModule PVDRTModule;
 extern AModule HTTPProxyModule;
 extern AModule PVDProxyModule;
 extern AModule DumpModule;
-#ifdef _WIN32
+#if 0
 extern AModule M3U8ProxyModule;
 #endif
 extern AModule EchoModule;
@@ -146,7 +146,7 @@ extern AModule EchoModule;
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: '192.168.90.221',"
+	"		address: '192.168.40.174',"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -649,7 +649,7 @@ int main(int argc, char* argv[])
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
 	AModuleRegister(&DumpModule);
-#ifdef _WIN32
+#if 0
 	AModuleRegister(&M3U8ProxyModule);
 #endif
 	AModuleRegister(&EchoModule);

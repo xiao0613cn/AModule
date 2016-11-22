@@ -348,10 +348,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\proxy\AModule_m3u8.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
 				>
 			</File>
@@ -855,23 +851,7 @@
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\ffmpeg\lib\avcodec.lib"
-			>
-		</File>
-		<File
-			RelativePath=".\ffmpeg\lib\avformat.lib"
-			>
-		</File>
-		<File
-			RelativePath=".\ffmpeg\lib\avutil.lib"
-			>
-		</File>
-		<File
 			RelativePath=".\ReadMe.txt"
-			>
-		</File>
-		<File
-			RelativePath=".\ffmpeg\lib\swscale.lib"
 			>
 		</File>
 	</Files>

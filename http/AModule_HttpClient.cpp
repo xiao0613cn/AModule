@@ -6,19 +6,24 @@
 enum status {
 	s_invalid = 0,
 	s_send_header,
-	s_send_chunk_header,
+	s_send_chunk_size,
 	s_send_chunk_data,
+	s_send_chunk_tail,
+	s_send_chunk_next,
 	s_send_content_data,
+	s_send_done,
 };
 
 struct HttpClient {
 	AObject   object;
 	AObject  *io;
+
 	ARefsBuf *buf;
 	struct list_head request_headers;
+	char      method[32];
 	char      url[BUFSIZ];
 	char      version[32];
-	int       send_chunk;
+	enum status send_status;
 
 	//std::vector<ARefsMsg> response_headers;
 	http_parser parser;
@@ -43,7 +48,7 @@ static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->io = NULL;
 	p->buf = NULL;
 	INIT_LIST_HEAD(&p->request_headers);
-	p->send_chunk = 0;
+	p->send_status = s_invalid;
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
@@ -59,7 +64,7 @@ static int HttpClientSetMethod(HttpClient *p, AOption *option)
 		++ix)
 	{
 		if (_stricmp(option->value, m) == 0) {
-			p->parser.method = ix;
+			strcpy_sz(p->method, m);
 			return ix;
 		}
 	}
@@ -86,17 +91,18 @@ int HttpClientOnOpen(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
+
 	AOption *option = (AOption*)p->from->data;
+	const char *str;
 
 	// method
-	p->parser.method = HTTP_GET;
-	AOption *opt = AOptionFind(option, "method");
-	if (opt != NULL) {
-		HttpClientSetMethod(p, opt);
-	}
+	str = AOptionChild(option, "method");
+	if ((str == NULL) || (str[0] == '\0'))
+		str = http_method_str(HTTP_GET);
+	strcpy_sz(p->method, str);
 
 	// url
-	const char *str = AOptionChild(option, "url");
+	str = AOptionChild(option, "url");
 	if ((str == NULL) || (str[0] == '\0'))
 		str = "/";
 	strcpy_sz(p->url, str);
@@ -104,7 +110,7 @@ int HttpClientOnOpen(HttpClient *p, int result)
 	// version
 	str = AOptionChild(option, "version");
 	if ((str == NULL) || (str[0] == '\0'))
-		str = "HTTP/1.1";
+		str = "HTTP/1.0";
 	strcpy_sz(p->version, str);
 
 	// request_headers
@@ -157,6 +163,7 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 static int HttpClientSetOption(AObject *object, AOption *option)
 {
 	HttpClient *p = to_http(object);
+
 	if ((option->name[0] == ':') || (option->name[0] == '+'))
 		return HttpClientSetHeader(p, option);
 
@@ -167,6 +174,12 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 }
 
 static int on_m_begin(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	return 0;
+}
+
+static int on_url(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
 	return 0;
@@ -221,7 +234,7 @@ static int on_chunk_complete(http_parser *parser)
 }
 
 static const struct http_parser_settings cb_sets = {
-	&on_m_begin, /*&on_url*/NULL, &on_status, &on_h_field, &on_h_value,
+	&on_m_begin, &on_url, &on_status, &on_h_field, &on_h_value,
 	&on_h_done, &on_body, &on_m_done,
 	&on_chunk_header, &on_chunk_complete
 };
@@ -256,103 +269,112 @@ int HttpClientOnResponse(HttpClient *p, int result)
 	return result;
 }
 
-int HttpClientOnSendContent(HttpClient *p, int result)
+#define append_crlf() \
+	p->buf->data[p->msg.size++] = '\r'; \
+	p->buf->data[p->msg.size++] = '\n';
+
+static int HttpClientSendStatus(HttpClient *p, int result)
 {
-	if (result < 0)
-		return result;
-
-	p->parser.data = p;
-	http_parser_init(&p->parser, HTTP_RESPONSE);
-	p->resp_size = 0;
-	p->content_length = 0;
-
-	AMsgInit(&p->msg, AMsgType_Unknown, p->buf->data, p->buf->size);
-	p->msg.done = &TObjectDone(HttpClient, msg, from, HttpClientOnResponse);
-
-	result = ioOutput(p->io, &p->msg);
-	if (result != 0)
-		result = HttpClientOnResponse(p, result);
-	return result;
-}
-
-static int HttpClientOnSendChunk(HttpClient *p, int result)
-{
-	if (p->from->size == 0) {
-		p->send_chunk = 0;
-		return result;
-	}
-
+	AMessage *msg = p->from;
 	do {
-		switch (p->send_chunk)
+		switch (p->send_status)
 		{
-		case 1:
-			AMsgInit(&p->msg, ioMsgType_Block, p->from->data, p->from->size);
+		case s_send_header:
+			p->msg.size = snprintf(p->buf->data, p->buf->size, "%s %s %s\r\n",
+				http_parser_method(&p->parser), p->url, p->version);
 
-			p->send_chunk = 2;
+			AOption *pos;
+			list_for_each_entry(pos, &p->request_headers, AOption, brother_entry)
+			{
+				if ((pos->name[0] != ':') && (pos->name[0] != '+'))
+					continue;
+				if (pos->value[0] == '\0')
+					continue;
+
+				if ((strnicmp_c(pos->name+1, "Transfer-Encoding") == 0)
+				 && (strnicmp_c(pos->value, "chunked") == 0))
+					p->send_status = s_send_chunk_size;
+
+				p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size,
+					"%s: %s\r\n", pos->name+1, pos->value);
+			}
+			if (p->msg.size+64 >= p->buf->size)
+				return -ENOMEM;
+
+			if (p->send_status == s_send_chunk_size) {
+				append_crlf();
+				break;
+			}
+
+			if (msg->size != 0) {
+				p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size,
+					"Content-Length: %d\r\n\r\n", msg->size);
+				p->send_status = s_send_content_data;
+			} else {
+				append_crlf();
+				p->send_status = s_send_done;
+			}
 			result = ioInput(p->io, &p->msg);
 			break;
-		case 2:
-			AMsgInit(&p->msg, ioMsgType_Block, p->buf->data, 2);
-			p->buf->data[0] = '\r';
-			p->buf->data[1] = '\n';
 
-			p->send_chunk = 3;
+		case s_send_chunk_size:
+			p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size, "%x\r\n", msg->size);
+			if (msg->size != 0) {
+				p->send_status = s_send_chunk_data;
+			} else {
+				append_crlf();
+				p->send_status = s_send_done;
+			}
 			result = ioInput(p->io, &p->msg);
 			break;
-		case 3:
-			p->send_chunk = 1;
-			return p->from->size;
+
+		case s_send_chunk_data:
+			AMsgInit(&p->msg, ioMsgType_Block, msg->data, msg->size);
+
+			p->send_status = s_send_chunk_tail;
+			result = ioInput(p->io, &p->msg);
+			break;
+
+		case s_send_chunk_tail:
+			AMsgInit(&p->msg, ioMsgType_Block, p->buf->data, 0);
+			append_crlf();
+
+			p->send_status = s_send_chunk_next;
+			result = ioInput(p->io, &p->msg);
+			break;
+
+		case s_send_content_data:
+			AMsgInit(&p->msg, ioMsgType_Block, msg->data, msg->size);
+
+			p->send_status = s_send_done;
+			result = ioInput(p->io, &p->msg);
+			break;
+
+		case s_send_done:
+			p->send_status = s_invalid;
+		case s_send_chunk_next:
+			return result;
+
 		default:
 			assert(FALSE);
-			result = -EACCES;
-			break;
+			return -EACCES;
 		}
 	} while (result > 0);
 	return result;
 }
 
-int HttpClientOnSendRequest(HttpClient *p, int result)
-{
-	if (result < 0)
-		return result;
-
-	if (p->send_chunk != 0)
-		return HttpClientOnSendChunk(p, result);
-
-	if (p->from->size != 0) {
-		AMsgInit(&p->msg, ioMsgType_Block, p->from->data, p->from->size);
-		p->msg.done = &TObjectDone(HttpClient, msg, from, HttpClientOnSendContent);
-
-		result = ioInput(p->io, &p->msg);
-		if (result == 0)
-			return 0;
-	}
-	return HttpClientOnSendContent(p, result);
-}
-
-static int HttpClientDoSendChunk(HttpClient *p, AMessage *msg)
-{
-	assert(p->send_chunk == 1);
-	if (msg->size < 0) {
-		p->send_chunk = 0;
-		return 1;
-	}
-
-	p->msg.size = snprintf(p->buf->data, p->buf->size, "%x\r\n", msg->size);
-	if (msg->size == 0) {
-		p->buf->data[p->msg.size++] = '\r';
-		p->buf->data[p->msg.size++] = '\n';
-	}
-
-	p->send_chunk = 1;
-	int result = ioInput(p->io, &p->msg);
-	if (result != 0)
-		result = HttpClientOnSendRequest(&p->msg, result);
-	return result;
-}
-
 static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 {
+	if (msg->type == httpMsgType_RawData) {
+		msg->type = AMsgType_Unknown;
+		return ioInput(p->io, msg);
+	}
+
+	if (msg->type == httpMsgType_RawBlock) {
+		msg->type = ioMsgType_Block;
+		return ioInput(p->io, msg);
+	}
+
 	if (p->buf == NULL) {
 		p->buf = ARefsBufCreate(8*1024, NULL, NULL);
 		if (p->buf == NULL)
@@ -360,44 +382,19 @@ static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 	}
 
 	AMsgInit(&p->msg, ioMsgType_Block, p->buf->data, 0);
-	p->msg.done = &TObjectDone(HttpClient, msg, from, HttpClientOnSendRequest);
+	p->msg.done = &TObjectDone(HttpClient, msg, from, HttpClientSendStatus);
 	p->from = msg;
 
-	if (p->send_chunk != 0)
-		return HttpClientDoSendChunk(p, msg);
-
-	p->msg.size = snprintf(p->buf->data, p->buf->size, "%s %s %s\r\n",
-		http_parser_method(&p->parser), p->url, p->version);
-
-	AOption *pos;
-	list_for_each_entry(pos, &p->request_headers, AOption, brother_entry)
-	{
-		if ((pos->name[0] != ':') && (pos->name[0] != '+'))
-			continue;
-		if (pos->value[0] == '\0')
-			continue;
-
-		if ((strnicmp_c(pos->name+1, "Transfer-Encoding") == 0)
-		 && (strnicmp_c(pos->value, "chunked") == 0))
-			p->send_chunk = 1;
-
-		p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size,
-			"%s: %s\r\n", pos->name+1, pos->value);
+	if (p->send_status == s_invalid) {
+		p->send_status = s_send_header;
+	} else if (p->send_status == s_send_chunk_next) {
+		p->send_status = s_send_chunk_size;
+	} else {
+		assert(FALSE);
+		return -EACCES;
 	}
 
-	if (p->send_chunk != 0) {
-		p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size,
-			"%x\r\n", msg->size);
-	} else if (msg->size != 0) {
-		p->msg.size += snprintf(p->buf->data+p->msg.size, p->buf->size-p->msg.size,
-			"Content-Length: %d\r\n", msg->size);
-	}
-	p->buf->data[p->msg.size++] = '\r';
-	p->buf->data[p->msg.size++] = '\n';
-
-	int result = ioInput(p->io, &p->msg);
-	if (result != 0)
-		result = HttpClientOnSendRequest(p, result);
+	int result = HttpClientSendStatus(p, 1);
 	return result;
 }
 
@@ -406,15 +403,11 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 	HttpClient *p = to_http(object);
 
 	if (reqix == Aio_Input) {
-		if (msg->type == (AMsgType_Private|1)) {
-			msg->type = ioMsgType_Block;
-			return ioInput(p->io, msg);
-		}
 		return HttpClientDoSendRequest(p, msg);
 	}
 
 	if (reqix == Aio_Output) {
-		return HttpClientDoRecvResponse(p, msg);
+		//return HttpClientDoRecvResponse(p, msg);
 	}
 
 	/*if (reqix == Aio_InOutPair) {
