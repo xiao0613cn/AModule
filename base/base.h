@@ -112,6 +112,7 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #ifndef min
 #define min(a, b)    (((a) < (b)) ? (a) : (b))
 #endif
+
 #ifndef SOCKET
 typedef int             SOCKET;
 #define INVALID_SOCKET  -1
@@ -120,6 +121,7 @@ typedef int             SOCKET;
 #define SD_SEND         SHUT_WR
 #define SD_BOTH         SHUT_RDWR
 #endif
+
 #ifndef INFINITE
 #define INFINITE  -1
 #endif
@@ -199,12 +201,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	fputs(outbuf, stdout);
 	return outpos;
 }
-
-#ifdef _WIN32
-#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, __VA_ARGS__)
-#else
-#define TRACE(fmt, args...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##args)
-#endif
+#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 #endif //TRACE
 
 #ifdef _DEBUG

@@ -26,6 +26,9 @@ AObjectInit(AObject *object, AModule *module);
 AMODULE_API int
 AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module);
 
+AMODULE_API int
+AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module);
+
 static inline long
 AObjectAddRef(AObject *object) {
 	return InterlockedAdd(&object->refcount, 1);

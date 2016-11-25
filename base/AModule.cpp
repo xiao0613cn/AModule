@@ -188,6 +188,12 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 	if (module == NULL)
 		return -ENOSYS;
 
+	return AObjectCreate2(object, parent, option, module);
+}
+
+AMODULE_API int
+AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module)
+{
 	if (module->object_size > 0) {
 		*object = (AObject*)malloc(module->object_size);
 		if (*object == NULL)

@@ -101,8 +101,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		switch (client->status)
 		{
 		case tcp_accept:
-			result = AObjectCreate(&client->client, NULL, NULL, server->io_module->module_name);
-			//result = server->io_module->create(&client->client, NULL, NULL);
+			result = AObjectCreate2(&client->client, NULL, NULL, server->io_module);
 			if (result < 0)
 				break;
 
@@ -153,15 +152,14 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				if (proxy_opt == NULL) {
 					result = -EFAULT;
 				} else {
-					result = server->io_module->create(&client->proxy, client->client, proxy_opt);
+					result = AObjectCreate2(&client->proxy, client->client, proxy_opt, server->io_module);
 				}
 				AMsgInit(&client->inmsg, AMsgType_Option, proxy_opt, 0);
 				client->status = tcp_bridge_open;
 			}
 			else
 			{
-				//result = module->create(&client->proxy, client->client, proxy_opt);
-				result = AObjectCreate(&client->proxy, client->client, NULL, proxy_opt->name);
+				result = AObjectCreate2(&client->proxy, client->client, proxy_opt, module);
 				AMsgInit(&client->inmsg, AMsgType_Object, client->client, 0);
 				client->status = tcp_proxy_open;
 			}

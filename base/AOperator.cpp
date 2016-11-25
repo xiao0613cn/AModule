@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <map>
 #ifndef _WIN32
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -178,7 +177,7 @@ AThreadWakeup(AThread *at, BOOL is_pool)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static AThread *work_thread[4];
+static AThread *work_thread[2];
 static int work_thread_begin(int max_timewait)
 {
 #ifndef _WIN32

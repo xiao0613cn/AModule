@@ -840,7 +840,7 @@ int PVDProxyInit(AOption *option)
 	if (syncControl != NULL) {
 		strcpy_sz(opt.name, "stream");
 		strcpy_sz(opt.value, option->value);
-		result = syncControl->create(&pvd, NULL, &opt);
+		result = AObjectCreate2(&pvd, NULL, &opt, syncControl);
 	}
 	HeartMsg *sm = NULL;
 	if (result >= 0) {
@@ -872,7 +872,7 @@ int PVDProxyInit(AOption *option)
 		AOperatorTimewait(&sm->timer, NULL, 0);
 
 		strcpy_sz(opt.value, "PVDRTStream");
-		result = syncControl->create(&rt, NULL, &opt);
+		result = AObjectCreate2(&rt, NULL, &opt, syncControl);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));

@@ -94,9 +94,21 @@ struct ARefsBuf
 	long    refs;
 	int     size;
 	void  (*free)(void*);
+	int     bgn;
+	int     end;
 #pragma warning(disable:4200)
 	char    data[0];
 #pragma warning(default:4200)
+#ifdef __cplusplus
+	int   push(int len) { end += len; }
+	void  pop(int len) { bgn += len; if (bgn == end) bgn = end = 0; }
+	int   len() { return (end - bgn); }
+	char* ptr() { return (data + bgn); }
+
+	int   caps() { return (size - bgn); }
+	int   left() { return (size - end); }
+	char* next() { return (data + end); }
+#endif
 };
 
 static inline ARefsBuf*
@@ -111,6 +123,8 @@ ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
 		buf->refs = 1;
 		buf->size = size;
 		buf->free = free_func;
+		buf->bgn = 0;
+		buf->end = 0;
 	}
 	return buf;
 }
