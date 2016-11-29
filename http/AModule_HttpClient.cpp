@@ -14,14 +14,15 @@ enum status {
 	s_send_done,
 };
 
-#define send_bufsiz   4*1024
+#define header_bufsiz   4*1024
 
 struct HttpClient {
 	AObject   object;
 	AObject  *io;
 
+	// send
 	struct list_head send_headers;
-	char      send_buffer[send_bufsiz];
+	char      send_buffer[header_bufsiz];
 	char      method[32];
 	char      url[BUFSIZ];
 	char      version[32];
@@ -30,12 +31,22 @@ struct HttpClient {
 	AMessage  send_msg;
 	AMessage *send_from;
 
-	//std::vector<ARefsMsg> response_headers;
-	http_parser recv_parser;
-	ARefsBuf *recv_buffer;
-	struct list_head recv_headers;
-	int       resp_size;
-	int       content_length;
+	// recv
+	struct http_parser recv_parser;
+	char      recv_buffer[header_bufsiz];
+	int       recv_parser_pos;
+	int       recv_parser_size;
+
+	int       recv_headers[50][4];
+	int       recv_header_count;
+	int&      h_f_pos() { return recv_headers[recv_header_count][0]; }
+	int&      h_f_len() { return recv_headers[recv_header_count][1]; }
+	int&      h_v_pos() { return recv_headers[recv_header_count][2]; }
+	int&      h_v_len() { return recv_headers[recv_header_count][3]; }
+	ARefsBuf *recv_content;
+
+	AMessage  recv_msg;
+	AMessage *recv_from;
 };
 #define to_http(obj)   container_of(obj, HttpClient, object)
 
@@ -44,6 +55,7 @@ static void HttpClientRelease(AObject *object)
 	HttpClient *p = to_http(object);
 	release_s(p->io, AObjectRelease, NULL);
 	AOptionClear(&p->send_headers);
+	release_s(p->recv_content, ARefsBufRelease, NULL);
 }
 
 static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
@@ -52,7 +64,18 @@ static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->io = NULL;
 
 	INIT_LIST_HEAD(&p->send_headers);
+	p->method[0] = '\0';
+	p->url[0] = '\0';
+	p->version[0] = '\0';
 	p->send_status = s_invalid;
+
+	p->recv_parser.data = p;
+	http_parser_init(&p->recv_parser, HTTP_BOTH);
+	p->recv_parser_pos = 0;
+	p->recv_parser_size = 0;
+
+	p->recv_header_count = 0;
+	p->recv_content = NULL;
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
@@ -178,7 +201,7 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 }
 
 #define append_data(fmt, ...) \
-	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, send_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
+	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, header_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
 
 #define append_crlf() \
 	p->send_buffer[p->send_msg.size++] = '\r'; \
@@ -207,7 +230,7 @@ static int HttpClientSendStatus(HttpClient *p, int result)
 
 				append_data("%s: %s\r\n", pos->name+1, pos->value);
 			}
-			if (p->send_msg.size+64 >= send_bufsiz)
+			if (p->send_msg.size+64 >= header_bufsiz)
 				return -ENOMEM;
 
 			if (p->send_status == s_send_chunk_size) {
@@ -273,16 +296,6 @@ static int HttpClientSendStatus(HttpClient *p, int result)
 
 static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 {
-	if (msg->type == httpMsgType_RawData) {
-		msg->type = AMsgType_Unknown;
-		return ioInput(p->io, msg);
-	}
-
-	if (msg->type == httpMsgType_RawBlock) {
-		msg->type = ioMsgType_Block;
-		return ioInput(p->io, msg);
-	}
-
 	AMsgInit(&p->send_msg, ioMsgType_Block, p->send_buffer, 0);
 	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientSendStatus);
 	p->send_from = msg;
@@ -300,9 +313,29 @@ static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 	return result;
 }
 
+static int HttpClientResetContent(HttpClient *p, int content_length)
+{
+	if ((p->recv_content == NULL) || (p->recv_content->size < content_length)) {
+		release_s(p->recv_content, ARefsBufRelease, NULL);
+
+		p->recv_content = ARefsBufCreate(content_length, NULL, NULL);
+		if (p->recv_content == NULL)
+			return -ENOMEM;
+	}
+
+	p->recv_content->bgn = 0;
+	p->recv_content->end = content_length;
+	return 0;
+}
+
 static int on_m_begin(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	p->recv_header_count = 0;
+	p->h_f_pos() = 0;
+	p->h_f_len() = 0;
+	p->h_v_pos() = 0;
+	p->h_v_len() = 0;
 	return 0;
 }
 
@@ -321,24 +354,56 @@ static int on_status(http_parser *parser, const char *at, size_t length)
 static int on_h_field(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	if (p->h_v_len() != 0) {
+		if (++p->recv_header_count >= _countof(p->recv_headers))
+			return -EACCES;
+	}
+
+	if (p->h_f_pos() == 0)
+		p->h_f_pos() = (at - p->recv_buffer);
+	p->h_f_len() += length;
+
+	ASSERT(at >= p->recv_buffer+p->h_f_pos());
+	ASSERT(at < p->recv_buffer+p->h_f_pos()+p->h_f_len())
 	return 0;
 }
 
 static int on_h_value(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	if (p->h_v_pos() == 0)
+		p->h_v_pos() = (at - p->recv_buffer);
+	p->h_v_len() += length;
+
+	ASSERT(at >= p->recv_buffer+p->h_v_pos());
+	ASSERT(at < p->recv_buffer+p->h_v_pos()+p->h_v_len())
 	return 0;
 }
 
 static int on_h_done(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	if (p->h_f_len() != 0)
+		p->recv_header_count++;
+
+	if ((parser->content_length > 0) && (parser->content_length != ULLONG_MAX)) {
+		HttpClientResetContent(p, parser->content_length);
+	} else if (p->recv_content != NULL) {
+		p->recv_content->reset();
+	}
 	return 0;
 }
 
 static int on_body(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	if ((p->recv_content == NULL) || (p->recv_content->bgn+length >= p->recv_content->end))
+		return -EACCES;
+
+	if ((at < p->recv_content->data) || (at >= p->recv_content->next()))
+		memcpy(p->recv_content->data, at, length);
+
+	p->recv_content->push(length);
 	return 0;
 }
 
@@ -351,7 +416,7 @@ static int on_m_done(http_parser *parser)
 static int on_chunk_header(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
-	return 0;
+	return HttpClientResetContent(p, parser->content_length);
 }
 
 static int on_chunk_complete(http_parser *parser)
@@ -365,47 +430,75 @@ static const struct http_parser_settings cb_sets = {
 	&on_h_done, &on_body, &on_m_done,
 	&on_chunk_header, &on_chunk_complete
 };
-/*
-static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
+
+static int HttpClientDoRecvResponse(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
 	do {
-		p->resp_size += p->msg.size;
-		p->msg.data[p->msg.size] = '\0';
+		p->recv_parser_size += p->recv_msg.size;
+		if (p->recv_parser_pos == p->recv_parser_size) {
+			AMsgInit(&p->recv_msg, AMsgType_Unknown, p->recv_buffer+p->recv_parser_size, sizeof(p->recv_buffer)-p->recv_parser_size);
 
-		result = http_parser_execute(&p->parser, &cb_sets, p->msg.data, p->msg.size);
-		if (p->parser.http_errno != HPE_OK) {
-			TRACE("http_errno_name = %s.\n", http_parser_error(&p->parser));
-			return -(AMsgType_Private|p->parser.http_errno);
+			result = ioOutput(p->io, &p->recv_msg);
+			continue;
 		}
 
-		if (p->resp_size+16*1024 >= p->send_buffer->size) {
-			ARefsBuf *send_buffer = ARefsBufCreate(p->send_buffer->size+16*1024, NULL, NULL);
-			if (send_buffer == NULL)
-				return -ENOMEM;
-
-			memcpy(send_buffer->data, p->send_buffer->data, p->resp_size);
-			ARefsBufRelease(p->send_buffer);
-			p->send_buffer = send_buffer;
+		result = http_parser_execute(&p->recv_parser, &cb_sets, p->recv_buffer+p->recv_parser_pos, p->recv_parser_size-p->recv_parser_pos);
+		if (p->recv_parser.http_errno != HPE_OK) {
+			TRACE("http_errno_name = %s.\n", http_parser_error(&p->recv_parser));
+			return -(AMsgType_Private|p->recv_parser.http_errno);
 		}
 
-		AMsgInit(&p->msg, AMsgType_Unknown, p->send_buffer->data+p->resp_size, p->send_buffer->size-p->resp_size);
-		result = ioOutput(p->io, &p->msg);
+		p->recv_parser_pos += result;
+		if (!p->recv_response_completed) {
+			p->recv_msg.size = 0;
+			continue;
+		}
+
+		if (p->recv_from->type == AMsgType_RefsMsg) {
+			ARefsMsg *rm = (ARefsMsg*)p->recv_from;
+
+			rm->buf = p->recv_content;
+			if (p->recv_content != NULL)
+				ARefsBufAddRef(p->recv_content);
+
+			rm->type = ioMsgType_Block;
+			rm->pos = (p->recv_content ? p->recv_content->bgn : 0);
+			rm->size = (p->recv_content ? p->recv_content->end : 0);
+		} else if (p->recv_content != NULL) {
+			AMsgCopy(p->recv_from, ioMsgType_Block, p->recv_content->ptr(), p->recv_content->len());
+		} else {
+			AMsgInit(p->recv_from, AMsgType_Unknown, NULL, 0);
+		}
+		return p->recv_parser.status_code;
 	} while (result > 0);
 	return result;
 }
-*/
+
 static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 {
 	HttpClient *p = to_http(object);
+
+	if (msg->type == httpMsgType_RawData) {
+		msg->type = AMsgType_Unknown;
+		return p->io->request(p->io, reqix, msg);
+	}
+
+	if (msg->type == httpMsgType_RawBlock) {
+		msg->type = ioMsgType_Block;
+		return p->io->request(p->io, reqix, msg);
+	}
 
 	if (reqix == Aio_Input) {
 		return HttpClientDoSendRequest(p, msg);
 	}
 
 	if (reqix == Aio_Output) {
-		//return HttpClientDoRecvResponse(p, msg);
+		p->recv_msg.size = 0;
+		p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientDoRecvResponse);
+		p->recv_from = msg;
+		return HttpClientDoRecvResponse(p, 0);
 	}
 
 	/*if (reqix == Aio_InOutPair) {

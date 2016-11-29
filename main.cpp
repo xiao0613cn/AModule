@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include <map>
+//#include <map>
 #include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
@@ -60,7 +60,7 @@ rb_tree_define(myrb_node, rb_node, int, myrb_cmp)
 
 void rbtree_test()
 {
-	std::map<int, int> test_set;
+	/*std::map<int, int> test_set;
 	test_set.insert(std::make_pair(5, 5));
 	test_set.insert(std::make_pair(9, 9));
 	test_set.insert(std::make_pair(14, 14));
@@ -70,7 +70,7 @@ void rbtree_test()
 	it = test_set.upper_bound(8);
 	it = test_set.upper_bound(14);
 	it = test_set.upper_bound(24);
-	it = test_set.lower_bound(14);
+	it = test_set.lower_bound(14);*/
 
 	srand(rand());
 	struct rb_root root;
@@ -146,7 +146,7 @@ extern AModule EchoModule;
 static const char *pvd_path =
 	"stream: PVDClient {"
 	"       io: async_tcp {"
-	"		address: '192.168.40.174',"
+	"		address: '192.168.20.163',"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -499,11 +499,7 @@ int http_data_cb_name(http_parser *parser, const char *at, size_t len, const cha
 	AMessage *msg = (AMessage*)parser->data;
 	strncpy(msg->data+msg->size, at, len);
 	msg->size += len;
-#ifdef _WIN32
-	if (!http_data_is_final(parser)) {
-		return 0;
-	}
-#endif
+
 	msg->data[msg->size] = '\0';
 	TRACE("%s: %s, len = %d.\n", name, msg->data, msg->size);
 	msg->size = 0;

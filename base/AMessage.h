@@ -100,8 +100,10 @@ struct ARefsBuf
 	char    data[0];
 #pragma warning(default:4200)
 #ifdef __cplusplus
+	void  reset() { bgn = end = 0; }
 	int   push(int len) { end += len; }
-	void  pop(int len) { bgn += len; if (bgn == end) bgn = end = 0; }
+	void  pop(int len) { bgn += len; if (bgn == end) reset(); }
+
 	int   len() { return (end - bgn); }
 	char* ptr() { return (data + bgn); }
 

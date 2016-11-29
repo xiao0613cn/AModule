@@ -1852,7 +1852,8 @@ reexecute:
 
         if (parser->flags & F_SKIPBODY) {
           UPDATE_STATE(NEW_MESSAGE());
-          CALLBACK_NOTIFY(message_complete);
+	  CALLBACK_NOTIFY(message_complete);
+	  RETURN((p - data) + 1);  // 2016-11-28: add by xiao
         } else if (parser->flags & F_CHUNKED) {
           /* chunked encoding - ignore Content-Length header */
           UPDATE_STATE(s_chunk_size_start);
@@ -1860,7 +1861,8 @@ reexecute:
           if (parser->content_length == 0) {
             /* Content-Length header given but zero: Content-Length: 0\r\n */
             UPDATE_STATE(NEW_MESSAGE());
-            CALLBACK_NOTIFY(message_complete);
+	    CALLBACK_NOTIFY(message_complete);
+	    RETURN((p - data) + 1);  // 2016-11-28: add by xiao
           } else if (parser->content_length != ULLONG_MAX) {
             /* Content-Length header given and non-zero */
             UPDATE_STATE(s_body_identity);
@@ -1868,7 +1870,8 @@ reexecute:
             if (!http_message_needs_eof(parser)) {
               /* Assume content-length 0 - read the next */
               UPDATE_STATE(NEW_MESSAGE());
-              CALLBACK_NOTIFY(message_complete);
+	      CALLBACK_NOTIFY(message_complete);
+	      RETURN((p - data) + 1);  // 2016-11-28: add by xiao
             } else {
               /* Read body until EOF */
               UPDATE_STATE(s_body_identity_eof);
@@ -1925,11 +1928,11 @@ reexecute:
       case s_message_done:
         UPDATE_STATE(NEW_MESSAGE());
         CALLBACK_NOTIFY(message_complete);
-        if (parser->upgrade) {
+        //if (parser->upgrade) { 2016-11-28: mark by xiao
           /* Exit, the rest of the message is in a different protocol. */
           RETURN((p - data) + 1);
-        }
-        break;
+        //}
+        //break;
 
       case s_chunk_size_start:
       {
@@ -2462,31 +2465,24 @@ http_body_is_final(const struct http_parser *parser) {
     return parser->state == s_message_done;
 }
 
+int 
+http_header_is_completed(const http_parser *parser) {
+	return PARSING_HEADER(parser->state);
+}
+
 int
-http_data_is_final(const http_parser *parser) {
+http_message_is_completed(const http_parser *parser) {
 	switch (parser->state)
 	{
-	case s_header_field:
-	case s_header_value:
+	case s_start_req_or_res:
+	case s_start_res:
+	case s_start_req:
+		return 1;
 
-	case s_req_path:
-	case s_req_schema:
-	case s_req_schema_slash:
-	case s_req_schema_slash_slash:
-	case s_req_server_start:
-	case s_req_server:
-	case s_req_server_with_at:
-	case s_req_query_string_start:
-	case s_req_query_string:
-	case s_req_fragment_start:
-	case s_req_fragment:
-	case s_res_status:
+	case s_dead:
+		return -1;
 
-	case s_body_identity:
-	case s_body_identity_eof:
-	case s_chunk_data:
-	     return 0;
-	default: return 1;
+	default: return 0;
 	}
 }
 

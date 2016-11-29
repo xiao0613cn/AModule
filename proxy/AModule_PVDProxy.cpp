@@ -34,8 +34,8 @@ struct HeartMsg {
 	AObject *object;
 	AOption *option;
 	AOperator timer;
-	union {
 	pvdnet_head heart;
+	union {
 	struct {
 	int     reqix;
 	int     threadix;
@@ -587,11 +587,16 @@ static void PVDDoSend(AOperator *asop, int result)
 		case NET_SDVR_LOGIN: result = NET_SDVR_GET_DVRTYPE; break;
 		case NET_SDVR_GET_DVRTYPE: result = NET_SDVR_SUPPORT_FUNC; break;
 		case NET_SDVR_SUPPORT_FUNC: result = NET_SDVR_DEVICECFG_GET; break;
-		case NET_SDVR_DEVICECFG_GET: result = NET_SDVR_DEVICECFG_GET_EX; break;
+		case NET_SDVR_DEVICECFG_GET:
+			if (login_data.byChanNum != 1)
+				result = NET_SDVR_DEVICECFG_GET_EX;
+			else
+				result = NET_SDVR_NETCFG_GET;
+			break;
 		case NET_SDVR_DEVICECFG_GET_EX: result = NET_SDVR_NETCFG_GET; break;
 		case NET_SDVR_NETCFG_GET: result = NET_SDVR_WORK_STATE; break;
 		case NET_SDVR_WORK_STATE:
-			if (devinfo_ex.byChanNum == 1) {
+			if (login_data.byChanNum == 1) {
 				sm->msg.type = AMsgType_Private|NET_SDVR_IPCWORKPARAM_GET;
 				sm->msg.data = (char*)&sm->heart;
 				sm->msg.size = PVDCmdEncode(0, &sm->heart, NET_SDVR_IPCWORKPARAM_GET, sizeof(sm->ipcreq));

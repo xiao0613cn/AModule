@@ -367,7 +367,8 @@ http_parser_method(const http_parser *parser) {
 	return http_method_str((enum http_method)parser->method);
 }
 
-int http_data_is_final(const http_parser *parser);
+int http_header_is_completed(const http_parser *parser);
+int http_message_is_completed(const http_parser *parser);
 
 #ifdef __cplusplus
 }
