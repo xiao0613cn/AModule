@@ -309,7 +309,7 @@ struct http_parser_url {
  */
 unsigned long http_parser_version(void);
 
-void http_parser_init(http_parser *parser, enum http_parser_type type);
+void http_parser_init(http_parser *parser, enum http_parser_type type, void *data);
 
 
 /* Initialize http_parser_settings members to 0
@@ -367,8 +367,8 @@ http_parser_method(const http_parser *parser) {
 	return http_method_str((enum http_method)parser->method);
 }
 
-int http_header_is_completed(const http_parser *parser);
-int http_message_is_completed(const http_parser *parser);
+int http_header_is_complete(const http_parser *parser);
+int http_next_chunk_is_incoming(const http_parser *parser);
 
 #ifdef __cplusplus
 }

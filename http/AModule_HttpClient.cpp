@@ -14,7 +14,9 @@ enum status {
 	s_send_done,
 };
 
-#define header_bufsiz   4*1024
+#define send_bufsiz     2*1024
+#define recv_bufsiz     64*1024
+#define max_body_size   4*1024*1024
 
 struct HttpClient {
 	AObject   object;
@@ -22,7 +24,7 @@ struct HttpClient {
 
 	// send
 	struct list_head send_headers;
-	char      send_buffer[header_bufsiz];
+	char      send_buffer[send_bufsiz];
 	char      method[32];
 	char      url[BUFSIZ];
 	char      version[32];
@@ -33,17 +35,22 @@ struct HttpClient {
 
 	// recv
 	struct http_parser recv_parser;
-	char      recv_buffer[header_bufsiz];
 	int       recv_parser_pos;
-	int       recv_parser_size;
+	char*     r_p_ptr() { return (recv_buffer->ptr() + recv_parser_pos); }
+	int       r_p_len() { return (recv_buffer->len() - recv_parser_pos); }
+	void      r_p_pop(int len) { recv_parser_pos += len; }
 
-	int       recv_headers[50][4];
+	int       recv_header_list[50][4];
 	int       recv_header_count;
-	int&      h_f_pos() { return recv_headers[recv_header_count][0]; }
-	int&      h_f_len() { return recv_headers[recv_header_count][1]; }
-	int&      h_v_pos() { return recv_headers[recv_header_count][2]; }
-	int&      h_v_len() { return recv_headers[recv_header_count][3]; }
-	ARefsBuf *recv_content;
+	ARefsBuf *recv_header_buffer;
+	int&      h_f_pos() { return recv_header_list[recv_header_count][0]; }
+	int&      h_f_len() { return recv_header_list[recv_header_count][1]; }
+	int&      h_v_pos() { return recv_header_list[recv_header_count][2]; }
+	int&      h_v_len() { return recv_header_list[recv_header_count][3]; }
+
+	ARefsBuf *recv_buffer;
+	int       recv_body_pos;
+	int       recv_body_len;
 
 	AMessage  recv_msg;
 	AMessage *recv_from;
@@ -54,8 +61,23 @@ static void HttpClientRelease(AObject *object)
 {
 	HttpClient *p = to_http(object);
 	release_s(p->io, AObjectRelease, NULL);
+
 	AOptionClear(&p->send_headers);
-	release_s(p->recv_content, ARefsBufRelease, NULL);
+	release_s(p->recv_buffer, ARefsBufRelease, NULL);
+}
+
+static void HttpClientResetStatus(HttpClient *p)
+{
+	p->send_status = s_invalid;
+
+	http_parser_init(&p->recv_parser, HTTP_BOTH, p);
+	p->recv_parser_pos = 0;
+	p->recv_header_count = 0;
+
+	release_s(p->recv_buffer, ARefsBufRelease, NULL);
+	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	p->recv_body_pos = 0;
+	p->recv_body_len = 0;
 }
 
 static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
@@ -67,15 +89,10 @@ static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->method[0] = '\0';
 	p->url[0] = '\0';
 	p->version[0] = '\0';
-	p->send_status = s_invalid;
 
-	p->recv_parser.data = p;
-	http_parser_init(&p->recv_parser, HTTP_BOTH);
-	p->recv_parser_pos = 0;
-	p->recv_parser_size = 0;
-
-	p->recv_header_count = 0;
-	p->recv_content = NULL;
+	p->recv_buffer = NULL;
+	p->recv_header_buffer = NULL;
+	HttpClientResetStatus(p);
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if (io_opt != NULL)
@@ -123,21 +140,15 @@ int HttpClientOnOpen(HttpClient *p, int result)
 	const char *str;
 
 	// method
-	str = AOptionChild(option, "method");
-	if ((str == NULL) || (str[0] == '\0'))
-		str = http_method_str(HTTP_GET);
+	str = AOptionChild(option, "method", http_method_str(HTTP_GET));
 	strcpy_sz(p->method, str);
 
 	// url
-	str = AOptionChild(option, "url");
-	if ((str == NULL) || (str[0] == '\0'))
-		str = "/";
+	str = AOptionChild(option, "url", "/");
 	strcpy_sz(p->url, str);
 
 	// version
-	str = AOptionChild(option, "version");
-	if ((str == NULL) || (str[0] == '\0'))
-		str = "HTTP/1.0";
+	str = AOptionChild(option, "version", "HTTP/1.0");
 	strcpy_sz(p->version, str);
 
 	// send_headers
@@ -160,6 +171,8 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 		p->io = (AObject*)msg->data;
 		if (p->io != NULL)
 			AObjectAddRef(p->io);
+
+		HttpClientResetStatus(p);
 		return 1;
 	}
 
@@ -201,13 +214,13 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 }
 
 #define append_data(fmt, ...) \
-	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, header_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
+	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, send_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
 
 #define append_crlf() \
 	p->send_buffer[p->send_msg.size++] = '\r'; \
 	p->send_buffer[p->send_msg.size++] = '\n';
 
-static int HttpClientSendStatus(HttpClient *p, int result)
+static int HttpClientOnSendStatus(HttpClient *p, int result)
 {
 	AMessage *msg = p->send_from;
 	do {
@@ -224,13 +237,13 @@ static int HttpClientSendStatus(HttpClient *p, int result)
 				if (pos->value[0] == '\0')
 					continue;
 
-				if ((strnicmp_c(pos->name+1, "Transfer-Encoding") == 0)
-				 && (strnicmp_c(pos->value, "chunked") == 0))
+				if ((_stricmp(pos->name+1, "Transfer-Encoding") == 0)
+				 && (_stricmp(pos->value, "chunked") == 0))
 					p->send_status = s_send_chunk_size;
 
 				append_data("%s: %s\r\n", pos->name+1, pos->value);
 			}
-			if (p->send_msg.size+64 >= header_bufsiz)
+			if (p->send_msg.size+64 >= send_bufsiz)
 				return -ENOMEM;
 
 			if (p->send_status == s_send_chunk_size) {
@@ -297,7 +310,7 @@ static int HttpClientSendStatus(HttpClient *p, int result)
 static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 {
 	AMsgInit(&p->send_msg, ioMsgType_Block, p->send_buffer, 0);
-	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientSendStatus);
+	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnSendStatus);
 	p->send_from = msg;
 
 	if (p->send_status == s_invalid) {
@@ -309,74 +322,68 @@ static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 		return -EACCES;
 	}
 
-	int result = HttpClientSendStatus(p, 1);
+	int result = HttpClientOnSendStatus(p, 1);
 	return result;
-}
-
-static int HttpClientResetContent(HttpClient *p, int content_length)
-{
-	if ((p->recv_content == NULL) || (p->recv_content->size < content_length)) {
-		release_s(p->recv_content, ARefsBufRelease, NULL);
-
-		p->recv_content = ARefsBufCreate(content_length, NULL, NULL);
-		if (p->recv_content == NULL)
-			return -ENOMEM;
-	}
-
-	p->recv_content->bgn = 0;
-	p->recv_content->end = content_length;
-	return 0;
 }
 
 static int on_m_begin(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+
 	p->recv_header_count = 0;
+	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+
 	p->h_f_pos() = 0;
 	p->h_f_len() = 0;
 	p->h_v_pos() = 0;
 	p->h_v_len() = 0;
+
+	p->recv_body_pos = 0;
+	p->recv_body_len = 0;
 	return 0;
 }
 
-static int on_url(http_parser *parser, const char *at, size_t length)
+static int on_url_or_status(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
-	return 0;
-}
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
-static int on_status(http_parser *parser, const char *at, size_t length)
-{
-	HttpClient *p = (HttpClient*)parser->data;
+	if (p->h_f_len() == 0) {
+		p->h_v_pos() = p->h_f_pos() = (at - p->recv_buffer->data);
+	}
+	p->h_f_len() += length;
+	p->h_v_len() += length;
 	return 0;
 }
 
 static int on_h_field(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
+
 	if (p->h_v_len() != 0) {
-		if (++p->recv_header_count >= _countof(p->recv_headers))
+		if (++p->recv_header_count >= _countof(p->recv_header_list))
 			return -EACCES;
+		p->h_f_pos() = 0;
+		p->h_f_len() = 0;
+		p->h_v_pos() = 0;
+		p->h_v_len() = 0;
 	}
 
-	if (p->h_f_pos() == 0)
-		p->h_f_pos() = (at - p->recv_buffer);
+	if (p->h_f_len() == 0)
+		p->h_f_pos() = (at - p->recv_buffer->data);
 	p->h_f_len() += length;
-
-	ASSERT(at >= p->recv_buffer+p->h_f_pos());
-	ASSERT(at < p->recv_buffer+p->h_f_pos()+p->h_f_len())
 	return 0;
 }
 
 static int on_h_value(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
-	if (p->h_v_pos() == 0)
-		p->h_v_pos() = (at - p->recv_buffer);
-	p->h_v_len() += length;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
-	ASSERT(at >= p->recv_buffer+p->h_v_pos());
-	ASSERT(at < p->recv_buffer+p->h_v_pos()+p->h_v_len())
+	if (p->h_v_len() == 0)
+		p->h_v_pos() = (at - p->recv_buffer->data);
+	p->h_v_len() += length;
 	return 0;
 }
 
@@ -386,94 +393,169 @@ static int on_h_done(http_parser *parser)
 	if (p->h_f_len() != 0)
 		p->recv_header_count++;
 
-	if ((parser->content_length > 0) && (parser->content_length != ULLONG_MAX)) {
-		HttpClientResetContent(p, parser->content_length);
-	} else if (p->recv_content != NULL) {
-		p->recv_content->reset();
-	}
+	p->recv_header_buffer = p->recv_buffer;
+	ARefsBufAddRef(p->recv_header_buffer);
+
+	TRACE("status code = %d, header count = %d, body = %lld.\n",
+		parser->status_code, p->recv_header_count, parser->content_length);
 	return 0;
 }
 
 static int on_body(http_parser *parser, const char *at, size_t length)
 {
 	HttpClient *p = (HttpClient*)parser->data;
-	if ((p->recv_content == NULL) || (p->recv_content->bgn+length >= p->recv_content->end))
-		return -EACCES;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
-	if ((at < p->recv_content->data) || (at >= p->recv_content->next()))
-		memcpy(p->recv_content->data, at, length);
-
-	p->recv_content->push(length);
+	if (p->recv_body_len == 0)
+		p->recv_body_pos = (at - p->recv_buffer->ptr());
+	p->recv_body_len += length;
 	return 0;
 }
 
 static int on_m_done(http_parser *parser)
 {
-	HttpClient *p = (HttpClient*)parser->data;
+	//HttpClient *p = (HttpClient*)parser->data;
+	http_parser_pause(parser, TRUE);
 	return 0;
 }
 
 static int on_chunk_header(http_parser *parser)
 {
-	HttpClient *p = (HttpClient*)parser->data;
-	return HttpClientResetContent(p, parser->content_length);
+	//HttpClient *p = (HttpClient*)parser->data;
+	TRACE("chunk header, body = %lld.\n", parser->content_length);
+	return 0;
 }
 
 static int on_chunk_complete(http_parser *parser)
 {
-	HttpClient *p = (HttpClient*)parser->data;
+	//HttpClient *p = (HttpClient*)parser->data;
+	http_parser_pause(parser, TRUE);
 	return 0;
 }
 
 static const struct http_parser_settings cb_sets = {
-	&on_m_begin, &on_url, &on_status, &on_h_field, &on_h_value,
+	&on_m_begin, &on_url_or_status, &on_url_or_status, &on_h_field, &on_h_value,
 	&on_h_done, &on_body, &on_m_done,
 	&on_chunk_header, &on_chunk_complete
 };
 
-static int HttpClientDoRecvResponse(HttpClient *p, int result)
+static int HttpClientOnRecvStatus(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
-	do {
-		p->recv_parser_size += p->recv_msg.size;
-		if (p->recv_parser_pos == p->recv_parser_size) {
-			AMsgInit(&p->recv_msg, AMsgType_Unknown, p->recv_buffer+p->recv_parser_size, sizeof(p->recv_buffer)-p->recv_parser_size);
 
-			result = ioOutput(p->io, &p->recv_msg);
-			continue;
+	p->recv_buffer->push(result);
+_continue:
+	if (p->r_p_len() == 0) {
+		if (p->recv_buffer->left() == 0) {
+			assert(FALSE);
+			return -EACCES;
 		}
 
-		result = http_parser_execute(&p->recv_parser, &cb_sets, p->recv_buffer+p->recv_parser_pos, p->recv_parser_size-p->recv_parser_pos);
-		if (p->recv_parser.http_errno != HPE_OK) {
-			TRACE("http_errno_name = %s.\n", http_parser_error(&p->recv_parser));
-			return -(AMsgType_Private|p->recv_parser.http_errno);
+		AMsgInit(&p->recv_msg, AMsgType_Unknown, p->recv_buffer->next(), p->recv_buffer->left());
+		result = ioOutput(p->io, &p->recv_msg);
+		if (result <= 0)
+			return result;
+		p->recv_buffer->push(result);
+	}
+
+	result = http_parser_execute(&p->recv_parser, &cb_sets, p->r_p_ptr(), p->r_p_len());
+	if (p->recv_parser.http_errno == HPE_PAUSED)
+		http_parser_pause(&p->recv_parser, FALSE);
+
+	if (p->recv_parser.http_errno != HPE_OK) {
+		TRACE("http_errno_name = %s.\n", http_parser_error(&p->recv_parser));
+		return -(AMsgType_Private|p->recv_parser.http_errno);
+	}
+	p->recv_parser_pos += result;
+
+	result = http_next_chunk_is_incoming(&p->recv_parser);
+	if (!result) {
+		// new buffer
+		assert(p->r_p_len() == 0);
+		char *buf_ptr = p->recv_buffer->ptr();
+		int buf_len;
+
+		if (!http_header_is_complete(&p->recv_parser)) {
+			if (p->recv_buffer->left() >= send_bufsiz)
+				goto _continue;
+			buf_len = p->recv_buffer->len() + recv_bufsiz;
+		}
+		else if (p->recv_body_len+p->recv_parser.content_length < max_body_size) {
+			if (p->recv_buffer->left() >= p->recv_parser.content_length + 32)
+				goto _continue;
+
+			buf_ptr += p->recv_body_pos;
+			buf_len = p->recv_body_len + p->recv_parser.content_length + send_bufsiz;
+			if (buf_len < recv_bufsiz)
+				buf_len = recv_bufsiz;
+
+			p->recv_parser_pos -= p->recv_body_pos;
+			p->recv_body_pos = 0;
+		}
+		else {
+			buf_len = 0; // until EOF ???
 		}
 
-		p->recv_parser_pos += result;
-		if (!p->recv_response_completed) {
-			p->recv_msg.size = 0;
-			continue;
+		if (buf_len != 0) {
+			TRACE("resize buffer, %d => %d.\n", p->recv_buffer->len(), buf_len);
+			ARefsBuf *buf = ARefsBufCreate(buf_len, NULL, NULL);
+			if (buf == NULL)
+				return -ENOMEM;
+
+			buf_len = p->recv_buffer->ptr() + p->recv_buffer->len() - buf_ptr;
+			memcpy(buf->ptr(), buf_ptr, buf_len);
+			buf->push(buf_len);
+
+			ARefsBufRelease(p->recv_buffer);
+			p->recv_buffer = buf;
+			goto _continue;
 		}
+	}
 
-		if (p->recv_from->type == AMsgType_RefsMsg) {
-			ARefsMsg *rm = (ARefsMsg*)p->recv_from;
+	if (p->recv_from->type == AMsgType_RefsMsg) {
+		ARefsBufAddRef(p->recv_buffer);
 
-			rm->buf = p->recv_content;
-			if (p->recv_content != NULL)
-				ARefsBufAddRef(p->recv_content);
+		ARefsMsg *rm = (ARefsMsg*)p->recv_from->data;
+		ARefsMsgInit(rm, (result?ioMsgType_Block:AMsgType_Unknown),
+			p->recv_buffer, p->recv_buffer->bgn+p->recv_body_pos, p->recv_body_len);
+	} else {
+		AMsgInit(p->recv_from, (result?ioMsgType_Block:AMsgType_Unknown),
+			p->recv_buffer->ptr()+p->recv_body_pos, p->recv_body_len);
+	}
+	return AMsgType_Private|((p->recv_parser.type == HTTP_REQUEST) ? p->recv_parser.method : p->recv_parser.status_code);
+}
 
-			rm->type = ioMsgType_Block;
-			rm->pos = (p->recv_content ? p->recv_content->bgn : 0);
-			rm->size = (p->recv_content ? p->recv_content->end : 0);
-		} else if (p->recv_content != NULL) {
-			AMsgCopy(p->recv_from, ioMsgType_Block, p->recv_content->ptr(), p->recv_content->len());
-		} else {
-			AMsgInit(p->recv_from, AMsgType_Unknown, NULL, 0);
+static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
+{
+	if (p->recv_buffer == NULL) {
+		p->recv_buffer = ARefsBufCreate(recv_bufsiz, NULL, NULL);
+		if (p->recv_buffer == NULL)
+			return -ENOMEM;
+	} else {
+		p->recv_buffer->pop(p->recv_parser_pos);
+		if (p->recv_buffer->caps() < send_bufsiz)
+		{
+			ARefsBuf *buf = ARefsBufCreate(p->recv_buffer->len()+recv_bufsiz, NULL, NULL);
+			if (buf == NULL)
+				return -ENOMEM;
+
+			memcpy(buf->ptr(), p->recv_buffer->ptr(), p->recv_buffer->len());
+			buf->push(p->recv_buffer->len());
+
+			ARefsBufRelease(p->recv_buffer);
+			p->recv_buffer = buf;
 		}
-		return p->recv_parser.status_code;
-	} while (result > 0);
-	return result;
+	}
+	p->recv_parser_pos = 0;
+	p->recv_body_pos = 0;
+	p->recv_body_len = 0;
+
+	AMsgInit(&p->recv_msg, AMsgType_Unknown, NULL, 0);
+	p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientOnRecvStatus);
+	p->recv_from = msg;
+
+	return HttpClientOnRecvStatus(p, 0);
 }
 
 static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
@@ -495,17 +577,8 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 	}
 
 	if (reqix == Aio_Output) {
-		p->recv_msg.size = 0;
-		p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientDoRecvResponse);
-		p->recv_from = msg;
-		return HttpClientDoRecvResponse(p, 0);
+		return HttpClientDoRecvResponse(p, msg);
 	}
-
-	/*if (reqix == Aio_InOutPair) {
-		if (msg->type != AMsgType_InOutMsg)
-			return -EINVAL;
-		return HttpClientDoSendRequest(p, msg);
-	}*/
 	return -ENOSYS;
 }
 

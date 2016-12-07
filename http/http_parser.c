@@ -349,6 +349,7 @@ enum state
   , s_chunk_data
   , s_chunk_data_almost_done
   , s_chunk_data_done
+  , s_chunk_next_size  // 2016-12-06: add by xiao, mark as s_chunk_size_start
 
   , s_body_identity
   , s_body_identity_eof
@@ -1853,7 +1854,6 @@ reexecute:
         if (parser->flags & F_SKIPBODY) {
           UPDATE_STATE(NEW_MESSAGE());
 	  CALLBACK_NOTIFY(message_complete);
-	  RETURN((p - data) + 1);  // 2016-11-28: add by xiao
         } else if (parser->flags & F_CHUNKED) {
           /* chunked encoding - ignore Content-Length header */
           UPDATE_STATE(s_chunk_size_start);
@@ -1862,7 +1862,6 @@ reexecute:
             /* Content-Length header given but zero: Content-Length: 0\r\n */
             UPDATE_STATE(NEW_MESSAGE());
 	    CALLBACK_NOTIFY(message_complete);
-	    RETURN((p - data) + 1);  // 2016-11-28: add by xiao
           } else if (parser->content_length != ULLONG_MAX) {
             /* Content-Length header given and non-zero */
             UPDATE_STATE(s_body_identity);
@@ -1871,7 +1870,6 @@ reexecute:
               /* Assume content-length 0 - read the next */
               UPDATE_STATE(NEW_MESSAGE());
 	      CALLBACK_NOTIFY(message_complete);
-	      RETURN((p - data) + 1);  // 2016-11-28: add by xiao
             } else {
               /* Read body until EOF */
               UPDATE_STATE(s_body_identity_eof);
@@ -1928,13 +1926,14 @@ reexecute:
       case s_message_done:
         UPDATE_STATE(NEW_MESSAGE());
         CALLBACK_NOTIFY(message_complete);
-        //if (parser->upgrade) { 2016-11-28: mark by xiao
+        if (parser->upgrade) {
           /* Exit, the rest of the message is in a different protocol. */
           RETURN((p - data) + 1);
-        //}
-        //break;
+        }
+        break;
 
       case s_chunk_size_start:
+      case s_chunk_next_size:
       {
         assert(parser->nread == 1);
         assert(parser->flags & F_CHUNKED);
@@ -2050,7 +2049,7 @@ reexecute:
         assert(parser->flags & F_CHUNKED);
         STRICT_CHECK(ch != LF);
         parser->nread = 0;
-        UPDATE_STATE(s_chunk_size_start);
+        UPDATE_STATE(s_chunk_next_size); // 2016-12-06: mark by xiao, s_chunk_size_start
         CALLBACK_NOTIFY(chunk_complete);
         break;
 
@@ -2145,9 +2144,8 @@ http_method_str (enum http_method m)
 
 
 void
-http_parser_init (http_parser *parser, enum http_parser_type t)
+http_parser_init (http_parser *parser, enum http_parser_type t, void *data)
 {
-  void *data = parser->data; /* preserve application data */
   memset(parser, 0, sizeof(*parser));
   parser->data = data;
   parser->type = t;
@@ -2466,18 +2464,21 @@ http_body_is_final(const struct http_parser *parser) {
 }
 
 int 
-http_header_is_completed(const http_parser *parser) {
-	return PARSING_HEADER(parser->state);
+http_header_is_complete(const http_parser *parser) {
+	return !PARSING_HEADER(parser->state);
 }
 
 int
-http_message_is_completed(const http_parser *parser) {
+http_next_chunk_is_incoming(const http_parser *parser) {
 	switch (parser->state)
 	{
 	case s_start_req_or_res:
 	case s_start_res:
 	case s_start_req:
 		return 1;
+
+	case s_chunk_next_size:
+		return 2;
 
 	case s_dead:
 		return -1;

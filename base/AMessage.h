@@ -101,9 +101,9 @@ struct ARefsBuf
 #pragma warning(default:4200)
 #ifdef __cplusplus
 	void  reset() { bgn = end = 0; }
-	int   push(int len) { end += len; }
-	void  pop(int len) { bgn += len; if (bgn == end) reset(); }
 
+	void  push(int len) { end += len; }
+	void  pop(int len) { bgn += len; }
 	int   len() { return (end - bgn); }
 	char* ptr() { return (data + bgn); }
 

@@ -824,8 +824,7 @@ int PVDProxyInit(AOption *option)
 	if (proactive_option != NULL) {
 		proactive_io = AOptionFind(proactive_option, "io");
 		proactive_prefix = AOptionChild(proactive_option, "prefix");
-		const char *first = AOptionChild(proactive_option, "first");
-		proactive_first = (first ? atoi(first) : 1);
+		proactive_first = AOptionChildInt(proactive_option, "first", 1);
 	}
 
 	if (_stricmp(option->name, "stream") != 0)

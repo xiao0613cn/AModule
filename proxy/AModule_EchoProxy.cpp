@@ -20,7 +20,7 @@ static int EchoProbe(AObject *object, AMessage *msg)
 {
 	if (msg->size < 4)
 		return -1;
-	return ((_strnicmp(msg->data, "echo", 4) == 0) ? 100 : 0);
+	return ((_strnicmp_c(msg->data, "echo") == 0) ? 100 : 0);
 }
 
 static int EchoOpen(AObject *echo, AMessage *msg)

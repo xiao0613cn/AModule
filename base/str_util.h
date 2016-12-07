@@ -29,10 +29,11 @@
 
 #endif //_WIN32
 
-#define strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
+#define _strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
 
 static inline char*
-strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
+strncpy_sz(char *dest, size_t size, const char *src, size_t len)
+{
 	if (src == NULL) {
 		dest[0] = '\0';
 	} else {
@@ -45,17 +46,21 @@ strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
 }
 
 static inline char*
-strcpy_sz(char *dest, size_t size, const char *src) {
+strcpy_sz(char *dest, size_t size, const char *src)
+{
 	return strncpy_sz(dest, size, src, 0xffffffff);
 }
 
 #ifdef __cplusplus
 template <size_t size>
-inline char* strncpy_sz(char (&dest)[size], const char *src, size_t len) {
+inline char* strncpy_sz(char (&dest)[size], const char *src, size_t len)
+{
 	return strncpy_sz(dest, size, src, len);
 }
+
 template <size_t size>
-inline char* strcpy_sz(char (&dest)[size], const char *src) {
+inline char* strcpy_sz(char (&dest)[size], const char *src)
+{
 	return strcpy_sz(dest, size, src);
 }
 #endif

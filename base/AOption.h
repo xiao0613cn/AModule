@@ -61,21 +61,39 @@ AOptionClone(AOption *option, AOption *parent)
 AMODULE_API void
 AOptionRelease(AOption *option);
 
-static inline char*
-AOptionChild(AOption *option, const char *name)
+static inline const char*
+AOptionChild(AOption *option, const char *name, const char *def_value = NULL)
 {
 	AOption *child = AOptionFind(option, name);
-	if (child == NULL)
-		return NULL;
+	if ((child == NULL) || (child->value[0] == '\0'))
+		return def_value;
 	return child->value;
 }
 
+static inline const char*
+AOptionChild2(AOption *option, const char *name, const char *def_value = NULL)
+{
+	AOption *child = AOptionFind(option, name);
+	if (child == NULL)
+		return def_value;
+	return child->value;
+}
+
+static inline int
+AOptionChildInt(AOption *option, const char *name, int def_value = 0)
+{
+	AOption *child = AOptionFind(option, name);
+	if ((child == NULL) || (child->value[0] == '\0'))
+		return def_value;
+	return atoi(child->value);
+}
+
 static inline char*
-AOptionChild2(struct list_head *list, const char *name)
+AOptionChild2(struct list_head *list, const char *name, char *def_value = NULL)
 {
 	AOption *child = AOptionFind2(list, name);
 	if (child == NULL)
-		return NULL;
+		return def_value;
 	return child->value;
 }
 

@@ -462,10 +462,10 @@ void test_proactive(AOption *option, bool reset_option)
 		if (reset_option)
 			ResetOption(option);
 
-		int delay = atoi(AOptionChild(option, "first_delay"));
-		int duration = atoi(AOptionChild(option, "duration"));
+		int delay = AOptionChildInt(option, "first_delay");
+		int duration = AOptionChildInt(option, "duration");
 
-		int create = atoi(AOptionChild(option, "create"));
+		int create = AOptionChildInt(option, "create");
 		for (int ix = 0; ix < create; ++ix) {
 			AObject *p = NULL;
 			int result = AObjectCreate(&p, NULL, NULL, "PVDProxy");
@@ -479,8 +479,8 @@ void test_proactive(AOption *option, bool reset_option)
 
 			result = AOperatorTimewait(&rm->op, NULL, delay+ix*duration);
 		}
-		AOptionChild(option, "create")[0] = '\0';
-		AOptionChild(option, "first_delay")[0] = '\0';
+		AOptionChild2(&option->children_list, "create", str)[0] = '\0';
+		AOptionChild2(&option->children_list, "first_delay", str)[0] = '\0';
 
 		TRACE("input 'q' for quit...\n");
 		fgets(str, sizeof(str), stdin);
@@ -539,8 +539,7 @@ void http_parser_test()
 	AMsgInit(&msg, 0, buf, 0);
 
 	struct http_parser parser;
-	parser.data = &msg;
-	http_parser_init(&parser, HTTP_BOTH);
+	http_parser_init(&parser, HTTP_BOTH, &msg);
 	parser.flags |= F_UPGRADE;
 
 	struct http_parser_settings settings;
@@ -560,23 +559,32 @@ void http_parser_test()
          "User-Agent: curl/7.18.0 (i486-pc-linux-gnu) libcurl/7.18.0 OpenSSL/0.9.8g zlib/1.2.3.3 libidn/1.1\r\n"
          "Host: 0.0.0.0=5000\r\n"
          "Accept: */*\r\n"
-	 "Content-Length: 8\r\n"
-         "\r\n"
-	 "body=xxx";
+	 "Transfer-Encoding: chunked\r\n"
+	 "\r\n"
+	 "8\r\nbody=xxx\r\n"
+	 "2\r\nab\r\n"
+	 "0\r\n\r\n"
+	 "next_protocol\r\n";
 
 	size_t len = strlen(str);
 	int ix = 0;
 	while (ix < len) {
 		size_t ret = http_parser_execute(&parser, &settings, str+ix, 5);
+
 		TRACE("http_parser_execute(%d) = %d, http_errno = %s.\n",
 			5, ret, http_parser_error(&parser));
 		if (parser.http_errno != HPE_OK)
 			break;
-		if (http_body_is_final(&parser))
-			break;
 		ix += ret;
-	}
 
+		if (http_next_chunk_is_incoming(&parser)) {
+			fprintf(stdout, "http msg len = %d, done: %d, left = %s\n", len, ix, str+ix);
+			break;
+		}
+		if (http_header_is_complete(&parser)) {
+			fprintf(stdout, "http header done, left = %s\n", str+ix);
+		}
+	}
 	fgets(buf, BUFSIZ, stdin);
 #endif
 }
@@ -596,11 +604,9 @@ int test_run(AOption *option, bool reset_option)
 		TRACE("open(%s) = %d.\n", opt?opt->value:"", ret);
 	}
 	if (ret >= 0) {
-		const char *str = AOptionChild(option, "reqix");
-		int reqix = str ? atoi(str) : 0;
+		int reqix = AOptionChildInt(option, "reqix", 0);
 
-		str = AOptionChild(option, "request");
-		if (str == NULL) str = "";
+		const char *str = AOptionChild(option, "request", "");
 		AMsgInit(&msg, AMsgType_Unknown, str, strlen(str));
 
 		ret = object->request(object, reqix, &msg);
@@ -661,11 +667,11 @@ int main(int argc, char* argv[])
 		for ( ; ; ) {
 			TRACE("input test module: pvd, tcp_server, proactive ...\n");
 			fgets(str, sizeof(str), stdin);
-			if (strnicmp_c(str, "pvd") == 0)
+			if (_stricmp(str, "pvd") == 0)
 				path = pvd_path;
-			else if (/*str[0] == '\0' || */strnicmp_c(str, "tcp_server") == 0)
+			else if (/*str[0] == '\0' || */_stricmp(str, "tcp_server") == 0)
 				path = proxy_path;
-			else if (strnicmp_c(str, "proactive") == 0)
+			else if (_stricmp(str, "proactive") == 0)
 				path = proactive_path;
 			else if (str[0] == 'q')
 				goto _return;

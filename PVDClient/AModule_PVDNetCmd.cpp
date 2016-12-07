@@ -117,13 +117,8 @@ static int PVDDoLogin(PVDClient *pvd, PVDStatus status)
 	SliceReset(&pvd->outbuf);
 	PVDInitInput(pvd, status, NET_SDVR_LOGIN, sizeof(STRUCT_SDVR_LOGUSER));
 
-	const char *usr = AOptionChild((AOption*)pvd->outfrom->data, "username");
-	if (usr == NULL)
-		usr = "admin";
-
-	const char *pwd = AOptionChild((AOption*)pvd->outfrom->data, "password");
-	if (pwd == NULL)
-		pwd = "888888";
+	const char *usr = AOptionChild((AOption*)pvd->outfrom->data, "username", "admin");
+	const char *pwd = AOptionChild2((AOption*)pvd->outfrom->data, "password", "888888");
 
 	STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(pvd->outmsg.data+sizeof(pvdnet_head));
 	strcpy_sz(login->szUserName, usr);
