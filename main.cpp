@@ -139,6 +139,7 @@ extern AModule DumpModule;
 extern AModule M3U8ProxyModule;
 #endif
 extern AModule EchoModule;
+extern AModule HttpClientModule;
 
 
 #ifndef _WINDLL
@@ -492,6 +493,9 @@ void test_proactive(AOption *option, bool reset_option)
 int http_cb_name(http_parser *parser, const char *name)
 {
 	TRACE("%s...\n", name);
+	if ((_stricmp(name, "chunk_complete") == 0)
+	 || (_stricmp(name, "message_complete") == 0))
+		http_parser_pause(parser, TRUE);
 	return 0;
 }
 int http_data_cb_name(http_parser *parser, const char *at, size_t len, const char *name)
@@ -570,27 +574,50 @@ void http_parser_test()
 	int ix = 0;
 	while (ix < len) {
 		size_t ret = http_parser_execute(&parser, &settings, str+ix, 5);
+		if (parser.http_errno == HPE_PAUSED)
+			http_parser_pause(&parser, FALSE);
 
-		TRACE("http_parser_execute(%d) = %d, http_errno = %s.\n",
-			5, ret, http_parser_error(&parser));
-		if (parser.http_errno != HPE_OK)
-			break;
-		ix += ret;
-
-		if (http_next_chunk_is_incoming(&parser)) {
-			fprintf(stdout, "http msg len = %d, done: %d, left = %s\n", len, ix, str+ix);
+		if (parser.http_errno != HPE_OK) {
+			TRACE("http_parser_execute(%d) = %d, str = %s, http_errno = %s.\n",
+				5, ret, str+ix, http_parser_error(&parser));
 			break;
 		}
-		if (http_header_is_complete(&parser)) {
+		ix += ret;
+
+		ret = http_next_chunk_is_incoming(&parser);
+		if (ret != 0) {
+			fprintf(stdout, "http msg len = %d, done = %d, left = %s\n", len, ret, str+ix);
+			if (ret != 2)
+				break;
+		} else if (http_header_is_complete(&parser)) {
 			fprintf(stdout, "http header done, left = %s\n", str+ix);
 		}
 	}
 	fgets(buf, BUFSIZ, stdin);
 #endif
 }
-
+/*
+{ object: http_client, open { io: io_dump { file: test_run, io : tcp { address: www.sina.com.cn, port : 80, } }, method : GET, ':Host' : www.sina.com.cn, }, version: HTTP/1.1, request { reqix: 0, data: }, request { reqix: 1, data: }, }
+*/
 int test_run(AOption *option, bool reset_option)
 {
+	if (option != NULL) {
+		if (reset_option)
+			ResetOption(option);
+		reset_option = false;
+	} else {
+		char buf[BUFSIZ];
+		do {
+			fgets(buf, BUFSIZ, stdin);
+		} while ((buf[0] == '\r') || (buf[0] == '\n'));
+
+		int result = AOptionDecode(&option, buf);
+		if (result < 0) {
+			release_s(option, AOptionRelease, NULL);
+			return result;
+		}
+		reset_option = true;
+	}
 	AOption *opt = AOptionFind(option, "object");
 	AMessage msg = { 0 };
 
@@ -604,20 +631,30 @@ int test_run(AOption *option, bool reset_option)
 		TRACE("open(%s) = %d.\n", opt?opt->value:"", ret);
 	}
 	if (ret >= 0) {
-		int reqix = AOptionChildInt(option, "reqix", 0);
+		AOption *child;
+		list_for_each_entry(child, &option->children_list, AOption, brother_entry)
+		{
+			if (_stricmp(child->name, "request") != 0)
+				continue;
 
-		const char *str = AOptionChild(option, "request", "");
-		AMsgInit(&msg, AMsgType_Unknown, str, strlen(str));
+			int reqix = AOptionChildInt(child, "reqix", 0);
 
-		ret = object->request(object, reqix, &msg);
-		TRACE("request(%d, %s) = %d.\n", reqix, str, ret);
+			const char *str = AOptionChild(child, "data", "");
+			AMsgInit(&msg, AMsgType_Unknown, str, strlen(str));
+
+			ret = object->request(object, reqix, &msg);
+			TRACE("request(%d, %s) = %d, data = %s.\n", reqix, str, ret, msg.data);
+		}
 	}
 	if (object != NULL) {
+		AMsgInit(&msg, AMsgType_Unknown, NULL, 0);
 		ret = object->close(object, &msg);
 		TRACE("close() = %d.\n", ret);
 
 		AObjectRelease(object);
 	}
+	if (reset_option)
+		AOptionRelease(option);
 	return ret;
 }
 
@@ -655,6 +692,7 @@ int main(int argc, char* argv[])
 	AModuleRegister(&M3U8ProxyModule);
 #endif
 	AModuleRegister(&EchoModule);
+	AModuleRegister(&HttpClientModule);
 
 	char str[256];
 	const char *path;
@@ -667,12 +705,16 @@ int main(int argc, char* argv[])
 		for ( ; ; ) {
 			TRACE("input test module: pvd, tcp_server, proactive ...\n");
 			fgets(str, sizeof(str), stdin);
-			if (_stricmp(str, "pvd") == 0)
+			if (_strnicmp_c(str, "pvd") == 0)
 				path = pvd_path;
-			else if (/*str[0] == '\0' || */_stricmp(str, "tcp_server") == 0)
+			else if (/*str[0] == '\0' || */_strnicmp_c(str, "tcp_server") == 0)
 				path = proxy_path;
-			else if (_stricmp(str, "proactive") == 0)
+			else if (_strnicmp_c(str, "proactive") == 0)
 				path = proactive_path;
+			else if (_strnicmp_c(str, "test_run") == 0) {
+				test_run(NULL, reset_option);
+				continue;
+			}
 			else if (str[0] == 'q')
 				goto _return;
 			else

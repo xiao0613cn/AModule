@@ -1932,8 +1932,9 @@ reexecute:
         }
         break;
 
-      case s_chunk_size_start:
       case s_chunk_next_size:
+        COUNT_HEADER_SIZE(1);
+      case s_chunk_size_start:
       {
         assert(parser->nread == 1);
         assert(parser->flags & F_CHUNKED);

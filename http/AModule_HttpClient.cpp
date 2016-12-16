@@ -47,6 +47,10 @@ struct HttpClient {
 	int&      h_f_len() { return recv_header_list[recv_header_count][1]; }
 	int&      h_v_pos() { return recv_header_list[recv_header_count][2]; }
 	int&      h_v_len() { return recv_header_list[recv_header_count][3]; }
+	char*     h_f_ptr(int ix) { return recv_header_list[ix][0] + recv_header_buffer->ptr(); }
+	int&      h_f_len(int ix) { return recv_header_list[ix][1]; }
+	char*     h_v_ptr(int ix) { return recv_header_list[ix][2] + recv_header_buffer->ptr(); }
+	int&      h_v_len(int ix) { return recv_header_list[ix][3]; }
 
 	ARefsBuf *recv_buffer;
 	int       recv_body_pos;
@@ -349,7 +353,7 @@ static int on_url_or_status(http_parser *parser, const char *at, size_t length)
 	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
 	if (p->h_f_len() == 0) {
-		p->h_v_pos() = p->h_f_pos() = (at - p->recv_buffer->data);
+		p->h_v_pos() = p->h_f_pos() = (at - p->recv_buffer->ptr());
 	}
 	p->h_f_len() += length;
 	p->h_v_len() += length;
@@ -371,7 +375,7 @@ static int on_h_field(http_parser *parser, const char *at, size_t length)
 	}
 
 	if (p->h_f_len() == 0)
-		p->h_f_pos() = (at - p->recv_buffer->data);
+		p->h_f_pos() = (at - p->recv_buffer->ptr());
 	p->h_f_len() += length;
 	return 0;
 }
@@ -382,7 +386,7 @@ static int on_h_value(http_parser *parser, const char *at, size_t length)
 	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
 	if (p->h_v_len() == 0)
-		p->h_v_pos() = (at - p->recv_buffer->data);
+		p->h_v_pos() = (at - p->recv_buffer->ptr());
 	p->h_v_len() += length;
 	return 0;
 }
@@ -395,9 +399,6 @@ static int on_h_done(http_parser *parser)
 
 	p->recv_header_buffer = p->recv_buffer;
 	ARefsBufAddRef(p->recv_header_buffer);
-
-	TRACE("status code = %d, header count = %d, body = %lld.\n",
-		parser->status_code, p->recv_header_count, parser->content_length);
 	return 0;
 }
 
@@ -428,8 +429,11 @@ static int on_chunk_header(http_parser *parser)
 
 static int on_chunk_complete(http_parser *parser)
 {
-	//HttpClient *p = (HttpClient*)parser->data;
-	http_parser_pause(parser, TRUE);
+	HttpClient *p = (HttpClient*)parser->data;
+	if (p->recv_body_len != 0)
+		http_parser_pause(parser, TRUE);
+	else
+		; // last chunk size = 0
 	return 0;
 }
 
@@ -523,6 +527,19 @@ _continue:
 		AMsgInit(p->recv_from, (result?ioMsgType_Block:AMsgType_Unknown),
 			p->recv_buffer->ptr()+p->recv_body_pos, p->recv_body_len);
 	}
+
+	TRACE("status code = %d, header count = %d, body = %lld.\n",
+		p->recv_parser.status_code, p->recv_header_count, p->recv_parser.content_length);
+#ifdef _DEBUG
+	char h_f[64];
+	char h_v[BUFSIZ];
+	for (int ix = 0; ix < p->recv_header_count; ++ix)
+	{
+		strncpy_sz(h_f, p->h_f_ptr(ix), p->h_f_len(ix));
+		strncpy_sz(h_v, p->h_v_ptr(ix), p->h_v_len(ix));
+		TRACE2("http header: %s: %s\r\n", h_f, h_v);
+	}
+#endif
 	return AMsgType_Private|((p->recv_parser.type == HTTP_REQUEST) ? p->recv_parser.method : p->recv_parser.status_code);
 }
 
