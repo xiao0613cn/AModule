@@ -155,13 +155,19 @@ struct ARefsMsg
 	int     pos;
 	int     type;
 	int     size;
+#ifdef __cplusplus
+	char*   ptr() { return (buf->data + pos); }
+#endif
 };
 
 static inline void
 ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 {
 	AMsgInit(&rm->msg, AMsgType_RefsMsg, rm, 0);
-	rm->buf = buf; // ARefsBufAddRef(buf);
+	if (rm->buf != NULL)
+		ARefsBufRelease(rm->buf);
+
+	rm->buf = buf; ARefsBufAddRef(buf);
 	rm->pos = offset;
 	rm->type = type;
 	rm->size = size;

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
-#include "../base/SliceBuffer.h"
 #include "../io/AModule_io.h"
 #include "PvdNetCmd.h"
 
@@ -14,7 +13,7 @@ struct PVDRTStream {
 
 	AMessage  outmsg;
 	AMessage *outfrom;
-	SliceBuffer outbuf;
+	ARefsBuf *outbuf;
 	int       retry_count;
 };
 #define to_rt(obj) container_of(obj, PVDRTStream, object)
@@ -27,7 +26,7 @@ static void PVDRTRelease(AObject *object)
 {
 	PVDRTStream *rt = to_rt(object);
 	release_s(rt->io, AObjectRelease, NULL);
-	SliceFree(&rt->outbuf);
+	release_s(rt->outbuf, ARefsBufRelease, NULL);
 }
 
 static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
@@ -39,7 +38,7 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 	rt->version = PROTOCOL_V3;
 
 	rt->outfrom = NULL;
-	SliceInit(&rt->outbuf);
+	rt->outbuf = NULL;
 	rt->retry_count = 0;
 
 	if (parent != NULL) {
@@ -62,8 +61,8 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 
 static int PVDRTTryOutput(PVDRTStream *rt)
 {
-	rt->outmsg.data = SliceCurPtr(&rt->outbuf);
-	rt->outmsg.size = SliceCurLen(&rt->outbuf);
+	rt->outmsg.data = rt->outbuf->ptr();
+	rt->outmsg.size = rt->outbuf->len();
 
 	int result = MAKE_TAG(rt->outmsg.data);
 	if (rt->outmsg.size < TAG_SIZE) {
@@ -102,21 +101,25 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 	}
 
 	if ((result == 0) || (result > rt->outmsg.size)) {
-		if (max(result,8*1024) > SliceCapacity(&rt->outbuf)) {
-			int error = SliceResize(&rt->outbuf, result, 8*1024);
-			if (error < 0)
-				return error;
-			else if (error > 0)
-				TRACE("%p: %s buffer(%d) for data(%d - %d).\n",
-					rt, (error?"resize":"rewind"), rt->outbuf.siz, result, rt->outmsg.size);
-			rt->outmsg.data = SliceCurPtr(&rt->outbuf);
+		if (max(result,8*1024) > rt->outbuf->caps())
+		{
+			ARefsBuf *buf = ARefsBufCreate(max(result,1024*1024), NULL, NULL);
+			if (buf == NULL)
+				return -ENOMEM;
+
+			memcpy(buf->ptr(), rt->outmsg.data, rt->outmsg.size);
+			buf->push(rt->outmsg.size);
+
+			ARefsBufRelease(rt->outbuf);
+			rt->outbuf = buf;
+			rt->outmsg.data = buf->ptr();
 		}
 		if (!ioMsgType_isBlock(rt->outmsg.type)) {
 			return 0;
 		}
 		if (result == 0) {
-			TRACE("%p: reset buffer(%d), drop data(%d).\n", rt, rt->outbuf.siz, rt->outmsg.size);
-			SliceReset(&rt->outbuf);
+			TRACE("%p: reset buffer(%d), drop data(%d).\n", rt, rt->outbuf->size, rt->outmsg.size);
+			rt->outbuf->pop(rt->outmsg.size);
 			return 0;
 		}
 		result = rt->outmsg.size;
@@ -128,7 +131,7 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 
 static inline int PVDRTDoOutput(PVDRTStream *rt)
 {
-	AMsgInit(&rt->outmsg, AMsgType_Unknown, SliceResPtr(&rt->outbuf), SliceResLen(&rt->outbuf));
+	AMsgInit(&rt->outmsg, AMsgType_Unknown, rt->outbuf->next(), rt->outbuf->left());
 	return ioOutput(rt->io, &rt->outmsg);
 }
 
@@ -140,12 +143,12 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 		switch (rt->status)
 		{
 		case pvdnet_connecting:
-			SliceReset(&rt->outbuf);
-			if (SliceResize(&rt->outbuf, 64*1024, 8*1024) < 0) {
-				result = -ENOMEM;
-				break;
-			}
 		{
+			release_s(rt->outbuf, ARefsBufRelease, NULL);
+			rt->outbuf = ARefsBufCreate(1024*1024, NULL, NULL);
+			if (rt->outbuf == NULL)
+				return -ENOMEM;
+
 			AOption *option = (AOption*)rt->outfrom->data;
 			if (rt->version != PROTOCOL_V3) {
 				result = sizeof(STRUCT_SDVR_REALPLAY);
@@ -154,7 +157,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 			}
 
 			rt->outmsg.type = ioMsgType_Block;
-			rt->outmsg.data = SliceResPtr(&rt->outbuf);
+			rt->outmsg.data = rt->outbuf->next();
 			rt->outmsg.size = PVDCmdEncode(rt->userid, rt->outmsg.data, NET_SDVR_REAL_PLAY, result);
 
 			memset(rt->outmsg.data+sizeof(pvdnet_head), 0, result);
@@ -167,18 +170,18 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 			AOption *linkmode = AOptionFind(option, "linkmode");
 			if (linkmode != NULL)
 				rp->byLinkMode = atol(linkmode->value);
-		}
+
 			rt->status = pvdnet_syn_login;
 			result = ioInput(rt->io, &rt->outmsg);
 			break;
-
+		}
 		case pvdnet_syn_login:
 			rt->status = pvdnet_ack_login;
 			result = PVDRTDoOutput(rt);
 			break;
 
 		case pvdnet_ack_login:
-			SlicePush(&rt->outbuf, rt->outmsg.size);
+			rt->outbuf->push(rt->outmsg.size);
 			result = PVDRTTryOutput(rt);
 			if (result < 0)
 				break;
@@ -193,7 +196,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 				if (phead->uResult == 0)
 					return -EFAULT;
 
-				SlicePop(&rt->outbuf, rt->outmsg.size);
+				rt->outbuf->pop(rt->outmsg.size);
 				rt->outmsg.data = NULL;
 				rt->outmsg.size = 0;
 				rt->status = pvdnet_ack_login;
@@ -271,14 +274,14 @@ int PVDRTOutputStatus(PVDRTStream *rt, int result)
 	if (result < 0)
 		rt->outmsg.size = 0;
 	do {
-		SlicePush(&rt->outbuf, rt->outmsg.size);
+		rt->outbuf->push(rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
 		if (result < 0) {
 			if (result != -EAGAIN)
 				break;
 
 			rt->retry_count++;
-			SlicePop(&rt->outbuf, 1);
+			rt->outbuf->pop(1);
 			rt->outmsg.size = 0;
 			result = 1;
 			continue;
@@ -288,8 +291,15 @@ int PVDRTOutputStatus(PVDRTStream *rt, int result)
 				TRACE("%p: re-probe stream head, count = %d.\n", rt, rt->retry_count);
 				rt->retry_count = 0;
 			}
-			SlicePop(&rt->outbuf, rt->outmsg.size);
-			AMsgCopy(rt->outfrom, AMsgType_Private|rt->status, rt->outmsg.data, rt->outmsg.size);
+
+			if (rt->outfrom->type == AMsgType_RefsMsg) {
+				ARefsMsg *rm = (ARefsMsg*)rt->outfrom->data;
+
+				ARefsMsgInit(rm, AMsgType_Private|rt->status, rt->outbuf, rt->outbuf->bgn, rt->outmsg.size);
+			} else {
+				AMsgCopy(rt->outfrom, AMsgType_Private|rt->status, rt->outmsg.data, rt->outmsg.size);
+			}
+			rt->outbuf->pop(rt->outmsg.size);
 			break;
 		}
 		result = PVDRTDoOutput(rt);

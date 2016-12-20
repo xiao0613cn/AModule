@@ -537,7 +537,6 @@ http_cb_test(chunk_complete)
 
 void http_parser_test()
 {
-#ifdef _WIN32
 	char buf[BUFSIZ];
 	AMessage msg;
 	AMsgInit(&msg, 0, buf, 0);
@@ -594,10 +593,9 @@ void http_parser_test()
 		}
 	}
 	fgets(buf, BUFSIZ, stdin);
-#endif
 }
 /*
-{ object: http_client, open { io: io_dump { file: test_run, io : tcp { address: www.sina.com.cn, port : 80, } }, method : GET, ':Host' : www.sina.com.cn, }, version: HTTP/1.1, request { reqix: 0, data: }, request { reqix: 1, data: }, }
+{ object: http_client, open { io: io_dump { file: test_run, io : tcp { address: www.sina.com.cn, port : 80, } }, method : GET, ':Host' : www.sina.com.cn, version: HTTP/1.1, }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, }
 */
 int test_run(AOption *option, bool reset_option)
 {

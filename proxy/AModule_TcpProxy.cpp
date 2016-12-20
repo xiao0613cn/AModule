@@ -362,35 +362,31 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 
 	TCPServer *server = to_server(object);
 	release_s(server->option, AOptionRelease, NULL);
+
 	server->option = AOptionClone((AOption*)msg->data, NULL);
 	if (server->option == NULL)
 		return -ENOMEM;
 
-	AOption *opt = AOptionFind(server->option, "family");
-	if ((opt != NULL) && (_stricmp(opt->value, "inet6") == 0))
+	const char *af = AOptionChild(server->option, "family");
+	if ((af != NULL) && (_stricmp(af, "inet6") == 0))
 		server->io_family = AF_INET6;
 	else
 		server->io_family = AF_INET;
 
-	opt = AOptionFind(server->option, "port");
-	if (opt == NULL)
+	server->port = (u_short)AOptionChildInt(server->option, "port");
+	if (server->port == NULL)
 		return -EINVAL;
 
-	server->port = (u_short)atoi(opt->value);
 	server->sock = tcp_bind(server->io_family, IPPROTO_TCP, server->port);
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
-	int backlog = 8;
-	opt = AOptionFind(server->option, "backlog");
-	if (opt != NULL)
-		backlog = atol(opt->value);
+	int backlog = AOptionChildInt(server->option, "backlog", 8);
 	int result = listen(server->sock, backlog);
 	if (result != 0)
 		return -EIO;
 
-	opt = AOptionFind(server->option, "io");
-	server->io_module = AModuleFind("io", opt?opt->value:"tcp");
+	server->io_module = AModuleFind("io", AOptionChild(server->option, "io", "tcp"));
 	server->async_tcp = (_stricmp(server->io_module->module_name, "async_tcp") == 0);
 	server->default_bridge = AOptionFind(server->option, "default_bridge");
 

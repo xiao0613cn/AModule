@@ -26,7 +26,7 @@ static const char *proactive_prefix = "";
 static long volatile proactive_first = 0;
 
 AObject *rt = NULL;
-AMessage rt_msg = { 0 };
+ARefsMsg rt_msg = { 0 };
 
 #pragma warning(disable: 4201)
 struct HeartMsg {
@@ -62,7 +62,7 @@ struct PVDProxy {
 	DWORD       outtick;
 	long volatile reqcount;
 	AMessage     *outfrom;
-	srsw_queue<AMessage,64> frame_queue;
+	srsw_queue<ARefsMsg,64> frame_queue;
 	AOperator timer;
 	pvdnet_head  null_cmd;
 	long volatile proactive_id;
@@ -79,7 +79,7 @@ static void PVDProxyRelease(AObject *object)
 	SliceFree(&p->outbuf);
 
 	while (p->frame_queue.size() != 0) {
-		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
+		ARefsBufRelease(p->frame_queue.front().buf);
 		p->frame_queue.get_front();
 	}
 }
@@ -166,17 +166,17 @@ static int PVDProxyRecvStream(AMessage *msg, int result)
 	if (result == 0)
 	{
 		// on notify callback
-		if ((p->reqcount == -1) || (rt_msg.data == NULL))
+		if ((p->reqcount == -1) || (rt_msg.buf == NULL))
 			return -1;
 
 		if (p->frame_queue.size() < p->frame_queue._capacity()) {
-			RTBufferAddRef(RTMsgGet(&rt_msg));
+			ARefsBufAddRef(rt_msg.buf);
 			p->frame_queue.put_back(rt_msg);
 		} else {
 			if (int(GetTickCount()-p->outtick) > 15000)
 				return -1;
 			TRACE("drop stream frame(%d) size = %d...\n",
-				msg->type&~AMsgType_Private, msg->size);
+				rt_msg.type&~AMsgType_Private, rt_msg.size);
 		}
 		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
 		return 0;
@@ -208,14 +208,14 @@ static void PVDProxySendStream(AOperator *asop, int result)
 			return;
 		}
 
-		AMessage &frame = p->frame_queue.front();
-		AMsgInit(&p->inmsg, AMsgType_Private|frame.type, frame.data, frame.size);
+		ARefsMsg &frame = p->frame_queue.front();
+		AMsgInit(&p->inmsg, AMsgType_Private|frame.type, frame.ptr(), frame.size);
 
 		result = ioInput(p->client, &p->inmsg);
 		if (result <= 0)
 			break;
 
-		RTBufferFree(RTMsgGet(&frame));
+		ARefsBufRelease(frame.buf);
 		p->frame_queue.get_front();
 	} while (result > 0);
 	if (result != 0) {
@@ -232,7 +232,7 @@ static int PVDProxyStreamDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
-		RTBufferFree(RTMsgGet(&p->frame_queue.front()));
+		ARefsBufRelease(p->frame_queue.front().buf);
 		p->frame_queue.get_front();
 
 		PVDProxySendStream(&p->timer, 1);
@@ -692,34 +692,7 @@ static int PVDRecvDone(AMessage *msg, int result)
 			memcpy(ptr, phead+1, min(len,msg->size-sizeof(pvdnet_head)));
 		}
 	}
-	/*MSHEAD *mshead = (MSHEAD*)msg->data;
-	STREAM_HEADER *shead = (STREAM_HEADER*)msg->data;
-	if ((phead->uFlag == NET_CMD_HEAD_FLAG)
-	 || (ISMSHEAD(mshead) && ISKEYFRAME(mshead))
-	 || (shead->nHeaderFlag == STREAM_HEADER_FLAG && shead->nFrameType == STREAM_FRAME_VIDEO_I))
-		TRACE("result = %d.\n", result);*/
-	if (sm->object == rt) {
-		RTBuffer *buffer;
-		int offset;
-		rt_active = GetTickCount();
 
-		if (rt_msg.data == NULL) {
-			buffer = RTBufferAlloc(max(msg->size*10,1024*1024));
-			offset = 0;
-		} else {
-			buffer = RTMsgGet(&rt_msg);
-			offset = rt_msg.type + _align_8bytes(rt_msg.size);
-
-			if (buffer->size < offset+msg->size) {
-				RTBufferFree(buffer);
-				buffer = RTBufferAlloc(max(msg->size*10,1024*1024));
-				offset = 0;
-			}
-		}
-		RTMsgSet(&rt_msg, buffer, offset);
-		memcpy(rt_msg.data, msg->data, msg->size);
-		rt_msg.size = msg->size;
-	}
 	AOperatorTimewait(&sm->timer, NULL, 0);
 	return result;
 }
@@ -731,7 +704,12 @@ static void PVDDoRecv(AOperator *asop, int result)
 		return;
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	if (sm->object == rt) {
+		rt_active = GetTickCount();
+		AMsgInit(&sm->msg, AMsgType_RefsMsg, &rt_msg, 0);
+	} else {
+		AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	}
 	result = sm->object->request(sm->object, sm->reqix, &sm->msg);
 	if (result != 0) {
 		sm->msg.done(&sm->msg, result);
@@ -908,10 +886,7 @@ static void PVDProxyExit(void)
 		AObjectRelease(rt);
 		rt = NULL;
 	}
-	if (rt_msg.data != NULL) {
-		RTBufferFree(RTMsgGet(&rt_msg));
-		rt_msg.data = NULL;
-	}
+	release_s(rt_msg.buf, ARefsBufRelease, NULL);
 }
 
 static int PVDProxyProbe(AObject *object, AMessage *msg)

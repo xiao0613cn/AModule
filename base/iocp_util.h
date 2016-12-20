@@ -64,7 +64,7 @@ iocp_sendv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	DWORD flag = 0;
 
 	int ret = WSASend(sock, buffer, count, &tx, flag, ovlp, NULL);
-	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
+	if ((ret != 0) && ((tx=WSAGetLastError()) != WSA_IO_PENDING))
 		return -EIO;
 
 	return 0;
@@ -87,7 +87,7 @@ iocp_recvv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	DWORD flag = 0;
 
 	int ret = WSARecv(sock, buffer, count, &tx, &flag, ovlp, NULL);
-	if ((ret != 0) && (WSAGetLastError() != WSA_IO_PENDING))
+	if ((ret != 0) && ((tx=WSAGetLastError()) != WSA_IO_PENDING))
 		return -EIO;
 
 	return 0;
@@ -109,7 +109,7 @@ iocp_write(HANDLE file, const char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
 	BOOL ret = WriteFile(file, data, size, &tx, ovlp);
-	if (!ret && (GetLastError() != ERROR_IO_PENDING))
+	if (!ret && ((tx=GetLastError()) != ERROR_IO_PENDING))
 		return -EIO;
 
 	return 0;
@@ -120,7 +120,7 @@ iocp_read(HANDLE file, char *data, int size, OVERLAPPED *ovlp)
 {
 	DWORD tx = 0;
 	BOOL ret = ReadFile(file, data, size, &tx, ovlp);
-	if (!ret && (GetLastError() != ERROR_IO_PENDING))
+	if (!ret && ((tx=GetLastError()) != ERROR_IO_PENDING))
 		return -EIO;
 
 	return 0;

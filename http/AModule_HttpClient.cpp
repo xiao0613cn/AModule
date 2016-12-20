@@ -68,6 +68,7 @@ static void HttpClientRelease(AObject *object)
 
 	AOptionClear(&p->send_headers);
 	release_s(p->recv_buffer, ARefsBufRelease, NULL);
+	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
 }
 
 static void HttpClientResetStatus(HttpClient *p)
@@ -224,7 +225,7 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 	p->send_buffer[p->send_msg.size++] = '\r'; \
 	p->send_buffer[p->send_msg.size++] = '\n';
 
-static int HttpClientOnSendStatus(HttpClient *p, int result)
+int HttpClientOnSendStatus(HttpClient *p, int result)
 {
 	AMessage *msg = p->send_from;
 	do {
@@ -443,7 +444,7 @@ static const struct http_parser_settings cb_sets = {
 	&on_chunk_header, &on_chunk_complete
 };
 
-static int HttpClientOnRecvStatus(HttpClient *p, int result)
+int HttpClientOnRecvStatus(HttpClient *p, int result)
 {
 	if (result < 0)
 		return result;
@@ -489,6 +490,8 @@ _continue:
 			if (p->recv_buffer->left() >= p->recv_parser.content_length + 32)
 				goto _continue;
 
+			if (p->recv_body_len == 0)
+				p->recv_body_pos = p->recv_parser_pos;
 			buf_ptr += p->recv_body_pos;
 			buf_len = p->recv_body_len + p->recv_parser.content_length + send_bufsiz;
 			if (buf_len < recv_bufsiz)
@@ -518,9 +521,8 @@ _continue:
 	}
 
 	if (p->recv_from->type == AMsgType_RefsMsg) {
-		ARefsBufAddRef(p->recv_buffer);
-
 		ARefsMsg *rm = (ARefsMsg*)p->recv_from->data;
+
 		ARefsMsgInit(rm, (result?ioMsgType_Block:AMsgType_Unknown),
 			p->recv_buffer, p->recv_buffer->bgn+p->recv_body_pos, p->recv_body_len);
 	} else {
@@ -528,7 +530,7 @@ _continue:
 			p->recv_buffer->ptr()+p->recv_body_pos, p->recv_body_len);
 	}
 
-	TRACE("status code = %d, header count = %d, body = %lld.\n",
+	TRACE2("status code = %d, header count = %d, body = %lld.\n",
 		p->recv_parser.status_code, p->recv_header_count, p->recv_parser.content_length);
 #ifdef _DEBUG
 	char h_f[64];
