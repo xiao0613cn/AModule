@@ -494,6 +494,7 @@ static int PVDProactiveOpenDone(AMessage *msg, int result)
 	return result;
 }
 
+static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg);
 static int PVDProxyOpen(AObject *object, AMessage *msg)
 {
 	PVDProxy *p = to_proxy(object);
@@ -520,7 +521,12 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 		return result;
 	}
 
-	if ((msg->type != AMsgType_Object)
+	if (p->client == NULL)
+		return -ENOENT;
+
+	return PVDProxyRequest(object, Aio_Input, msg);
+
+	/*if ((msg->type != AMsgType_Object)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;
@@ -528,7 +534,7 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 	release_s(p->client, AObjectRelease, NULL);
 	p->client = (AObject*)msg->data;
 	AObjectAddRef(p->client);
-	return 1;
+	return 1;*/
 }
 
 static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg)

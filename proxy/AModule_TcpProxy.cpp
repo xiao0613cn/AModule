@@ -57,7 +57,7 @@ struct TCPClient {
 
 static void TCPClientRelease(TCPClient *client)
 {
-	if ((client->proxy != NULL) && (client->proxy->cancel != NULL))
+	if (client->proxy != NULL)
 		client->proxy->cancel(client->proxy, Aio_Input, NULL);
 	//TRACE("%p: result = %d.\n", client, result);
 	release_s(client->proxy, AObjectRelease, NULL);
@@ -160,16 +160,16 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			else
 			{
 				result = AObjectCreate2(&client->proxy, client->client, proxy_opt, module);
-				AMsgInit(&client->inmsg, AMsgType_Object, client->client, 0);
-				client->status = tcp_proxy_open;
+				//AMsgInit(&client->inmsg, AMsgType_Object, client->client, 0);
+				client->status = tcp_proxy_input; //tcp_proxy_open;
 			}
 			if (result >= 0) {
 				result = client->proxy->open(client->proxy, &client->inmsg);
 			}
 			break;
 
-		case tcp_proxy_open:
-			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+		//case tcp_proxy_open:
+		//	AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 
 		case tcp_client_output:
 			if (server->sock == INVALID_SOCKET) {

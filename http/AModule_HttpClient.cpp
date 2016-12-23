@@ -601,6 +601,15 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 	return -ENOSYS;
 }
 
+static int HttpClientCancel(AObject *object, int reqix, AMessage *msg)
+{
+	HttpClient *p = to_http(object);
+	if (p->io == NULL)
+		return -ENOENT;
+
+	return p->io->cancel(p->io, reqix, msg);
+}
+
 static int HttpClientClose(AObject *object, AMessage *msg)
 {
 	HttpClient *p = to_http(object);
@@ -624,7 +633,7 @@ AModule HttpClientModule = {
 	NULL,
 	NULL,
 	&HttpClientRequest,
-	NULL,
+	&HttpClientCancel,
 	&HttpClientClose,
 };
 

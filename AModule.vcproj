@@ -340,6 +340,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\io\AModule_file.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\http\AModule_HttpClient.cpp"
 				>
 			</File>

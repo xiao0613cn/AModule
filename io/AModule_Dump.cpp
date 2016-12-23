@@ -178,9 +178,6 @@ static int DumpSetOption(AObject *object, AOption *option)
 	if (dump->io == NULL)
 		return -ENOENT;
 
-	if (dump->io->setopt == NULL)
-		return -ENOSYS;
-
 	return dump->io->setopt(dump->io, option);
 }
 
@@ -189,9 +186,6 @@ static int DumpGetOption(AObject *object, AOption *option)
 	DumpObject *dump = to_dump(object);
 	if (dump->io == NULL)
 		return -ENOENT;
-
-	if (dump->io->getopt == NULL)
-		return -ENOSYS;
 
 	return dump->io->getopt(dump->io, option);
 }

@@ -1,12 +1,27 @@
 #include "stdafx.h"
 #include "AModule_API.h"
 
+
+static int AModuleInitNull(AOption *option) { return 0; }
+static void AModuleExitNull(void) { }
+static int AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
+static int AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
+static int AObjectMsgNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
+
 static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
 
 AMODULE_API int
 AModuleRegister(AModule *module)
 {
+	if (module->init == NULL) module->init = &AModuleInitNull;
+	if (module->exit == NULL) module->exit = &AModuleExitNull;
+	if (module->probe == NULL) module->probe = &AObjectProbeNull;
+	if (module->setopt == NULL) module->setopt = &AObjectOptNull;
+	if (module->getopt == NULL) module->getopt = &AObjectOptNull;
+	if (module->request == NULL) module->request = &AObjectMsgNull;
+	if (module->cancel == NULL) module->cancel = &AObjectMsgNull;
+
 	list_add_tail(&module->global_entry, &g_module);
 	INIT_LIST_HEAD(&module->class_entry);
 
@@ -19,18 +34,13 @@ AModuleRegister(AModule *module)
 		}
 	}
 
-	int result = 1;
-	if (module->init != NULL) {
-		result = module->init(g_option);
+	int result = module->init(g_option);
+	if (result < 0) {
+		module->exit();
 
-		if (result < 0) {
-			if (module->exit != NULL)
-				module->exit();
-
-			list_del_init(&module->global_entry);
-			if (!list_empty(&module->class_entry))
-				list_del_init(&module->class_entry);
-		}
+		list_del_init(&module->global_entry);
+		if (!list_empty(&module->class_entry))
+			list_del_init(&module->class_entry);
 	}
 	return result;
 }
@@ -42,9 +52,8 @@ AModuleInitOption(AOption *option)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if ((pos->init != NULL) && (pos->init(option) < 0)) {
-			if (pos->exit != NULL)
-				pos->exit();
+		if (pos->init(option) < 0) {
+			pos->exit();
 		}
 	}
 	return 1;
@@ -56,8 +65,7 @@ AModuleExit(void)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if (pos->exit != NULL)
-			pos->exit();
+		pos->exit();
 	}
 	release_s(g_option, AOptionRelease, NULL);
 	return 1;
@@ -115,7 +123,7 @@ AMODULE_API AModule*
 AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
-	int score = -1;
+	int score = 0;
 	int ret;
 
 	AModule *pos;
@@ -123,25 +131,23 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 	{
 		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
 			continue;
-		if (pos->probe != NULL) {
-			ret = pos->probe(other, msg);
-			if (ret > score) {
-				score = ret;
-				module = pos;
-			}
+
+		ret = pos->probe(other, msg);
+		if (ret > score) {
+			score = ret;
+			module = pos;
 		}
+
 		if (class_name == NULL)
 			continue;
 
 		AModule *class_pos;
 		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
 		{
-			if (pos->probe != NULL) {
-				ret = class_pos->probe(other, msg);
-				if (ret > score) {
-					score = ret;
-					module = class_pos;
-				}
+			ret = class_pos->probe(other, msg);
+			if (ret > score) {
+				score = ret;
+				module = class_pos;
 			}
 		}
 		break;

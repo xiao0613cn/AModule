@@ -247,19 +247,13 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 static int SyncControlSetOption(AObject *object, AOption *option)
 {
 	SyncControl *sc = to_sc(object);
-	int result = -ENOSYS;
-	if (sc->stream->setopt != NULL)
-		result = sc->stream->setopt(sc->stream, option);
-	return result;
+	return sc->stream->setopt(sc->stream, option);
 }
 
 static int SyncControlGetOption(AObject *object, AOption *option)
 {
 	SyncControl *sc = to_sc(object);
-	int result = -ENOSYS;
-	if (sc->stream->getopt != NULL)
-		result = sc->stream->getopt(sc->stream, option);
-	return result;
+	return sc->stream->getopt(sc->stream, option);
 }
 
 static void SyncControlClosed(SyncControl *sc, SyncRequest *req)
@@ -540,10 +534,7 @@ static int SyncControlCancel(AObject *object, int reqix, AMessage *msg)
 	if (sc->status != stream_opened) {
 		result = -EINTR;
 	} else if (msg == NULL) {
-		if (sc->stream->cancel != NULL)
-			result = sc->stream->cancel(sc->stream, reqix, NULL);
-		else
-			result = -ENOSYS;
+		result = sc->stream->cancel(sc->stream, reqix, NULL);
 	} else if (msg != req->from) {
 		AMessage *pos;
 		result = -ENODEV;

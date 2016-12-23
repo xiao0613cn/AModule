@@ -127,6 +127,7 @@ void rbtree_test()
 
 #if 1
 extern AModule TCPModule;
+extern AModule FileModule;
 extern AModule TCPServerModule;
 extern AModule AsyncTcpModule;
 extern AModule SyncControlModule;
@@ -678,6 +679,7 @@ int main(int argc, char* argv[])
 
 	AThreadBegin(NULL, NULL, 20*1000);
 	AModuleRegister(&TCPModule);
+	AModuleRegister(&FileModule);
 	AModuleRegister(&TCPServerModule);
 	AModuleRegister(&AsyncTcpModule);
 	AModuleRegister(&SyncControlModule);
