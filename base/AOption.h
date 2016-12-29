@@ -38,6 +38,9 @@ AOptionDecode(AOption **option, const char *name);
 AMODULE_API AOption*
 AOptionFind2(struct list_head *list, const char *name);
 
+AMODULE_API AOption*
+AOptionFind3(struct list_head *list, const char *name, const char *value);
+
 static inline AOption*
 AOptionFind(AOption *option, const char *name)
 {

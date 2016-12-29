@@ -50,7 +50,7 @@ struct AModule {
 	const char *class_name;
 	const char *module_name;
 	int         object_size;
-	int   (*init)(AOption *option);
+	int   (*init)(AOption *global_option, AOption *module_option);
 	void  (*exit)(void);
 	int   (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);

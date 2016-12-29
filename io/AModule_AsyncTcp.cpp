@@ -456,7 +456,7 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 #endif
 }
 
-static int AsyncTcpInit(AOption *option)
+static int AsyncTcpInit(AOption *global_option, AOption *module_option)
 {
 #ifdef _WIN32
 	WSADATA wsadata;
@@ -469,7 +469,7 @@ AModule AsyncTcpModule = {
 	"io",
 	"async_tcp",
 	sizeof(AsyncTcp),
-	AsyncTcpInit, NULL,
+	&AsyncTcpInit, NULL,
 	&AsyncTcpCreate,
 	&AsyncTcpRelease,
 	NULL,

@@ -150,7 +150,7 @@ static int TCPClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-static int TCPInit(AOption *option)
+static int TCPInit(AOption *global_option, AOption *module_option)
 {
 #ifdef _WIN32
 	WSADATA wsadata;

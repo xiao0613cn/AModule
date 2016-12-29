@@ -154,21 +154,36 @@ static const char *pvd_path =
 	"	},"
 	"	username: 'admin',"
 	"	password: '888888',"
-	"	force_alarm: 0,"
 	"	channel: 0,"
 	"	linkmode: 0,"
-	"	channel_count: ,"
-	"	m3u8_proxy: 0,"
-	"	proactive: 1 {"
-	"		io: async_tcp {"
-	"			address: '192.168.20.16',"
-	"			port: 8000,"
-	"			timeout: 5,"
-	"		},"
-	"		prefix: ,"
-	"		first: 100,"
-	"	},"
 	"}";
+
+static const char *g_opt = 
+"global_param {"
+"PVDProxy {"
+"       io: async_tcp {"
+"		address: '192.168.40.231',"
+"		port: 8101,"
+"               timeout: 5,"
+"	},"
+"	username: 'admin',"
+"	password: '888888',"
+"	force_alarm: 0,"
+"	channel: 0,"
+"	linkmode: 0,"
+"	channel_count: ,"
+"	m3u8_proxy: 0,"
+"	proactive: 1 {"
+"		io: async_tcp {"
+"			address: '192.168.20.16',"
+"			port: 8000,"
+"			timeout: 5,"
+"		},"
+"		prefix: ,"
+"		first: 100,"
+"	},"
+"},"
+"}";
 
 struct RecvMsg {
 	AMessage msg;
@@ -670,7 +685,7 @@ int main(int argc, char* argv[])
 	if (argc > 1) {
 		result = AOptionDecode(&option, argv[1]);
 	} else if (option == NULL) {
-		result = AOptionDecode(&option, pvd_path);
+		result = AOptionDecode(&option, g_opt);
 		if (option != NULL)
 			ResetOption(option);
 	}

@@ -797,12 +797,12 @@ static void PVDDoOpen(AOperator *asop, int result)
 		PVDOpenDone(&sm->msg, result);
 }
 
-int PVDProxyInit(AOption *option)
+int PVDProxyInit(AOption *global_option, AOption *module_option)
 {
-	if (option == NULL)
+	if (module_option == NULL)
 		return 0;
 
-	proactive_option = AOptionFind(option, "proactive");
+	proactive_option = AOptionFind(module_option, "proactive");
 	if ((proactive_option != NULL) && (atoi(proactive_option->value) == 0))
 		proactive_option = NULL;
 	if (proactive_option != NULL) {
@@ -811,14 +811,7 @@ int PVDProxyInit(AOption *option)
 		proactive_first = AOptionChildInt(proactive_option, "first", 1);
 	}
 
-	if (_stricmp(option->name, "stream") != 0)
-		return 0;
-	if (strcmp(option->value, "PVDClient") != 0)
-		return 0;
-
-	AOption *opt2 = AOptionFind(option, "force_alarm");
-	if (opt2 != NULL)
-		force_alarm = atoi(opt2->value);
+	force_alarm = AOptionChildInt(module_option, "force_alarm", FALSE);
 
 	int result = -EFAULT;
 	AOption opt;
@@ -827,7 +820,7 @@ int PVDProxyInit(AOption *option)
 	AModule *syncControl = AModuleFind("stream", "SyncControl");
 	if (syncControl != NULL) {
 		strcpy_sz(opt.name, "stream");
-		strcpy_sz(opt.value, option->value);
+		strcpy_sz(opt.value, "PVDClient");
 		result = AObjectCreate2(&pvd, NULL, &opt, syncControl);
 	}
 	HeartMsg *sm = NULL;
@@ -853,7 +846,7 @@ int PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = pvd; AObjectAddRef(pvd);
-		sm->option = AOptionClone(option, NULL);
+		sm->option = AOptionClone(module_option, NULL);
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.callback = &PVDDoOpen;
@@ -869,7 +862,7 @@ int PVDProxyInit(AOption *option)
 	}
 	if (result >= 0) {
 		sm->object = rt; AObjectAddRef(rt);
-		sm->option = AOptionClone(option, NULL);
+		sm->option = AOptionClone(module_option, NULL);
 		sm->reqix = 0;
 		sm->threadix = 2;
 		sm->timer.callback = &PVDDoOpen;

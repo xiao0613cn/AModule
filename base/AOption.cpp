@@ -191,9 +191,21 @@ AOptionFind2(struct list_head *list, const char *name)
 	AOption *child;
 	list_for_each_entry(child, list, AOption, brother_entry)
 	{
-		if (_stricmp(child->name, name) == 0) {
+		if (_stricmp(child->name, name) == 0)
 			return child;
-		}
+	}
+	return NULL;
+}
+
+AMODULE_API AOption*
+AOptionFind3(struct list_head *list, const char *name, const char *value)
+{
+	AOption *child;
+	list_for_each_entry(child, list, AOption, brother_entry)
+	{
+		if ((_stricmp(child->name, name) == 0)
+		 && (_stricmp(child->value, value) == 0))
+			return child;
 	}
 	return NULL;
 }

@@ -2,7 +2,7 @@
 #include "AModule_API.h"
 
 
-static int AModuleInitNull(AOption *option) { return 0; }
+static int AModuleInitNull(AOption *global_option, AOption *module_option) { return 0; }
 static void AModuleExitNull(void) { }
 static int AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
 static int AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
@@ -34,7 +34,11 @@ AModuleRegister(AModule *module)
 		}
 	}
 
-	int result = module->init(g_option);
+	AOption *option = AOptionFind(g_option, module->module_name);
+	if (option == NULL)
+		option = AOptionFind3(g_option, module->class_name, module->module_name);
+
+	int result = module->init(g_option, option);
 	if (result < 0) {
 		module->exit();
 
@@ -48,12 +52,18 @@ AModuleRegister(AModule *module)
 AMODULE_API int
 AModuleInitOption(AOption *option)
 {
+	release_s(g_option, AOptionRelease, NULL);
 	g_option = option;
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
+
+	AModule *module;
+	list_for_each_entry(module, &g_module, AModule, global_entry)
 	{
-		if (pos->init(option) < 0) {
-			pos->exit();
+		option = AOptionFind(g_option, module->module_name);
+		if (option == NULL)
+			option = AOptionFind3(g_option, module->class_name, module->module_name);
+
+		if (module->init(g_option, option) < 0) {
+			module->exit();
 		}
 	}
 	return 1;
