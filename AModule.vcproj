@@ -376,6 +376,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_UpDownProxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AOperator.cpp"
 				>
 			</File>

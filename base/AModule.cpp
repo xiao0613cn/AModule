@@ -36,7 +36,7 @@ AModuleRegister(AModule *module)
 
 	AOption *option = AOptionFind(g_option, module->module_name);
 	if (option == NULL)
-		option = AOptionFind3(g_option, module->class_name, module->module_name);
+		option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
 	int result = module->init(g_option, option);
 	if (result < 0) {
@@ -60,7 +60,7 @@ AModuleInitOption(AOption *option)
 	{
 		option = AOptionFind(g_option, module->module_name);
 		if (option == NULL)
-			option = AOptionFind3(g_option, module->class_name, module->module_name);
+			option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
 		if (module->init(g_option, option) < 0) {
 			module->exit();

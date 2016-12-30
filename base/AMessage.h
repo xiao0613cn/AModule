@@ -167,7 +167,10 @@ ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 	if (rm->buf != NULL)
 		ARefsBufRelease(rm->buf);
 
-	rm->buf = buf; ARefsBufAddRef(buf);
+	rm->buf = buf;
+	if (buf != NULL)
+		ARefsBufAddRef(buf);
+
 	rm->pos = offset;
 	rm->type = type;
 	rm->size = size;

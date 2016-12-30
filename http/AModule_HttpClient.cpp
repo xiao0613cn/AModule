@@ -244,35 +244,43 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 
 				if ((_stricmp(pos->name+1, "Transfer-Encoding") == 0)
 				 && (_stricmp(pos->value, "chunked") == 0))
-					p->send_status = s_send_chunk_size;
+					p->send_status = s_send_chunk_data;
 
 				append_data("%s: %s\r\n", pos->name+1, pos->value);
 			}
 			if (p->send_msg.size+64 >= send_bufsiz)
 				return -ENOMEM;
 
-			if (p->send_status == s_send_chunk_size) {
+			if (msg->size == 0) {
 				append_crlf();
-				break;
-			}
-
-			if (msg->size != 0) {
-				append_data("Content-Length: %d\r\n\r\n", msg->size);
-				p->send_status = s_send_content_data;
+				if (p->send_status == s_send_chunk_data)
+					p->send_status = s_send_chunk_next;
+				else
+					p->send_status = s_send_done;
 			} else {
-				append_crlf();
-				p->send_status = s_send_done;
+				if (p->send_status == s_send_chunk_data) {
+					append_data("\r\n%x\r\n", msg->size);
+				} else {
+					append_data("Content-Length: %d\r\n\r\n", msg->size);
+					p->send_status = s_send_content_data;
+				}
 			}
 			result = ioInput(p->io, &p->send_msg);
 			break;
 
 		case s_send_chunk_size:
 			append_data("%x\r\n", msg->size);
-			if (msg->size != 0) {
-				p->send_status = s_send_chunk_data;
-			} else {
+			if (msg->size == 0) {
 				append_crlf();
 				p->send_status = s_send_done;
+			} else if (p->send_msg.size+msg->size+2 <= send_bufsiz) {
+				memcpy(p->send_buffer+p->send_msg.size, msg->data, msg->size);
+				p->send_msg.size += msg->size;
+
+				append_crlf();
+				p->send_status = s_send_chunk_next;
+			} else {
+				p->send_status = s_send_chunk_data;
 			}
 			result = ioInput(p->io, &p->send_msg);
 			break;
@@ -523,10 +531,10 @@ _continue:
 	if (p->recv_from->type == AMsgType_RefsMsg) {
 		ARefsMsg *rm = (ARefsMsg*)p->recv_from->data;
 
-		ARefsMsgInit(rm, (result?ioMsgType_Block:AMsgType_Unknown),
+		ARefsMsgInit(rm, (result==1?ioMsgType_Block:AMsgType_Unknown),
 			p->recv_buffer, p->recv_buffer->bgn+p->recv_body_pos, p->recv_body_len);
 	} else {
-		AMsgInit(p->recv_from, (result?ioMsgType_Block:AMsgType_Unknown),
+		AMsgInit(p->recv_from, (result==1?ioMsgType_Block:AMsgType_Unknown),
 			p->recv_buffer->ptr()+p->recv_body_pos, p->recv_body_len);
 	}
 
