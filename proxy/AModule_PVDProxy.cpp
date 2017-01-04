@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
-#include "../base/SliceBuffer.h"
 #include "../io/AModule_io.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
@@ -58,7 +57,7 @@ struct PVDProxy {
 	AObject    *client;
 	AMessage    inmsg;
 	AMessage    outmsg;
-	SliceBuffer outbuf;
+	ARefsBuf   *outbuf;
 	DWORD       outtick;
 	long volatile reqcount;
 	AMessage     *outfrom;
@@ -76,7 +75,7 @@ static void PVDProxyRelease(AObject *object)
 	PVDProxy *p = to_proxy(object);
 	//TRACE("%p: free\n", &p->object);
 	release_s(p->client, AObjectRelease, NULL);
-	SliceFree(&p->outbuf);
+	release_s(p->outbuf, ARefsBufRelease, NULL);
 
 	while (p->frame_queue.size() != 0) {
 		ARefsBufRelease(p->frame_queue.front().buf);
@@ -93,39 +92,29 @@ static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 	if (parent != NULL)
 		AObjectAddRef(parent);
 
-	SliceInit(&p->outbuf);
+	p->outbuf = NULL;
 	p->reqcount = 0;
 	p->frame_queue.reset();
 	p->proactive_id = 0;
 	return 1;
 }
 
-static int PVDProxyDispatch(PVDProxy *p);
-static int PVDClientSendDone(AMessage *msg, int result)
-{
-	PVDProxy *p = from_inmsg(msg);
-	if (result > 0)
-		result = PVDProxyDispatch(p);
-	if (result != 0)
-		result = p->outfrom->done(p->outfrom, result);
-	return result;
-}
+static int PVDProxyDispatch(PVDProxy *p, int result);
 static int PVDProxySendDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	if (InterlockedAdd(&p->reqcount, -1) != 0)
 		return 0;
 
-	SlicePop(&p->outbuf, p->inmsg.size);
 	if (p->outmsg.size == 0) {
 		result = -EFAULT;
 	} else {
 		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
-		p->inmsg.done = &PVDClientSendDone;
+		p->inmsg.done = &TObjectDone(PVDProxy, inmsg, outfrom, PVDProxyDispatch);
 		result = ioInput(p->client, &p->inmsg);
 	}
 	if (result > 0)
-		result = PVDProxyDispatch(p);
+		result = PVDProxyDispatch(p, result);
 	if (result != 0)
 		result = p->outfrom->done(p->outfrom, result);
 	return result;
@@ -134,28 +123,31 @@ static int PVDProxyRecvDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_outmsg(msg);
 	if (result == 0) {
-		if (p->outmsg.type == p->inmsg.type)
+		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
+		if (p->outmsg.type == (AMsgType_Private|phead->uCmd))
 			return 1;
 		if (int(GetTickCount()-p->outtick) < 5000) {
 			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
 			return 0;
 		}
-		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
 		TRACE("command(%02x) timeout...\n", phead->uCmd);
-		AMsgInit(&p->outmsg, p->inmsg.type, NULL, sizeof(pvdnet_head));
+		AMsgInit(&p->outmsg, phead->uCmd, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
-	if (SliceReserve(&p->outbuf, p->outmsg.size, 2048) < 0)
+
+	p->outbuf->pop(-p->inmsg.size);
+	result = ARefsBufCheck(p->outbuf, p->outmsg.size, 64*1024);
+	p->outbuf->pop(p->inmsg.size);
+	if (result < 0)
 		p->outmsg.size = 0;
 	if (p->outmsg.size != 0) {
 		if (p->outmsg.data == NULL) {
-			p->outmsg.data = SliceResPtr(&p->outbuf);
-			result = PVDCmdEncode(userid, p->outmsg.data, p->outmsg.type&~AMsgType_Private, 0);
+			result = PVDCmdEncode(userid, p->outbuf->next(), p->outmsg.type, 0);
 			assert(result == p->outmsg.size);
 		} else {
-			memcpy(SliceResPtr(&p->outbuf), p->outmsg.data, p->outmsg.size);
-			p->outmsg.data = SliceResPtr(&p->outbuf);
+			memcpy(p->outbuf->next(), p->outmsg.data, p->outmsg.size);
 		}
+		p->outmsg.data = p->outbuf->next();
 	}
 	result = PVDProxySendDone(&p->inmsg, result);
 	return result;
@@ -323,13 +315,14 @@ static int PVDProactiveRTStream(PVDProxy *p)
 	return result;
 }
 
-extern int PVDTryOutput(DWORD userid, SliceBuffer *outbuf, AMessage *outmsg);
-static int PVDProxyDispatch(PVDProxy *p)
+extern int PVDTryOutput(DWORD userid, ARefsBuf *&outbuf, AMessage &outmsg);
+int PVDProxyDispatch(PVDProxy *p, int result)
 {
-	int result;
+	if (result < 0)
+		return result;
 	do {
 		p->inmsg.type = p->outfrom->type;
-		result = PVDTryOutput(0, &p->outbuf, &p->inmsg);
+		result = PVDTryOutput(0, p->outbuf, p->inmsg);
 		if (result < 0)
 			return result;
 		if (result == 0)
@@ -368,16 +361,14 @@ static int PVDProxyDispatch(PVDProxy *p)
 			return result;
 
 		case NET_SDVR_INITIATIVE_LOGIN:
-			if (p->inmsg.size < sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN)) {
-				SlicePop(&p->outbuf, p->inmsg.size);
+			if (p->inmsg.size < sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN))
 				continue;
-			}
+
 			p->outmsg.size = sizeof(pvdnet_head);
 			break;
 
 		case NET_SDVR_REAL_PLAY_EX:
 			PVDProactiveRTStream(p);
-			SlicePop(&p->outbuf, p->inmsg.size);
 			continue;
 
 		default:
@@ -399,21 +390,21 @@ static int PVDProxyDispatch(PVDProxy *p)
 				return 0;
 			if (InterlockedAdd(&p->reqcount, -1) != 0)
 				return 0;
-			SlicePop(&p->outbuf, p->inmsg.size);
 			if (p->outmsg.size == 0)
 				return -EFAULT;
 			AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
-			p->inmsg.done = &PVDClientSendDone;
+			p->inmsg.done = &TObjectDone(PVDProxy, inmsg, outfrom, PVDProxyDispatch);
 			result = ioInput(p->client, &p->inmsg);
 			continue;
 		}
 
-		SlicePop(&p->outbuf, p->inmsg.size);
-		result = SliceReserve(&p->outbuf, p->outmsg.size, 2048);
+		p->outbuf->pop(-p->inmsg.size);
+		result = ARefsBufCheck(p->outbuf, p->outmsg.size, 64*1024);
+		p->outbuf->pop(p->inmsg.size);
 		if (result < 0)
 			break;
 
-		p->inmsg.data = SliceResPtr(&p->outbuf);
+		p->inmsg.data = p->outbuf->next();
 		p->inmsg.size = PVDCmdEncode(userid, p->inmsg.data, p->inmsg.type&~AMsgType_Private, p->outmsg.size-sizeof(pvdnet_head));
 		assert(p->inmsg.size == p->outmsg.size);
 
@@ -441,27 +432,28 @@ static int PVDProxyDispatch(PVDProxy *p)
 			break;
 		}
 
-		p->inmsg.done = &PVDClientSendDone;
+		p->inmsg.done = &TObjectDone(PVDProxy, inmsg, outfrom, PVDProxyDispatch);
 		result = ioInput(p->client, &p->inmsg);
 	} while (result > 0);
 	return result;
 }
 
-static int PVDProactiveOpenStatus(PVDProxy *p, int result)
+int PVDProactiveOpenStatus(PVDProxy *p, int result)
 {
+	if (result < 0)
+		return result;
 	if (p->outmsg.type != AMsgType_Option)
 		return 1;
 
 	if (p->proactive_id == 0)
 		p->proactive_id = InterlockedAdd(&proactive_first, 1) - 1;
 
-	SliceReset(&p->outbuf);
-	result = SliceResize(&p->outbuf, max(sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN),8192), 2048);
+	result = ARefsBufCheck(p->outbuf, max(sizeof(pvdnet_head)+sizeof(STRUCT_SDVR_INITIATIVE_LOGIN),8192), 64*1024);
 	if (result < 0)
 		return result;
 
 	p->outmsg.type = AMsgType_Private|NET_SDVR_INITIATIVE_LOGIN;
-	p->outmsg.data = SliceResPtr(&p->outbuf);
+	p->outmsg.data = p->outbuf->next();
 	p->outmsg.size = PVDCmdEncode(userid, p->outmsg.data, NET_SDVR_INITIATIVE_LOGIN, sizeof(STRUCT_SDVR_INITIATIVE_LOGIN));
 
 	STRUCT_SDVR_INITIATIVE_LOGIN *login = (STRUCT_SDVR_INITIATIVE_LOGIN*)(p->outmsg.data + sizeof(pvdnet_head));
@@ -484,16 +476,6 @@ static int PVDProactiveOpenStatus(PVDProxy *p, int result)
 	return result;
 }
 
-static int PVDProactiveOpenDone(AMessage *msg, int result)
-{
-	PVDProxy *p = from_outmsg(msg);
-	if (result >= 0)
-		result = PVDProactiveOpenStatus(p, result);
-	if (result != 0)
-		result = p->outfrom->done(p->outfrom, result);
-	return result;
-}
-
 static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg);
 static int PVDProxyOpen(AObject *object, AMessage *msg)
 {
@@ -509,10 +491,8 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 		if (result < 0)
 			return result;
 
-		AMsgInit(&p->inmsg, AMsgType_Unknown, NULL, 0);
 		AMsgInit(&p->outmsg, AMsgType_Option, proactive_io, 0);
-		p->inmsg.done = &PVDProactiveOpenDone;
-		p->outmsg.done = &PVDProactiveOpenDone;
+		p->outmsg.done = &TObjectDone(PVDProxy, outmsg, outfrom, PVDProactiveOpenStatus);
 
 		p->outfrom = msg;
 		result = p->client->open(p->client, &p->outmsg);
@@ -547,21 +527,21 @@ static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg)
 		return p->client->request(p->client, reqix, msg);
 	}
 
-	int result = SliceReserve(&p->outbuf, max(msg->size,1024), 2048);
+	int result = ARefsBufCheck(p->outbuf, max(msg->size,2048), 64*1024);
 	if (result < 0)
 		return result;
 
 	if (msg->data == NULL) {
-		AMsgInit(msg, AMsgType_Unknown, SliceResPtr(&p->outbuf), SliceResLen(&p->outbuf));
+		AMsgInit(msg, AMsgType_Unknown, p->outbuf->next(), p->outbuf->left());
 		return 1;
 	}
 
-	if (msg->data != SliceResPtr(&p->outbuf))
-		memcpy(SliceResPtr(&p->outbuf), msg->data, msg->size);
-	SlicePush(&p->outbuf, msg->size);
+	if (msg->data != p->outbuf->next())
+		memcpy(p->outbuf->next(), msg->data, msg->size);
+	p->outbuf->push(msg->size);
 
 	p->outfrom = msg;
-	result = PVDProxyDispatch(p);
+	result = PVDProxyDispatch(p, msg->size);
 	return result;
 }
 
@@ -799,7 +779,7 @@ static void PVDDoOpen(AOperator *asop, int result)
 
 int PVDProxyInit(AOption *global_option, AOption *module_option)
 {
-	if (module_option == NULL)
+	if ((module_option == NULL) || (module_option->value[0] != '\0'))
 		return 0;
 
 	proactive_option = AOptionFind(module_option, "proactive");

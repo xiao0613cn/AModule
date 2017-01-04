@@ -4,17 +4,15 @@
 
 static AObject *up_io = NULL;
 static AOption *up_option = NULL;
+static ARefsMsg up_msg = { 0 };
+static AOperator up_timer;
 
 static AObject *down_io = NULL;
 static AOption *down_option = NULL;
-
 static AMessage down_msg = { 0 };
-static char     down_buf[BUFSIZ];
 static AOperator down_timer;
+static char     down_buf[2048];
 static BOOL     down_output = FALSE;
-
-static ARefsMsg post_msg;
-static AOperator post_timer;
 
 enum status {
 	post_none = 0,
@@ -32,26 +30,26 @@ enum status {
 
 static int PostClose(AMessage *msg, int result)
 {
-	assert(msg == &post_msg.msg);
+	assert(msg == &up_msg.msg);
 	switch (post_status)
 	{
 	case post_closing:
-		AMsgInit(&post_msg.msg, AMsgType_Unknown, NULL, 0);
+		AMsgInit(&up_msg.msg, AMsgType_Unknown, NULL, 0);
 		post_status = up_closing;
-		result = up_io->close(up_io, &post_msg.msg);
+		result = up_io->close(up_io, &up_msg.msg);
 		if (result == 0)
 			return 0;
 
 	case up_closing:
-		AMsgInit(&post_msg.msg, AMsgType_Unknown, NULL, 0);
+		AMsgInit(&up_msg.msg, AMsgType_Unknown, NULL, 0);
 		post_status = down_closing;
-		result = down_io->close(down_io, &post_msg.msg);
+		result = down_io->close(down_io, &up_msg.msg);
 		if (result == 0)
 			return 0;
 
 	case down_closing:
 		post_status = post_none;
-		AOperatorTimewait(&post_timer, NULL, 10*1000);
+		AOperatorTimewait(&up_timer, NULL, 10*1000);
 		return result;
 
 	default:
@@ -65,12 +63,12 @@ static int DownMsg(AMessage *msg, int result)
 	assert(msg == &down_msg);
 	do {
 		if (down_output) {
+			down_msg.type = ioMsgType_Block;
 			down_output = FALSE;
 			result = ioInput(up_io, &down_msg);
 		} else {
-			AMsgInit(&down_msg, AMsgType_Unknown, down_buf, sizeof(down_buf));
 			down_output = TRUE;
-			result = ioOutput(down_io, &down_msg);
+			result = ioOutput(down_io, &down_msg, down_buf, sizeof(down_buf));
 		}
 	} while (result > 0);
 	if (result < 0) {
@@ -87,28 +85,28 @@ static void DownTimer(AOperator *asop, int result)
 	DownMsg(&down_msg, 1);
 }
 
-static int PostMsg(AMessage *msg, int result)
+static int UpMsg(AMessage *msg, int result)
 {
-	assert(msg == &post_msg.msg);
+	assert(msg == &up_msg.msg);
 	while (result > 0) {
 		switch (post_status)
 		{
 		case post_none:
-			AMsgInit(&post_msg.msg, AMsgType_Option, up_option, 0);
+			AMsgInit(&up_msg.msg, AMsgType_Option, up_option, 0);
 			post_status = up_opening;
-			result = up_io->open(up_io, &post_msg.msg);
+			result = up_io->open(up_io, &up_msg.msg);
 			break;
 
 		case up_opening:
-			AMsgInit(&post_msg.msg, AMsgType_Unknown, NULL, 0);
+			AMsgInit(&up_msg.msg, AMsgType_Unknown, NULL, 0);
 			post_status = up_opened;
-			result = ioInput(up_io, &post_msg.msg);
+			result = ioInput(up_io, &up_msg.msg);
 			break;
 
 		case up_opened:
-			AMsgInit(&post_msg.msg, AMsgType_Option, down_option, 0);
+			AMsgInit(&up_msg.msg, AMsgType_Option, down_option, 0);
 			post_status = down_opening;
-			result = down_io->open(down_io, &post_msg.msg);
+			result = down_io->open(down_io, &up_msg.msg);
 			break;
 
 		case down_opening:
@@ -117,15 +115,18 @@ static int PostMsg(AMessage *msg, int result)
 			AOperatorTimewait(&down_timer, NULL, 0);
 
 		case down_input:
-			AMsgInit(&post_msg.msg, AMsgType_RefsMsg, &post_msg, 0);
+			AMsgInit(&up_msg.msg, AMsgType_RefsMsg, &up_msg, 0);
 			post_status = up_output;
-			result = ioOutput(up_io, &post_msg.msg);
+			result = ioOutput(up_io, &up_msg.msg);
 			break;
 
 		case up_output:
-			AMsgInit(&post_msg.msg, AMsgType_Unknown, post_msg.ptr(), post_msg.size);
+			if (up_msg.msg.type == AMsgType_RefsMsg)
+				AMsgInit(&up_msg.msg, ioMsgType_Block, up_msg.ptr(), up_msg.size);
+			else
+				up_msg.msg.type = ioMsgType_Block;
 			post_status = down_input;
-			result = ioInput(down_io, &post_msg.msg);
+			result = ioInput(down_io, &up_msg.msg);
 			break;
 
 		default:
@@ -135,28 +136,28 @@ static int PostMsg(AMessage *msg, int result)
 	}
 	if (result < 0) {
 		post_status = post_closing;
-		AOperatorTimewait(&post_timer, NULL, 0);
+		up_timer.callback(&up_timer, 1);
 	}
 	return result;
 }
 
-static void PostTimer(AOperator *asop, int result)
+static void UpTimer(AOperator *asop, int result)
 {
-	assert(asop == &post_timer);
+	assert(asop == &up_timer);
 	if (result < 0)
 		return;
 
 	if (post_status == post_closing) {
 		if (down_msg.data != NULL) { //TEST down_io is output
-			AOperatorTimewait(&post_timer, NULL, 1000);
+			AOperatorTimewait(&up_timer, NULL, 1000);
 		} else {
-			post_msg.msg.done = &PostClose;
-			PostClose(&post_msg.msg, result);
+			up_msg.msg.done = &PostClose;
+			PostClose(&up_msg.msg, result);
 		}
 	} else {
 		assert(post_status == post_none);
-		post_msg.msg.done = &PostMsg;
-		PostMsg(&post_msg.msg, 1);
+		up_msg.msg.done = &UpMsg;
+		UpMsg(&up_msg.msg, 1);
 	}
 }
 
@@ -178,14 +179,14 @@ static int PostInit(AOption *global_option, AOption *module_option)
 	}
 
 	post_status = post_none;
-	post_timer.callback = &PostTimer;
-	AOperatorTimewait(&post_timer, NULL, 10*1000);
+	up_timer.callback = &UpTimer;
+	AOperatorTimewait(&up_timer, NULL, 10*1000);
 	return 1;
 }
 
 AModule UpDownProxyModule = {
 	"io_proxy",
-	"up_down_pair",
+	"up_down_proxy",
 	0,
 	&PostInit, NULL,
 };

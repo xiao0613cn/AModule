@@ -101,22 +101,13 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 	}
 
 	if ((result == 0) || (result > rt->outmsg.size)) {
-		if (max(result,8*1024) > rt->outbuf->caps())
-		{
-			ARefsBuf *buf = ARefsBufCreate(max(result,1024*1024), NULL, NULL);
-			if (buf == NULL)
-				return -ENOMEM;
+		if (ARefsBufCheck(rt->outbuf, max(result,4*1024), 1024*1024) < 0)
+			return -ENOMEM;
 
-			memcpy(buf->ptr(), rt->outmsg.data, rt->outmsg.size);
-			buf->push(rt->outmsg.size);
-
-			ARefsBufRelease(rt->outbuf);
-			rt->outbuf = buf;
-			rt->outmsg.data = buf->ptr();
-		}
-		if (!ioMsgType_isBlock(rt->outmsg.type)) {
+		rt->outmsg.data = rt->outbuf->ptr();
+		if (!ioMsgType_isBlock(rt->outmsg.type))
 			return 0;
-		}
+
 		if (result == 0) {
 			TRACE("%p: reset buffer(%d), drop data(%d).\n", rt, rt->outbuf->size, rt->outmsg.size);
 			rt->outbuf->pop(rt->outmsg.size);
@@ -127,12 +118,6 @@ static int PVDRTTryOutput(PVDRTStream *rt)
 		rt->outmsg.size = result;
 	}
 	return result;
-}
-
-static inline int PVDRTDoOutput(PVDRTStream *rt)
-{
-	AMsgInit(&rt->outmsg, AMsgType_Unknown, rt->outbuf->next(), rt->outbuf->left());
-	return ioOutput(rt->io, &rt->outmsg);
 }
 
 int PVDRTOpenStatus(PVDRTStream *rt, int result)
@@ -177,7 +162,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 		}
 		case pvdnet_syn_login:
 			rt->status = pvdnet_ack_login;
-			result = PVDRTDoOutput(rt);
+			result = ioOutput(rt->io, &rt->outmsg, rt->outbuf);
 			break;
 
 		case pvdnet_ack_login:
@@ -187,7 +172,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 				break;
 			if (result == 0) {
 				rt->status = pvdnet_ack_login;
-				result = PVDRTDoOutput(rt);
+				result = ioOutput(rt->io, &rt->outmsg, rt->outbuf);
 				break;
 			}
 			assert(rt->status != pvdnet_ack_login);
@@ -276,6 +261,10 @@ int PVDRTOutputStatus(PVDRTStream *rt, int result)
 	do {
 		rt->outbuf->push(rt->outmsg.size);
 		result = PVDRTTryOutput(rt);
+		if (result == 0) {
+			result = ioOutput(rt->io, &rt->outmsg, rt->outbuf);
+			continue;
+		}
 		if (result < 0) {
 			if (result != -EAGAIN)
 				break;
@@ -286,23 +275,21 @@ int PVDRTOutputStatus(PVDRTStream *rt, int result)
 			result = 1;
 			continue;
 		}
-		if (result > 0) {
-			if (rt->retry_count != 0) {
-				TRACE("%p: re-probe stream head, count = %d.\n", rt, rt->retry_count);
-				rt->retry_count = 0;
-			}
 
-			if (rt->outfrom->type == AMsgType_RefsMsg) {
-				ARefsMsg *rm = (ARefsMsg*)rt->outfrom->data;
-
-				ARefsMsgInit(rm, AMsgType_Private|rt->status, rt->outbuf, rt->outbuf->bgn, rt->outmsg.size);
-			} else {
-				AMsgCopy(rt->outfrom, AMsgType_Private|rt->status, rt->outmsg.data, rt->outmsg.size);
-			}
-			rt->outbuf->pop(rt->outmsg.size);
-			break;
+		if (rt->retry_count != 0) {
+			TRACE("%p: re-probe stream head, count = %d.\n", rt, rt->retry_count);
+			rt->retry_count = 0;
 		}
-		result = PVDRTDoOutput(rt);
+
+		if (rt->outfrom->type == AMsgType_RefsMsg) {
+			ARefsMsg *rm = (ARefsMsg*)rt->outfrom->data;
+
+			ARefsMsgInit(rm, AMsgType_Private|rt->status, rt->outbuf, rt->outbuf->bgn, rt->outmsg.size);
+		} else {
+			AMsgCopy(rt->outfrom, AMsgType_Private|rt->status, rt->outmsg.data, rt->outmsg.size);
+		}
+		rt->outbuf->pop(rt->outmsg.size);
+		break;
 	} while (result > 0);
 	return result;
 }

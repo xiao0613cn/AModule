@@ -38,19 +38,20 @@ struct HttpClient {
 	int       recv_parser_pos;
 	char*     r_p_ptr() { return (recv_buffer->ptr() + recv_parser_pos); }
 	int       r_p_len() { return (recv_buffer->len() - recv_parser_pos); }
-	void      r_p_pop(int len) { recv_parser_pos += len; }
 
 	int       recv_header_list[50][4];
 	int       recv_header_count;
-	ARefsBuf *recv_header_buffer;
 	int&      h_f_pos() { return recv_header_list[recv_header_count][0]; }
 	int&      h_f_len() { return recv_header_list[recv_header_count][1]; }
 	int&      h_v_pos() { return recv_header_list[recv_header_count][2]; }
 	int&      h_v_len() { return recv_header_list[recv_header_count][3]; }
-	char*     h_f_ptr(int ix) { return recv_header_list[ix][0] + recv_header_buffer->ptr(); }
-	int&      h_f_len(int ix) { return recv_header_list[ix][1]; }
-	char*     h_v_ptr(int ix) { return recv_header_list[ix][2] + recv_header_buffer->ptr(); }
-	int&      h_v_len(int ix) { return recv_header_list[ix][3]; }
+
+	ARefsBuf *recv_header_buffer;
+	int       recv_header_pos;
+	char*     h_f_data(int ix) { return recv_header_list[ix][0] + recv_header_buffer->data + recv_header_pos; }
+	int&      h_f_size(int ix) { return recv_header_list[ix][1]; }
+	char*     h_v_data(int ix) { return recv_header_list[ix][2] + recv_header_buffer->data + recv_header_pos; }
+	int&      h_v_size(int ix) { return recv_header_list[ix][3]; }
 
 	ARefsBuf *recv_buffer;
 	int       recv_body_pos;
@@ -81,6 +82,7 @@ static void HttpClientResetStatus(HttpClient *p)
 
 	release_s(p->recv_buffer, ARefsBufRelease, NULL);
 	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	p->recv_header_pos = 0;
 	p->recv_body_pos = 0;
 	p->recv_body_len = 0;
 }
@@ -344,15 +346,13 @@ static int on_m_begin(http_parser *parser)
 	HttpClient *p = (HttpClient*)parser->data;
 
 	p->recv_header_count = 0;
-	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
-
 	p->h_f_pos() = 0;
 	p->h_f_len() = 0;
 	p->h_v_pos() = 0;
 	p->h_v_len() = 0;
 
-	p->recv_body_pos = 0;
-	p->recv_body_len = 0;
+	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	p->recv_header_pos = 0;
 	return 0;
 }
 
@@ -408,6 +408,7 @@ static int on_h_done(http_parser *parser)
 
 	p->recv_header_buffer = p->recv_buffer;
 	ARefsBufAddRef(p->recv_header_buffer);
+	p->recv_header_pos = p->recv_buffer->bgn;
 	return 0;
 }
 
@@ -457,7 +458,7 @@ int HttpClientOnRecvStatus(HttpClient *p, int result)
 	if (result < 0)
 		return result;
 
-	p->recv_buffer->push(result);
+	p->recv_buffer->push(p->recv_msg.size);
 _continue:
 	if (p->r_p_len() == 0) {
 		if (p->recv_buffer->left() == 0) {
@@ -465,11 +466,10 @@ _continue:
 			return -EACCES;
 		}
 
-		AMsgInit(&p->recv_msg, AMsgType_Unknown, p->recv_buffer->next(), p->recv_buffer->left());
-		result = ioOutput(p->io, &p->recv_msg);
+		result = ioOutput(p->io, &p->recv_msg, p->recv_buffer);
 		if (result <= 0)
 			return result;
-		p->recv_buffer->push(result);
+		p->recv_buffer->push(p->recv_msg.size);
 	}
 
 	result = http_parser_execute(&p->recv_parser, &cb_sets, p->r_p_ptr(), p->r_p_len());
@@ -487,55 +487,53 @@ _continue:
 		// new buffer
 		assert(p->r_p_len() == 0);
 		char *buf_ptr = p->recv_buffer->ptr();
-		int buf_len;
+		int buf_size = 0;
 
 		if (!http_header_is_complete(&p->recv_parser)) {
 			if (p->recv_buffer->left() >= send_bufsiz)
 				goto _continue;
-			buf_len = p->recv_buffer->len() + recv_bufsiz;
+
+			buf_size = p->recv_buffer->len() + recv_bufsiz;
 		}
 		else if (p->recv_body_len+p->recv_parser.content_length < max_body_size) {
 			if (p->recv_buffer->left() >= p->recv_parser.content_length + 32)
 				goto _continue;
 
+			buf_size = p->recv_body_len + p->recv_parser.content_length + send_bufsiz;
+			if (buf_size < recv_bufsiz)
+				buf_size = recv_bufsiz;
+
 			if (p->recv_body_len == 0)
 				p->recv_body_pos = p->recv_parser_pos;
 			buf_ptr += p->recv_body_pos;
-			buf_len = p->recv_body_len + p->recv_parser.content_length + send_bufsiz;
-			if (buf_len < recv_bufsiz)
-				buf_len = recv_bufsiz;
-
 			p->recv_parser_pos -= p->recv_body_pos;
 			p->recv_body_pos = 0;
 		}
-		else {
-			buf_len = 0; // until EOF ???
-		}
-
-		if (buf_len != 0) {
-			TRACE("resize buffer, %d => %d.\n", p->recv_buffer->len(), buf_len);
-			ARefsBuf *buf = ARefsBufCreate(buf_len, NULL, NULL);
+		if (buf_size != 0) {
+			TRACE("resize buffer, %d => %d.\n", p->recv_buffer->len(), buf_size);
+			ARefsBuf *buf = ARefsBufCreate(buf_size, NULL, NULL);
 			if (buf == NULL)
 				return -ENOMEM;
 
-			buf_len = p->recv_buffer->ptr() + p->recv_buffer->len() - buf_ptr;
-			memcpy(buf->ptr(), buf_ptr, buf_len);
-			buf->push(buf_len);
-
+			buf->mempush(buf_ptr, p->recv_buffer->next()-buf_ptr);
 			ARefsBufRelease(p->recv_buffer);
 			p->recv_buffer = buf;
 			goto _continue;
 		}
 	}
 
+	p->recv_body_pos += p->recv_buffer->bgn;
+	p->recv_buffer->pop(p->recv_parser_pos);
+	p->recv_parser_pos = 0;
+
 	if (p->recv_from->type == AMsgType_RefsMsg) {
 		ARefsMsg *rm = (ARefsMsg*)p->recv_from->data;
 
 		ARefsMsgInit(rm, (result==1?ioMsgType_Block:AMsgType_Unknown),
-			p->recv_buffer, p->recv_buffer->bgn+p->recv_body_pos, p->recv_body_len);
+			p->recv_buffer, p->recv_body_pos, p->recv_body_len);
 	} else {
 		AMsgInit(p->recv_from, (result==1?ioMsgType_Block:AMsgType_Unknown),
-			p->recv_buffer->ptr()+p->recv_body_pos, p->recv_body_len);
+			p->recv_buffer->data+p->recv_body_pos, p->recv_body_len);
 	}
 
 	TRACE2("status code = %d, header count = %d, body = %lld.\n",
@@ -545,8 +543,8 @@ _continue:
 	char h_v[BUFSIZ];
 	for (int ix = 0; ix < p->recv_header_count; ++ix)
 	{
-		strncpy_sz(h_f, p->h_f_ptr(ix), p->h_f_len(ix));
-		strncpy_sz(h_v, p->h_v_ptr(ix), p->h_v_len(ix));
+		strncpy_sz(h_f, p->h_f_data(ix), p->h_f_size(ix));
+		strncpy_sz(h_v, p->h_v_data(ix), p->h_v_size(ix));
 		TRACE2("http header: %s: %s\r\n", h_f, h_v);
 	}
 #endif
@@ -555,26 +553,9 @@ _continue:
 
 static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 {
-	if (p->recv_buffer == NULL) {
-		p->recv_buffer = ARefsBufCreate(recv_bufsiz, NULL, NULL);
-		if (p->recv_buffer == NULL)
-			return -ENOMEM;
-	} else {
-		p->recv_buffer->pop(p->recv_parser_pos);
-		if (p->recv_buffer->caps() < send_bufsiz)
-		{
-			ARefsBuf *buf = ARefsBufCreate(p->recv_buffer->len()+recv_bufsiz, NULL, NULL);
-			if (buf == NULL)
-				return -ENOMEM;
+	if (ARefsBufCheck(p->recv_buffer, send_bufsiz, recv_bufsiz) < 0)
+		return -ENOMEM;
 
-			memcpy(buf->ptr(), p->recv_buffer->ptr(), p->recv_buffer->len());
-			buf->push(p->recv_buffer->len());
-
-			ARefsBufRelease(p->recv_buffer);
-			p->recv_buffer = buf;
-		}
-	}
-	p->recv_parser_pos = 0;
 	p->recv_body_pos = 0;
 	p->recv_body_len = 0;
 
@@ -583,6 +564,15 @@ static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 	p->recv_from = msg;
 
 	return HttpClientOnRecvStatus(p, 0);
+}
+
+static int HttpClientAppendOutput(HttpClient *p, AMessage *msg)
+{
+	if (ARefsBufCheck(p->recv_buffer, msg->size, recv_bufsiz) < 0)
+		return -ENOMEM;
+
+	p->recv_buffer->mempush(msg->data, msg->size);
+	return 1;
 }
 
 static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
@@ -605,6 +595,10 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 
 	if (reqix == Aio_Output) {
 		return HttpClientDoRecvResponse(p, msg);
+	}
+
+	if (reqix == Aio_AppendOutput) {
+		return HttpClientAppendOutput(p, msg);
 	}
 	return -ENOSYS;
 }

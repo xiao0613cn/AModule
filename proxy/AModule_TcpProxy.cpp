@@ -118,8 +118,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				break;
 			}
 
-			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
-			result = ioOutput(client->client, &client->inmsg);
+			result = ioOutput(client->client, &client->inmsg, client->indata, sizeof(client->indata)-1);
 			break;
 
 		case tcp_recv_probe:
@@ -133,10 +132,9 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			if ((module == NULL) && (client->inmsg.size < 8))
 			{
 				TRACE("retry probe: %s\n", client->indata);
-				AMsgInit(&client->inmsg, AMsgType_Unknown,
+				result = ioOutput(client->client, &client->inmsg,
 					client->indata+client->probe_size,
 					sizeof(client->indata)-1-client->probe_size);
-				result = ioOutput(client->client, &client->inmsg);
 				break;
 			}
 
@@ -221,16 +219,15 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			if (server->sock == INVALID_SOCKET) {
 				result = -EINTR;
 			} else {
-				client->inmsg.type |= AMsgType_Private;
+				client->inmsg.type = ioMsgType_Block;
 				client->status = tcp_bridge_input;
 				result = ioInput(client->proxy, &client->inmsg);
 			}
 			break;
 
 		case tcp_bridge_input:
-			AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
 			client->status = tcp_bridge_output;
-			result = ioOutput(client->client, &client->inmsg);
+			result = ioOutput(client->client, &client->inmsg, client->indata, sizeof(client->indata)-1);
 			break;
 
 		default:

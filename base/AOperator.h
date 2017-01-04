@@ -12,7 +12,7 @@ AMODULE_API int
 AThreadEnd(AThread *at);
 
 AMODULE_API int
-AThreadPost(AThread *at, AOperator *asop, BOOL signal);
+AThreadPost(AThread *at, AOperator *asop, BOOL wakeup);
 
 AMODULE_API int
 AThreadAbort(AThread *at);
@@ -56,19 +56,19 @@ struct AOperator {
 #pragma warning(default: 4201)
 
 AMODULE_API int
-AOperatorPost(AOperator *asop, AThread *at, DWORD tick);
+AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup = TRUE);
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel);
+AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel);
 
 static inline int
-AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout) {
+AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
 	if ((timeout != 0) && (timeout != INFINITE)) {
 		timeout += GetTickCount();
 		if ((timeout == 0) || (timeout == INFINITE))
 			timeout += 2;
 	}
-	return AOperatorPost(asop, at, timeout);
+	return AOperatorPost(asop, at, timeout, wakeup);
 }
 
 

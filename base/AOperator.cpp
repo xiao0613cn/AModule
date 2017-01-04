@@ -338,7 +338,7 @@ AThreadEnd(AThread *at)
 }
 
 AMODULE_API int
-AThreadPost(AThread *at, AOperator *asop, BOOL signal)
+AThreadPost(AThread *at, AOperator *asop, BOOL wakeup)
 {
 	if (at == NULL)
 		at = work_thread[0];
@@ -363,7 +363,7 @@ AThreadPost(AThread *at, AOperator *asop, BOOL signal)
 	}
 	pthread_mutex_unlock(&pool->mutex);
 
-	if ((first != 0) && signal)
+	if ((first != 0) && wakeup)
 		AThreadWakeup(at, (first==1));
 #endif
 	return 0;
@@ -441,13 +441,12 @@ AThreadDefault(int ix)
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API int
-AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
+AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup)
 {
 	asop->ao_tick = tick;
 	asop->ao_thread = NULL;
 	if (tick == 0) {
-		AThreadPost(at, asop, TRUE);
-		return 0;
+		return AThreadPost(at, asop, wakeup);
 	}
 
 	if (at == NULL)
@@ -473,14 +472,14 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick)
 	}
 	pthread_mutex_unlock(&pool->mutex);
 
-	if (tick == 0) {
+	if ((tick == 0) && wakeup) {
 		AThreadWakeup(pool, TRUE);
 	}
 	return 0;
 }
 
 AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
+AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 {
 	if (at == NULL)
 		at = work_thread[0];
@@ -516,7 +515,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 		}
 	}
 #ifndef _WIN32
-	if ((signal > 0) && !cancel) {
+	if ((signal > 0) && wakeup_or_cancel) {
 		if (asop->ao_thread == at) {
 			signal = (list_empty(&at->private_list) ? 2 : 0);
 			list_add_tail(&asop->ao_list, &at->private_list);
@@ -529,7 +528,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL cancel)
 #endif
 	pthread_mutex_unlock(&pool->mutex);
 
-	if ((signal > 0) && !cancel) {
+	if ((signal > 0) && wakeup_or_cancel) {
 #ifdef _WIN32
 		PostQueuedCompletionStatus(pool->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
 #else

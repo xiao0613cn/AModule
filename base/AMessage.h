@@ -101,26 +101,26 @@ struct ARefsBuf
 #pragma warning(default:4200)
 #ifdef __cplusplus
 	void  reset() { bgn = end = 0; }
-
-	void  push(int len) { end += len; }
-	void  pop(int len) { bgn += len; }
 	int   len() { return (end - bgn); }
 	char* ptr() { return (data + bgn); }
 
 	int   caps() { return (size - bgn); }
 	int   left() { return (size - end); }
 	char* next() { return (data + end); }
+
+	void  pop(int len) { bgn += len; }
+	void  push(int len) { end += len; }
+	void  mempush(const void *p, int n) { memcpy(next(), p, n); push(n); }
 #endif
 };
 
 static inline ARefsBuf*
 ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
 {
-	ARefsBuf *buf;
 	if (alloc_func == NULL) alloc_func = &malloc;
 	if (free_func == NULL) free_func = &free;
 
-	buf = (ARefsBuf*)alloc_func(sizeof(ARefsBuf)+_align_8bytes(size));
+	ARefsBuf *buf = (ARefsBuf*)alloc_func(sizeof(ARefsBuf)+_align_8bytes(size));
 	if (buf != NULL) {
 		buf->refs = 1;
 		buf->size = size;
@@ -144,6 +144,27 @@ ARefsBufRelease(ARefsBuf *buf)
 	if (result <= 0)
 		(buf->free)(buf);
 	return result;
+}
+
+static inline int
+ARefsBufCheck(ARefsBuf *&buf, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
+{
+	if (buf == NULL) {
+		buf = ARefsBufCreate(max(left,size), alloc_func, free_func);
+		return (buf == NULL) ? -ENOMEM : 1;
+	}
+
+	if (buf->left() < left) {
+		ARefsBuf *b2 = ARefsBufCreate(max(buf->len()+left,size), alloc_func, free_func);
+		if (b2 == NULL)
+			return -ENOMEM;
+
+		b2->mempush(buf->ptr(), buf->len());
+		ARefsBufRelease(buf);
+		buf = b2;
+		return 1;
+	}
+	return 0;
 }
 
 // ARefsMsg::msg.type = AMsgType_RefsMsg

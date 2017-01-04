@@ -760,10 +760,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\base\SliceBuffer.h"
-				>
-			</File>
-			<File
 				RelativePath=".\base\spinlock.h"
 				>
 			</File>

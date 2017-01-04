@@ -69,8 +69,7 @@ static int HTTPProxyInputFrom(AMessage *msg, int result)
 	while (result > 0)
 	{
 		proxy->outmsg.done = &HTTPProxyOutputTo;
-		AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
-		result = ioOutput(proxy->to, &proxy->outmsg);
+		result = ioOutput(proxy->to, &proxy->outmsg, proxy->outdata, sizeof(proxy->outdata));
 		if (result > 0)
 		{
 			//proxy->outmsg.data[proxy->outmsg.size] = '\0';
@@ -96,8 +95,7 @@ static int HTTPProxyOutputTo(AMessage *msg, int result)
 		if (result > 0)
 		{
 			proxy->outmsg.done = &HTTPProxyOutputTo;
-			AMsgInit(&proxy->outmsg, AMsgType_Unknown, proxy->outdata, sizeof(proxy->outdata));
-			result = ioOutput(proxy->to, &proxy->outmsg);
+			result = ioOutput(proxy->to, &proxy->outmsg, proxy->outdata, sizeof(proxy->outdata));
 		}
 	}
 	if (result != 0)
@@ -118,8 +116,7 @@ static int HTTPProxyInputTo(AMessage *msg, int result)
 	while (result > 0)
 	{
 		proxy->inmsg.done = &HTTPProxyOutputFrom;
-		AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
-		result = ioOutput(proxy->from, &proxy->inmsg);
+		result = ioOutput(proxy->from, &proxy->inmsg, proxy->indata, sizeof(proxy->indata));
 		if (result > 0)
 		{
 			proxy->inmsg.type |= AMsgType_Private;
@@ -146,8 +143,7 @@ static int HTTPProxyOutputFrom(AMessage *msg, int result)
 		if (result > 0)
 		{
 			proxy->inmsg.done = &HTTPProxyOutputFrom;
-			AMsgInit(&proxy->inmsg, AMsgType_Unknown, proxy->indata, sizeof(proxy->indata));
-			result = ioOutput(proxy->from, &proxy->inmsg);
+			result = ioOutput(proxy->from, &proxy->inmsg, proxy->indata, sizeof(proxy->indata));
 		}
 	}
 	if (result != 0)
