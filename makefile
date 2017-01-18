@@ -1,6 +1,7 @@
 
 CXX:= g++
 CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive -g
+#CFLAGS:= -fPIC -I./ -lstdc++ -fpermissive -O2
 
 TAR:= ./build/AModule
 LIB_DEPEND:= -lpthread
@@ -8,7 +9,9 @@ LOG:= 2>./build/log
 
 vpath %.h ./
 
-sources := $(wildcard ./*.cpp) $(wildcard ./base/*.cpp) $(wildcard ./io/*.cpp) $(wildcard ./SyncControl/*.cpp) $(wildcard ./PVDClient/*.cpp) $(filter-out %m3u8.cpp, $(wildcard ./proxy/*.cpp))
+sources := $(wildcard ./*.cpp) $(wildcard ./base/*.cpp) $(wildcard ./io/*.cpp) \
+	$(wildcard ./SyncControl/*.cpp) $(wildcard ./PVDClient/*.cpp) \
+	$(filter-out %m3u8.cpp, $(wildcard ./proxy/*.cpp))
 objects := $(patsubst %.cpp, ./build/%.o, $(notdir $(sources)))
 dependence := $(patsubst %.o, %.d, $(objects))
 

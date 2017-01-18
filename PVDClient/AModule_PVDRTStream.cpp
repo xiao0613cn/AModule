@@ -190,7 +190,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 			return result;
 
 		case pvdnet_closing:
-			AMsgInit(&rt->outmsg, AMsgType_Unknown, NULL, 0);
+			rt->outmsg.init();
 			rt->status = pvdnet_disconnected;
 			result = rt->io->close(rt->io, &rt->outmsg);
 			if (result == 0)

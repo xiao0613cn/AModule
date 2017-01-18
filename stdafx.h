@@ -23,6 +23,8 @@
 #include <WinSock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #include <Windows.h>
+
+#pragma warning(disable: 4200)
 #endif
 
 // TODO: 在此处引用程序需要的其他头文件

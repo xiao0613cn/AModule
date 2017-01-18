@@ -86,7 +86,7 @@ static TCPClient* TCPClientCreate(TCPServer *server)
 		client->proxy = NULL;
 		client->probe_type = AMsgType_Unknown;
 		client->probe_size = 0;
-		AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
+		client->inmsg.init();
 		client->inmsg.done = &TCPClientInmsgDone;
 	}
 	return client;
@@ -106,7 +106,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				break;
 
 			client->status = tcp_client_open;
-			AMsgInit(&client->inmsg, AMsgType_Handle, (char*)client->sock, 0);
+			client->inmsg.init(AMsgType_Handle, (void*)client->sock, 0);
 			result = client->client->open(client->client, &client->inmsg);
 			break;
 
@@ -152,7 +152,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				} else {
 					result = AObjectCreate2(&client->proxy, client->client, proxy_opt, server->io_module);
 				}
-				AMsgInit(&client->inmsg, AMsgType_Option, proxy_opt, 0);
+				client->inmsg.init(proxy_opt);
 				client->status = tcp_bridge_open;
 			}
 			else
@@ -180,7 +180,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 
 		case tcp_proxy_input:
 			if (client->inmsg.data != NULL) {
-				AMsgInit(&client->inmsg, AMsgType_Unknown, NULL, 0);
+				client->inmsg.init();
 				if (!server->async_tcp) {
 					AOperatorTimewait(&client->sysop, NULL, 0);
 					return 0;
@@ -371,7 +371,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 		server->io_family = AF_INET;
 
 	server->port = (u_short)AOptionChildInt(server->option, "port");
-	if (server->port == NULL)
+	if (server->port == 0)
 		return -EINVAL;
 
 	server->sock = tcp_bind(server->io_family, IPPROTO_TCP, server->port);

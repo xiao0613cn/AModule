@@ -24,6 +24,15 @@ struct AMessage
 	char   *data;
 	int   (*done)(AMessage *msg, int result);
 	struct list_head entry;
+
+#ifdef __cplusplus
+	void   init(int t = 0, const void *p = 0, int n = 0) { type = t; size = n; data = (char*)p; }
+	void   init(AOption *option) { init(AMsgType_Option, option, 0); }
+	void   init(AMessage *msg)   { init(msg->type, msg->data, msg->size); }
+	void   init(AMessage &msg)   { init(msg.type, msg.data, msg.size); }
+	template <typename Type>
+	void   init(int t, Type *p)    { init(t, p, sizeof(*p)); }
+#endif
 };
 
 // util function
@@ -96,9 +105,8 @@ struct ARefsBuf
 	void  (*free)(void*);
 	int     bgn;
 	int     end;
-#pragma warning(disable:4200)
 	char    data[0];
-#pragma warning(default:4200)
+
 #ifdef __cplusplus
 	void  reset() { bgn = end = 0; }
 	int   len() { return (end - bgn); }

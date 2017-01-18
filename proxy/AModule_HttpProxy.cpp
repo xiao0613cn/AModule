@@ -185,9 +185,9 @@ static int HTTPProxyOpen(AObject *object, AMessage *msg)
 	HTTPProxy *proxy = to_proxy(object);
 
 	proxy->openmsg = msg;
+	proxy->inmsg.init(proxy->option);
 	proxy->inmsg.done = &HTTPProxyOpenDone;
 
-	AMsgInit(&proxy->inmsg, AMsgType_Option, proxy->option, 0);
 	int result = proxy->to->open(proxy->to, &proxy->inmsg);
 	if (result > 0) {
 		HTTPProxy_OutputFrom_InputTo(proxy);

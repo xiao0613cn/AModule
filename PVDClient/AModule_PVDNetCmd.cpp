@@ -80,7 +80,7 @@ extern int PVDTryOutput(DWORD userid, ARefsBuf *&outbuf, AMessage &outmsg)
 
 static inline int PVDDoOpen(PVDClient *pvd, PVDStatus status)
 {
-	AMsgInit(&pvd->outmsg, AMsgType_Option, pvd->io_opt, 0);
+	pvd->outmsg.init(pvd->io_opt);
 
 	pvd->status = status;
 	return pvd->io->open(pvd->io, &pvd->outmsg);
@@ -88,7 +88,7 @@ static inline int PVDDoOpen(PVDClient *pvd, PVDStatus status)
 
 static inline int PVDDoClose(PVDClient *pvd, PVDStatus status)
 {
-	AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+	pvd->outmsg.init();
 
 	pvd->status = status;
 	return pvd->io->close(pvd->io, &pvd->outmsg);
@@ -350,7 +350,7 @@ int PVDCloseStatus(PVDClient *pvd, int result)
 		{
 		case pvdnet_syn_logout:
 			pvd->status = pvdnet_ack_logout;
-			AMsgInit(&pvd->outmsg, AMsgType_Unknown, NULL, 0);
+			pvd->outmsg.init();
 
 		case pvdnet_ack_logout:
 			pvd->outbuf->push(pvd->outmsg.size);

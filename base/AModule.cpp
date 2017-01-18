@@ -2,11 +2,14 @@
 #include "AModule_API.h"
 
 
-static int AModuleInitNull(AOption *global_option, AOption *module_option) { return 0; }
+static int  AModuleInitNull(AOption *global_option, AOption *module_option) { return 0; }
 static void AModuleExitNull(void) { }
-static int AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
-static int AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
-static int AObjectMsgNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
+static int  AModuleCreateNull(AObject **object, AObject *parent, AOption *option) { return -ENOSYS; }
+static void AModuleReleaseNull(AObject *object) { }
+static int  AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
+static int  AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
+static int  AObjectMsgNull(AObject *other, AMessage *msg) { return -ENOSYS; }
+static int  AObjectReqNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
 
 static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
@@ -16,11 +19,16 @@ AModuleRegister(AModule *module)
 {
 	if (module->init == NULL) module->init = &AModuleInitNull;
 	if (module->exit == NULL) module->exit = &AModuleExitNull;
+	if (module->create == NULL) module->create = &AModuleCreateNull;
+	if (module->release == NULL) module->release = &AModuleReleaseNull;
 	if (module->probe == NULL) module->probe = &AObjectProbeNull;
+
+	if (module->open == NULL) module->open = &AObjectMsgNull;
 	if (module->setopt == NULL) module->setopt = &AObjectOptNull;
 	if (module->getopt == NULL) module->getopt = &AObjectOptNull;
-	if (module->request == NULL) module->request = &AObjectMsgNull;
-	if (module->cancel == NULL) module->cancel = &AObjectMsgNull;
+	if (module->request == NULL) module->request = &AObjectReqNull;
+	if (module->cancel == NULL) module->cancel = &AObjectReqNull;
+	if (module->close == NULL) module->close = &AObjectMsgNull;
 
 	list_add_tail(&module->global_entry, &g_module);
 	INIT_LIST_HEAD(&module->class_entry);

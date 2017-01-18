@@ -8,7 +8,9 @@
 #include <errno.h>
 #include <time.h>
 #include <string.h>
-#include <limits>
+#include <limits.h>
+#include <stdint.h>
+
 #include "str_util.h"
 
 #ifndef _align_8bytes
@@ -22,76 +24,6 @@
 #endif
 
 #ifdef _WIN32
-
-#ifndef _INC_PROCESS
-#include <process.h>
-#endif
-
-#ifndef PTHREAD_H
-#define PTHREAD_H
-
-typedef CRITICAL_SECTION pthread_mutex_t;
-typedef struct pthread_mutexattr_t pthread_mutexattr_t;
-
-static inline int 
-pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) {
-	InitializeCriticalSection(mutex);
-	return 0;
-}
-
-static inline int 
-pthread_mutex_lock(pthread_mutex_t *mutex) {
-	EnterCriticalSection(mutex);
-	return 0;
-}
-
-static inline int 
-pthread_mutex_trylock(pthread_mutex_t *mutex) {
-	return !TryEnterCriticalSection(mutex);
-}
-
-static inline int 
-pthread_mutex_unlock(pthread_mutex_t *mutex) {
-	LeaveCriticalSection(mutex);
-	return 0;
-}
-
-static inline int 
-pthread_mutex_destroy(pthread_mutex_t *mutex) {
-	DeleteCriticalSection(mutex);
-	return 0;
-}
-
-typedef HANDLE pthread_t;
-typedef struct pthread_attr_t pthread_attr_t;
-#define pthread_null  NULL
-
-static inline int 
-pthread_create(pthread_t *tid, const pthread_attr_t *attr, void*(*start)(void*), void *arg) {
-	*tid = (pthread_t)_beginthreadex(NULL, 0, (unsigned int(__stdcall*)(void*))start, arg, 0, NULL);
-	return (*tid ? 0 : errno);
-}
-
-static inline int 
-pthread_detach(pthread_t tid) {
-	CloseHandle(tid);
-	return 0;
-}
-
-static inline int 
-pthread_join(pthread_t tid, void **value_ptr) {
-	WaitForSingleObject(tid, INFINITE);
-	if (value_ptr != NULL)
-		GetExitCodeThread(tid, (LPDWORD)value_ptr);
-	CloseHandle(tid);
-	return 0;
-}
-#endif
-
-#ifndef InterlockedAdd
-#define InterlockedAdd(count, value)   (InterlockedExchangeAdd(count,value) + value)
-#endif
-
 #else //_WIN32
 
 #include <unistd.h>
@@ -102,9 +34,6 @@ pthread_join(pthread_t tid, void **value_ptr) {
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <netdb.h>
-
-#include <pthread.h>
-#define  pthread_null  0
 
 #ifndef max
 #define max(a, b)    (((a) > (b)) ? (a) : (b))
@@ -129,6 +58,7 @@ typedef int             SOCKET;
 #define _countof(a)  (sizeof(a)/sizeof(a[0]))
 #endif
 
+typedef void *         HANDLE;
 typedef unsigned long  u_long;
 typedef unsigned long  DWORD;
 typedef long long      LONGLONG;
@@ -144,8 +74,8 @@ typedef int            BOOL;
 
 static inline DWORD 
 GetTickCount(void) {
-	timespec ts;
-	syscall(SYS_clock_gettime, CLOCK_MONOTONIC_RAW, &ts);
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_sec*1000 + ts.tv_nsec/(1000*1000);
 }
 
@@ -154,22 +84,8 @@ Sleep(DWORD ms) {
 	usleep(ms*1000);
 }
 
-static inline long
-InterlockedAdd(long volatile *count, long value) {
-	return __sync_add_and_fetch(count, value);
-}
-
-static inline long
-InterlockedCompareExchange(long volatile *count, long change, long compare) {
-	return __sync_val_compare_and_swap(count, compare, change);
-}
-
-static inline long
-InterlockedExchange(long volatile *count, long value) {
-	return __sync_lock_test_and_set(count, value);
-}
-
 #endif //_WIN32
+#include "thread_util.h"
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL  0

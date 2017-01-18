@@ -83,48 +83,26 @@ int TObjectMsgDone(AMessage *msg, int result)
 }
 #define TObjectDone(type, msg, from, done) \
 	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
-
-
-struct IObject {
-public:
-	AObject *object;
-	IObject(void)                  { init(NULL, false); }
-	IObject(AObject *other)        { init(other, false); }
-	IObject(const IObject &other)  { init(other.object, (other.object != NULL)); }
-	~IObject(void)                 { release(); }
-
-	void init(AObject *obj, bool ref) {
-		this->object = obj;
-		if (ref)
-			AObjectAddRef(obj);
-	}
-	long addref(void) {
-		return AObjectAddRef(this->object);
-	}
-	void release(void) {
-		release_s(this->object, AObjectRelease, NULL);
-	}
-	int create(AObject *parent, AOption *option, const char *default_module) {
-		release();
-		return AObjectCreate(&this->object, parent, option, default_module);
-	}
-
-	IObject& operator=(AObject *other) {
-		release();
-		init(other, false);
-		return *this;
-	}
-	IObject& operator=(const IObject &other) {
-		release();
-		init(other.object, (other.object != NULL));
-		return *this;
-	}
-
-	AObject* operator->(void) { return this->object; }
-	operator AObject* (void)  { return this->object; }
-	operator AObject** (void) { return &this->object; }
-	operator bool (void)      { return (this->object != NULL); }
-};
 #endif
+
+#define async_begin(status, result) \
+	while (result > 0) { \
+		int local_async_status = (status); \
+		if (local_async_status == 0) { \
+			(status) += 1;
+
+#define async_then() \
+			continue; \
+		} \
+		if (--local_async_status == 0) { \
+			(status) += 1;
+
+#define async_end(value) \
+			continue; \
+		} \
+		(status) = 0; \
+		result = value; \
+		break; \
+	}
 
 #endif

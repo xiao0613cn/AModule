@@ -113,7 +113,7 @@ int OnDumpRequest(DumpReq *req, int result)
 	if (dump->object.reqix_count == 0) // open done
 		dump->object.reqix_count = dump->io->reqix_count;
 
-	AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
+	req->from->init(req->msg);
 	if (req->file != NULL) {
 		fwrite(req->msg.data, req->msg.size, 1, req->file);
 	} else {
@@ -161,7 +161,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 	if (req == NULL)
 		return -ENOMEM;
 
-	AMsgInit(&req->msg, AMsgType_Option, opt, 0);
+	req->msg.init(opt);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
@@ -197,7 +197,7 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 	if (req == NULL)
 		return dump->io->request(dump->io, reqix, msg);
 
-	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
+	req->msg.init(msg);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 

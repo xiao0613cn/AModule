@@ -2,6 +2,9 @@
 #ifndef _WIN32
 #include <sys/time.h>
 #include <sys/resource.h>
+#ifndef _NO_EVENTFD_H_
+#include <sys/eventfd.h>
+#endif
 #endif
 #include "AModule_API.h"
 
@@ -145,15 +148,15 @@ static void* AThreadRun(void *p)
 		for (int ix = 0; ix < count; ++ix)
 		{
 			if (events[ix].data.u64 == 0) {
-				while (recv(pool->signal[1], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
+				while (read(pool->signal[1], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				//TRACE2("%d: wakeup for working_list...\n", syscall(__NR_gettid));
+				//TRACE2("%d: wakeup for working_list(%lld)...\n", syscall(__NR_gettid), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else if (events[ix].data.u64 == 1) {
-				while (recv(at->signal[0], sigbuf, sizeof(sigbuf), 0) == sizeof(sigbuf))
+				while (read(at->signal[0], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				TRACE2("%d: wakeup for private_list...\n", syscall(__NR_gettid));
+				TRACE2("%d: wakeup for private_list(%lld)...\n", syscall(__NR_gettid), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else {
@@ -171,8 +174,11 @@ AThreadWakeup(AThread *at, BOOL is_pool)
 {
 #ifdef _WIN32
 	PostQueuedCompletionStatus(at->iocp, 0, iocp_key_signal, NULL);
-#else
+#elif defined _NO_EVENTFD_H_
 	send(at->signal[!is_pool], "a", 1, MSG_NOSIGNAL);
+#else
+	uint64_t us = is_pool ? 1 : 2;
+	write(at->signal[is_pool], &us, sizeof(us));
 #endif
 }
 
@@ -240,7 +246,22 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 		free(at);
 		return -EFAULT;
 	}
+#ifndef _NO_EVENTFD_H_
+	at->signal[0] = eventfd(0, EFD_NONBLOCK);
+	if (pool == NULL)
+		at->signal[1] = eventfd(0, EFD_NONBLOCK);
+	else
+		at->signal[1] = pool->signal[1];
 
+	if ((at->signal[0] == -1) || (at->signal[1] == -1)) {
+		close(at->epoll);
+		release_s(at->signal[0], close, -1);
+		if (pool == NULL)
+			release_s(at->signal[1], close, -1);
+		free(at);
+		return -EFAULT;
+	}
+#else
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, at->signal) != 0) {
 		close(at->epoll);
 		free(at);
@@ -249,7 +270,7 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 
 	tcp_nonblock(at->signal[0], 1);
 	tcp_nonblock(at->signal[1], 1);
-
+#endif
 	//private_list signal
 	struct epoll_event epev;
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
@@ -298,6 +319,9 @@ AThreadEnd(AThread *at)
 	CloseHandle(at->iocp);
 #else
 	close(at->signal[0]);
+#ifndef _NO_EVENTFD_H_
+	if (at->pool == NULL)
+#endif
 	close(at->signal[1]);
 	close(at->epoll);
 

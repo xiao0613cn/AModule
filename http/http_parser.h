@@ -31,7 +31,7 @@ extern "C" {
 
 #include <sys/types.h>
 #if defined(_WIN32) && !defined(__MINGW32__) && \
-  (!defined(_MSC_VER) || _MSC_VER<1600) && !defined(__WINE__)
+  (!defined(_MSC_VER) || _MSC_VER<1600) && !defined(__WINE__) && !defined(_MSC_STDINT_H_)
 #include <BaseTsd.h>
 #include <stddef.h>
 typedef __int8 int8_t;

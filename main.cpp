@@ -162,7 +162,7 @@ static const char *g_opt =
 "global_param {"
 "PVDProxy {"
 "       io: async_tcp {"
-"		address: '192.168.40.231',"
+"		address: '192.168.40.244',"
 "		port: 8101,"
 "               timeout: 5,"
 "	},"

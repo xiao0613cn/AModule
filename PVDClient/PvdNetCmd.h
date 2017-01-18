@@ -1,13 +1,12 @@
 #ifndef _PVDNETCMD_H_
 #define _PVDNETCMD_H_
 
-#pragma warning(disable: 4200)
+
 #include "NetCmdDef.h"
 #include "NetCmdStruct.h"
 #include "NetCmdIntelligentStruct.h"
 #include "mshead.h"
 #include "HBStreamHeaderV30.h"
-#pragma warning(default: 4200)
 
 
 #define NET_CMD_HEAD_FLAG    ('S'|('D'<<8)|('V'<<16)|('R'<<24))

@@ -99,7 +99,7 @@ static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;
 }
 
-static int PVDProxyDispatch(PVDProxy *p, int result);
+int PVDProxyDispatch(PVDProxy *p, int result);
 static int PVDProxySendDone(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
@@ -109,7 +109,7 @@ static int PVDProxySendDone(AMessage *msg, int result)
 	if (p->outmsg.size == 0) {
 		result = -EFAULT;
 	} else {
-		AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
+		p->inmsg.init(p->outmsg);
 		p->inmsg.done = &TObjectDone(PVDProxy, inmsg, outfrom, PVDProxyDispatch);
 		result = ioInput(p->client, &p->inmsg);
 	}
@@ -127,17 +127,15 @@ static int PVDProxyRecvDone(AMessage *msg, int result)
 		if (p->outmsg.type == (AMsgType_Private|phead->uCmd))
 			return 1;
 		if (int(GetTickCount()-p->outtick) < 5000) {
-			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+			p->outmsg.init();
 			return 0;
 		}
 		TRACE("command(%02x) timeout...\n", phead->uCmd);
-		AMsgInit(&p->outmsg, phead->uCmd, NULL, sizeof(pvdnet_head));
+		p->outmsg.init(phead->uCmd, NULL, sizeof(pvdnet_head));
 		return -1;
 	}
 
-	p->outbuf->pop(-p->inmsg.size);
 	result = ARefsBufCheck(p->outbuf, p->outmsg.size, 64*1024);
-	p->outbuf->pop(p->inmsg.size);
 	if (result < 0)
 		p->outmsg.size = 0;
 	if (p->outmsg.size != 0) {
@@ -170,7 +168,7 @@ static int PVDProxyRecvStream(AMessage *msg, int result)
 			TRACE("drop stream frame(%d) size = %d...\n",
 				rt_msg.type&~AMsgType_Private, rt_msg.size);
 		}
-		AMsgInit(msg, AMsgType_Unknown, NULL, 0);
+		msg->init();
 		return 0;
 	}
 	if (result < 0) {
@@ -201,7 +199,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		}
 
 		ARefsMsg &frame = p->frame_queue.front();
-		AMsgInit(&p->inmsg, AMsgType_Private|frame.type, frame.ptr(), frame.size);
+		p->inmsg.init(AMsgType_Private|frame.type, frame.ptr(), frame.size);
 
 		result = ioInput(p->client, &p->inmsg);
 		if (result <= 0)
@@ -213,8 +211,9 @@ static void PVDProxySendStream(AOperator *asop, int result)
 	if (result != 0) {
 		p->reqcount = -1;
 
-		AMsgInit(&p->inmsg, AMsgType_Unknown, NULL, 0);
+		p->inmsg.init();
 		p->inmsg.done = &PVDProxyCloseStream;
+
 		result = p->client->close(p->client, &p->inmsg);
 		if (result != 0)
 			result = p->inmsg.done(&p->inmsg, result);
@@ -241,7 +240,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 		p->frame_queue.reset();
 		p->outtick = GetTickCount();
 
-		AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+		p->outmsg.init();
 		p->outmsg.done = &PVDProxyRecvStream;
 
 		AObjectAddRef(&p->object);
@@ -279,8 +278,7 @@ static int PVDProactiveRTConnect(AMessage *msg, int result)
 	}
 
 	result = PVDCmdEncode(userid, &p->null_cmd, NET_SDVR_REAL_PLAY_EX, sizeof(long));
-	AMsgInit(&p->inmsg, AMsgType_Private|NET_SDVR_REAL_PLAY_EX, &p->null_cmd, result);
-
+	p->inmsg.init(AMsgType_Private|NET_SDVR_REAL_PLAY_EX, &p->null_cmd, result);
 	p->inmsg.done = &PVDProactiveRTPlay;
 	p->outfrom = NULL;
 
@@ -306,7 +304,7 @@ static int PVDProactiveRTStream(PVDProxy *p)
 	PVDProxy *p_rt; p_rt = to_proxy(obj);
 	p_rt->proactive_id = ((STRUCT_SDVR_REALPLAY_INITIATIVE*)(p->inmsg.data+sizeof(pvdnet_head)))->msgid;
 
-	AMsgInit(&p_rt->outmsg, AMsgType_Option, proactive_io, 0);
+	p_rt->outmsg.init(proactive_io);
 	p_rt->outmsg.done = &PVDProactiveRTConnect;
 
 	result = p_rt->client->open(p_rt->client, &p_rt->outmsg);
@@ -329,7 +327,15 @@ int PVDProxyDispatch(PVDProxy *p, int result)
 			return p->outfrom->size;
 
 		pvdnet_head *phead = (pvdnet_head*)p->inmsg.data;
+
+		p->outmsg.size = 0;
+		if ((phead->uCmd == NET_SDVR_IPCWORKPARAM_GET)
+		 && (phead->uLen >= sizeof(STRUCT_SDVR_REQIPCWORKPARAM))
+		 && (((STRUCT_SDVR_REQIPCWORKPARAM*)(phead+1))->cbStreamType == 1))
+			p->outmsg.size = sizeof(pvdnet_head) + sizeof(ipc_work);
+
 		p->inmsg.type = AMsgType_Private|phead->uCmd;
+		if (p->outmsg.size == 0)
 		switch (phead->uCmd)
 		{
 		case NET_SDVR_MD5ID_GET:   p->outmsg.size = sizeof(pvdnet_head) + 4; break;
@@ -340,7 +346,6 @@ int PVDProxyDispatch(PVDProxy *p, int result)
 		case NET_SDVR_DEVICECFG_GET_EX: p->outmsg.size = sizeof(pvdnet_head) + sizeof(devinfo_ex); break;
 		case NET_SDVR_NETCFG_GET:  p->outmsg.size = sizeof(pvdnet_head) + sizeof(netcfg_info); break;
 		case NET_SDVR_SHAKEHAND:   p->outmsg.size = sizeof(pvdnet_head) + sizeof(heart_data); break;
-		case NET_SDVR_IPCWORKPARAM_GET: p->outmsg.size = sizeof(pvdnet_head) + sizeof(ipc_work); break;
 		case NET_SDVR_KEYFRAME:
 		case NET_SDVR_REAL_STOP:
 		case NET_SDVR_LOGOUT:      p->outmsg.size = sizeof(pvdnet_head) + 0; break;
@@ -375,9 +380,10 @@ int PVDProxyDispatch(PVDProxy *p, int result)
 			assert(p->reqcount == 0);
 			InterlockedExchange(&p->reqcount, 2);
 
-			AMsgInit(&p->outmsg, AMsgType_Unknown, NULL, 0);
+			p->outmsg.init();
 			p->outmsg.done = &PVDProxyRecvDone;
 			p->outtick = GetTickCount();
+
 			result = pvd->request(pvd, Aiosync_NotifyBack|Aio_Output, &p->outmsg);
 			if (result < 0) {
 				InterlockedExchange(&p->reqcount, 0);
@@ -392,15 +398,13 @@ int PVDProxyDispatch(PVDProxy *p, int result)
 				return 0;
 			if (p->outmsg.size == 0)
 				return -EFAULT;
-			AMsgInit(&p->inmsg, p->outmsg.type, p->outmsg.data, p->outmsg.size);
+			p->inmsg.init(p->outmsg);
 			p->inmsg.done = &TObjectDone(PVDProxy, inmsg, outfrom, PVDProxyDispatch);
 			result = ioInput(p->client, &p->inmsg);
 			continue;
 		}
 
-		p->outbuf->pop(-p->inmsg.size);
 		result = ARefsBufCheck(p->outbuf, p->outmsg.size, 64*1024);
-		p->outbuf->pop(p->inmsg.size);
 		if (result < 0)
 			break;
 
@@ -491,7 +495,7 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 		if (result < 0)
 			return result;
 
-		AMsgInit(&p->outmsg, AMsgType_Option, proactive_io, 0);
+		p->outmsg.init(proactive_io);
 		p->outmsg.done = &TObjectDone(PVDProxy, outmsg, outfrom, PVDProactiveOpenStatus);
 
 		p->outfrom = msg;
@@ -636,8 +640,9 @@ static void PVDDoClose(HeartMsg *sm, int result)
 {
 	TRACE("%s result = %d.\n", (sm->object==pvd)?"client":"realtime", result);
 
-	AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
+	sm->msg.init();
 	sm->msg.done = &PVDCloseDone;
+
 	result = sm->object->close(sm->object, &sm->msg);
 	if (result != 0)
 		PVDCloseDone(&sm->msg, result);
@@ -769,7 +774,7 @@ static void PVDDoOpen(AOperator *asop, int result)
 		sm->object->setopt(sm->object, &opt);
 	}
 
-	AMsgInit(&sm->msg, AMsgType_Option, sm->option, 0);
+	sm->msg.init(sm->option);
 	sm->msg.done = &PVDOpenDone;
 
 	result = sm->object->open(sm->object, &sm->msg);

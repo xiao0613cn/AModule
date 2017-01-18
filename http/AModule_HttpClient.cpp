@@ -197,7 +197,7 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 			return result;
 	}
 
-	AMsgInit(&p->send_msg, AMsgType_Option, io_opt, 0);
+	p->send_msg.init(io_opt);
 	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnOpen);
 	p->send_from = msg;
 
@@ -288,14 +288,14 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 			break;
 
 		case s_send_chunk_data:
-			AMsgInit(&p->send_msg, ioMsgType_Block, msg->data, msg->size);
+			p->send_msg.init(ioMsgType_Block, msg->data, msg->size);
 
 			p->send_status = s_send_chunk_tail;
 			result = ioInput(p->io, &p->send_msg);
 			break;
 
 		case s_send_chunk_tail:
-			AMsgInit(&p->send_msg, ioMsgType_Block, p->send_buffer, 0);
+			p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 			append_crlf();
 
 			p->send_status = s_send_chunk_next;
@@ -303,7 +303,7 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 			break;
 
 		case s_send_content_data:
-			AMsgInit(&p->send_msg, ioMsgType_Block, msg->data, msg->size);
+			p->send_msg.init(ioMsgType_Block, msg->data, msg->size);
 
 			p->send_status = s_send_done;
 			result = ioInput(p->io, &p->send_msg);
@@ -324,7 +324,7 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 
 static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 {
-	AMsgInit(&p->send_msg, ioMsgType_Block, p->send_buffer, 0);
+	p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnSendStatus);
 	p->send_from = msg;
 
@@ -559,7 +559,7 @@ static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 	p->recv_body_pos = 0;
 	p->recv_body_len = 0;
 
-	AMsgInit(&p->recv_msg, AMsgType_Unknown, NULL, 0);
+	p->recv_msg.init();
 	p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientOnRecvStatus);
 	p->recv_from = msg;
 
