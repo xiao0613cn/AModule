@@ -61,7 +61,12 @@ static int PostClose(AMessage *msg, int result)
 static int DownMsg(AMessage *msg, int result)
 {
 	assert(msg == &down_msg);
-	do {
+	while (result > 0) {
+		if (post_status == post_closing) {
+			result = -EINTR;
+			break;
+		}
+
 		if (down_output) {
 			down_msg.type = ioMsgType_Block;
 			down_output = FALSE;
@@ -70,7 +75,7 @@ static int DownMsg(AMessage *msg, int result)
 			down_output = TRUE;
 			result = ioOutput(down_io, &down_msg, down_buf, sizeof(down_buf));
 		}
-	} while (result > 0);
+	}
 	if (result < 0) {
 		down_msg.data = NULL; // MARK down_io not output
 	}

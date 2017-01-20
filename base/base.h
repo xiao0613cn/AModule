@@ -83,8 +83,8 @@ static void
 Sleep(DWORD ms) {
 	usleep(ms*1000);
 }
+#endif //!_WIN32
 
-#endif //_WIN32
 #include "thread_util.h"
 
 #ifndef MSG_NOSIGNAL

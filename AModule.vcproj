@@ -836,6 +836,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\wait_queue.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\xtea.h"
 				>
 			</File>

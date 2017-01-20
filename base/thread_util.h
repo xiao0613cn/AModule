@@ -8,8 +8,6 @@
 #endif
 
 #ifndef PTHREAD_H
-#define PTHREAD_H
-
 typedef CRITICAL_SECTION pthread_mutex_t;
 typedef struct pthread_mutexattr_t pthread_mutexattr_t;
 
@@ -71,7 +69,7 @@ static inline DWORD
 pthread_self() {
 	return GetCurrentThreadId();
 }
-#endif
+#endif //PTHREAD_H
 
 #ifndef InterlockedAdd
 #define InterlockedAdd(count, value)   (InterlockedExchangeAdd(count,value) + value)
@@ -91,6 +89,34 @@ CloseEvent(HANDLE ev) {
 
 #include <pthread.h>
 #define  pthread_null  0
+
+static inline int pthread_cond_init_mono(pthread_cond_t *cond)
+{
+	pthread_condattr_t attr;
+	pthread_condattr_init(&attr);
+	pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+
+	int ret = pthread_cond_init(&ev->cond, &attr);
+	pthread_condattr_destroy(&attr);
+	return ret;
+}
+
+static inline int pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, long msec)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	long nsec = ts.tv_nsec + (msec%1000)*(1000*1000);
+	ts.tv_sec += msec/1000 + nsec/(1000*1000*1000);
+	ts.tv_nsec = nsec%(1000*1000*1000);
+
+	return pthread_cond_timedwait(cond, mutex, &ts);
+}
+
+static inline unsigned long
+__threadid() {
+	return syscall(__NR_gettid);
+}
 
 static inline long
 InterlockedAdd(long volatile *count, long value) {
@@ -120,24 +146,24 @@ struct WinEvent {
 	pthread_cond_t  cond;
 };
 
-static inline void*
+static inline
+WinEvent_Init(WinEvent *ev, int manual, int state)
+{
+	ev->signal_state = state;
+	ev->manual_reset = manual;
+	pthread_mutex_init(&ev->mutex, NULL);
+	pthread_cond_init_mono(&ev->cond);
+}
+
+static inline HANDLE
 CreateEvent(const void *attr, int manual, int state, const char *name)
 {
 	if (name != NULL) // not support!!
 		return NULL;
 
 	struct WinEvent *ev = (struct WinEvent*)malloc(sizeof(struct WinEvent));
-	if (ev != NULL) {
-		ev->signal_state = state;
-		ev->manual_reset = manual;
-		pthread_mutex_init(&ev->mutex, NULL);
-
-		pthread_condattr_t attr;
-		pthread_condattr_init(&attr);
-		pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-		pthread_cond_init(&ev->cond, &attr);
-		pthread_condattr_destroy(&attr);
-	}
+	if (ev != NULL)
+		WinEvent_Init(ev, manual, state);
 	return ev;
 }
 
@@ -146,22 +172,17 @@ CreateEvent(const void *attr, int manual, int state, const char *name)
 #define WAIT_TIMEOUT    0x00000102L
 
 static inline int
-WaitEvent(void *h, DWORD msec)
+WaitEvent(HANDLE h, DWORD msec)
 {
 	struct WinEvent *ev = (struct WinEvent*)h;
+
 	pthread_mutex_lock(&ev->mutex);
 	if (msec == INFINITE) {
 		while (!ev->signal_state) {
 			pthread_cond_wait(&ev->cond, &ev->mutex);
 		}
 	} else if (!ev->signal_state && (msec != 0)) {
-		struct timespec ts;
-		clock_gettime(CLOCK_MONOTONIC, &ts);
-
-		DWORD nsec = ts.tv_nsec + (msec%1000)*(1000*1000);
-		ts.tv_sec += msec/1000 + nsec/(1000*1000*1000);
-		ts.tv_nsec = nsec%(1000*1000*1000);
-		pthread_cond_timedwait(&ev->cond, &ev->mutex, &ts);
+		pthread_cond_wait_mono(&ev->cond, &ev->mutex, msec);
 	}
 
 	int result = (ev->signal_state ? WAIT_OBJECT_0 : WAIT_TIMEOUT);
@@ -172,7 +193,8 @@ WaitEvent(void *h, DWORD msec)
 }
 
 static inline BOOL
-SetEvent(void *h) {
+SetEvent(HANDLE h)
+{
 	struct WinEvent *ev = (struct WinEvent*)h;
 
 	pthread_mutex_lock(&ev->mutex);
@@ -190,7 +212,8 @@ SetEvent(void *h) {
 }
 
 static inline BOOL
-ResetEvent(void *h) {
+ResetEvent(HANDLE h)
+{
 	struct WinEvent *ev = (struct WinEvent*)h;
 
 	pthread_mutex_lock(&ev->mutex);
@@ -201,13 +224,20 @@ ResetEvent(void *h) {
 }
 
 static inline void
-CloseEvent(void *h) {
-	struct WinEvent *ev = (struct WinEvent*)h;
+WinEvent_Uninit(WinEvent *ev)
+{
 	pthread_mutex_destroy(&ev->mutex);
 	pthread_cond_destroy(&ev->cond);
+}
+
+static inline void
+CloseEvent(HANDLE h)
+{
+	struct WinEvent *ev = (struct WinEvent*)h;
+	WinEvent_Uninit(ev);
 	free(ev);
 }
-#endif //_WIN32
+#endif //!_WIN32
 
 
 #endif

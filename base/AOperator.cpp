@@ -70,18 +70,13 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 			break;
 		}
 
-		/*AOperator *pos;
+		AOperator *pos;
 		list_for_each_entry(pos, &asop->ao_list, AOperator, ao_list) {
 			pos->ao_tick = 0;
 		}
-		asop->ao_tick = 0;*/
+		asop->ao_tick = 0;
+		list_cat(&asop->ao_list, &timeout_list);
 
-		struct list_head *last = asop->ao_list.prev;
-		asop->ao_list.prev = timeout_list.prev;
-		timeout_list.prev->next = &asop->ao_list;
-
-		last->next = &timeout_list;
-		timeout_list.prev = last;
 		rb_erase(&asop->ao_tree, &pool->waiting_tree);
 		node = rb_first(&pool->waiting_tree);
 	}
@@ -94,7 +89,7 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 	while (!list_empty(&timeout_list)) {
 		asop = list_first_entry(&timeout_list, AOperator, ao_list);
 		list_del_init(&asop->ao_list);
-		asop->ao_tick = 0;
+		assert(asop->ao_tick == 0);
 		asop->callback(asop, 0);
 	}
 #ifndef _WIN32
@@ -150,13 +145,13 @@ static void* AThreadRun(void *p)
 			if (events[ix].data.u64 == 0) {
 				while (read(pool->signal[1], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				//TRACE2("%d: wakeup for working_list(%lld)...\n", syscall(__NR_gettid), *(uint64_t*)sigbuf);
+				//TRACE2("%d: wakeup for working_list(%lld)...\n", __threadid(), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else if (events[ix].data.u64 == 1) {
 				while (read(at->signal[0], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				TRACE2("%d: wakeup for private_list(%lld)...\n", syscall(__NR_gettid), *(uint64_t*)sigbuf);
+				TRACE2("%d: wakeup for private_list(%lld)...\n", __threadid(), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else {

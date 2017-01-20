@@ -307,8 +307,7 @@ _retry:
 
 	if (_stricmp(option->value, "PVDClient") == 0) {
 		release_s(pvd, AObjectRelease, NULL);
-		//result = SyncControlModule.create(&pvd, NULL, option);
-		result = PVDClientModule.create(&pvd, NULL, option);
+		result = AObjectCreate2(&pvd, NULL, option, &PVDClientModule);
 	} else {
 		result = -1;
 	}
@@ -333,8 +332,7 @@ _retry:
 	}
 	if (pvd != NULL) {
 		strcpy_sz(option->value, "PVDRTStream");
-		//result = SyncControlModule.create(&rt, pvd, option);
-		result = PVDRTModule.create(&rt, pvd, option);
+		result = AObjectCreate2(&rt, pvd, option, &PVDRTModule);
 	}
 	if (result >= 0) {
 		result = rt->open(rt, &sm);
