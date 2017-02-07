@@ -8,7 +8,7 @@ enum AModule_ioRequest {
 	Aio_Input = 0,
 	Aio_Output,
 	Aio_AppendOutput,
-	Aio_InOutPair, // msg type: AMsgType_IOMsg
+	Aio_InOutPair, // msg type: AMsgType_InOutMsg
 
 	Aiosync_IndexMask    = 0x00ffffff,
 	Aiosync_RequestFront = 0x02000000,

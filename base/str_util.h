@@ -17,6 +17,9 @@
 #ifndef strncasecmp
 #define strncasecmp  _strnicmp
 #endif
+#ifndef atoll
+#define atoll  _atoi64
+#endif
 
 #else //_WIN32
 
@@ -25,6 +28,9 @@
 #endif
 #ifndef _strnicmp
 #define _strnicmp    strncasecmp
+#endif
+#ifndef _atoi64
+#define _atoi64  atoll
 #endif
 
 #endif //_WIN32

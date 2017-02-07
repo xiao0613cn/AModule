@@ -224,6 +224,7 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 			return -ENOMEM;
 
 		AObjectInit(*object, module);
+		AObjectSetKV(*object, option);
 		(*object)->release = &AObjectFree;
 	} else {
 		*object = NULL;
@@ -240,4 +241,45 @@ AObjectFree(AObject *object)
 {
 	object->module->release(object);
 	free(object);
+}
+
+AMODULE_API int
+AObjectSetKV(AObject *object, AOption *option)
+{
+	if (object->module->kv_map == NULL)
+		return -1;
+
+	int count = 0;
+	for (ObjKV *kv = object->module->kv_map; kv->name != NULL; ++kv)
+	{
+		AOption *opt = AOptionFind(option, kv->name);
+
+		if (kv->type == ObjKV_string) {
+			strcpy_sz((char*)object+kv->offset, kv->size, opt?opt->value:kv->defstr);
+			count++;
+			continue;
+		}
+		if (kv->type == ObjKV_char) {
+			*((char*)object+kv->offset) = opt?opt->value[0]:kv->defstr[0];
+			count++;
+			continue;
+		}
+		if (kv->type == ObjKV_object) {
+			if (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0)
+				count++;
+			continue;
+		}
+
+		__int64 v = opt ? _atoi64(opt->value) : kv->defnum;
+		switch (kv->type)
+		{
+		case ObjKV_int8:   *(__int8*)((char*)object+kv->offset) = (__int8)v; break;
+		case ObjKV_int16:  *(__int16*)((char*)object+kv->offset) = (__int16)v; break;
+		case ObjKV_int32:  *(__int32*)((char*)object+kv->offset) = (__int32)v; break;
+		case ObjKV_int64:  *(__int64*)((char*)object+kv->offset) = v; break;
+		default: continue;
+		}
+		count++;
+	}
+	return count;
 }

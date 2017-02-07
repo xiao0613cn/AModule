@@ -64,6 +64,7 @@ struct AModule {
 	int   (*cancel)(AObject *object, int reqix, AMessage *msg);
 	int   (*close)(AObject *object, AMessage *msg);
 
+	struct ObjKV *kv_map;
 	struct list_head global_entry;
 	struct list_head class_entry;
 };
@@ -86,5 +87,38 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 AMODULE_API AModule*
 AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
 
+
+enum ObjKV_Types {
+	ObjKV_string = 0,
+	ObjKV_char   = 1,
+	ObjKV_int8   = 8*sizeof(__int8),
+	ObjKV_int16  = 8*sizeof(__int16),
+	ObjKV_int32  = 8*sizeof(__int32),
+	ObjKV_int64  = 8*sizeof(__int64),
+	ObjKV_object = 256,
+};
+
+struct ObjKV {
+	const char *name;
+	int         offset;
+	ObjKV_Types type;
+	int         size;
+	union {
+	__int64     defnum;
+	const char *defstr;
+	};
+};
+
+AMODULE_API int
+AObjectSetKV(AObject *object, AOption *option);
+
+#define ObjKV_S(type, member, defstr) \
+	{ #member, offsetof(type, member), ObjKV_string, sizeof(((type*)0)->member), {(__int64)defstr} },
+
+#define ObjKV_N(type, member, defnum) \
+	{ #member, offsetof(type, member), (ObjKV_Types)(8*sizeof(((type*)0)->member)), sizeof(((type*)0)->member), {defnum} },
+
+#define ObjKV_O(type, member, defstr) \
+	{ #member, offsetof(type, member), ObjKV_object, sizeof(((type*)0)->member), {defstr} },
 
 #endif

@@ -11,7 +11,7 @@ enum AMsgTypes
 	AMsgType_Module,   /* data = AModule*, size = 0 */
 	AMsgType_OtherMsg, /* data = AMessage*, size = 0 */
 	AMsgType_InOutMsg, /* data = AInOutMsg*, size = 0 */
-	AMsgType_RefsMsg,  /* data = ARefMsg*, size = 0 */
+	AMsgType_RefsMsg,  /* data = ARefsMsg*, size = 0 */
 	AMsgType_Class   = 0x20000000, /* class defined */
 	AMsgType_Private = 0x40000000, /* module defined */
 };
@@ -27,7 +27,10 @@ struct AMessage
 
 #ifdef __cplusplus
 	void   init(int t = 0, const void *p = 0, int n = 0) { type = t; size = n; data = (char*)p; }
-	void   init(AOption *option) { init(AMsgType_Option, option, 0); }
+	void   init(HANDLE handle)   { init(AMsgType_Handle, handle, 0); }
+	void   init(struct AOption *option) { init(AMsgType_Option, option, 0); }
+	void   init(struct AObject *object) { init(AMsgType_Object, object, 0); }
+	void   init(struct AModule *module) { init(AMsgType_Module, module, 0); }
 	void   init(AMessage *msg)   { init(msg->type, msg->data, msg->size); }
 	void   init(AMessage &msg)   { init(msg.type, msg.data, msg.size); }
 	template <typename Type>
@@ -85,7 +88,7 @@ struct AInOutMsg
 };
 
 static inline void
-AIOMsgInit(AInOutMsg *iom, int type, char *indata, int insize)
+AInOutMsgInit(AInOutMsg *iom, int type, char *indata, int insize)
 {
 	AMsgInit(&iom->msg, AMsgType_InOutMsg, iom, 0);
 	iom->intype = type;
@@ -162,17 +165,17 @@ ARefsBufCheck(ARefsBuf *&buf, int left, int size, void*(*alloc_func)(size_t) = N
 		return (buf == NULL) ? -ENOMEM : 1;
 	}
 
-	if (buf->left() < left) {
-		ARefsBuf *b2 = ARefsBufCreate(max(buf->len()+left,size), alloc_func, free_func);
-		if (b2 == NULL)
-			return -ENOMEM;
+	if (buf->left() >= left)
+		return 0;
 
-		b2->mempush(buf->ptr(), buf->len());
-		ARefsBufRelease(buf);
-		buf = b2;
-		return 1;
-	}
-	return 0;
+	ARefsBuf *b2 = ARefsBufCreate(max(buf->len()+left,size), alloc_func, free_func);
+	if (b2 == NULL)
+		return -ENOMEM;
+
+	b2->mempush(buf->ptr(), buf->len());
+	ARefsBufRelease(buf);
+	buf = b2;
+	return 1;
 }
 
 // ARefsMsg::msg.type = AMsgType_RefsMsg

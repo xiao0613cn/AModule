@@ -16,7 +16,7 @@ enum status {
 
 #define send_bufsiz     2*1024
 #define recv_bufsiz     64*1024
-#define max_body_size   4*1024*1024
+#define max_body_size   16*1024*1024
 
 struct HttpClient {
 	AObject   object;

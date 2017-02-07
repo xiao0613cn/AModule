@@ -91,17 +91,17 @@ int TObjectMsgDone(AMessage *msg, int result)
 		if (local_async_status == 0) { \
 			(status) += 1;
 
-#define async_then() \
+#define async_then(status) \
 			continue; \
 		} \
 		if (--local_async_status == 0) { \
 			(status) += 1;
 
-#define async_end(value) \
+#define async_end(status, ret) \
 			continue; \
 		} \
 		(status) = 0; \
-		result = value; \
+		result = ret; \
 		break; \
 	}
 

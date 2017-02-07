@@ -5,6 +5,7 @@
 #include "PVDClient/PvdNetCmd.h"
 extern "C" {
 #include "http/http_parser.h"
+#include "base/wait_queue.h"
 };
 
 DWORD async_test_tick;
@@ -609,7 +610,7 @@ void http_parser_test()
 	fgets(buf, BUFSIZ, stdin);
 }
 /*
-{ object: http_client, open { io: io_dump { file: test_run, io : tcp { address: www.sina.com.cn, port : 80, } }, method : GET, ':Host' : www.sina.com.cn, version: HTTP/1.1, }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, }
+{ object: http_client, open { io: io_dump { file_name: test_run, io : tcp { address: www.sina.com.cn, port : 80, } }, method : GET, ':Host' : www.sina.com.cn, version: HTTP/1.1, }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, request { reqix: 0 }, request { reqix: 1 }, }
 */
 int test_run(AOption *option, bool reset_option)
 {

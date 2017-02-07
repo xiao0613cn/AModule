@@ -12,7 +12,7 @@ struct FileObject {
 static void FileRelease(AObject *object)
 {
 	FileObject *fo = to_file(object);
-	fclose(fo->fp);
+	release_s(fo->fp, fclose, NULL);
 }
 
 static int FileCreate(AObject **object, AObject *parent, AOption *option)

@@ -43,21 +43,21 @@ static void DumpRelease(AObject *object)
 	release_s(dump->io, AObjectRelease, NULL);
 }
 
+static struct ObjKV kv_map[] = {
+	ObjKV_S(DumpObject, file_name, "io_dump")
+	ObjKV_N(DumpObject, single_file, FALSE)
+	ObjKV_O(DumpObject, io, NULL)
+	{ NULL }
+};
+
 static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 {
 	DumpObject *dump = (DumpObject*)*object;
 	dump->file = NULL;
-	dump->file_name[0] = '\0';
-	dump->single_file = FALSE;
-	dump->io = NULL;
 
 	pthread_mutex_init(&dump->req_mutex, NULL);
 	INIT_LIST_HEAD(&dump->req_list);
 	memset(dump->req_cache, 0, sizeof(dump->req_cache));
-
-	AOption *io_opt = AOptionFind(option, "io");
-	if (io_opt != NULL)
-		AObjectCreate(&dump->io, &dump->object, io_opt, NULL);
 	return 1;
 }
 
@@ -133,7 +133,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 	AOption *msg_opt = (AOption*)msg->data;
 	DumpObject *dump = to_dump(object);
 
-	AOption *opt = AOptionFind(msg_opt, "file");
+	AOption *opt = AOptionFind(msg_opt, "file_name");
 	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
 		strcpy_sz(dump->file_name, opt->value);
 
@@ -238,4 +238,5 @@ AModule DumpModule = {
 	&DumpRequest,
 	&DumpCancel,
 	&DumpClose,
+	kv_map,
 };

@@ -90,18 +90,20 @@ CloseEvent(HANDLE ev) {
 #include <pthread.h>
 #define  pthread_null  0
 
-static inline int pthread_cond_init_mono(pthread_cond_t *cond)
+static inline int
+pthread_cond_init_mono(pthread_cond_t *cond)
 {
 	pthread_condattr_t attr;
 	pthread_condattr_init(&attr);
 	pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 
-	int ret = pthread_cond_init(&ev->cond, &attr);
+	int ret = pthread_cond_init(cond, &attr);
 	pthread_condattr_destroy(&attr);
 	return ret;
 }
 
-static inline int pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, long msec)
+static inline int
+pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, long msec)
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -146,7 +148,7 @@ struct WinEvent {
 	pthread_cond_t  cond;
 };
 
-static inline
+static inline void
 WinEvent_Init(WinEvent *ev, int manual, int state)
 {
 	ev->signal_state = state;
