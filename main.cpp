@@ -1,5 +1,5 @@
 #include "stdafx.h"
-//#include <map>
+#include <map>
 #include "base/AModule_API.h"
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
@@ -7,6 +7,7 @@ extern "C" {
 #include "http/http_parser.h"
 #include "base/wait_queue.h"
 };
+#include "rpc/AModule_rpc.h"
 
 DWORD async_test_tick;
 AOperator asop_list[20];
@@ -57,21 +58,35 @@ static inline int myrb_cmp(int key, myrb_node *data)
 		return 1;
 	return 0;
 }
+rb_tree_declare(myrb_node, int)
 rb_tree_define(myrb_node, rb_node, int, myrb_cmp)
 
-void rbtree_test()
+void __stdcall rbtree_test()
 {
-	/*std::map<int, int> test_set;
+#ifdef _MAP_
+	std::map<int, int> test_set;
 	test_set.insert(std::make_pair(5, 5));
 	test_set.insert(std::make_pair(9, 9));
 	test_set.insert(std::make_pair(14, 14));
 	test_set.insert(std::make_pair(18, 18));
 
-	std::map<int, int>::iterator it = test_set.upper_bound(3);
+	std::map<int, int>::iterator it;
+	it = test_set.find(3);
+	it = test_set.upper_bound(3);
+	it = test_set.lower_bound(3);
+	it = test_set.find(8);
 	it = test_set.upper_bound(8);
+	it = test_set.lower_bound(8);
+	it = test_set.find(12);
+	it = test_set.upper_bound(12);
+	it = test_set.lower_bound(12);
+	it = test_set.find(14);
 	it = test_set.upper_bound(14);
+	it = test_set.lower_bound(14);
+	it = test_set.find(24);
 	it = test_set.upper_bound(24);
-	it = test_set.lower_bound(14);*/
+	it = test_set.lower_bound(24);
+#endif
 
 	srand(rand());
 	struct rb_root root;
@@ -80,7 +95,7 @@ void rbtree_test()
 	myrb_node *r;
 	int test_count = 20000;
 	int insert_count = 0;
-	int search_count = test_count*1000;
+	int search_count = 32767;
 
 	for (int ix = 0; ix < test_count; ++ix) {
 		r = (myrb_node*)malloc(sizeof(myrb_node));
@@ -95,19 +110,32 @@ void rbtree_test()
 
 	DWORD tick = GetTickCount();
 	for (int ix = 0; ix < search_count; ++ix) {
-		r = rb_search_myrb_node(&root, ix);
+		r = rb_find_myrb_node(&root, ix);
 	}
 	TRACE("rbtree search %d times, tick = %d.\n", search_count, GetTickCount()-tick);
+	r = rb_find_myrb_node(&root, 500);
+	r = rb_upper_myrb_node(&root, 500);
+	r = rb_lower_myrb_node(&root, 500);
+	r = rb_find_myrb_node(&root, 600);
+	r = rb_upper_myrb_node(&root, 600);
+	r = rb_lower_myrb_node(&root, 600);
+	r = rb_find_myrb_node(&root, 700);
+	r = rb_upper_myrb_node(&root, 700);
+	r = rb_lower_myrb_node(&root, 700);
+	r = rb_find_myrb_node(&root, 700000);
+	r = rb_upper_myrb_node(&root, 700000);
+	r = rb_lower_myrb_node(&root, 700000);
 
-	//
-	/*std::map<int, myrb_node> map;
+#ifdef _MAP_
+	std::map<int, myrb_node> map;
 	myrb_node r2;
+	srand(rand());
 
-	insert_count = 0;
-	for (int ix = 0; ix < test_count; ++ix) {
+	//insert_count = 0;
+	for (int ix = 0; ix < insert_count; /*++ix*/) {
 		r2.key = rand();
 		if (map.insert(std::make_pair(r2.key, r2)).second)
-			++insert_count;
+			++ix;
 	}
 	TRACE("map<int> insert = %d, size = %d.\n", insert_count, map.size());
 
@@ -115,7 +143,14 @@ void rbtree_test()
 	for (int ix = 0; ix < search_count; ++ix) {
 		map.find(ix);
 	}
-	TRACE("map<int> search %d times, tick = %d.\n", search_count, GetTickCount()-tick);*/
+	TRACE("map<int> search %d times, tick = %d.\n", search_count, GetTickCount()-tick);
+
+	tick = GetTickCount();
+	for (int ix = 0; ix < search_count; ++ix) {
+		r = rb_find_myrb_node(&root, ix);
+	}
+	TRACE("rbtree search %d times, tick = %d.\n", search_count, GetTickCount()-tick);
+#endif
 
 	while (!RB_EMPTY_ROOT(&root)) {
 		r = rb_entry(rb_first(&root), myrb_node, rb_node);
@@ -671,12 +706,47 @@ int test_run(AOption *option, bool reset_option)
 	return ret;
 }
 
+void __stdcall a1(int a, long long d)
+{
+	a;// b; c;
+}
+
+struct at {
+	int a;
+	short b;
+	short c;
+	int d;
+};
+int a2(at a)
+{
+	a.a; a.b; a.c; a.d;
+	return a.d;
+}
+
+template <int size>
+struct param_traits {
+	int  argv[size];
+	param_traits(void *data) {
+		memcpy(argv, data, sizeof(argv));
+	}
+};
+
 int main(int argc, char* argv[])
 {
+	char buf[12] = { 1, 0, 0, 0, 2, 0, 3, 0, 4, 0, 0, 0 };
+	void (__stdcall*p1)(param_traits<3>) = (void (__stdcall*)(param_traits<3>))&a1;
+	p1(param_traits<3>(buf));
+
+	rpc_void_argv<rpc_argv2<arg_traits<int>, arg_traits<long long> > > rpc_argv;
+	rpc_argv.init();
+	rpc_argv.param._a1.data = 1;
+	rpc_argv.param._a2.data = 0x00040302;
+	p1(param_traits<3>(&rpc_argv.param));
+
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
 	//async_test();
-	//rbtree_test();
+	rbtree_test();
 	http_parser_test();
 
 	AOption *option = NULL;

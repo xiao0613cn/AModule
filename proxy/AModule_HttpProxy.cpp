@@ -26,39 +26,21 @@ static int HTTPProxyProbe(AObject *object, AMessage *msg)
 	return -1;
 }
 
-struct HTTPProxy {
-	AObject   object;
-	AObject  *from;
-	AObject  *to;
-	AOption  *option;
-	AMessage *openmsg;
-
-	AMessage  inmsg;
-	char      indata[2048];
-
-	AMessage  outmsg;
-	char      outdata[2048];
-	AOperator asop;
-};
-#define to_proxy(obj) container_of(obj, HTTPProxy, object)
-#define from_inmsg(msg) container_of(msg, HTTPProxy, inmsg)
-#define from_outmsg(msg) container_of(msg, HTTPProxy, outmsg)
-
-static void HTTPProxyRelease(AObject *object)
+static void HttpConnectCreate(AObject *object)
 {
-	HTTPProxy *proxy = to_proxy(object);
-	release_s(proxy->from, AObjectRelease, NULL);
-	release_s(proxy->to, AObjectRelease, NULL);
+	HttpConnect *conn = to_conn(object);
+	release_s(conn->io, AObjectRelease, NULL);
 }
 
 static int HTTPProxyCreate(AObject **object, AObject *parent, AOption *option)
 {
-	HTTPProxy *proxy = (HTTPProxy*)*object;
-	proxy->from = parent; AObjectAddRef(parent);
-	proxy->to = NULL;
-	proxy->option = AOptionFind(option, "io");
+	HttpConnect *conn = (HttpConnect*)*object;
+	conn->io = NULL;
+	conn->session = NULL;
 
-	int result = AObjectCreate(&proxy->to, &proxy->object, proxy->option, "tcp");
+	int result = AObjectCreate(&conn->io, parent, option);
+	if (result < 0)
+		return result;
 	return result;
 }
 

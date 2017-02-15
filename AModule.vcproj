@@ -353,6 +353,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_HttpSession.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
 				>
 			</File>
@@ -409,6 +413,14 @@
 						DisableSpecificWarnings="4127;4244"
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\base\iocp_util.cpp"
@@ -423,7 +435,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\base\rbtree.cpp"
+				RelativePath=".\base\rbtree.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -434,13 +446,17 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Release|Win32"
+					Name="Debug DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
 						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\rpc\rpc_func.cpp"
+				>
 			</File>
 			<File
 				RelativePath=".\stdafx.cpp"
@@ -502,6 +518,14 @@
 			</File>
 			<File
 				RelativePath=".\base\AModule_API.h"
+				>
+			</File>
+			<File
+				RelativePath=".\http\AModule_HttpClient.h"
+				>
+			</File>
+			<File
+				RelativePath=".\proxy\AModule_HttpSession.h"
 				>
 			</File>
 			<File
@@ -689,11 +713,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
+				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
@@ -754,6 +778,10 @@
 			</File>
 			<File
 				RelativePath=".\base\rbtree.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rpc\rpc_func.h"
 				>
 			</File>
 			<File

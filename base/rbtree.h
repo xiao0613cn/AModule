@@ -93,6 +93,13 @@ static inline struct page * rb_insert_page_cache(struct inode * inode,
 
 #ifndef	_LINUX_RBTREE_H
 #define	_LINUX_RBTREE_H
+#ifdef _WIN32
+#ifdef __cplusplus
+extern "C" {
+#else //__cplusplus
+#define inline  __inline
+#endif //__cplusplus
+#endif //_WIN32
 
 //#include <linux/kernel.h>
 //#include <linux/stddef.h>
@@ -165,8 +172,14 @@ static inline void rb_link_node(struct rb_node * node, struct rb_node * parent,
 	*rb_link = node;
 }
 
+#define rb_tree_declare(type, keytype) \
+	type* rb_find_##type(struct rb_root *root, keytype key); \
+	type* rb_insert_##type(struct rb_root *root, type *data, keytype key); \
+	type* rb_upper_##type(struct rb_root *root, keytype key); \
+	type* rb_lower_##type(struct rb_root *root, keytype key);
+
 #define rb_tree_define(type, member, keytype, keycmp) \
-type* rb_search_##type(struct rb_root *root, keytype key) \
+type* rb_find_##type(struct rb_root *root, keytype key) \
 { \
 	struct rb_node *node = root->rb_node; \
 	\
@@ -208,6 +221,49 @@ type* rb_insert_##type(struct rb_root *root, type *data, keytype key) \
 	rb_link_node(&data->member, parent, link); \
 	rb_insert_color(&data->member, root); \
 	return NULL; \
-}
+} \
+type* rb_upper_##type(struct rb_root *root, keytype key) \
+{ \
+	struct rb_node *node = root->rb_node; \
+	type *it = NULL; \
+	\
+	while (node != NULL) \
+	{ \
+		type *data = rb_entry(node, type, member); \
+		int result = keycmp(key, data); \
+		\
+		if (result < 0) { \
+			it = data; \
+			node = node->rb_left; \
+		} else { \
+			node = node->rb_right; \
+		} \
+	} \
+	return it; \
+} \
+type* rb_lower_##type(struct rb_root *root, keytype key) \
+{ \
+	struct rb_node *node = root->rb_node; \
+	type *it = NULL; \
+	\
+	while (node != NULL) \
+	{ \
+		type *data = rb_entry(node, type, member); \
+		int result = keycmp(key, data); \
+		\
+		if (result <= 0) { \
+			it = data; \
+			node = node->rb_left; \
+		} else { \
+			node = node->rb_right; \
+		} \
+	} \
+	return it; \
+} \
 
+#ifdef _WIN32
+#ifdef __cplusplus
+};
+#endif
+#endif
 #endif	/* _LINUX_RBTREE_H */

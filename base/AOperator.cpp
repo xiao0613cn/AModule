@@ -512,7 +512,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 		list_del_init(&asop->ao_list);
 	}
 	else if (asop->ao_tick != 0) {
-		AOperator *node = rb_search_AOperator(&pool->waiting_tree, asop->ao_tick);
+		AOperator *node = rb_find_AOperator(&pool->waiting_tree, asop->ao_tick);
 		asop->ao_tick = 0;
 
 		if (node == NULL) {

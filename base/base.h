@@ -24,6 +24,17 @@
 #endif
 
 #ifdef _WIN32
+
+static inline void*
+dlopen(const char *filename, int flag) {
+	return LoadLibraryExA(filename, NULL, 0);
+}
+
+static inline void*
+dlsym(void *handle, const char *symbol) {
+	return GetProcAddress((HMODULE)handle, symbol);
+}
+
 #else //_WIN32
 
 #include <unistd.h>
@@ -72,17 +83,6 @@ typedef int            BOOL;
 #define TRUE      1
 #define FALSE     0
 
-static inline DWORD 
-GetTickCount(void) {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec*1000 + ts.tv_nsec/(1000*1000);
-}
-
-static void 
-Sleep(DWORD ms) {
-	usleep(ms*1000);
-}
 #endif //!_WIN32
 
 #include "thread_util.h"

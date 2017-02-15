@@ -59,16 +59,30 @@ strcpy_sz(char *dest, size_t size, const char *src)
 
 #ifdef __cplusplus
 template <size_t size>
-inline char* strncpy_sz(char (&dest)[size], const char *src, size_t len)
+inline char*
+strncpy_sz(char (&dest)[size], const char *src, size_t len)
 {
 	return strncpy_sz(dest, size, src, len);
 }
 
 template <size_t size>
-inline char* strcpy_sz(char (&dest)[size], const char *src)
+inline char*
+strcpy_sz(char (&dest)[size], const char *src)
 {
 	return strcpy_sz(dest, size, src);
 }
 #endif
+
+static inline const char*
+strnchr(const char *str, int val, size_t len)
+{
+	const char *end = str + len;
+	while ((str != end) && (*str != '\0')) {
+		if (*str == val)
+			return str;
+		++str;
+	}
+	return NULL;
+}
 
 #endif

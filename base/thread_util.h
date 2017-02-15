@@ -87,6 +87,18 @@ CloseEvent(HANDLE ev) {
 
 #else //_WIN32
 
+static inline DWORD 
+GetTickCount(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec*1000 + ts.tv_nsec/(1000*1000);
+}
+
+static void 
+Sleep(DWORD ms) {
+	usleep(ms*1000);
+}
+
 #include <pthread.h>
 #define  pthread_null  0
 
