@@ -77,8 +77,8 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 		asop->ao_tick = 0;
 		list_cat(&asop->ao_list, &timeout_list);
 
+		node = rb_next(node);
 		rb_erase(&asop->ao_tree, &pool->waiting_tree);
-		node = rb_first(&pool->waiting_tree);
 	}
 #ifndef _WIN32
 	list_splice_init(&pool->working_list, &working_list);
@@ -335,8 +335,8 @@ AThreadEnd(AThread *at)
 	pthread_mutex_destroy(&at->mutex);
 
 	AOperator *asop;
-	while (!RB_EMPTY_ROOT(&at->waiting_tree)) {
-		asop = rb_entry(rb_first(&at->waiting_tree), AOperator, ao_tree);
+	for (struct rb_node *node = rb_first(&at->waiting_tree); node != NULL; ) {
+		asop = rb_entry(node, AOperator, ao_tree);
 
 		while (!list_empty(&asop->ao_list)) {
 			AOperator *asop2 = list_first_entry(&asop->ao_list, AOperator, ao_list);
@@ -344,6 +344,7 @@ AThreadEnd(AThread *at)
 			asop2->callback(asop2, -EINTR);
 		}
 
+		node = rb_next(node);
 		rb_erase(&asop->ao_tree, &at->waiting_tree);
 		asop->callback(asop, -EINTR);
 	}

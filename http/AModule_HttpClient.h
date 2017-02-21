@@ -17,6 +17,7 @@ enum status {
 #define send_bufsiz     2*1024
 #define recv_bufsiz     64*1024
 #define max_body_size   16*1024*1024
+#define max_head_count  50
 
 struct HttpClient {
 	AObject   object;
@@ -39,10 +40,12 @@ struct HttpClient {
 	char*     r_p_ptr() { return (recv_buffer->ptr() + recv_parser_pos); }
 	int       r_p_len() { return (recv_buffer->len() - recv_parser_pos); }
 
-	int       recv_header_list[50][4];
+	int       recv_header_list[max_head_count][4];
 	int       recv_header_count;
+	char*     h_f_ptr() { return recv_header_list[recv_header_count][0] + recv_buffer->ptr(); }
 	int&      h_f_pos() { return recv_header_list[recv_header_count][0]; }
 	int&      h_f_len() { return recv_header_list[recv_header_count][1]; }
+	char*     h_v_ptr() { return recv_header_list[recv_header_count][2] + recv_buffer->ptr(); }
 	int&      h_v_pos() { return recv_header_list[recv_header_count][2]; }
 	int&      h_v_len() { return recv_header_list[recv_header_count][3]; }
 
@@ -61,15 +64,23 @@ struct HttpClient {
 	AMessage *recv_from;
 
 	// conn_list in HttpSession
+	AObject *session;
 	struct list_head conn_entry;
 };
 #define to_http(obj)   container_of(obj, HttpClient, object)
 
+#define append_data(fmt, ...) \
+	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, send_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
+
+#define append_crlf() \
+	p->send_buffer[p->send_msg.size++] = '\r'; \
+	p->send_buffer[p->send_msg.size++] = '\n';
+
 static inline const char*
 HeaderGet(HttpClient *p, const char *header, int &len)
 {
-	for (int ix = 0; ix < p->recv_header_count; ++ix) {
-		if (_strnicmp(header, p->h_f_data(ix), p->h_f_size(ix)) == 0) {
+	for (int ix = 1; ix < p->recv_header_count; ++ix) {
+		if (_stricmp(header, p->h_f_data(ix)) == 0) {
 			len = p->h_v_size(ix);
 			return p->h_v_data(ix);
 		}

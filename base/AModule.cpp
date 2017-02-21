@@ -245,7 +245,7 @@ AObjectFree(AObject *object)
 }
 
 AMODULE_API int
-AObjectSetKVOpt(AObject *object, const ObjKV *kv, const AOption *opt)
+AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 {
 	if (kv->type == ObjKV_string) {
 		strcpy_sz((char*)object+kv->offset, kv->size, opt?opt->value:kv->defstr);
@@ -286,7 +286,7 @@ AObjectSetKV(AObject *object, const ObjKV *kv_map, AOption *option)
 AMODULE_API int
 AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map)
 {
-	for (ObjKV *kv = kv_map; kv->name != NULL; ++kv)
+	for (const ObjKV *kv = kv_map; kv->name != NULL; ++kv)
 	{
 		if (strcmp(opt->name, kv->name) == 0)
 			return AObjectSetKVOpt(object, kv, opt) ? 1 : -ENOENT;

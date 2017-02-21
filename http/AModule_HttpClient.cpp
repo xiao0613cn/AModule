@@ -12,6 +12,9 @@ static void HttpClientRelease(AObject *object)
 	AOptionClear(&p->send_headers);
 	release_s(p->recv_buffer, ARefsBufRelease, NULL);
 	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+
+	release_s(p->session, AObjectRelease, NULL);
+	assert(list_empty(&p->conn_entry));
 }
 
 static void HttpClientResetStatus(HttpClient *p)
@@ -44,6 +47,9 @@ static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->recv_buffer = NULL;
 	p->recv_header_buffer = NULL;
 	HttpClientResetStatus(p);
+
+	p->session = NULL;
+	INIT_LIST_HEAD(&p->conn_entry);
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if ((p->io == NULL) && (io_opt != NULL))
@@ -140,13 +146,6 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 		return HttpClientSetHeader(p, option);
 	return AObjectSetOpt(object, option, kv_map);
 }
-
-#define append_data(fmt, ...) \
-	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, send_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)
-
-#define append_crlf() \
-	p->send_buffer[p->send_msg.size++] = '\r'; \
-	p->send_buffer[p->send_msg.size++] = '\n';
 
 int HttpClientOnSendStatus(HttpClient *p, int result)
 {
@@ -298,7 +297,9 @@ static int on_h_field(http_parser *parser, const char *at, size_t length)
 	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
 	if (p->h_v_len() != 0) {
-		if (++p->recv_header_count >= _countof(p->recv_header_list))
+		p->h_v_ptr()[p->h_v_len()] = '\0';
+
+		if (++p->recv_header_count >= max_head_count)
 			return -EACCES;
 		p->h_f_pos() = 0;
 		p->h_f_len() = 0;
@@ -317,8 +318,11 @@ static int on_h_value(http_parser *parser, const char *at, size_t length)
 	HttpClient *p = (HttpClient*)parser->data;
 	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
-	if (p->h_v_len() == 0)
+	if (p->h_v_len() == 0) {
 		p->h_v_pos() = (at - p->recv_buffer->ptr());
+
+		p->h_f_ptr()[p->h_f_len()] = '\0';
+	}
 	p->h_v_len() += length;
 	return 0;
 }
@@ -326,8 +330,10 @@ static int on_h_value(http_parser *parser, const char *at, size_t length)
 static int on_h_done(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
-	if (p->h_f_len() != 0)
+	if (p->h_v_len() != 0) {
+		p->h_v_ptr()[p->h_v_len()] = '\0';
 		p->recv_header_count++;
+	}
 
 	p->recv_header_buffer = p->recv_buffer;
 	ARefsBufAddRef(p->recv_header_buffer);
@@ -467,8 +473,8 @@ static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 	p->recv_body_pos = 0;
 	p->recv_body_len = 0;
 
+	p->recv_msg.init();
 	if (msg != &p->recv_msg) {
-		p->recv_msg.init();
 		p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientOnRecvStatus);
 		p->recv_from = msg;
 	}

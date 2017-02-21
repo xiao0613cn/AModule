@@ -119,7 +119,7 @@ typedef struct ObjKV {
 	{ #member, offsetof(type, member), ObjKV_object, sizeof(((type*)0)->member), {defstr} },
 
 AMODULE_API int
-AObjectSetKVOpt(AObject *object, const ObjKV *kv, const AOption *opt);
+AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt);
 
 AMODULE_API int
 AObjectSetKV(AObject *object, const ObjKV *kv_map, AOption *option);
