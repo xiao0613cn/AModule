@@ -105,6 +105,8 @@ enum ObjKV_Types {
 	ObjKV_int32  = 8*sizeof(__int32),
 	ObjKV_int64  = 8*sizeof(__int64),
 	ObjKV_object = 256,
+	ObjKV_get,  // int get(AObject *obj, void *ptr, int len);
+	ObjKV_set,  // int set(AObject *obj, const void *ptr, int len);
 };
 
 typedef struct ObjKV {
@@ -118,14 +120,17 @@ typedef struct ObjKV {
 	};
 } ObjKV;
 
+#define ObjKV_T(type, member, kv, def) \
+	{ #member, offsetof(type, member), kv, sizeof(((type*)0)->member), {(__int64)def} },
+
 #define ObjKV_S(type, member, defstr) \
-	{ #member, offsetof(type, member), ObjKV_string, sizeof(((type*)0)->member), {(__int64)defstr} },
+	ObjKV_T(type, member, ObjKV_string, defstr)
 
 #define ObjKV_N(type, member, defnum) \
-	{ #member, offsetof(type, member), (ObjKV_Types)(8*sizeof(((type*)0)->member)), sizeof(((type*)0)->member), {defnum} },
+	ObjKV_T(type, member, (ObjKV_Types)(8*sizeof(((type*)0)->member)), defnum)
 
 #define ObjKV_O(type, member, defstr) \
-	{ #member, offsetof(type, member), ObjKV_object, sizeof(((type*)0)->member), {defstr} },
+	ObjKV_T(type, member, ObjKV_object, defstr)
 
 AMODULE_API int
 AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt);
