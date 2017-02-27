@@ -9,17 +9,8 @@ static void HttpSessionRelease(AObject *object)
 	HttpSession *s = to_sess(object);
 	AMsgListClear(&s->msg_list, -EINTR);
 
-	while (!list_empty(&s->conn_list)) {
-		HttpClient *conn = list_first_entry(&s->conn_list, HttpClient, conn_entry);
-		list_del_init(&conn->conn_entry);
-		AObjectRelease(&conn->object);
-	}
-	while (!list_empty(&s->user_list)) {
-		HttpSession *user = list_first_entry(&s->user_list, HttpSession, user_list);
-		list_del_init(&user->user_list);
-		AObjectRelease(&user->object);
-	}
-	release_s(s->parent, AObjectRelease, NULL);
+	assert(s->parent == NULL);
+	assert(list_empty(&s->user_list));
 	pthread_mutex_destroy(&s->mutex);
 
 	assert(RB_EMPTY_NODE(&s->sess_node));
@@ -35,7 +26,6 @@ static int HttpSessionCreate(AObject **object, AObject *parent, AOption *option)
 	s->manager = NULL;
 
 	INIT_LIST_HEAD(&s->msg_list);
-	INIT_LIST_HEAD(&s->conn_list);
 	INIT_LIST_HEAD(&s->user_list);
 	s->parent = NULL;
 	pthread_mutex_init(&s->mutex, NULL);
@@ -90,6 +80,7 @@ extern void SessionInit(HttpSessionManager *sm)
 {
 	INIT_RB_ROOT(&sm->sess_map);
 	INIT_RB_ROOT(&sm->user_map);
+	INIT_LIST_HEAD(&sm->conn_list);
 	pthread_mutex_init(&sm->mutex, NULL);
 
 	sm->genid = 0;
@@ -120,7 +111,8 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 {
 	HttpSession *s;
 	char ssid[128];
-	for (int ix = 0; ix < 10; ++ix) {
+	for (int ix = 0; ix < 10; ++ix)
+	{
 		long genid = InterlockedAdd(&sm->genid, 1);
 		int len = snprintf(ssid, sizeof(ssid)-1, "%s%08x%08x", user, GetTickCount(), genid);
 		ssid[len] = '\0';
@@ -139,7 +131,6 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 			int result = AObjectCreate2((AObject**)&s, NULL, NULL, &HttpSessionModule);
 			if (result >= 0) {
 				AObjectAddRef(&s->object);
-
 				strcpy_sz(s->ssid, ssid);
 				strcpy_sz(s->user, user);
 				s->manager = sm;
@@ -156,6 +147,7 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 		sm->unlock();
 		if (s != NULL) {
 			if (!reuse && (parent != NULL)) {
+				AObjectAddRef(&s->object);
 				parent->lock();
 				list_add_tail(&s->user_list, &parent->user_list);
 				parent->unlock();
@@ -166,21 +158,36 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 	return NULL;
 }
 
-extern void SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), void *arg)
+extern void SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), int(*cb2)(HttpClient*,void*), void *arg)
 {
 	sm->lock();
-	cb(NULL, arg);
+	if (cb != NULL) {
+		cb(NULL, arg);
 
-	struct rb_node *node = rb_first(&sm->sess_map);
-	while (node != NULL) {
-		HttpSession *s = rb_entry(node, HttpSession, sess_node);
+		struct rb_node *node = rb_first(&sm->sess_map);
+		while (node != NULL)
+		{
+			HttpSession *s = rb_entry(node, HttpSession, sess_node);
+			node = rb_next(node);
 
-		node = rb_next(node);
-		if (cb(s, arg) < 0) {
-			rb_erase(&s->sess_node, &sm->sess_map);
-			if ((s->parent == NULL) && !RB_EMPTY_NODE(&s->user_node)) {
-				rb_erase(&s->user_node, &sm->user_map);
+			if (cb(s, arg) < 0) {
+				rb_erase(&s->sess_node, &sm->sess_map);
+				if ((s->parent == NULL) && !RB_EMPTY_NODE(&s->user_node)) {
+					rb_erase(&s->user_node, &sm->user_map);
+				}
 			}
+		}
+	}
+	if (cb2 != NULL) {
+		cb2(NULL, arg);
+
+		HttpClient *conn = list_first_entry(&sm->conn_list, HttpClient, conn_entry);
+		while (&conn->conn_entry != &sm->conn_list)
+		{
+			HttpClient *next = list_entry(conn->conn_entry.next, HttpClient, conn_entry);
+			if (cb2(conn, arg) < 0)
+				list_del_init(&conn->conn_entry);
+			conn = next;
 		}
 	}
 	sm->unlock();
@@ -188,17 +195,21 @@ extern void SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), vo
 
 extern void SessionCheck(HttpSessionManager *sm)
 {
-	struct list_head timeout_list;
-	INIT_LIST_HEAD(&timeout_list);
+	struct list_head timeout_sess;
+	INIT_LIST_HEAD(&timeout_sess);
+
+	struct list_head timeout_conn;
+	INIT_LIST_HEAD(&timeout_conn);
 
 	sm->lock();
 	DWORD tick = GetTickCount();
 
 	struct rb_node *node = rb_first(&sm->sess_map);
-	while (node != NULL) {
+	while (node != NULL)
+	{
 		HttpSession *s = rb_entry(node, HttpSession, sess_node);
-
 		node = rb_next(node);
+
 		if ((tick-s->active) < sm->max_live)
 			continue;
 
@@ -207,21 +218,21 @@ extern void SessionCheck(HttpSessionManager *sm)
 			rb_erase(&s->user_node, &sm->user_map);
 		}
 
-		list_add_tail(&s->timeout_entry, &timeout_list);
+		list_add_tail(&s->timeout_entry, &timeout_sess);
+	}
+
+	HttpClient *conn;
+	list_for_each_entry(conn, &sm->conn_list, HttpClient, conn_entry) {
+		if ((tick-conn->active) < sm->max_live)
+			continue;
+		list_move_tail(&conn->conn_entry, &timeout_conn);
+		AObjectAddRef(&conn->object);
 	}
 	sm->unlock();
 
-	while (!list_empty(&timeout_list)) {
-		HttpSession *s = list_first_entry(&timeout_list, HttpSession, timeout_entry);
+	while (!list_empty(&timeout_sess)) {
+		HttpSession *s = list_first_entry(&timeout_sess, HttpSession, timeout_entry);
 		list_del_init(&s->timeout_entry);
-
-		//on_shutdown
-		HttpClient *pos;
-		s->lock();
-		list_for_each_entry(pos, &s->conn_list, HttpClient, conn_entry) {
-			pos->io->close(pos->io, NULL);
-		}
-		s->unlock();
 
 		if (s->parent != NULL) {
 			HttpSession *parent = to_sess(s->parent);
@@ -234,5 +245,10 @@ extern void SessionCheck(HttpSessionManager *sm)
 			//s->parent = NULL;
 		}
 		AObjectRelease(&s->object);
+	}
+	while (!list_empty(&timeout_conn)) {
+		HttpClient *conn = list_first_entry(&timeout_conn, HttpClient, conn_entry);
+		conn->io->close(conn->io, NULL);
+		AObjectRelease(&conn->object);
 	}
 }

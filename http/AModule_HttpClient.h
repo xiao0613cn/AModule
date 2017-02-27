@@ -6,6 +6,7 @@
 enum status {
 	s_invalid = 0,
 	s_send_header,
+	s_send_private_header,
 	s_send_chunk_size,
 	s_send_chunk_data,
 	s_send_chunk_tail,
@@ -63,9 +64,12 @@ struct HttpClient {
 	AMessage  recv_msg;
 	AMessage *recv_from;
 
-	// conn_list in HttpSession
-	AObject *session;
+	// used by HttpSession
+	DWORD     active;
+	AObject  *session;
 	struct list_head conn_entry;
+	AObject  *proc;
+	ARefsBuf *proc_buf;
 };
 #define to_http(obj)   container_of(obj, HttpClient, object)
 
@@ -87,6 +91,12 @@ HeaderGet(HttpClient *p, const char *header, int &len)
 	}
 	return NULL;
 }
+
+extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option);
+extern void HttpClientRelease(AObject *object);
+extern int HttpClientAppendOutput(HttpClient *p, AMessage *msg);
+extern int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg);
+extern int HttpClientDoSendRequest(HttpClient *p, AMessage *msg);
 
 
 #endif

@@ -349,6 +349,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_HttpProxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\proxy\AModule_HttpSession.cpp"
 				>
 			</File>

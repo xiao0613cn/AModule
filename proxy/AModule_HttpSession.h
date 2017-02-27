@@ -15,7 +15,6 @@ struct HttpSession {
 	HttpSessionManager *manager;
 
 	struct list_head msg_list;
-	struct list_head conn_list;
 	struct list_head user_list;
 	AObject         *parent;
 	pthread_mutex_t  mutex;
@@ -31,9 +30,17 @@ struct HttpSession {
 struct HttpSessionManager {
 	struct rb_root  sess_map;
 	struct rb_root  user_map;
+	struct list_head conn_list;
 	pthread_mutex_t mutex;
 	void lock() { pthread_mutex_lock(&mutex); }
 	void unlock() { pthread_mutex_unlock(&mutex); }
+
+	void push(HttpClient *p) {
+		p->object.addref();
+		lock();
+		list_add_tail(&p->conn_entry, &conn_list);
+		unlock();
+	}
 
 	long volatile   genid;
 	DWORD           max_live;
@@ -42,7 +49,7 @@ struct HttpSessionManager {
 extern void         SessionInit(HttpSessionManager *sm);
 extern HttpSession* SessionGet(HttpSessionManager *sm, const char *ssid, BOOL create);
 extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL reuse);
-extern void         SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), void *arg);
+extern void         SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), int(*cb2)(HttpClient*,void*), void *arg);
 extern void         SessionCheck(HttpSessionManager *sm);
 
 #endif

@@ -403,7 +403,7 @@ static const char *proxy_path =
 	"server: tcp_server {"
 	"	port: 8101,"
 	"	io: async_tcp,"
-	"	HTTPProxy: bridge {"
+	"	HTTPProxy {"
 	"		address: www.sina.com.cn,"
 	"		port: 80,"
 	"	},"
@@ -733,7 +733,7 @@ struct param_traits {
 
 int main(int argc, char* argv[])
 {
-	char buf[12] = { 1, 0, 0, 0, 2, 0, 3, 0, 4, 0, 0, 0 };
+	/*char buf[12] = { 1, 0, 0, 0, 2, 0, 3, 0, 4, 0, 0, 0 };
 	void (__stdcall*p1)(param_traits<3>) = (void (__stdcall*)(param_traits<3>))&a1;
 	p1(param_traits<3>(buf));
 
@@ -741,13 +741,13 @@ int main(int argc, char* argv[])
 	rpc_argv.init();
 	rpc_argv.param._a1.data = 1;
 	rpc_argv.param._a2.data = 0x00040302;
-	p1(param_traits<3>(&rpc_argv.param));
+	p1(param_traits<3>(&rpc_argv.param));*/
 
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
 	//async_test();
-	rbtree_test();
-	http_parser_test();
+	//rbtree_test();
+	//http_parser_test();
 
 	AOption *option = NULL;
 	int result;

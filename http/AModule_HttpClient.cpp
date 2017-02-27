@@ -4,7 +4,7 @@
 #include "AModule_HttpClient.h"
 
 
-static void HttpClientRelease(AObject *object)
+extern void HttpClientRelease(AObject *object)
 {
 	HttpClient *p = to_http(object);
 	release_s(p->io, AObjectRelease, NULL);
@@ -15,6 +15,8 @@ static void HttpClientRelease(AObject *object)
 
 	release_s(p->session, AObjectRelease, NULL);
 	assert(list_empty(&p->conn_entry));
+	release_s(p->proc, AObjectRelease, NULL);
+	release_s(p->proc_buf, ARefsBufRelease, NULL);
 }
 
 static void HttpClientResetStatus(HttpClient *p)
@@ -32,7 +34,7 @@ static void HttpClientResetStatus(HttpClient *p)
 	p->recv_body_len = 0;
 }
 
-static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
+extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 {
 	HttpClient *p = (HttpClient*)*object;
 	p->io = parent;
@@ -48,8 +50,11 @@ static int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->recv_header_buffer = NULL;
 	HttpClientResetStatus(p);
 
+	p->active = 0;
 	p->session = NULL;
 	INIT_LIST_HEAD(&p->conn_entry);
+	p->proc = NULL;
+	p->proc_buf = NULL;
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if ((p->io == NULL) && (io_opt != NULL))
@@ -150,12 +155,14 @@ static int HttpClientSetOption(AObject *object, AOption *option)
 int HttpClientOnSendStatus(HttpClient *p, int result)
 {
 	AMessage *msg = p->send_from;
-	do {
+	while (result > 0)
+	{
 		switch (p->send_status)
 		{
 		case s_send_header:
 			append_data("%s %s %s\r\n", p->method, p->url, p->version);
 
+		case s_send_private_header:
 			AOption *pos;
 			list_for_each_entry(pos, &p->send_headers, AOption, brother_entry)
 			{
@@ -238,25 +245,31 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 			assert(FALSE);
 			return -EACCES;
 		}
-	} while (result > 0);
+	}
 	return result;
 }
 
-static int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
+extern int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
 {
-	if (msg != &p->send_msg) {
-		p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
-		p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnSendStatus);
-		p->send_from = msg;
-	}
+	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnSendStatus);
+	p->send_from = msg;
 
-	if (p->send_status == s_invalid) {
+	switch (p->send_status)
+	{
+	case s_invalid:
+		p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 		p->send_status = s_send_header;
-	} else if (p->send_status == s_send_chunk_next) {
+		break;
+
+	case s_send_private_header:
+		break;
+
+	case s_send_chunk_next:
+		p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 		p->send_status = s_send_chunk_size;
-	} else {
-		assert(FALSE);
-		return -EACCES;
+		break;
+
+	default: assert(FALSE); return -EACCES;
 	}
 
 	int result = HttpClientOnSendStatus(p, 1);
@@ -465,7 +478,7 @@ _continue:
 	return AMsgType_Private|((p->recv_parser.type == HTTP_REQUEST) ? p->recv_parser.method : p->recv_parser.status_code);
 }
 
-static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
+extern int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 {
 	if (ARefsBufCheck(p->recv_buffer, send_bufsiz, recv_bufsiz) < 0)
 		return -ENOMEM;
@@ -474,15 +487,13 @@ static int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
 	p->recv_body_len = 0;
 
 	p->recv_msg.init();
-	if (msg != &p->recv_msg) {
-		p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientOnRecvStatus);
-		p->recv_from = msg;
-	}
+	p->recv_msg.done = &TObjectDone(HttpClient, recv_msg, recv_from, HttpClientOnRecvStatus);
+	p->recv_from = msg;
 
 	return HttpClientOnRecvStatus(p, 0);
 }
 
-static int HttpClientAppendOutput(HttpClient *p, AMessage *msg)
+extern int HttpClientAppendOutput(HttpClient *p, AMessage *msg)
 {
 	if (ARefsBufCheck(p->recv_buffer, msg->size, recv_bufsiz) < 0)
 		return -ENOMEM;

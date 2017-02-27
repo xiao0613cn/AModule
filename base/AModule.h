@@ -18,6 +18,15 @@ struct AObject {
 	int   (*request)(AObject *object, int reqix, AMessage *msg);
 	int   (*cancel)(AObject *object, int reqix, AMessage *msg);
 	int   (*close)(AObject *object, AMessage *msg);
+#ifdef __cplusplus
+	long    addref() { return InterlockedAdd(&refcount, 1); }
+	long    release2() {
+		long result = InterlockedAdd(&refcount, -1);
+		if (result <= 0)
+			this->release(this);
+		return result;
+	}
+#endif
 };
 
 AMODULE_API void

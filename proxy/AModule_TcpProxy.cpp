@@ -387,6 +387,9 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	server->async_tcp = (_stricmp(server->io_module->module_name, "async_tcp") == 0);
 	server->default_bridge = AOptionFind(server->option, "default_bridge");
 
+	if (!AOptionChildInt(server->option, "background", TRUE))
+		return 1;
+
 	AObjectAddRef(&server->object);
 #ifndef _WIN32
 	pthread_create(&server->thread, NULL, &TCPServerProcess, server);
@@ -414,6 +417,25 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 #endif
 }
 
+static int TCPServerRequest(AObject *object, int reqix, AMessage *msg)
+{
+	TCPServer *server = to_server(object);
+	if (reqix != Aio_Output) {
+		return -ENOSYS;
+	}
+
+	struct sockaddr addr;
+	memset(&addr, 0, sizeof(addr));
+
+	socklen_t addrlen = sizeof(addr);
+	SOCKET sock = accept(server->sock, &addr, &addrlen);
+	if (sock == INVALID_SOCKET)
+		return -EIO;
+
+	msg->init((HANDLE)sock);
+	return 1;
+}
+
 static int TCPServerClose(AObject *object, AMessage *msg)
 {
 	TCPServer *server = to_server(object);
@@ -438,7 +460,7 @@ AModule TCPServerModule = {
 	&TCPServerOpen,
 	NULL,
 	NULL,
-	NULL,
+	&TCPServerRequest,
 	NULL,
 	&TCPServerClose,
 };
