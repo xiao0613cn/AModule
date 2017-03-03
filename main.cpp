@@ -172,7 +172,7 @@ extern AModule PVDRTModule;
 extern AModule HTTPProxyModule;
 extern AModule PVDProxyModule;
 extern AModule DumpModule;
-#if 0
+#ifdef _WIN32
 extern AModule M3U8ProxyModule;
 #endif
 extern AModule EchoModule;
@@ -198,7 +198,7 @@ static const char *g_opt =
 "global_param {"
 "PVDProxy {"
 "       io: async_tcp {"
-"		address: '192.168.40.244',"
+"		address: '192.168.40.16',"
 "		port: 8101,"
 "               timeout: 5,"
 "	},"
@@ -401,7 +401,7 @@ _retry:
 
 static const char *proxy_path =
 	"server: tcp_server {"
-	"	port: 8101,"
+	"	port: 8080,"
 	"	io: async_tcp,"
 	"	HTTPProxy {"
 	"		address: www.sina.com.cn,"
@@ -513,10 +513,10 @@ void test_proactive(AOption *option, bool reset_option)
 		if (reset_option)
 			ResetOption(option);
 
-		int delay = AOptionChildInt(option, "first_delay");
-		int duration = AOptionChildInt(option, "duration");
+		int delay = AOptionGetInt(option, "first_delay");
+		int duration = AOptionGetInt(option, "duration");
 
-		int create = AOptionChildInt(option, "create");
+		int create = AOptionGetInt(option, "create");
 		for (int ix = 0; ix < create; ++ix) {
 			AObject *p = NULL;
 			int result = AObjectCreate(&p, NULL, NULL, "PVDProxy");
@@ -530,8 +530,8 @@ void test_proactive(AOption *option, bool reset_option)
 
 			result = AOperatorTimewait(&rm->op, NULL, delay+ix*duration);
 		}
-		AOptionChild2(&option->children_list, "create", str)[0] = '\0';
-		AOptionChild2(&option->children_list, "first_delay", str)[0] = '\0';
+		AOptionGet2(&option->children_list, "create", str)[0] = '\0';
+		AOptionGet2(&option->children_list, "first_delay", str)[0] = '\0';
 
 		TRACE("input 'q' for quit...\n");
 		fgets(str, sizeof(str), stdin);
@@ -685,9 +685,9 @@ int test_run(AOption *option, bool reset_option)
 			if (_stricmp(child->name, "request") != 0)
 				continue;
 
-			int reqix = AOptionChildInt(child, "reqix", 0);
+			int reqix = AOptionGetInt(child, "reqix", 0);
 
-			const char *str = AOptionChild(child, "data", "");
+			const char *str = AOptionGet(child, "data", "");
 			AMsgInit(&msg, AMsgType_Unknown, str, strlen(str));
 
 			ret = object->request(object, reqix, &msg);
@@ -772,7 +772,7 @@ int main(int argc, char* argv[])
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
 	AModuleRegister(&DumpModule);
-#if 0
+#ifdef _WIN32
 	AModuleRegister(&M3U8ProxyModule);
 #endif
 	AModuleRegister(&EchoModule);

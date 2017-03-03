@@ -310,8 +310,6 @@ static int on_h_field(http_parser *parser, const char *at, size_t length)
 	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
 
 	if (p->h_v_len() != 0) {
-		p->h_v_ptr()[p->h_v_len()] = '\0';
-
 		if (++p->recv_header_count >= max_head_count)
 			return -EACCES;
 		p->h_f_pos() = 0;
@@ -333,8 +331,6 @@ static int on_h_value(http_parser *parser, const char *at, size_t length)
 
 	if (p->h_v_len() == 0) {
 		p->h_v_pos() = (at - p->recv_buffer->ptr());
-
-		p->h_f_ptr()[p->h_f_len()] = '\0';
 	}
 	p->h_v_len() += length;
 	return 0;
@@ -344,7 +340,6 @@ static int on_h_done(http_parser *parser)
 {
 	HttpClient *p = (HttpClient*)parser->data;
 	if (p->h_v_len() != 0) {
-		p->h_v_ptr()[p->h_v_len()] = '\0';
 		p->recv_header_count++;
 	}
 

@@ -20,7 +20,7 @@ static void HttpSessionRelease(AObject *object)
 static int HttpSessionCreate(AObject **object, AObject *parent, AOption *option)
 {
 	HttpSession *s = (HttpSession*)*object;
-	s->active = GetTickCount();
+	s->active = 0;
 	s->ssid[0] = '\0';
 	s->user[0] = '\0';
 	s->manager = NULL;
@@ -76,6 +76,42 @@ static inline int user_cmp(const char *key, HttpUserSession *s) {
 }
 rb_tree_define(HttpUserSession, user_node, const char*, user_cmp)
 
+static void on_session_timeout(HttpSession *s)
+{
+	RB_CLEAR_NODE(&s->sess_node);
+	RB_CLEAR_NODE(&s->user_node);
+
+	if (s->parent != NULL) {
+		HttpSession *parent = to_sess(s->parent);
+
+		parent->lock();
+		list_del_init(&s->user_list);
+		parent->unlock();
+		AObjectRelease(&s->object);
+
+		//AObjectRelease(s->parent);
+		//s->parent = NULL;
+	/*} else {
+		s->lock();
+		struct list_head timeout_user = s->user_list;
+		INIT_LIST_HEAD(&s->user_list);
+		s->unlock();
+
+		while (!list_empty(&timeout_user)) {
+			HttpSession *user = list_first_entry(&timeout_user, HttpSession, user_list);
+			list_del_init(&user->user_list);
+
+			s->manager->on_session_timeout(user);
+		}*/
+	}
+}
+
+static void on_connect_timeout(HttpClient *conn)
+{
+	conn->active = 0;
+	conn->io->close(conn->io, NULL);
+}
+
 extern void SessionInit(HttpSessionManager *sm)
 {
 	INIT_RB_ROOT(&sm->sess_map);
@@ -84,25 +120,32 @@ extern void SessionInit(HttpSessionManager *sm)
 	pthread_mutex_init(&sm->mutex, NULL);
 	sm->genid = 0;
 
-	sm->asop.callback = &SessionCheck;
+	sm->asop.callback = NULL;
 	sm->check_timer = 5*1000;
+
 	sm->max_sess_live = 30*60*1000;
 	sm->sess_count = 0;
+	sm->on_session_timeout = &on_session_timeout;
+
 	sm->max_conn_live = 60*1000;
 	sm->conn_count = 0;
+	sm->on_connect_timeout = &on_connect_timeout;
 }
 
-static void SessionAdd(HttpSessionManager *sm, HttpSession *s, const char *ssid)
+static void SessionAdd(HttpSessionManager *sm, HttpSession *s, DWORD tick, const char *ssid)
 {
 	AObjectAddRef(&s->object);
+	s->active = tick;
 	strcpy_sz(s->ssid, ssid);
 	s->manager = sm;
+
 	rb_insert_HttpSession(&sm->sess_map, s, ssid);
 	++sm->sess_count;
 }
 
 extern HttpSession* SessionGet(HttpSessionManager *sm, const char *ssid, BOOL create)
 {
+	DWORD tick = GetTickCount();
 	sm->lock();
 	HttpSession *s = rb_find_HttpSession(&sm->sess_map, ssid);
 	if (s != NULL) {
@@ -110,7 +153,7 @@ extern HttpSession* SessionGet(HttpSessionManager *sm, const char *ssid, BOOL cr
 	} else if (create) {
 		int result = AObjectCreate2((AObject**)&s, NULL, NULL, &HttpSessionModule);
 		if (result >= 0)
-			SessionAdd(sm, s, ssid);
+			SessionAdd(sm, s, tick, ssid);
 	}
 	sm->unlock();
 	return s;
@@ -123,7 +166,8 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 	for (int ix = 0; ix < 10; ++ix)
 	{
 		long genid = InterlockedAdd(&sm->genid, 1);
-		int len = snprintf(ssid, sizeof(ssid)-1, "%s%08x%08x", user, GetTickCount(), genid);
+		DWORD tick = GetTickCount();
+		int len = snprintf(ssid, sizeof(ssid)-1, "%s%08x%08x", user, tick, genid);
 		ssid[len] = '\0';
 
 		sm->lock();
@@ -139,7 +183,7 @@ extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL re
 		else {
 			int result = AObjectCreate2((AObject**)&s, NULL, NULL, &HttpSessionModule);
 			if (result >= 0) {
-				SessionAdd(sm, s, ssid);
+				SessionAdd(sm, s, tick, ssid);
 
 				strcpy_sz(s->user, user);
 				if (parent == NULL) {
@@ -199,19 +243,16 @@ extern void SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), in
 	sm->unlock();
 }
 
-extern void SessionCheck(AOperator *asop, int result)
+extern void SessionCheck(HttpSessionManager *sm)
 {
-	HttpSessionManager *sm = container_of(asop, HttpSessionManager, asop);
-
 	struct list_head timeout_sess;
 	INIT_LIST_HEAD(&timeout_sess);
 
 	struct list_head timeout_conn;
 	INIT_LIST_HEAD(&timeout_conn);
 
-	sm->lock();
 	DWORD tick = GetTickCount();
-
+	sm->lock();
 	struct rb_node *node = rb_first(&sm->sess_map);
 	while (node != NULL)
 	{
@@ -222,11 +263,11 @@ extern void SessionCheck(AOperator *asop, int result)
 			continue;
 
 		rb_erase(&s->sess_node, &sm->sess_map);
-		if ((s->parent == NULL) && !RB_EMPTY_NODE(&s->user_node)) {
+		if ((s->parent == NULL) && !RB_EMPTY_NODE(&s->user_node))
 			rb_erase(&s->user_node, &sm->user_map);
-		}
 
 		list_add_tail(&s->timeout_entry, &timeout_sess);
+		--sm->sess_count;
 	}
 
 	HttpClient *conn = list_first_entry(&sm->conn_list, HttpClient, conn_entry);
@@ -245,26 +286,14 @@ extern void SessionCheck(AOperator *asop, int result)
 		HttpSession *s = list_first_entry(&timeout_sess, HttpSession, timeout_entry);
 		list_del_init(&s->timeout_entry);
 
-		if (s->parent != NULL) {
-			HttpSession *parent = to_sess(s->parent);
-
-			parent->lock();
-			list_del_init(&s->user_list);
-			parent->unlock();
-
-			//AObjectRelease(s->parent);
-			//s->parent = NULL;
-		}
+		sm->on_session_timeout(s);
 		AObjectRelease(&s->object);
 	}
 	while (!list_empty(&timeout_conn)) {
 		HttpClient *conn = list_first_entry(&timeout_conn, HttpClient, conn_entry);
 		list_del_init(&conn->conn_entry);
 
-		conn->io->close(conn->io, NULL);
+		sm->on_connect_timeout(conn);
 		AObjectRelease(&conn->object);
-	}
-	if (result >= 0) {
-		AOperatorTimewait(asop, NULL, sm->check_timer);
 	}
 }

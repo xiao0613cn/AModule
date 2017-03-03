@@ -31,9 +31,9 @@ static int FileOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	const char *mode = AOptionChild(option, "mode", "rwb");
+	const char *mode = AOptionGet(option, "mode", "rwb");
 
-	const char *path = AOptionChild(option, "path", NULL);
+	const char *path = AOptionGet(option, "path", NULL);
 	if (path == NULL)
 		return -EINVAL;
 

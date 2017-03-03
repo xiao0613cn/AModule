@@ -43,10 +43,8 @@ struct HttpClient {
 
 	int       recv_header_list[max_head_count][4];
 	int       recv_header_count;
-	char*     h_f_ptr() { return recv_header_list[recv_header_count][0] + recv_buffer->ptr(); }
 	int&      h_f_pos() { return recv_header_list[recv_header_count][0]; }
 	int&      h_f_len() { return recv_header_list[recv_header_count][1]; }
-	char*     h_v_ptr() { return recv_header_list[recv_header_count][2] + recv_buffer->ptr(); }
 	int&      h_v_pos() { return recv_header_list[recv_header_count][2]; }
 	int&      h_v_len() { return recv_header_list[recv_header_count][3]; }
 

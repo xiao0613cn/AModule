@@ -357,6 +357,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_m3u8.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
 				>
 			</File>

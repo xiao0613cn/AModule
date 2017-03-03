@@ -364,13 +364,13 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (server->option == NULL)
 		return -ENOMEM;
 
-	const char *af = AOptionChild(server->option, "family");
+	const char *af = AOptionGet(server->option, "family");
 	if ((af != NULL) && (_stricmp(af, "inet6") == 0))
 		server->io_family = AF_INET6;
 	else
 		server->io_family = AF_INET;
 
-	server->port = (u_short)AOptionChildInt(server->option, "port");
+	server->port = (u_short)AOptionGetInt(server->option, "port");
 	if (server->port == 0)
 		return -EINVAL;
 
@@ -378,16 +378,16 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
-	int backlog = AOptionChildInt(server->option, "backlog", 8);
+	int backlog = AOptionGetInt(server->option, "backlog", 8);
 	int result = listen(server->sock, backlog);
 	if (result != 0)
 		return -EIO;
 
-	server->io_module = AModuleFind("io", AOptionChild(server->option, "io", "tcp"));
+	server->io_module = AModuleFind("io", AOptionGet(server->option, "io", "tcp"));
 	server->async_tcp = (_stricmp(server->io_module->module_name, "async_tcp") == 0);
 	server->default_bridge = AOptionFind(server->option, "default_bridge");
 
-	if (!AOptionChildInt(server->option, "background", TRUE))
+	if (!AOptionGetInt(server->option, "background", TRUE))
 		return 1;
 
 	AObjectAddRef(&server->object);

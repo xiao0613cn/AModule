@@ -12,11 +12,31 @@
 function on_load_body()
 {
 	var vc = document.getElementById("vc");
-	vc.src = "http://" + location.hostname + ":8080/h264.m3u8";
+	vc.src = "http://192.168.40.16:8080/video.ts";
 	//alert(vc.src);
 	
 	//var xmlDoc = xml_createFromFile("PCClient_zh-cn.xml");
 	//alert(GetLanguageUtf8Text("COMMON", "BT_YES", xmlDoc));
+		
+	/*var xhr = new XMLHttpRequest();
+	xhr.onreadystatechange = function()
+	 {
+	     if (xhr.readyState==4 && xhr.status==200 && isDone == false)
+		{
+		    consols.log("xhr.xhr.response = " + xhr.response.length + "\n");
+		isDone = true;
+	    }
+	     else if(xhr.readyState == 3 && isDone == false){
+		 if(xhr.responseText.length > 0)
+		{
+		    //submitCallBack(xhr.responseText);
+		    consols.log("xhr.xhr.response = " + xhr.response.length + "\n");
+		    isDone = true;
+		}
+	    }
+	 }
+	 xhr.open("GET", "/video.ts");
+	 xhr.send();*/
 }
 
 function resp_text(xhr, status)

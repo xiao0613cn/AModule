@@ -792,11 +792,11 @@ int PVDProxyInit(AOption *global_option, AOption *module_option)
 		proactive_option = NULL;
 	if (proactive_option != NULL) {
 		proactive_io = AOptionFind(proactive_option, "io");
-		proactive_prefix = AOptionChild(proactive_option, "prefix");
-		proactive_first = AOptionChildInt(proactive_option, "first", 1);
+		proactive_prefix = AOptionGet(proactive_option, "prefix");
+		proactive_first = AOptionGetInt(proactive_option, "first", 1);
 	}
 
-	force_alarm = AOptionChildInt(module_option, "force_alarm", FALSE);
+	force_alarm = AOptionGetInt(module_option, "force_alarm", FALSE);
 
 	int result = -EFAULT;
 	AOption opt;

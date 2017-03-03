@@ -65,7 +65,7 @@ AMODULE_API void
 AOptionRelease(AOption *option);
 
 static inline const char*
-AOptionChild(AOption *option, const char *name, const char *def_value = NULL)
+AOptionGet(AOption *option, const char *name, const char *def_value = NULL)
 {
 	AOption *child = AOptionFind(option, name);
 	if ((child == NULL) || (child->value[0] == '\0'))
@@ -74,7 +74,7 @@ AOptionChild(AOption *option, const char *name, const char *def_value = NULL)
 }
 
 static inline const char*
-AOptionChild2(AOption *option, const char *name, const char *def_value = NULL)
+AOptionGet2(AOption *option, const char *name, const char *def_value = NULL)
 {
 	AOption *child = AOptionFind(option, name);
 	if (child == NULL)
@@ -83,7 +83,7 @@ AOptionChild2(AOption *option, const char *name, const char *def_value = NULL)
 }
 
 static inline int
-AOptionChildInt(AOption *option, const char *name, int def_value = 0)
+AOptionGetInt(AOption *option, const char *name, int def_value = 0)
 {
 	AOption *child = AOptionFind(option, name);
 	if ((child == NULL) || (child->value[0] == '\0'))
@@ -92,12 +92,25 @@ AOptionChildInt(AOption *option, const char *name, int def_value = 0)
 }
 
 static inline char*
-AOptionChild2(struct list_head *list, const char *name, char *def_value = NULL)
+AOptionGet2(struct list_head *list, const char *name, char *def_value = NULL)
 {
 	AOption *child = AOptionFind2(list, name);
 	if (child == NULL)
 		return def_value;
 	return child->value;
+}
+
+static inline int
+AOptionSet2(struct list_head *list, const char *name, const char *value)
+{
+	AOption *child = AOptionFind2(list, name);
+	if (child == NULL) {
+		child = AOptionCreate2(list);
+		if (child == NULL)
+			return -ENOMEM;
+		strcpy_sz(child->name, name);
+	}
+	strcpy_sz(child->value, value);
 }
 
 static inline void

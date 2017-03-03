@@ -38,10 +38,14 @@ struct HttpSessionManager {
 
 	AOperator       asop;
 	DWORD           check_timer;
+
 	DWORD           max_sess_live;
 	long volatile   sess_count;
+	void          (*on_session_timeout)(HttpSession*);
+
 	DWORD           max_conn_live;
 	long volatile   conn_count;
+	void          (*on_connect_timeout)(HttpClient*);
 
 	void push(HttpClient *p) {
 		p->object.addref();
@@ -56,6 +60,6 @@ extern void         SessionInit(HttpSessionManager *sm);
 extern HttpSession* SessionGet(HttpSessionManager *sm, const char *ssid, BOOL create);
 extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL reuse);
 extern void         SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), int(*cb2)(HttpClient*,void*), void *arg);
-extern void         SessionCheck(AOperator *asop, int result);
+extern void         SessionCheck(HttpSessionManager *sm);
 
 #endif
