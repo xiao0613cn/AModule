@@ -69,6 +69,19 @@ AMsgListClear(struct list_head *head, int result)
 	}
 }
 
+static inline void
+AMsgListPush(pthread_mutex_t *mutex, struct list_head *list, AMessage *msg)
+{
+	pthread_mutex_lock(mutex);
+	list_add_tail(&msg->entry, list);
+	pthread_mutex_unlock(mutex);
+}
+
+AMODULE_API AMessage*
+AMsgDispatch(struct list_head *notify_list, AMessage *from, struct list_head *quit_list);
+
+AMODULE_API int
+AMsgDispatch2(pthread_mutex_t *mutex, struct list_head *notify_list, AMessage *from);
 
 // extented struct AMessage
 //////////////////////////////////////////////////////////////////////////
@@ -190,6 +203,12 @@ typedef struct ARefsChain
 	char*   ptr() { return buf->data + pos; }
 #endif
 } ARefsChain;
+
+static inline int
+ARefsChainCheckBuf(ARefsChain *&chain, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
+{
+
+}
 
 // ARefsMsg::msg.type = AMsgType_RefsMsg
 typedef struct ARefsMsg

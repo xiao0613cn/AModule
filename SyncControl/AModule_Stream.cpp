@@ -293,32 +293,6 @@ static int SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 	return sc->stream->close(sc->stream, &req->msg);
 }
 
-static AMessage* NotifyDispatch(struct list_head *notify_list, AMessage *from, struct list_head *quit_list)
-{
-	AMessage *pos;
-	list_for_each_entry(pos, notify_list, AMessage, entry)
-	{
-		if ((from->type != AMsgType_Unknown)
-		 && (pos->type != AMsgType_Unknown)
-		 && (pos->type != from->type))
-			continue;
-
-		AMsgInit(pos, from->type, from->data, from->size);
-		int result = pos->done(pos, 0);
-		if (result == 0)
-			continue;
-
-		if (result > 0) {
-			list_del_init(&pos->entry);
-			return pos;
-		}
-
-		pos = list_entry(pos->entry.prev, AMessage, entry);
-		list_move_tail(pos->entry.next, quit_list);
-	}
-	return NULL;
-}
-
 static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 {
 	SyncControl *sc = req->sc;
@@ -333,7 +307,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 
 		pthread_mutex_lock(&req->mutex);
 		if (result >= 0) {
-			msg = NotifyDispatch(&req->notify_list, &req->msg, &quit_list);
+			msg = AMsgDispatch(&req->notify_list, &req->msg, &quit_list);
 		} else {
 			msg = NULL;
 		}
@@ -384,26 +358,6 @@ static int SyncRequestDone(AMessage *msg, int result)
 
 	SyncRequestDispatchRequest(req, result);
 	return result;
-}
-
-static int SyncRequestDispatchNotify(SyncRequest *req, AMessage *from)
-{
-	struct list_head quit_list;
-	INIT_LIST_HEAD(&quit_list);
-
-	pthread_mutex_lock(&req->mutex);
-	AMessage *msg = NotifyDispatch(&req->notify_list, from, &quit_list);
-	pthread_mutex_unlock(&req->mutex);
-
-	if (msg != NULL) {
-		msg->done(msg, 1);
-	}
-	while (!list_empty(&quit_list)) {
-		msg = list_first_entry(&quit_list, AMessage, entry);
-		list_del_init(&msg->entry);
-		msg->done(msg, -1);
-	}
-	return 1;
 }
 
 static int SyncRequestCancelDispath(SyncRequest *req, AMessage *from)
@@ -457,7 +411,7 @@ static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 		return -ENOENT;
 
 	if (flag == Aiosync_NotifyDispath)
-		return SyncRequestDispatchNotify(req, msg);
+		return AMsgDispatch2(&req->mutex, &req->notify_list, msg);
 
 	int result;
 	pthread_mutex_lock(&req->mutex);

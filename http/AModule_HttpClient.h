@@ -50,10 +50,12 @@ struct HttpClient {
 
 	ARefsBuf *recv_header_buffer;
 	int       recv_header_pos;
-	char*     h_f_data(int ix) { return recv_header_list[ix][0] + recv_header_buffer->data + recv_header_pos; }
-	int&      h_f_size(int ix) { return recv_header_list[ix][1]; }
-	char*     h_v_data(int ix) { return recv_header_list[ix][2] + recv_header_buffer->data + recv_header_pos; }
-	int&      h_v_size(int ix) { return recv_header_list[ix][3]; }
+	char*     h_f_ptr(int ix) { return recv_header_list[ix][0] + recv_header_buffer->data + recv_header_pos; }
+	int&      h_f_pos(int ix) { return recv_header_list[ix][0]; }
+	int&      h_f_len(int ix) { return recv_header_list[ix][1]; }
+	char*     h_v_ptr(int ix) { return recv_header_list[ix][2] + recv_header_buffer->data + recv_header_pos; }
+	int&      h_v_pos(int ix) { return recv_header_list[ix][2]; }
+	int&      h_v_len(int ix) { return recv_header_list[ix][3]; }
 
 	ARefsBuf *recv_buffer;
 	int       recv_body_pos;
@@ -61,13 +63,6 @@ struct HttpClient {
 
 	AMessage  recv_msg;
 	AMessage *recv_from;
-
-	// used by HttpSession
-	DWORD     active;
-	AObject  *session;
-	struct list_head conn_entry;
-	AObject  *proc;
-	ARefsBuf *proc_buf;
 };
 #define to_http(obj)   container_of(obj, HttpClient, object)
 
@@ -82,9 +77,11 @@ static inline const char*
 HeaderGet(HttpClient *p, const char *header, int &len)
 {
 	for (int ix = 1; ix < p->recv_header_count; ++ix) {
-		if (_stricmp(header, p->h_f_data(ix)) == 0) {
-			len = p->h_v_size(ix);
-			return p->h_v_data(ix);
+		if ((_strnicmp(header, p->h_f_ptr(ix), p->h_f_len(ix)) == 0)
+		 && (header[p->h_f_len(ix)] == '\0'))
+		{
+			len = p->h_v_len(ix);
+			return p->h_v_ptr(ix);
 		}
 	}
 	return NULL;

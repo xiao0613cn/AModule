@@ -1,6 +1,24 @@
 #include "stdafx.h"
-#include <map>
+//#include <map>
 #include "base/AModule_API.h"
+
+extern AModule TCPModule;
+extern AModule FileModule;
+extern AModule TCPServerModule;
+extern AModule AsyncTcpModule;
+extern AModule SyncControlModule;
+extern AModule PVDClientModule;
+extern AModule PVDRTModule;
+extern AModule HTTPProxyModule;
+extern AModule PVDProxyModule;
+extern AModule DumpModule;
+extern AModule EchoModule;
+extern AModule HttpClientModule;
+
+#ifndef _WINDLL
+#ifdef _WIN32
+extern AModule M3U8ProxyModule;
+#endif
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 extern "C" {
@@ -161,30 +179,10 @@ void __stdcall rbtree_test()
 	getchar();
 }
 
-#if 1
-extern AModule TCPModule;
-extern AModule FileModule;
-extern AModule TCPServerModule;
-extern AModule AsyncTcpModule;
-extern AModule SyncControlModule;
-extern AModule PVDClientModule;
-extern AModule PVDRTModule;
-extern AModule HTTPProxyModule;
-extern AModule PVDProxyModule;
-extern AModule DumpModule;
-#ifdef _WIN32
-extern AModule M3U8ProxyModule;
-#endif
-extern AModule EchoModule;
-extern AModule HttpClientModule;
-
-
-#ifndef _WINDLL
-
 static const char *pvd_path =
 	"stream: PVDClient {"
-	"       io: async_tcp {"
-	"		address: '192.168.20.163',"
+	"       io: tcp {"
+	"		address: '192.168.60.227',"
 	"		port: 8101,"
 	"               timeout: 5,"
 	"	},"
@@ -198,7 +196,7 @@ static const char *g_opt =
 "global_param {"
 "PVDProxy {"
 "       io: async_tcp {"
-"		address: '192.168.40.16',"
+"		address: '192.168.60.227',"
 "		port: 8101,"
 "               timeout: 5,"
 "	},"
@@ -208,7 +206,6 @@ static const char *g_opt =
 "	channel: 0,"
 "	linkmode: 0,"
 "	channel_count: ,"
-"	m3u8_proxy: 0,"
 "	proactive: 1 {"
 "		io: async_tcp {"
 "			address: '192.168.20.16',"
@@ -219,6 +216,7 @@ static const char *g_opt =
 "		first: 100,"
 "	},"
 "},"
+"M3U8Proxy: 0,"
 "}";
 
 struct RecvMsg {
@@ -226,6 +224,7 @@ struct RecvMsg {
 	AOperator op;
 	AObject *pvd;
 	int     reqix;
+	AOption *option;
 };
 
 int CloseDone(AMessage *msg, int result)
@@ -248,14 +247,36 @@ void* RecvCB2(void *p)
 
 	int result;
 	do {
-		AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+		if (rm->reqix == Aio_Output) {
+		for (int ix = 0; ix < 10; ++ix) {
+			Sleep(3000);
+			pvdnet_head header;
+			rm->msg.type = AMsgType_Private|NET_SDVR_SHAKEHAND;
+			rm->msg.data = (char*)&header;
+			rm->msg.size = PVDCmdEncode(0, &header, NET_SDVR_SHAKEHAND, 0);
+			ioInput(rm->pvd, &rm->msg);
+
+			rm->msg.init();
+			ioOutput(rm->pvd, &rm->msg);
+		} }
+
+		rm->msg.init();
 		result = rm->pvd->request(rm->pvd, rm->reqix, &rm->msg);
-	} while (!g_abort && (result > 0));
+		Sleep(5000);
+
+		result = rm->pvd->close(rm->pvd, NULL);
+		result = rm->pvd->close(rm->pvd, &rm->msg);
+		TRACE("%p: close() = %d.\n", rm->pvd, result);
+
+		rm->msg.init(rm->option);
+		result = rm->pvd->open(rm->pvd, &rm->msg);
+		TRACE("%p: open() = %d.\n", rm->pvd, result);
+	} while (!g_abort);
 
 	TRACE("%p: recv result = %d, msg type = %d, size = %d.\n",
 		rm->pvd, result, rm->msg.type&~AMsgType_Private, rm->msg.size);
 
-	AMsgInit(&rm->msg, AMsgType_Unknown, NULL, 0);
+	rm->msg.init();
 	rm->msg.done = CloseDone;
 
 	result = rm->pvd->close(rm->pvd, &rm->msg);
@@ -263,7 +284,7 @@ void* RecvCB2(void *p)
 		CloseDone(&rm->msg, result);
 	return NULL;
 }
-int RecvCB(AOperator *op, int result)
+void RecvCB(AOperator *op, int result)
 {
 	RecvMsg *rm = container_of(op, RecvMsg, op);
 	if (result >= 0) {
@@ -271,7 +292,6 @@ int RecvCB(AOperator *op, int result)
 	} else {
 		CloseDone(&rm->msg, result);
 	}
-	return 0;
 }
 void* SendHeart(void *p)
 {
@@ -355,16 +375,18 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = Aio_Output;
+		rm->option = AOptionClone(option, NULL);
+		rm->op.callback = &RecvCB;
 		pthread_create(&thread, NULL, &RecvCB2, rm);
 		pthread_detach(thread);
 		rm = NULL;
 
-		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
+		/*rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = pvd; AObjectAddRef(pvd);
 		rm->reqix = Aio_Input;
 		pthread_create(&thread, NULL, &SendHeart, rm);
 		pthread_detach(thread);
-		rm = NULL;
+		rm = NULL;*/
 	}
 	if (pvd != NULL) {
 		strcpy_sz(option->value, "PVDRTStream");
@@ -378,6 +400,8 @@ _retry:
 		rm = (RecvMsg*)malloc(sizeof(RecvMsg));
 		rm->pvd = rt; AObjectAddRef(rt);
 		rm->reqix = 0;
+		rm->option = AOptionClone(option, NULL);
+		rm->op.callback = &RecvCB;
 		pthread_create(&thread, NULL, &RecvCB2, rm);
 		pthread_detach(thread);
 		rm = NULL;
@@ -839,6 +863,21 @@ BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
 	switch (dwReason)
 	{
 	case DLL_PROCESS_ATTACH:
+		AModuleInitOption(NULL);
+		AThreadBegin(NULL, NULL, 20*1000);
+		AModuleRegister(&TCPModule);
+		AModuleRegister(&FileModule);
+		AModuleRegister(&TCPServerModule);
+		AModuleRegister(&AsyncTcpModule);
+		AModuleRegister(&SyncControlModule);
+		AModuleRegister(&PVDClientModule);
+		AModuleRegister(&PVDRTModule);
+		AModuleRegister(&HTTPProxyModule);
+		AModuleRegister(&PVDProxyModule);
+		AModuleRegister(&DumpModule);
+	//	AModuleRegister(&M3U8ProxyModule);
+		AModuleRegister(&EchoModule);
+		AModuleRegister(&HttpClientModule);
 		break;
 	case DLL_THREAD_ATTACH:
 		break;
@@ -850,5 +889,4 @@ BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
 	return TRUE;
 }
 
-#endif
 #endif

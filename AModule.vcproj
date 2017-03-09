@@ -325,6 +325,10 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\base\AMessage.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AModule.cpp"
 				>
 			</File>
@@ -357,10 +361,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\proxy\AModule_m3u8.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
 				>
 			</File>
@@ -370,6 +370,10 @@
 			</File>
 			<File
 				RelativePath=".\PVDClient\AModule_PVDRTStream.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\proxy\AModule_Session.cpp"
 				>
 			</File>
 			<File
@@ -405,7 +409,6 @@
 					<Tool
 						Name="VCCLCompilerTool"
 						UsePrecompiledHeader="0"
-						DisableSpecificWarnings="4127;4244"
 					/>
 				</FileConfiguration>
 				<FileConfiguration
@@ -538,6 +541,10 @@
 			</File>
 			<File
 				RelativePath=".\rpc\AModule_rpc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\proxy\AModule_Session.h"
 				>
 			</File>
 			<File
@@ -717,11 +724,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
+				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
@@ -853,19 +860,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File

@@ -43,7 +43,7 @@ AModuleRegister(AModule *module)
 	}
 
 	AOption *option = AOptionFind(g_option, module->module_name);
-	if (option == NULL)
+	if ((g_option != NULL) && (option == NULL))
 		option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
 	int result = module->init(g_option, option);
@@ -197,11 +197,13 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 	const char *class_name = NULL;
 	const char *module_name = NULL;
 	if (option != NULL) {
-		class_name = option->name;
-		if (option->value[0] != '\0')
+		if (option->value[0] != '\0') {
+			class_name = option->name;
 			module_name = option->value;
-		else
+		} else {
+			class_name = NULL;
 			module_name = option->name;
+		}
 	} else {
 		module_name = default_module;
 	}

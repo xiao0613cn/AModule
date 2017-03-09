@@ -70,7 +70,7 @@ iocp_sendv(SOCKET sock, WSABUF *buffer, int count, WSAOVERLAPPED *ovlp)
 	return 0;
 }
 
-AMODULE_API int
+static inline int
 iocp_send(SOCKET sock, const char *data, int size, WSAOVERLAPPED *ovlp)
 {
 	WSABUF buffer;

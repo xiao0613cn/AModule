@@ -4,62 +4,32 @@
 #ifndef _AMODULE_HTTPCLIENT_H_
 #include "../http/AModule_HttpClient.h"
 #endif
+#ifndef _AMODULE_SESSION_H_
+#include "AModule_Session.h"
+#endif
 
-struct HttpSessionManager;
+// HttpClient::url used by SessionCtx
+struct HttpCtxExt {
+	HttpClient* p() { return container_of(this, HttpClient, url); }
+	SessionManager  *sm;
+	struct list_head sm_conn_entry;
 
-struct HttpSession {
-	AObject object;
-	DWORD   active;
-	char    ssid[128];
-	char    user[48];
-	HttpSessionManager *manager;
+	DWORD     active;
+	AObject  *session;
+	struct list_head sess_conn_entry;
+	ARefsBuf *proc_buf;
 
-	struct list_head msg_list;
-	struct list_head user_list;
-	AObject         *parent;
-	pthread_mutex_t  mutex;
-	void lock() { pthread_mutex_lock(&mutex); }
-	void unlock() { pthread_mutex_unlock(&mutex); }
+	uint8_t   recv_param_list[25][4];
+	int       recv_param_count;
+	char*     p_n_ptr(int ix) { return recv_param_list[ix][0] + p()->h_f_ptr(0); }
+	uint8_t&  p_n_pos(int ix) { return recv_param_list[ix][0]; }
+	uint8_t&  p_n_len(int ix) { return recv_param_list[ix][1]; }
+	char*     p_v_ptr(int ix) { return recv_param_list[ix][2] + p()->recv_header_buffer->data + p()->recv_header_pos; }
+	uint8_t&  p_v_pos(int ix) { return recv_param_list[ix][2]; }
+	uint8_t&  p_v_len(int ix) { return recv_param_list[ix][3]; }
 
-	struct rb_node   sess_node;
-	struct rb_node   user_node;
-	struct list_head timeout_entry;
+	AOperator asop;
+	int       segix;
 };
-#define to_sess(obj)  container_of(obj, HttpSession, object)
-
-struct HttpSessionManager {
-	struct rb_root  sess_map;
-	struct rb_root  user_map;
-	struct list_head conn_list;
-	pthread_mutex_t mutex;
-	void lock() { pthread_mutex_lock(&mutex); }
-	void unlock() { pthread_mutex_unlock(&mutex); }
-	long volatile   genid;
-
-	AOperator       asop;
-	DWORD           check_timer;
-
-	DWORD           max_sess_live;
-	long volatile   sess_count;
-	void          (*on_session_timeout)(HttpSession*);
-
-	DWORD           max_conn_live;
-	long volatile   conn_count;
-	void          (*on_connect_timeout)(HttpClient*);
-
-	void push(HttpClient *p) {
-		p->object.addref();
-		lock();
-		++conn_count;
-		list_add_tail(&p->conn_entry, &conn_list);
-		unlock();
-	}
-};
-
-extern void         SessionInit(HttpSessionManager *sm);
-extern HttpSession* SessionGet(HttpSessionManager *sm, const char *ssid, BOOL create);
-extern HttpSession* SessionNew(HttpSessionManager *sm, const char *user, BOOL reuse);
-extern void         SessionEnum(HttpSessionManager *sm, int(*cb)(HttpSession*,void*), int(*cb2)(HttpClient*,void*), void *arg);
-extern void         SessionCheck(HttpSessionManager *sm);
 
 #endif

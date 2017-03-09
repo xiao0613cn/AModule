@@ -3,21 +3,24 @@
 #include "../io/AModule_io.h"
 #include "AModule_HttpSession.h"
 
-static HttpSessionManager sm;
+
+static SessionManager sm;
 
 static void HttpProxyClose(HttpClient *p)
 {
-	if (p->session != NULL) {
-		HttpSession *s = to_sess(p->session);
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
+	if (ctx->session != NULL) {
+		SessionCtx *s = to_sess(ctx->session);
 
 		s->lock();
-		list_del_init(&p->conn_entry);
+		list_del_init(&ctx->sess_conn_entry);
 		s->unlock();
 
-		AObjectRelease(p->session);
-		p->session = NULL;
+		AObjectRelease(ctx->session);
+		ctx->session = NULL;
 	}
-	p->active = 0;
+	ctx->active = 0;
+	release_s(ctx->proc_buf, ARefsBufRelease, NULL);
 	AObjectRelease(&p->object);
 }
 
@@ -37,10 +40,11 @@ static int HttpProxySendDone(AMessage *msg, int result)
 
 static int HttpGetFile(HttpClient *p, const char *url)
 {
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 	int status_code = 200;
 	long file_size = 0;
 
-	p->h_f_data(0)[p->h_f_size(0)] = '\0';
+	p->h_f_ptr(0)[p->h_f_len(0)] = '\0';
 	FILE *fp = fopen(url, "rb");
 	if (fp == NULL) {
 		status_code = 404;
@@ -52,12 +56,12 @@ static int HttpGetFile(HttpClient *p, const char *url)
 
 	if (file_size <= 0) {
 		status_code = 404;
-	} else if (ARefsBufCheck(p->proc_buf, file_size, recv_bufsiz, NULL, NULL) < 0) {
+	} else if (ARefsBufCheck(ctx->proc_buf, file_size, recv_bufsiz, NULL, NULL) < 0) {
 		status_code = 501;
-	} else if (fread(p->proc_buf->data, file_size, 1, fp) != 1) {
+	} else if (fread(ctx->proc_buf->data, file_size, 1, fp) != 1) {
 		status_code = 502;
 	} else {
-		p->recv_msg.init(ioMsgType_Block, p->proc_buf->data, file_size);
+		p->recv_msg.init(ioMsgType_Block, ctx->proc_buf->data, file_size);
 	}
 	release_s(fp, fclose, NULL);
 
@@ -71,19 +75,20 @@ static int HttpGetFile(HttpClient *p, const char *url)
 }
 
 #define append_proc(fmt, ...) \
-	p->recv_msg.size += snprintf(p->proc_buf->data+p->recv_msg.size, p->proc_buf->size-p->recv_msg.size, fmt, ##__VA_ARGS__)
+	p->recv_msg.size += snprintf(ctx->proc_buf->data+p->recv_msg.size, ctx->proc_buf->size-p->recv_msg.size, fmt, ##__VA_ARGS__)
 
 static int HttpProxyGetStatus(AMessage *msg, int result)
 {
 	HttpClient *p = container_of(msg, HttpClient, send_msg);
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 
-	result = ARefsBufCheck(p->proc_buf, 4096, 0, NULL, NULL);
+	result = ARefsBufCheck(ctx->proc_buf, 4096, 0, NULL, NULL);
 	if (result < 0)
 		return result;
 
-	p->recv_msg.init(ioMsgType_Block, p->proc_buf->data, 0);
+	p->recv_msg.init(ioMsgType_Block, ctx->proc_buf->data, 0);
 	append_proc("<html><body>connect count=%d</body></html>",
-		sm.conn_count);
+		ctx->sm->conn_count);
 
 	append_data("HTTP/%d.%d 200 OK\r\n",
 		p->recv_parser.http_major, p->recv_parser.http_minor);
@@ -101,28 +106,26 @@ struct media_file_t {
 	int   nb_buffers;
 	ARefsBuf *buffers[16];
 };
-struct ctx_ext {
-	AOperator asop;
-	HttpClient *p;
-	int       ixbuf;
-};
 extern DWORD media_file_get(media_file_t *seg, DWORD cseq);
 extern void media_file_release(media_file_t *mf);
 
 static void HttpProxySendTS_wait(AOperator *asop, int result)
 {
-	ctx_ext *ext = container_of(asop, ctx_ext, asop);
+	HttpCtxExt *ctx = container_of(asop, HttpCtxExt, asop);
 	if (result >= 0) {
-		result = (ext->p->active != 0) ? 1 : -EIO;
+		result = (ctx->active != 0) ? 1 : -EIO;
 	}
-	ext->p->send_msg.done(&ext->p->send_msg, result);
+	ctx->p()->send_msg.done(&ctx->p()->send_msg, result);
 }
 static int HttpProxyGetTS(AMessage *msg, int result)
 {
 	HttpClient *p = container_of(msg, HttpClient, send_msg);
-	media_file_t *mf = (media_file_t*)p->url;
-	ctx_ext *ext = (ctx_ext*)(mf + 1);
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
+	media_file_t *mf = (media_file_t*)(ctx+1);
 
+#ifdef _WINDLL
+	{
+#else
 	while (result > 0)
 	{
 		switch (p->send_status)
@@ -141,24 +144,23 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 
 		case s_send_header:
 			if (media_file_get(mf, mf->media_sequence+1) == 0) {
-				ext->asop.callback = &HttpProxySendTS_wait;
-				ext->p = p;
-				AOperatorTimewait(&ext->asop, NULL, 20);
+				ctx->asop.callback = &HttpProxySendTS_wait;
+				AOperatorTimewait(&ctx->asop, NULL, 20);
 				return 0;
 			}
 
-			p->active = GetTickCount();
+			ctx->active = GetTickCount();
 			p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 			append_data("%x\r\n", mf->content_length);
-			ext->ixbuf = 0;
+			ctx->segix = 0;
 
 			p->send_status = s_send_content_data;
 			result = ioInput(p->io, &p->send_msg);
 			break;
 
 		case s_send_content_data:
-			p->send_msg.init(ioMsgType_Block, mf->buffers[ext->ixbuf]->ptr(), mf->buffers[ext->ixbuf]->len());
-			if (++ext->ixbuf == mf->nb_buffers)
+			p->send_msg.init(ioMsgType_Block, mf->buffers[ctx->segix]->ptr(), mf->buffers[ctx->segix]->len());
+			if (++ctx->segix == mf->nb_buffers)
 				p->send_status = s_send_chunk_tail;
 			result = ioInput(p->io, &p->send_msg);
 			break;
@@ -179,6 +181,7 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 	}
 	if (result < 0) {
 		media_file_release(mf);
+#endif
 		HttpProxyClose(p);
 	}
 	return 0;
@@ -203,15 +206,16 @@ HttpDispatchMap[] = {
 static int HttpProxyDispatch(AMessage *msg, int result)
 {
 	HttpClient *p = container_of(msg, HttpClient, send_msg);
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 	while (result > 0)
 	{
+		ctx->active = GetTickCount();
 		assert(p->send_status == s_invalid);
-		p->active = GetTickCount();
 		p->send_msg.init(ioMsgType_Block, p->send_buffer, 0);
 		p->recv_msg.init();
 		p->recv_msg.done = &HttpProxySendDone;
 
-		const char *url = p->h_f_data(0);
+		const char *url = p->h_f_ptr(0);
 		for (const struct HttpDispatch *d = HttpDispatchMap; d->url != NULL; ++d) {
 			if (_strnicmp(url, d->url, d->len) == 0)
 			{
@@ -242,6 +246,15 @@ _check:
 	return result;
 }
 
+static void on_http_timeout(struct list_head *conn)
+{
+	HttpCtxExt *ctx = container_of(conn, HttpCtxExt, sm_conn_entry);
+	HttpClient *p = ctx->p();
+	ctx->active = 0;
+	p->io->close(p->io, NULL);
+	p->object.release2();
+}
+
 static int HttpProxyOpen(AObject *object, AMessage *msg)
 {
 	HttpClient *p = to_http(object);
@@ -250,8 +263,15 @@ static int HttpProxyOpen(AObject *object, AMessage *msg)
 		return result;
 
 	AObjectAddRef(&p->object);
-	p->active = GetTickCount();
-	sm.push(p);
+	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
+	ctx->active = GetTickCount();
+	ctx->session = NULL;
+	ctx->proc_buf = NULL;
+	ctx->recv_param_count = 0;
+
+	ctx->sm = &sm;
+	p->object.addref();
+	sm.push(&ctx->sm_conn_entry);
 
 	p->send_msg.init();
 	p->send_msg.done = &HttpProxyDispatch;
@@ -275,18 +295,25 @@ static int HttpProxyProbe(AObject *object, AMessage *msg)
 
 static void HttpProxyCheck(AOperator *asop, int result)
 {
-	HttpSessionManager *sm = container_of(asop, HttpSessionManager, asop);
-	SessionCheck(sm);
+	SessionManager *sm = container_of(asop, SessionManager, check_timer);
 	if (result >= 0) {
-		AOperatorTimewait(asop, NULL, sm->check_timer);
+		SessionCheck(sm);
+
+		AOperatorTimewait(&sm->check_timer, NULL, 5000);
+	} else {
+		//shutdown
 	}
 }
 
 static int HttpProxyInit(AOption *global_option, AOption *module_option)
 {
-	SessionInit(&sm);
-	sm.asop.callback = &HttpProxyCheck;
-	AOperatorTimewait(&sm.asop, NULL, sm.check_timer);
+	SessionInit(&sm, NULL);
+
+	sm.conn_tick_offset = offsetof(HttpCtxExt, active) - offsetof(HttpCtxExt, sm_conn_entry);
+	sm.on_connect_timeout = &on_http_timeout;
+
+	sm.check_timer.callback = &HttpProxyCheck;
+	AOperatorTimewait(&sm.check_timer, NULL, 5000);
 	return 0;
 }
 

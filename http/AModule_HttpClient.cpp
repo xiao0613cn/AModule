@@ -12,11 +12,6 @@ extern void HttpClientRelease(AObject *object)
 	AOptionClear(&p->send_headers);
 	release_s(p->recv_buffer, ARefsBufRelease, NULL);
 	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
-
-	release_s(p->session, AObjectRelease, NULL);
-	assert(list_empty(&p->conn_entry));
-	release_s(p->proc, AObjectRelease, NULL);
-	release_s(p->proc_buf, ARefsBufRelease, NULL);
 }
 
 static void HttpClientResetStatus(HttpClient *p)
@@ -49,12 +44,6 @@ extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	p->recv_buffer = NULL;
 	p->recv_header_buffer = NULL;
 	HttpClientResetStatus(p);
-
-	p->active = 0;
-	p->session = NULL;
-	INIT_LIST_HEAD(&p->conn_entry);
-	p->proc = NULL;
-	p->proc_buf = NULL;
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if ((p->io == NULL) && (io_opt != NULL))
@@ -467,7 +456,7 @@ _continue:
 	if (result == 1) {
 	for (int ix = 0; ix < p->recv_header_count; ++ix) {
 		TRACE2("http header: %.*s: %.*s\r\n",
-			p->h_f_size(ix), p->h_f_data(ix), p->h_v_size(ix), p->h_v_data(ix));
+			p->h_f_len(ix), p->h_f_ptr(ix), p->h_v_len(ix), p->h_v_ptr(ix));
 	}
 	}
 	return AMsgType_Private|((p->recv_parser.type == HTTP_REQUEST) ? p->recv_parser.method : p->recv_parser.status_code);

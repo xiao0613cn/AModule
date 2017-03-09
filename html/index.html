@@ -75,15 +75,16 @@ function showHint(txt_ele)
 	建议：<span id="txtHint"></span>
 </p>
 
-<video id="vc" controls="controls" loop="loop" width="100%" >
+<video id="vc" controls="controls" loop="loop" width="400" height="300" >
+	您的浏览器不支持 video 标签。
+</video>
+
+<input type="button" onclick="play_vc2(this);" value="play_vc2" />
+<video id="vc2" controls="controls" width="400" height="300" >
 	您的浏览器不支持 video 标签。
 </video>
 
 <!--
-<video id="vc2" src="./file/file.m3u8" controls="controls" width="100%" >
-	您的浏览器不支持 video 标签。
-</video>
-
 <video id="vc3" src="./file/file.m3u8" width="100%" controls="controls" >
 	您的浏览器不支持 video 标签。
 </video>
