@@ -79,7 +79,7 @@ static void PVDProxyRelease(AObject *object)
 
 	while (p->frame_queue.size() != 0) {
 		ARefsBufRelease(p->frame_queue.front().buf);
-		p->frame_queue.get_front();
+		p->frame_queue.pop_front();
 	}
 }
 static int PVDProxyCreate(AObject **object, AObject *parent, AOption *option)
@@ -206,7 +206,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 			break;
 
 		ARefsBufRelease(frame.buf);
-		p->frame_queue.get_front();
+		p->frame_queue.pop_front();
 	} while (result > 0);
 	if (result != 0) {
 		p->reqcount = -1;
@@ -224,7 +224,7 @@ static int PVDProxyStreamDone(AMessage *msg, int result)
 	PVDProxy *p = from_inmsg(msg);
 	if (result > 0) {
 		ARefsBufRelease(p->frame_queue.front().buf);
-		p->frame_queue.get_front();
+		p->frame_queue.pop_front();
 
 		PVDProxySendStream(&p->timer, 1);
 	} else {

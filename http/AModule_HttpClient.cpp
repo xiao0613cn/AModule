@@ -82,7 +82,7 @@ int HttpClientOnOpen(HttpClient *p, int result)
 	AOption *option = (AOption*)p->send_from->data;
 
 	// method
-	AObjectSetKV(&p->object, kv_map, option);
+	AObjectSetKVMap(&p->object, kv_map, option, TRUE);
 
 	// send_headers
 	AOption *pos;

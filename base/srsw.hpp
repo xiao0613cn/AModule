@@ -70,18 +70,17 @@ public:
 			++put_index;
 		item_count += 1;
 	}
-	size_t put_back(const item_t &i)
+	void put_back(const item_t &i)
 	{
 		end() = i;
 		put_end();
-		return size();
 	}
 
 	item_t& front(void)
 	{
 		return item_array[get_index];
 	}
-	void get_front(void)
+	void pop_front(void)
 	{
 		if (get_index == capacity-1)
 			get_index = 0;
@@ -89,11 +88,10 @@ public:
 			++get_index;
 		item_count -= 1;
 	}
-	size_t get_front(item_t &i)
+	void get_front(item_t &i)
 	{
 		i = front();
-		get_front();
-		return size();
+		pop_front();
 	}
 };
 

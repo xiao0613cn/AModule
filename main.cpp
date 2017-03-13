@@ -25,7 +25,7 @@ extern "C" {
 #include "http/http_parser.h"
 #include "base/wait_queue.h"
 };
-#include "rpc/AModule_rpc.h"
+//#include "rpc/AModule_rpc.h"
 
 DWORD async_test_tick;
 AOperator asop_list[20];

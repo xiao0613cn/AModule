@@ -136,7 +136,7 @@ AMODULE_API int
 AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt);
 
 AMODULE_API int
-AObjectSetKV(AObject *object, const ObjKV *kv_map, AOption *option);
+AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip_unfound);
 
 AMODULE_API int
 AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map);

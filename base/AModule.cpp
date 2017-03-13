@@ -227,7 +227,7 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 
 		AObjectInit(*object, module);
 		if ((*object)->module->kv_map != NULL)
-			AObjectSetKV(*object, (*object)->module->kv_map, option);
+			AObjectSetKVMap(*object, (*object)->module->kv_map, option, FALSE);
 		(*object)->release = &AObjectFree;
 	} else {
 		*object = NULL;
@@ -258,7 +258,29 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 		return 1;
 	}
 	if (kv->type == ObjKV_object) {
-		return (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0);
+		//return (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0);
+		AObject *child = *(AObject**)((char*)object+kv->offset);
+		if ((child == NULL) && (opt == NULL))
+			return 0;
+		if (child == NULL) {
+			if (AObjectCreate(&child, object, opt, kv->defstr) < 0)
+				return 0;
+			*(AObject**)((char*)object+kv->offset) = child;
+			if (opt == NULL)
+				return 1;
+		} else {
+			if (opt == NULL)
+				return 0;
+		}
+
+		int count = 0;
+		AOption *child_opt;
+		list_for_each_entry(child_opt, &opt->children_list, AOption, brother_entry)
+		{
+			if (AObjectSetOpt(child, child_opt, child->module->kv_map) > 0)
+				++count;
+		}
+		return count;
 	}
 
 	__int64 v = opt ? _atoi64(opt->value) : kv->defnum;
@@ -274,13 +296,14 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 }
 
 AMODULE_API int
-AObjectSetKV(AObject *object, const ObjKV *kv_map, AOption *option)
+AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip_unfound)
 {
 	int count = 0;
 	for (const ObjKV *kv = kv_map; kv->name != NULL; ++kv)
 	{
 		AOption *opt = AOptionFind(option, kv->name);
-		count += AObjectSetKVOpt(object, kv, opt);
+		if (opt != NULL || !skip_unfound)
+			count += AObjectSetKVOpt(object, kv, opt);
 	}
 	return count;
 }
