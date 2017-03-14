@@ -5,6 +5,8 @@
 #define AV_HAVE_FAST_UNALIGNED 1
 #define AV_HAVE_INCOMPATIBLE_FORK_ABI 0
 
+#define CONFIG_FFRTMPCRYPT_PROTOCOL  1
+
 #if defined(__GNUC__)
 #    define av_unused __attribute__((unused))
 #else
@@ -15,6 +17,8 @@
 #define av_alias
 #define av_const
 #define av_unused
+#define av_cold
+#define av_log(...)
 
 #ifndef av_always_inline
 #if AV_GCC_VERSION_AT_LEAST(3,1)

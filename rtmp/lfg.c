@@ -27,10 +27,10 @@
 #include "intreadwrite.h"
 //#include "attributes.h"
 
-/*av_cold*/ void av_lfg_init(AVLFG *c, unsigned int seed)
+av_cold void av_lfg_init(AVLFG *c, unsigned int seed)
 {
     uint8_t tmp[16] = { 0 };
-    uint8_t i;
+    int i;
 
     for (i = 8; i < 64; i += 4) {
         AV_WL32(tmp, seed);

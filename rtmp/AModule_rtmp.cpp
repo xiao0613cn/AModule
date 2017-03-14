@@ -5,10 +5,15 @@ extern "C" {
 #include "lfg.h"
 #include "sha.h"
 #include "md5.h"
-#include "rtmpdh.h"
 #include "bytestream.h"
+#include "rtmpdh.h"
+#include "rtmpcrypt.h"
 };
 
+/**
+ * emulated Flash client version - 9.0.124.2 on Linux
+ * @{
+ */
 #define RTMP_CLIENT_PLATFORM "LNX"
 #define RTMP_CLIENT_VER1    9
 #define RTMP_CLIENT_VER2    0
@@ -47,7 +52,7 @@ int ff_rtmp_calc_digest(const uint8_t *src, int len, int gap,
 	uint8_t hmac_buf[64+32] = {0};
 	int i;
 
-	//sha = av_mallocz(av_sha_size);
+	//sha = av_sha_alloc();
 	//if (!sha)
 	//	return AVERROR(ENOMEM);
 
@@ -131,7 +136,7 @@ rtmp_gen_c0c1(RTMPCtx *rt, unsigned char tosend[RTMP_HANDSHAKE_PACKET_SIZE+1])
 	for (int i = 9; i <= RTMP_HANDSHAKE_PACKET_SIZE; i++)
 		tosend[i] = av_lfg_get(&rnd) >> 24;
 
-	if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+	if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 		/* When the client wants to use RTMPE, we have to change the command
 		* byte to 0x06 which means to use encrypted data and we have to set
 		* the flash version to at least 9.0.115.0. */
@@ -197,8 +202,8 @@ static int rtmp_calc_swf_verification(RTMPCtx *rt, uint8_t *buf)
 	int ret;
 
 	if (rt->swfhash_len != 32) {
-		//av_log(s, AV_LOG_ERROR,
-		//	"Hash of the decompressed SWF file is not 32 bytes long.\n");
+		av_log(s, AV_LOG_ERROR,
+			"Hash of the decompressed SWF file is not 32 bytes long.\n");
 		return AVERROR(EINVAL);
 	}
 
@@ -219,22 +224,23 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 	    const unsigned char serverdata[RTMP_HANDSHAKE_PACKET_SIZE+1],
 	    const unsigned char clientdata[RTMP_HANDSHAKE_PACKET_SIZE])
 {
+	int ret;
 	int type = 0;
 	uint8_t digest[32], signature[32];
 
 	if (rt->is_input && serverdata[5] >= 3) {
-		int server_pos = rtmp_validate_digest(serverdata + 1, 772);
+		int server_pos = rtmp_validate_digest((uint8_t*)serverdata + 1, 772);
 		if (server_pos < 0)
 			return server_pos;
 
 		if (!server_pos) {
 			type = 1;
-			server_pos = rtmp_validate_digest(serverdata + 1, 8);
+			server_pos = rtmp_validate_digest((uint8_t*)serverdata + 1, 8);
 			if (server_pos < 0)
 				return server_pos;
 
 			if (!server_pos) {
-				//av_log(s, AV_LOG_ERROR, "Server response validating failed\n");
+				av_log(s, AV_LOG_ERROR, "Server response validating failed\n");
 				return AVERROR(EIO);
 			}
 		}
@@ -242,13 +248,12 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 		/* Generate SWFVerification token (SHA256 HMAC hash of decompressed SWF,
 		* key are the last 32 bytes of the server handshake. */
 		if (rt->swfsize) {
-			int ret = rtmp_calc_swf_verification(rt, serverdata + 1 +
-				RTMP_HANDSHAKE_PACKET_SIZE - 32);
-			if (ret < 0)
+			if ((ret = rtmp_calc_swf_verification(rt, (uint8_t*)serverdata + 1 +
+			                                      RTMP_HANDSHAKE_PACKET_SIZE - 32)) < 0)
 				return ret;
 		}
 
-		int ret = ff_rtmp_calc_digest(tosend + 1 + rt->c0c1_pos, 32, 0,
+		ret = ff_rtmp_calc_digest(tosend + 1 + rt->c0c1_pos, 32, 0,
 			rtmp_server_key, sizeof(rtmp_server_key),
 			digest);
 		if (ret < 0)
@@ -259,7 +264,7 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 		if (ret < 0)
 			return ret;
 
-		if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Compute the shared secret key sent by the server and initialize
 			* the RC4 encryption. */
 			if ((ret = ff_rtmpe_compute_secret_key(rt, serverdata + 1,
@@ -275,8 +280,11 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 			return AVERROR(EIO);
 		}
 
-		for (i = 0; i < RTMP_HANDSHAKE_PACKET_SIZE; i++)
+		AVLFG rnd;
+		av_lfg_init(&rnd, 0xDEADC0DE);
+		for (int i = 0; i < RTMP_HANDSHAKE_PACKET_SIZE; i++)
 			tosend[i] = av_lfg_get(&rnd) >> 24;
+
 		ret = ff_rtmp_calc_digest(serverdata + 1 + server_pos, 32, 0,
 			rtmp_player_key, sizeof(rtmp_player_key),
 			digest);
@@ -289,7 +297,7 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 		if (ret < 0)
 			return ret;
 
-		if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Encrypt the signature to be send to the server. */
 			ff_rtmpe_encrypt_sig(rt, tosend +
 				RTMP_HANDSHAKE_PACKET_SIZE - 32, digest,
@@ -301,13 +309,13 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 			RTMP_HANDSHAKE_PACKET_SIZE)) < 0)
 			return ret;
 #endif
-		if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Set RC4 keys for encryption and update the keystreams. */
 			if ((ret = ff_rtmpe_update_keystream(rt)) < 0)
 				return ret;
 		}
 	} else {
-		if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Compute the shared secret key sent by the server and initialize
 			* the RC4 encryption. */
 			if ((ret = ff_rtmpe_compute_secret_key(rt, serverdata + 1,
@@ -327,7 +335,7 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 #else
 		memcmp(tosend+1, serverdata+1, RTMP_HANDSHAKE_PACKET_SIZE);
 #endif
-		if (/*CONFIG_FFRTMPCRYPT_PROTOCOL && */rt->encrypted) {
+		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Set RC4 keys for encryption and update the keystreams. */
 			if ((ret = ff_rtmpe_update_keystream(rt)) < 0)
 				return ret;
@@ -335,4 +343,81 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 	}
 
 	return 0;
+}
+
+/**
+ * rtmp handshake server side
+ */
+AMODULE_API int
+rtmp_gen_s0s1(RTMPCtx *rt, unsigned char  unsigned char buffer[1+RTMP_HANDSHAKE_PACKET_SIZE])
+{
+    uint32_t hs_epoch;
+    uint32_t hs_my_epoch;
+    uint8_t *hs_c1 = buffer + 1;
+    uint8_t hs_s1[RTMP_HANDSHAKE_PACKET_SIZE];
+    uint32_t zeroes;
+    uint32_t temp       = 0;
+    int randomidx       = 0;
+    int inoutsize       = 0;
+    int ret;
+
+    /*inoutsize = ffurl_read_complete(rt->stream, buffer, 1);       // Receive C0
+    if (inoutsize <= 0) {
+        av_log(s, AV_LOG_ERROR, "Unable to read handshake\n");
+        return AVERROR(EIO);
+    }*/
+    // Check Version
+    if (buffer[0] != 3) {
+        av_log(s, AV_LOG_ERROR, "RTMP protocol version mismatch\n");
+        return AVERROR(EIO);
+    }
+    /*if (ffurl_write(rt->stream, buffer, 1) <= 0) {                 // Send S0
+        av_log(s, AV_LOG_ERROR,
+               "Unable to write answer - RTMP S0\n");
+        return AVERROR(EIO);
+    }*/
+    /* Receive C1 */
+    /*ret = rtmp_receive_hs_packet(rt, &hs_epoch, &zeroes, hs_c1,
+                                 RTMP_HANDSHAKE_PACKET_SIZE);
+    if (ret) {
+        av_log(s, AV_LOG_ERROR, "RTMP Handshake C1 Error\n");
+        return ret;
+    }*/
+    /* Send S1 */
+    /* By now same epoch will be sent */
+    hs_my_epoch = hs_epoch;
+    /* Generate random */
+    for (randomidx = 8; randomidx < (RTMP_HANDSHAKE_PACKET_SIZE);
+         randomidx += 4)
+        AV_WB32(hs_s1 + randomidx, av_get_random_seed());
+
+    ret = rtmp_send_hs_packet(rt, hs_my_epoch, 0, hs_s1,
+                              RTMP_HANDSHAKE_PACKET_SIZE);
+    if (ret) {
+        av_log(s, AV_LOG_ERROR, "RTMP Handshake S1 Error\n");
+        return ret;
+    }
+    /* Send S2 */
+    ret = rtmp_send_hs_packet(rt, hs_epoch, 0, hs_c1,
+                              RTMP_HANDSHAKE_PACKET_SIZE);
+    if (ret) {
+        av_log(s, AV_LOG_ERROR, "RTMP Handshake S2 Error\n");
+        return ret;
+    }
+    /* Receive C2 */
+    ret = rtmp_receive_hs_packet(rt, &temp, &zeroes, buffer,
+                                 RTMP_HANDSHAKE_PACKET_SIZE);
+    if (ret) {
+        av_log(s, AV_LOG_ERROR, "RTMP Handshake C2 Error\n");
+        return ret;
+    }
+    if (temp != hs_my_epoch)
+        av_log(s, AV_LOG_WARNING,
+               "Erroneous C2 Message epoch does not match up with C1 epoch\n");
+    if (memcmp(buffer + 8, hs_s1 + 8,
+               RTMP_HANDSHAKE_PACKET_SIZE - 8))
+        av_log(s, AV_LOG_WARNING,
+               "Erroneous C2 Message random does not match up\n");
+
+    return 0;
 }

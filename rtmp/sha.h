@@ -33,12 +33,12 @@ extern const int av_sha_size;
 
 /** hash context */
 typedef struct AVSHA {
-	uint8_t  digest_len;  ///< digest length in 32-bit words
-	uint64_t count;       ///< number of bytes in buffer
-	uint8_t  buffer[64];  ///< 512-bit buffer of input values used in hash updating
-	uint32_t state[8];    ///< current hash value
-	/** function used to update hash for 512-bit input block */
-	void     (*transform)(uint32_t *state, const uint8_t buffer[64]);
+    uint8_t  digest_len;  ///< digest length in 32-bit words
+    uint64_t count;       ///< number of bytes in buffer
+    uint8_t  buffer[64];  ///< 512-bit buffer of input values used in hash updating
+    uint32_t state[8];    ///< current hash value
+    /** function used to update hash for 512-bit input block */
+    void     (*transform)(uint32_t *state, const uint8_t buffer[64]);
 } AVSHA;
 
 
