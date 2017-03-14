@@ -884,6 +884,7 @@ BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
 	case DLL_THREAD_DETACH:
 		break;
 	case DLL_PROCESS_DETACH:
+		AThreadEnd(NULL);
 		break;
 	}
 	return TRUE;

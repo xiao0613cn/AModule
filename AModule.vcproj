@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="gb2312"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="AModule"
 	ProjectGUID="{2CD3D550-0312-4522-8DF4-97FCF0425533}"
 	RootNamespace="InterfaceMethod"
 	Keyword="Win32Proj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -63,6 +64,8 @@
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -82,9 +85,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -140,6 +140,8 @@
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -159,9 +161,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -214,6 +213,8 @@
 				Name="VCLinkerTool"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -233,9 +234,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -291,6 +289,8 @@
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -310,9 +310,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -366,6 +363,14 @@
 			<File
 				RelativePath=".\proxy\AModule_m3u8.cpp"
 				>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
@@ -377,6 +382,10 @@
 			</File>
 			<File
 				RelativePath=".\PVDClient\AModule_PVDRTStream.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\AModule_rtmp.cpp"
 				>
 			</File>
 			<File
@@ -406,6 +415,18 @@
 			<File
 				RelativePath=".\base\AOption.cpp"
 				>
+			</File>
+			<File
+				RelativePath=".\rtmp\av_md5.c"
+				>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\http\http_parser.c"
@@ -441,6 +462,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\lfg.c"
+				>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath=".\main.cpp"
 				>
 			</File>
@@ -459,6 +492,38 @@
 						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\rpc\rpc_func.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\rtmpcrypt.c"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\rtmpdh.c"
+				>
+				<FileConfiguration
+					Name="Debug DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\rtmp\sha.c"
+				>
 				<FileConfiguration
 					Name="Debug DLL|Win32"
 					>
@@ -547,6 +612,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\AModule_rtmp.h"
+				>
+			</File>
+			<File
 				RelativePath=".\proxy\AModule_Session.h"
 				>
 			</File>
@@ -580,6 +649,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\avconfig.h"
 				>
 			</File>
 			<File
@@ -619,11 +692,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\bswap.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\buffer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\bytestream.h"
 				>
 			</File>
 			<File
@@ -687,11 +768,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\internal.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\intfloat_readwrite.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -708,6 +797,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\lfg.h"
 				>
 			</File>
 			<File
@@ -732,6 +825,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\md5.h"
 				>
 			</File>
 			<File
@@ -799,7 +896,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\rtmpcrypt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\rtmpdh.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\samplefmt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\sha.h"
 				>
 			</File>
 			<File
@@ -863,7 +972,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
@@ -871,11 +984,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
@@ -904,6 +1013,10 @@
 		<Filter
 			Name="base"
 			>
+			<File
+				RelativePath=".\base\srsw.hpp"
+				>
+			</File>
 		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"
