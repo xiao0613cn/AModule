@@ -25,6 +25,8 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
 
 //#include "libavutil/common.h"
 #include "intreadwrite.h"

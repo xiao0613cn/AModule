@@ -506,11 +506,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\rtmpcrypt.c"
-				>
-			</File>
-			<File
-				RelativePath=".\rtmp\rtmpdh.c"
+				RelativePath=".\rtmp\rtmppkt.c"
 				>
 				<FileConfiguration
 					Name="Debug DLL|Win32"
@@ -692,11 +688,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\rtmp\bswap.h"
 				>
 			</File>
 			<File
@@ -776,15 +772,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\intfloat.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\intfloat_readwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\rtmp\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -796,11 +796,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\rtmp\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
@@ -820,11 +820,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
+				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
@@ -904,15 +904,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\rtmp\rtmppkt.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\samplefmt.h"
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\rtmp\sha.h"
 				>
 			</File>
 			<File
@@ -976,7 +980,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
@@ -984,7 +988,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File

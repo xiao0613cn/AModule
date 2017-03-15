@@ -19,14 +19,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "libavcodec/bytestream.h"
-#include "libavutil/avstring.h"
-#include "libavutil/intfloat.h"
-#include "avformat.h"
+#define _CRT_SECURE_NO_WARNINGS
+#include "bytestream.h"
+//#include "libavutil/avstring.h"
+#include "intfloat.h"
+//#include "avformat.h"
 
+#define AMODULE_API
 #include "rtmppkt.h"
 #include "flv.h"
-#include "url.h"
+//#include "url.h"
 
 void ff_amf_write_bool(uint8_t **dst, int val)
 {
@@ -40,11 +42,11 @@ void ff_amf_write_number(uint8_t **dst, double val)
     bytestream_put_be64(dst, av_double2int(val));
 }
 
-void ff_amf_write_string(uint8_t **dst, const char *str)
+void ff_amf_write_string(uint8_t **dst, const char *str, int len)
 {
     bytestream_put_byte(dst, AMF_DATA_TYPE_STRING);
-    bytestream_put_be16(dst, strlen(str));
-    bytestream_put_buffer(dst, str, strlen(str));
+    bytestream_put_be16(dst, len);
+    bytestream_put_buffer(dst, str, len);
 }
 
 void ff_amf_write_string2(uint8_t **dst, const char *str1, const char *str2)
@@ -70,10 +72,10 @@ void ff_amf_write_object_start(uint8_t **dst)
     bytestream_put_byte(dst, AMF_DATA_TYPE_OBJECT);
 }
 
-void ff_amf_write_field_name(uint8_t **dst, const char *str)
+void ff_amf_write_field_name(uint8_t **dst, const char *str, int len)
 {
-    bytestream_put_be16(dst, strlen(str));
-    bytestream_put_buffer(dst, str, strlen(str));
+    bytestream_put_be16(dst, len);
+    bytestream_put_buffer(dst, str, len);
 }
 
 void ff_amf_write_object_end(uint8_t **dst)
@@ -87,7 +89,7 @@ void ff_amf_write_object_end(uint8_t **dst)
 int ff_amf_read_bool(GetByteContext *bc, int *val)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_BOOL)
-        return AVERROR_INVALIDDATA;
+        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
     *val = bytestream2_get_byte(bc);
     return 0;
 }
@@ -96,7 +98,7 @@ int ff_amf_read_number(GetByteContext *bc, double *val)
 {
     uint64_t read;
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_NUMBER)
-        return AVERROR_INVALIDDATA;
+        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
     read = bytestream2_get_be64(bc);
     *val = av_int2double(read);
     return 0;
@@ -124,17 +126,17 @@ int ff_amf_read_string(GetByteContext *bc, uint8_t *str,
                        int strsize, int *length)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_STRING)
-        return AVERROR_INVALIDDATA;
+        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
     return ff_amf_get_string(bc, str, strsize, length);
 }
 
 int ff_amf_read_null(GetByteContext *bc)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_NULL)
-        return AVERROR_INVALIDDATA;
+        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
     return 0;
 }
-
+#if 0
 int ff_rtmp_check_alloc_array(RTMPPacket **prev_pkt, int *nb_prev_pkt,
                               int channel)
 {
@@ -424,7 +426,7 @@ void ff_rtmp_packet_destroy(RTMPPacket *pkt)
     av_freep(&pkt->data);
     pkt->size = 0;
 }
-
+#endif
 int ff_amf_tag_size(const uint8_t *data, const uint8_t *data_end)
 {
     const uint8_t *base = data;
@@ -500,7 +502,7 @@ int ff_amf_get_field_value(const uint8_t *data, const uint8_t *data_end,
                 break;
             case AMF_DATA_TYPE_STRING:
                 len = bytestream_get_be16(&data);
-                av_strlcpy(dst, data, FFMIN(len+1, dst_size));
+                /*av_strlcpy*/strncpy(dst, data, FFMIN(len+1, dst_size));
                 break;
             default:
                 return -1;

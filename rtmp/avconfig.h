@@ -5,13 +5,18 @@
 #define AV_HAVE_FAST_UNALIGNED 1
 #define AV_HAVE_INCOMPATIBLE_FORK_ABI 0
 
-#define CONFIG_FFRTMPCRYPT_PROTOCOL  1
+#define CONFIG_FFRTMPCRYPT_PROTOCOL  0
 
 #if defined(__GNUC__)
 #    define av_unused __attribute__((unused))
 #else
 #    define av_unused
-#pragma warning(disable: 4127)
+#define snprintf      _snprintf
+#pragma warning(disable: 4018) //“>”: 有符号/无符号不匹配
+#pragma warning(disable: 4057) //“函数”: “const uint8_t *”与“const char *”在稍微不同的基类型间接寻址上不同
+#pragma warning(disable: 4127) //条件表达式是常量
+#pragma warning(disable: 4244) //从“const unsigned int”转换到“uint8_t”，可能丢失数据
+#pragma warning(disable: 4389) //“!=”: 有符号/无符号不匹配
 #endif
 
 #define av_alias
@@ -25,6 +30,7 @@
 #    define av_always_inline __attribute__((always_inline)) inline
 #elif defined(_MSC_VER)
 #    define av_always_inline __forceinline
+#    define inline __inline
 #else
 #    define av_always_inline inline
 #endif

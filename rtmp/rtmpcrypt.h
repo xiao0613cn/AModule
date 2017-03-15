@@ -27,6 +27,8 @@
 //#include "url.h"
 #include "AModule_rtmp.h"
 
+int ff_rtmp_calc_digest_pos(const uint8_t *buf, int off, int mod_val, int add_val);
+
 /**
  * Initialize the Diffie-Hellmann context and generate the public key.
  *

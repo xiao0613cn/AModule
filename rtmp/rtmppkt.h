@@ -22,70 +22,12 @@
 #ifndef AVFORMAT_RTMPPKT_H
 #define AVFORMAT_RTMPPKT_H
 
-#include "libavcodec/bytestream.h"
-#include "avformat.h"
-#include "url.h"
+//#include "bytestream.h"
+//#include "avformat.h"
+//#include "url.h"
+#include "AModule_rtmp.h"
 
-/** maximum possible number of different RTMP channels */
-#define RTMP_CHANNELS 65599
-
-/**
- * channels used to for RTMP packets with different purposes (i.e. data, network
- * control, remote procedure calls, etc.)
- */
-enum RTMPChannel {
-    RTMP_NETWORK_CHANNEL = 2,   ///< channel for network-related messages (bandwidth report, ping, etc)
-    RTMP_SYSTEM_CHANNEL,        ///< channel for sending server control messages
-    RTMP_AUDIO_CHANNEL,         ///< channel for audio data
-    RTMP_VIDEO_CHANNEL   = 6,   ///< channel for video data
-    RTMP_SOURCE_CHANNEL  = 8,   ///< channel for a/v invokes
-};
-
-/**
- * known RTMP packet types
- */
-typedef enum RTMPPacketType {
-    RTMP_PT_CHUNK_SIZE   =  1,  ///< chunk size change
-    RTMP_PT_BYTES_READ   =  3,  ///< number of bytes read
-    RTMP_PT_PING,               ///< ping
-    RTMP_PT_SERVER_BW,          ///< server bandwidth
-    RTMP_PT_CLIENT_BW,          ///< client bandwidth
-    RTMP_PT_AUDIO        =  8,  ///< audio packet
-    RTMP_PT_VIDEO,              ///< video packet
-    RTMP_PT_FLEX_STREAM  = 15,  ///< Flex shared stream
-    RTMP_PT_FLEX_OBJECT,        ///< Flex shared object
-    RTMP_PT_FLEX_MESSAGE,       ///< Flex shared message
-    RTMP_PT_NOTIFY,             ///< some notification
-    RTMP_PT_SHARED_OBJ,         ///< shared object
-    RTMP_PT_INVOKE,             ///< invoke some stream action
-    RTMP_PT_METADATA     = 22,  ///< FLV metadata
-} RTMPPacketType;
-
-/**
- * possible RTMP packet header sizes
- */
-enum RTMPPacketSize {
-    RTMP_PS_TWELVEBYTES = 0, ///< packet has 12-byte header
-    RTMP_PS_EIGHTBYTES,      ///< packet has 8-byte header
-    RTMP_PS_FOURBYTES,       ///< packet has 4-byte header
-    RTMP_PS_ONEBYTE          ///< packet is really a next chunk of a packet
-};
-
-/**
- * structure for holding RTMP packets
- */
-typedef struct RTMPPacket {
-    int            channel_id; ///< RTMP channel ID (nothing to do with audio/video channels though)
-    RTMPPacketType type;       ///< packet payload type
-    uint32_t       timestamp;  ///< packet full timestamp
-    uint32_t       ts_field;   ///< 24-bit timestamp or increment to the previous one, in milliseconds (latter only for media packets). Clipped to a maximum of 0xFFFFFF, indicating an extended timestamp field.
-    uint32_t       extra;      ///< probably an additional channel ID used during streaming data
-    uint8_t        *data;      ///< packet payload
-    int            size;       ///< packet payload size
-    int            offset;     ///< amount of data read so far
-    int            read;       ///< amount read, including headers
-} RTMPPacket;
-
+#if 0
 /**
  * Create new RTMP packet with given attributes.
  *
@@ -168,7 +110,7 @@ void ff_rtmp_packet_dump(void *ctx, RTMPPacket *p);
  */
 int ff_rtmp_check_alloc_array(RTMPPacket **prev_pkt, int *nb_prev_pkt,
                               int channel);
-
+#endif
 /**
  * @name Functions used to work with the AMF format (which is also used in .flv)
  * @see amf_* funcs in libavformat/flvdec.c
@@ -219,7 +161,8 @@ void ff_amf_write_number(uint8_t **dst, double num);
  * @param dst pointer to the input buffer (will be modified)
  * @param str string to write
  */
-void ff_amf_write_string(uint8_t **dst, const char *str);
+void ff_amf_write_string(uint8_t **dst, const char *str, int len);
+#define ff_amf_write_string_sz(dst, str) ff_amf_write_string(dst, str, sizeof(str)-1)
 
 /**
  * Write a string consisting of two parts in AMF format to a buffer.
@@ -250,7 +193,8 @@ void ff_amf_write_object_start(uint8_t **dst);
  * @param dst pointer to the input buffer (will be modified)
  * @param str string to write
  */
-void ff_amf_write_field_name(uint8_t **dst, const char *str);
+void ff_amf_write_field_name(uint8_t **dst, const char *str, int len);
+#define ff_amf_write_field_name_sz(dst, str) ff_amf_write_field_name(dst, str, sizeof(str)-1)
 
 /**
  * Write marker for end of AMF object to buffer.

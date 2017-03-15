@@ -4,36 +4,53 @@
 
 #define RTMP_HANDSHAKE_PACKET_SIZE 1536
 
-struct RTMPCtx {
-	int     encrypted; ///< use an encrypted connection (RTMPE only)
-	int     is_input;  ///< input/output flag
-	char    swfhash[32];   ///< SHA256 hash of the decompressed SWF file (32 bytes)
-	int     swfhash_len; ///< length of the SHA256 hash
-	int     swfsize;   ///< size of the decompressed SWF file
-	char*   swfurl;    ///< url of the swf player
-	char*   swfverify; ///< URL to player swf file, compute hash/size automatically
+typedef struct RTMPCtx {
+	int     in_chunk_size;  ///< size of the chunks incoming RTMP packets are divided into
+	int     out_chunk_size; ///< size of the chunks outgoing RTMP packets are divided into
+	int     encrypted;      ///< use an encrypted connection (RTMPE only)
+	int     is_input;       ///< input/output flag
+	char    flashver[64];   ///< version of the flash plugin
+	int     flashver_len;
+	unsigned char swfhash[32]; ///< SHA256 hash of the decompressed SWF file (32 bytes)
+	int     swfhash_len;    ///< length of the SHA256 hash
+	int     swfsize;        ///< size of the decompressed SWF file
+//	char*   swfverify;      ///< URL to player swf file, compute hash/size automatically
 	char    swfverification[42]; ///< hash of the SWF verification
 
+	char*   swfurl;         ///< url of the swf player
+	char*   pageurl;        ///< url of the web page
+
 	int     c0c1_pos;
+	int     nb_invokes;
 
 	// rtmpe
 	struct FF_DH *dh;
-};
+} RTMPCtx;
 
+AMODULE_API void
+rtmp_init(RTMPCtx *rt, int is_input);
 
 AMODULE_API int
 rtmp_gen_c0c1(RTMPCtx *rt, unsigned char c0c1[1+RTMP_HANDSHAKE_PACKET_SIZE]);
 
 AMODULE_API int
 rtmp_gen_c2(RTMPCtx *rt, unsigned char c0c1c2[1+RTMP_HANDSHAKE_PACKET_SIZE],
-	    const unsigned char s0s1[1+RTMP_HANDSHAKE_PACKET_SIZE],
-	    const unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE]);
+            const unsigned char s0s1[1+RTMP_HANDSHAKE_PACKET_SIZE],
+            const unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE]);
 
 AMODULE_API int
-rtmp_gen_s0s1(RTMPCtx *rt, unsigned char s0s1[1+RTMP_HANDSHAKE_PACKET_SIZE],
-	      const unsigned char c0c1[1+RTMP_HANDSHAKE_PACKET_SIZE]);
-//////////////////////////////////////////////////////////////////////////
+rtmp_gen_s0s1s2(RTMPCtx *rt, unsigned char s0s1[1+RTMP_HANDSHAKE_PACKET_SIZE],
+                unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE],
+                const unsigned char c0c1[1+RTMP_HANDSHAKE_PACKET_SIZE]);
 
+AMODULE_API int
+rtmp_check_c2(RTMPCtx *rt, const unsigned char c2[RTMP_HANDSHAKE_PACKET_SIZE],
+              const unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE]);
+
+AMODULE_API int
+rtmp_calc_swfhash(RTMPCtx *rt, const uint8_t *swfdata, int swfsize);
+
+//////////////////////////////////////////////////////////////////////////
 /** maximum possible number of different RTMP channels */
 #define RTMP_CHANNELS 65599
 
@@ -94,5 +111,23 @@ typedef struct RTMPPacket {
     int            read;       ///< amount read, including headers
 } RTMPPacket;
 
+static inline void
+rtmppkt_init(RTMPPacket *pkt, int channel_id, RTMPPacketType type, int timestamp, int size)
+{
+	pkt->channel_id = channel_id;
+	pkt->type       = type;
+	pkt->timestamp  = timestamp;
+	pkt->ts_field   = 0;
+	pkt->extra      = 0;
+//	pkt->data       = NULL;
+	pkt->size       = size;
+	pkt->offset     = 0;
+	pkt->read       = 0;
+}
+
+AMODULE_API int
+rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
+
+//////////////////////////////////////////////////////////////////////////
 
 #endif

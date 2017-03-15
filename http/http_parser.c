@@ -29,6 +29,11 @@
 #include <string.h>
 #include <limits.h>
 
+#ifdef _WIN32
+#pragma warning(disable: 4127)
+#pragma warning(disable: 4244)
+#endif
+
 #ifndef ULLONG_MAX
 # define ULLONG_MAX ((uint64_t) -1) /* 2^64-1 */
 #endif

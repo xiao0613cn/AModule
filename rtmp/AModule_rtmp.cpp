@@ -6,8 +6,11 @@ extern "C" {
 #include "sha.h"
 #include "md5.h"
 #include "bytestream.h"
+#include "rtmppkt.h"
+#if CONFIG_FFRTMPCRYPT_PROTOCOL
 #include "rtmpdh.h"
 #include "rtmpcrypt.h"
+#endif
 };
 
 /**
@@ -20,6 +23,27 @@ extern "C" {
 #define RTMP_CLIENT_VER3  124
 #define RTMP_CLIENT_VER4    2
 
+AMODULE_API void
+rtmp_init(RTMPCtx *rt, int is_input)
+{
+	memset(rt, 0, sizeof(*rt));
+	rt->out_chunk_size = 128;
+	rt->in_chunk_size  = 128; // Probably overwritten later
+
+	rt->is_input = is_input;
+	if (is_input) {
+		rt->flashver_len = snprintf(rt->flashver, sizeof(rt->flashver),
+			"%s %d,%d,%d,%d",
+			RTMP_CLIENT_PLATFORM, RTMP_CLIENT_VER1, RTMP_CLIENT_VER2,
+			RTMP_CLIENT_VER3, RTMP_CLIENT_VER4);
+	} else {
+		rt->flashver_len = snprintf(rt->flashver, sizeof(rt->flashver),
+			"FMLE/3.0 (compatible; %s %d,%d,%d,%d)",
+			RTMP_CLIENT_PLATFORM, RTMP_CLIENT_VER1, RTMP_CLIENT_VER2,
+			RTMP_CLIENT_VER3, RTMP_CLIENT_VER4);
+	}
+}
+
 const unsigned char rtmp_c0[] = {
 	3,                // unencrypted data
 	0, 0, 0, 0,       // client uptime
@@ -29,8 +53,7 @@ const unsigned char rtmp_c0[] = {
 	RTMP_CLIENT_VER4,
 };
 
-int ff_rtmp_calc_digest_pos(const uint8_t *buf, int off, int mod_val,
-			    int add_val)
+int ff_rtmp_calc_digest_pos(const uint8_t *buf, int off, int mod_val, int add_val)
 {
 	int i, digest_pos = 0;
 
@@ -135,7 +158,7 @@ rtmp_gen_c0c1(RTMPCtx *rt, unsigned char tosend[RTMP_HANDSHAKE_PACKET_SIZE+1])
 	// generate handshake packet - 1536 bytes of pseudorandom data
 	for (int i = 9; i <= RTMP_HANDSHAKE_PACKET_SIZE; i++)
 		tosend[i] = av_lfg_get(&rnd) >> 24;
-
+#if CONFIG_FFRTMPCRYPT_PROTOCOL
 	if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 		/* When the client wants to use RTMPE, we have to change the command
 		* byte to 0x06 which means to use encrypted data and we have to set
@@ -152,7 +175,7 @@ rtmp_gen_c0c1(RTMPCtx *rt, unsigned char tosend[RTMP_HANDSHAKE_PACKET_SIZE+1])
 		if (ret < 0)
 			return ret;
 	}
-
+#endif
 	rt->c0c1_pos = rtmp_handshake_imprint_with_digest(tosend + 1, rt->encrypted);
 	if (rt->c0c1_pos < 0)
 		return rt->c0c1_pos;
@@ -213,7 +236,7 @@ static int rtmp_calc_swf_verification(RTMPCtx *rt, uint8_t *buf)
 	bytestream_put_be32(&p, rt->swfsize);
 	bytestream_put_be32(&p, rt->swfsize);
 
-	if ((ret = ff_rtmp_calc_digest((const uint8_t*)rt->swfhash, 32, 0, buf, 32, p)) < 0)
+	if ((ret = ff_rtmp_calc_digest(rt->swfhash, 32, 0, buf, 32, p)) < 0)
 		return ret;
 
 	return 0;
@@ -221,8 +244,8 @@ static int rtmp_calc_swf_verification(RTMPCtx *rt, uint8_t *buf)
 
 AMODULE_API int
 rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
-	    const unsigned char serverdata[RTMP_HANDSHAKE_PACKET_SIZE+1],
-	    const unsigned char clientdata[RTMP_HANDSHAKE_PACKET_SIZE])
+            const unsigned char serverdata[RTMP_HANDSHAKE_PACKET_SIZE+1],
+            const unsigned char clientdata[RTMP_HANDSHAKE_PACKET_SIZE])
 {
 	int ret;
 	int type = 0;
@@ -263,7 +286,7 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 			0, digest, 32, signature);
 		if (ret < 0)
 			return ret;
-
+#if CONFIG_FFRTMPCRYPT_PROTOCOL
 		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Compute the shared secret key sent by the server and initialize
 			* the RC4 encryption. */
@@ -274,12 +297,14 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 			/* Encrypt the signature received by the server. */
 			ff_rtmpe_encrypt_sig(rt, signature, digest, serverdata[0]);
 		}
-
+#endif
 		if (memcmp(signature, clientdata + RTMP_HANDSHAKE_PACKET_SIZE - 32, 32)) {
 			av_log(s, AV_LOG_ERROR, "Signature mismatch\n");
 			return AVERROR(EIO);
 		}
 
+		//////////////////////////////////////////////////////////////////////////
+		tosend += 1;
 		AVLFG rnd;
 		av_lfg_init(&rnd, 0xDEADC0DE);
 		for (int i = 0; i < RTMP_HANDSHAKE_PACKET_SIZE; i++)
@@ -296,25 +321,27 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 			tosend + RTMP_HANDSHAKE_PACKET_SIZE - 32);
 		if (ret < 0)
 			return ret;
-
+#if CONFIG_FFRTMPCRYPT_PROTOCOL
 		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Encrypt the signature to be send to the server. */
 			ff_rtmpe_encrypt_sig(rt, tosend +
 				RTMP_HANDSHAKE_PACKET_SIZE - 32, digest,
 				serverdata[0]);
 		}
-#if 0
+
 		// write reply back to the server
-		if ((ret = ffurl_write(rt->stream, tosend,
+		/*if ((ret = ffurl_write(rt->stream, tosend,
 			RTMP_HANDSHAKE_PACKET_SIZE)) < 0)
-			return ret;
-#endif
+			return ret;*/
+
 		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Set RC4 keys for encryption and update the keystreams. */
 			if ((ret = ff_rtmpe_update_keystream(rt)) < 0)
 				return ret;
 		}
+#endif
 	} else {
+#if CONFIG_FFRTMPCRYPT_PROTOCOL
 		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Compute the shared secret key sent by the server and initialize
 			* the RC4 encryption. */
@@ -328,18 +355,18 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
 					serverdata[0]);
 			}
 		}
-#if 0
-		if ((ret = ffurl_write(rt->stream, serverdata + 1,
+
+		/*if ((ret = ffurl_write(rt->stream, serverdata + 1,
 			RTMP_HANDSHAKE_PACKET_SIZE)) < 0)
-			return ret;
-#else
-		memcmp(tosend+1, serverdata+1, RTMP_HANDSHAKE_PACKET_SIZE);
-#endif
+			return ret;*/
+
 		if (CONFIG_FFRTMPCRYPT_PROTOCOL && rt->encrypted) {
 			/* Set RC4 keys for encryption and update the keystreams. */
 			if ((ret = ff_rtmpe_update_keystream(rt)) < 0)
 				return ret;
 		}
+#endif
+		memcmp(tosend+1, serverdata+1, RTMP_HANDSHAKE_PACKET_SIZE);
 	}
 
 	return 0;
@@ -349,17 +376,20 @@ rtmp_gen_c2(RTMPCtx *rt, unsigned char tosend[1+RTMP_HANDSHAKE_PACKET_SIZE],
  * rtmp handshake server side
  */
 AMODULE_API int
-rtmp_gen_s0s1(RTMPCtx *rt, unsigned char  unsigned char buffer[1+RTMP_HANDSHAKE_PACKET_SIZE])
+rtmp_gen_s0s1s2(RTMPCtx *rt, unsigned char s0s1[1+RTMP_HANDSHAKE_PACKET_SIZE],
+                unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE],
+                const unsigned char c0c1[1+RTMP_HANDSHAKE_PACKET_SIZE])
 {
     uint32_t hs_epoch;
     uint32_t hs_my_epoch;
-    uint8_t *hs_c1 = buffer + 1;
-    uint8_t hs_s1[RTMP_HANDSHAKE_PACKET_SIZE];
+    const uint8_t *hs_c1 = c0c1 + 1;
+    uint8_t *hs_s1 = s0s1 + 1;
     uint32_t zeroes;
-    uint32_t temp       = 0;
-    int randomidx       = 0;
-    int inoutsize       = 0;
-    int ret;
+    AVLFG rnd;
+    int randomidx;
+//    uint32_t temp       = 0;
+//    int inoutsize       = 0;
+//    int ret;
 
     /*inoutsize = ffurl_read_complete(rt->stream, buffer, 1);       // Receive C0
     if (inoutsize <= 0) {
@@ -367,15 +397,17 @@ rtmp_gen_s0s1(RTMPCtx *rt, unsigned char  unsigned char buffer[1+RTMP_HANDSHAKE_
         return AVERROR(EIO);
     }*/
     // Check Version
-    if (buffer[0] != 3) {
+    if (c0c1[0] != 3) {
         av_log(s, AV_LOG_ERROR, "RTMP protocol version mismatch\n");
         return AVERROR(EIO);
     }
+    s0s1[0] = c0c1[0];
     /*if (ffurl_write(rt->stream, buffer, 1) <= 0) {                 // Send S0
         av_log(s, AV_LOG_ERROR,
                "Unable to write answer - RTMP S0\n");
         return AVERROR(EIO);
     }*/
+
     /* Receive C1 */
     /*ret = rtmp_receive_hs_packet(rt, &hs_epoch, &zeroes, hs_c1,
                                  RTMP_HANDSHAKE_PACKET_SIZE);
@@ -383,11 +415,21 @@ rtmp_gen_s0s1(RTMPCtx *rt, unsigned char  unsigned char buffer[1+RTMP_HANDSHAKE_
         av_log(s, AV_LOG_ERROR, "RTMP Handshake C1 Error\n");
         return ret;
     }*/
+    hs_epoch = AV_RB32(hs_c1);
+    zeroes = AV_RB32(hs_c1+4);
+
     /* Send S1 */
     /* By now same epoch will be sent */
     hs_my_epoch = hs_epoch;
+
+    av_lfg_init(&rnd, 0xDEADC0DE);
+    for (randomidx = 8; randomidx < (RTMP_HANDSHAKE_PACKET_SIZE); randomidx+=4)
+	    AV_WB32(hs_s1+randomidx, av_lfg_get(&rnd));
+
+    AV_WB32(hs_s1, hs_my_epoch);
+    AV_WB32(hs_s1+4, 0);
     /* Generate random */
-    for (randomidx = 8; randomidx < (RTMP_HANDSHAKE_PACKET_SIZE);
+    /*for (randomidx = 8; randomidx < (RTMP_HANDSHAKE_PACKET_SIZE);
          randomidx += 4)
         AV_WB32(hs_s1 + randomidx, av_get_random_seed());
 
@@ -396,28 +438,332 @@ rtmp_gen_s0s1(RTMPCtx *rt, unsigned char  unsigned char buffer[1+RTMP_HANDSHAKE_
     if (ret) {
         av_log(s, AV_LOG_ERROR, "RTMP Handshake S1 Error\n");
         return ret;
-    }
+    }*/
+
     /* Send S2 */
-    ret = rtmp_send_hs_packet(rt, hs_epoch, 0, hs_c1,
+    /*ret = rtmp_send_hs_packet(rt, hs_epoch, 0, hs_c1,
                               RTMP_HANDSHAKE_PACKET_SIZE);
     if (ret) {
         av_log(s, AV_LOG_ERROR, "RTMP Handshake S2 Error\n");
         return ret;
-    }
+    }*/
+    memcpy(s2+8, hs_c1+8, RTMP_HANDSHAKE_PACKET_SIZE-8);
+    AV_WB32(s2, hs_epoch);
+    AV_WB32(s2+4, 0);
+    return 0;
+}
+
+AMODULE_API int
+rtmp_check_c2(RTMPCtx *rt, const unsigned char buffer[RTMP_HANDSHAKE_PACKET_SIZE],
+	      const unsigned char hs_s1[RTMP_HANDSHAKE_PACKET_SIZE])
+{
     /* Receive C2 */
-    ret = rtmp_receive_hs_packet(rt, &temp, &zeroes, buffer,
+    /*ret = rtmp_receive_hs_packet(rt, &temp, &zeroes, buffer,
                                  RTMP_HANDSHAKE_PACKET_SIZE);
     if (ret) {
         av_log(s, AV_LOG_ERROR, "RTMP Handshake C2 Error\n");
         return ret;
-    }
-    if (temp != hs_my_epoch)
+    }*/
+    uint32_t temp = AV_RB32(buffer);
+    uint32_t zeroes = AV_RB32(buffer+4);
+
+    uint32_t hs_my_epoch = AV_RB32(hs_s1);
+
+    if (temp != hs_my_epoch) {
         av_log(s, AV_LOG_WARNING,
                "Erroneous C2 Message epoch does not match up with C1 epoch\n");
+	return -1;
+    }
     if (memcmp(buffer + 8, hs_s1 + 8,
-               RTMP_HANDSHAKE_PACKET_SIZE - 8))
+	    RTMP_HANDSHAKE_PACKET_SIZE - 8)) {
         av_log(s, AV_LOG_WARNING,
                "Erroneous C2 Message random does not match up\n");
+	return -2;
+    }
+    return 0;
+}
+
+AMODULE_API int
+rtmp_calc_swfhash(RTMPCtx *rt, const uint8_t *swfdata, int swfsize)
+{
+	if (swfsize <= 0) {
+		rt->swfsize = 0;
+		rt->swfhash_len = 0;
+		return 0;
+	}
+	int ret;
+	ret = ff_rtmp_calc_digest(swfdata, swfsize, 0,
+		(const uint8_t*)"Genuine Adobe Flash Player 001", 30, rt->swfhash);
+	if (ret < 0)
+		return ret;
+
+	rt->swfsize = swfsize;
+	rt->swfhash_len = 32;
+	return 0;
+}
+
+static int rtmp_write_amf_data(char *param, uint8_t **p)
+{
+    char *field, *value;
+    char type;
+
+    /* The type must be B for Boolean, N for number, S for string, O for
+     * object, or Z for null. For Booleans the data must be either 0 or 1 for
+     * FALSE or TRUE, respectively. Likewise for Objects the data must be
+     * 0 or 1 to end or begin an object, respectively. Data items in subobjects
+     * may be named, by prefixing the type with 'N' and specifying the name
+     * before the value (ie. NB:myFlag:1). This option may be used multiple times
+     * to construct arbitrary AMF sequences. */
+    if (param[0] && param[1] == ':') {
+        type = param[0];
+        value = param + 2;
+    } else if (param[0] == 'N' && param[1] && param[2] == ':') {
+        type = param[1];
+        field = param + 3;
+        value = strchr(field, ':');
+        if (!value)
+            goto fail;
+        *value = '\0';
+        value++;
+
+        ff_amf_write_field_name(p, field, value-field-1);
+    } else {
+        goto fail;
+    }
+
+    switch (type) {
+    case 'B':
+        ff_amf_write_bool(p, value[0] != '0');
+        break;
+    case 'S':
+        ff_amf_write_string(p, value, strlen(value));
+        break;
+    case 'N':
+        ff_amf_write_number(p, strtod(value, NULL));
+        break;
+    case 'Z':
+        ff_amf_write_null(p);
+        break;
+    case 'O':
+        if (value[0] != '0')
+            ff_amf_write_object_start(p);
+        else
+            ff_amf_write_object_end(p);
+        break;
+    default:
+        goto fail;
+        break;
+    }
 
     return 0;
+
+fail:
+    av_log(s, AV_LOG_ERROR, "Invalid AMF parameter: %s\n", param);
+    return AVERROR(EINVAL);
+}
+
+/**
+ * Generate 'connect' call and send it to the server.
+ */
+AMODULE_API int
+rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcurl, char *param)
+{
+    uint8_t *p;
+    int ret;
+
+    /*if ((ret = ff_rtmp_packet_create(&pkt, RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE,
+                                     0, 4096 + APP_MAX_LENGTH)) < 0)
+        return ret;*/
+    p = data;
+
+    ff_amf_write_string_sz(&p, "connect");
+    ff_amf_write_number(&p, ++rt->nb_invokes);
+    ff_amf_write_object_start(&p);
+    if (app) {
+        ff_amf_write_field_name_sz(&p, "app");
+        ff_amf_write_string2(&p, app[0], app[1]); //rt->app, rt->auth_params);
+    }
+
+    if (!rt->is_input) {
+        ff_amf_write_field_name_sz(&p, "type");
+        ff_amf_write_string_sz(&p, "nonprivate");
+    }
+    ff_amf_write_field_name_sz(&p, "flashVer");
+    ff_amf_write_string(&p, rt->flashver, rt->flashver_len);
+
+    if (rt->swfurl) {
+        ff_amf_write_field_name_sz(&p, "swfUrl");
+        ff_amf_write_string(&p, rt->swfurl, strlen(rt->swfurl));
+    }
+    if (tcurl) {
+        ff_amf_write_field_name_sz(&p, "tcUrl");
+        ff_amf_write_string2(&p, tcurl[0], tcurl[1]); //rt->tcurl, rt->auth_params);
+    }
+    if (rt->is_input) {
+        ff_amf_write_field_name_sz(&p, "fpad");
+        ff_amf_write_bool(&p, 0);
+        ff_amf_write_field_name_sz(&p, "capabilities");
+        ff_amf_write_number(&p, 15.0);
+
+        /* Tell the server we support all the audio codecs except
+         * SUPPORT_SND_INTEL (0x0008) and SUPPORT_SND_UNUSED (0x0010)
+         * which are unused in the RTMP protocol implementation. */
+        ff_amf_write_field_name_sz(&p, "audioCodecs");
+        ff_amf_write_number(&p, 4071.0);
+        ff_amf_write_field_name_sz(&p, "videoCodecs");
+        ff_amf_write_number(&p, 252.0);
+        ff_amf_write_field_name_sz(&p, "videoFunction");
+        ff_amf_write_number(&p, 1.0);
+
+        if (rt->pageurl) {
+            ff_amf_write_field_name_sz(&p, "pageUrl");
+            ff_amf_write_string(&p, rt->pageurl, strlen(rt->pageurl));
+        }
+    }
+    ff_amf_write_object_end(&p);
+
+    if (param) {
+        // Write arbitrary AMF data to the Connect message.
+        while (1) {
+            char *sep;
+            param += strspn(param, " ");
+            if (!*param)
+                break;
+            sep = strchr(param, ' ');
+            if (sep)
+                *sep = '\0';
+            if ((ret = rtmp_write_amf_data(param, &p)) < 0) {
+                // Invalid AMF parameter.
+                //ff_rtmp_packet_destroy(&pkt);
+                return ret;
+            }
+
+            if (sep)
+                param = sep + 1;
+            else
+                break;
+        }
+    }
+    return p - data;
+    //pkt->size = p - pkt->data;
+    //return rtmp_send_packet(rt, &pkt, 1);
+}
+
+static int rtmp_packet_read_one_chunk(RTMPPacket *p,
+				      int chunk_size, RTMPPacket **prev_pkt_ptr,
+				      int *nb_prev_pkt, uint8_t hdr)
+{
+
+	uint8_t buf[16];
+	int channel_id, timestamp, size;
+	uint32_t ts_field; // non-extended timestamp or delta field
+	uint32_t extra = 0;
+	enum RTMPPacketType type;
+	int written = 0;
+	int ret, toread;
+	RTMPPacket *prev_pkt;
+
+	written++;
+	channel_id = hdr & 0x3F;
+
+	if (channel_id < 2) { //special case for channel number >= 64
+		buf[1] = 0;
+		if (ffurl_read_complete(h, buf, channel_id + 1) != channel_id + 1)
+			return AVERROR(EIO);
+		written += channel_id + 1;
+		channel_id = AV_RL16(buf) + 64;
+	}
+	if ((ret = ff_rtmp_check_alloc_array(prev_pkt_ptr, nb_prev_pkt,
+		channel_id)) < 0)
+		return ret;
+	prev_pkt = *prev_pkt_ptr;
+	size  = prev_pkt[channel_id].size;
+	type  = prev_pkt[channel_id].type;
+	extra = prev_pkt[channel_id].extra;
+
+	hdr >>= 6; // header size indicator
+	if (hdr == RTMP_PS_ONEBYTE) {
+		ts_field = prev_pkt[channel_id].ts_field;
+	} else {
+		if (ffurl_read_complete(h, buf, 3) != 3)
+			return AVERROR(EIO);
+		written += 3;
+		ts_field = AV_RB24(buf);
+		if (hdr != RTMP_PS_FOURBYTES) {
+			if (ffurl_read_complete(h, buf, 3) != 3)
+				return AVERROR(EIO);
+			written += 3;
+			size = AV_RB24(buf);
+			if (ffurl_read_complete(h, buf, 1) != 1)
+				return AVERROR(EIO);
+			written++;
+			type = buf[0];
+			if (hdr == RTMP_PS_TWELVEBYTES) {
+				if (ffurl_read_complete(h, buf, 4) != 4)
+					return AVERROR(EIO);
+				written += 4;
+				extra = AV_RL32(buf);
+			}
+		}
+	}
+	if (ts_field == 0xFFFFFF) {
+		if (ffurl_read_complete(h, buf, 4) != 4)
+			return AVERROR(EIO);
+		timestamp = AV_RB32(buf);
+	} else {
+		timestamp = ts_field;
+	}
+	if (hdr != RTMP_PS_TWELVEBYTES)
+		timestamp += prev_pkt[channel_id].timestamp;
+
+	if (!prev_pkt[channel_id].read) {
+		if ((ret = ff_rtmp_packet_create(p, channel_id, type, timestamp,
+			size)) < 0)
+			return ret;
+		p->read = written;
+		p->offset = 0;
+		prev_pkt[channel_id].ts_field   = ts_field;
+		prev_pkt[channel_id].timestamp  = timestamp;
+	} else {
+		// previous packet in this channel hasn't completed reading
+		RTMPPacket *prev = &prev_pkt[channel_id];
+		p->data          = prev->data;
+		p->size          = prev->size;
+		p->channel_id    = prev->channel_id;
+		p->type          = prev->type;
+		p->ts_field      = prev->ts_field;
+		p->extra         = prev->extra;
+		p->offset        = prev->offset;
+		p->read          = prev->read + written;
+		p->timestamp     = prev->timestamp;
+		prev->data       = NULL;
+	}
+	p->extra = extra;
+	// save history
+	prev_pkt[channel_id].channel_id = channel_id;
+	prev_pkt[channel_id].type       = type;
+	prev_pkt[channel_id].size       = size;
+	prev_pkt[channel_id].extra      = extra;
+	size = size - p->offset;
+
+	toread = FFMIN(size, chunk_size);
+	if (ffurl_read_complete(h, p->data + p->offset, toread) != toread) {
+		ff_rtmp_packet_destroy(p);
+		return AVERROR(EIO);
+	}
+	size      -= toread;
+	p->read   += toread;
+	p->offset += toread;
+
+	if (size > 0) {
+		RTMPPacket *prev = &prev_pkt[channel_id];
+		prev->data = p->data;
+		prev->read = p->read;
+		prev->offset = p->offset;
+		p->data      = NULL;
+		return AVERROR(EAGAIN);
+	}
+
+	prev_pkt[channel_id].read = 0; // read complete; reset if needed
+	return p->read;
 }
