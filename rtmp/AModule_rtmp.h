@@ -48,7 +48,10 @@ rtmp_check_c2(RTMPCtx *rt, const unsigned char c2[RTMP_HANDSHAKE_PACKET_SIZE],
               const unsigned char s2[RTMP_HANDSHAKE_PACKET_SIZE]);
 
 AMODULE_API int
-rtmp_calc_swfhash(RTMPCtx *rt, const uint8_t *swfdata, int swfsize);
+rtmp_calc_swfhash(RTMPCtx *rt, const unsigned char *swfdata, int swfsize);
+
+AMODULE_API int
+rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
 
 //////////////////////////////////////////////////////////////////////////
 /** maximum possible number of different RTMP channels */
@@ -58,7 +61,7 @@ rtmp_calc_swfhash(RTMPCtx *rt, const uint8_t *swfdata, int swfsize);
  * channels used to for RTMP packets with different purposes (i.e. data, network
  * control, remote procedure calls, etc.)
  */
-enum RTMPChannel {
+enum RTMPChannel { // RTMP chunk basic header: chunk stream id
     RTMP_NETWORK_CHANNEL = 2,   ///< channel for network-related messages (bandwidth report, ping, etc)
     RTMP_SYSTEM_CHANNEL,        ///< channel for sending server control messages
     RTMP_AUDIO_CHANNEL,         ///< channel for audio data
@@ -70,11 +73,12 @@ enum RTMPChannel {
  * known RTMP packet types
  */
 typedef enum RTMPPacketType {
-    RTMP_PT_CHUNK_SIZE   =  1,  ///< chunk size change
-    RTMP_PT_BYTES_READ   =  3,  ///< number of bytes read
+    RTMP_PT_CHUNK_SIZE   =  1,  ///< chunk size change, payload: chunk size(0+31 bits)
+    RTMP_PT_ABORT        =  2,  ///< abort message, payload: chunk stream id(32 bits)
+    RTMP_PT_BYTES_READ   =  3,  ///< number of bytes read: 4 bytes
     RTMP_PT_PING,               ///< ping
-    RTMP_PT_SERVER_BW,          ///< server bandwidth
-    RTMP_PT_CLIENT_BW,          ///< client bandwidth
+    RTMP_PT_SERVER_BW,          ///< server bandwidth: 4 bytes
+    RTMP_PT_CLIENT_BW,          ///< client bandwidth: 4+1 bytes
     RTMP_PT_AUDIO        =  8,  ///< audio packet
     RTMP_PT_VIDEO,              ///< video packet
     RTMP_PT_FLEX_STREAM  = 15,  ///< Flex shared stream
@@ -89,7 +93,7 @@ typedef enum RTMPPacketType {
 /**
  * possible RTMP packet header sizes
  */
-enum RTMPPacketSize {
+enum RTMPPacketSize { // RTMP chunk basic header: chunk packet/message format
     RTMP_PS_TWELVEBYTES = 0, ///< packet has 12-byte header
     RTMP_PS_EIGHTBYTES,      ///< packet has 8-byte header
     RTMP_PS_FOURBYTES,       ///< packet has 4-byte header
@@ -111,23 +115,11 @@ typedef struct RTMPPacket {
     int            read;       ///< amount read, including headers
 } RTMPPacket;
 
-static inline void
-rtmppkt_init(RTMPPacket *pkt, int channel_id, RTMPPacketType type, int timestamp, int size)
-{
-	pkt->channel_id = channel_id;
-	pkt->type       = type;
-	pkt->timestamp  = timestamp;
-	pkt->ts_field   = 0;
-	pkt->extra      = 0;
-//	pkt->data       = NULL;
-	pkt->size       = size;
-	pkt->offset     = 0;
-	pkt->read       = 0;
-}
+AMODULE_API int
+rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
-
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket *prev_pkt);
 //////////////////////////////////////////////////////////////////////////
 
 #endif

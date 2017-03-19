@@ -649,121 +649,210 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcur
     //return rtmp_send_packet(rt, &pkt, 1);
 }
 
-static int rtmp_packet_read_one_chunk(RTMPPacket *p,
-				      int chunk_size, RTMPPacket **prev_pkt_ptr,
-				      int *nb_prev_pkt, uint8_t hdr)
+AMODULE_API int
+rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 {
-
-	uint8_t buf[16];
 	int channel_id, timestamp, size;
 	uint32_t ts_field; // non-extended timestamp or delta field
 	uint32_t extra = 0;
 	enum RTMPPacketType type;
 	int written = 0;
 	int ret, toread;
-	RTMPPacket *prev_pkt;
 
+	uint32_t hdr = p->data[0];
+	assert(p->size > 1);
 	written++;
 	channel_id = hdr & 0x3F;
 
 	if (channel_id < 2) { //special case for channel number >= 64
-		buf[1] = 0;
-		if (ffurl_read_complete(h, buf, channel_id + 1) != channel_id + 1)
-			return AVERROR(EIO);
+		if (p->size < written+channel_id+1)
+			return 0;
+		channel_id = channel_id?AV_RL16(p->data+written):AV_RL8(p->data+written) + 64;
 		written += channel_id + 1;
-		channel_id = AV_RL16(buf) + 64;
 	}
-	if ((ret = ff_rtmp_check_alloc_array(prev_pkt_ptr, nb_prev_pkt,
-		channel_id)) < 0)
-		return ret;
-	prev_pkt = *prev_pkt_ptr;
-	size  = prev_pkt[channel_id].size;
-	type  = prev_pkt[channel_id].type;
-	extra = prev_pkt[channel_id].extra;
+	if ((channel_id != p->channel_id)
+	 || (prev_pkt == NULL)
+	 || (channel_id != prev_pkt->channel_id)) {
+		p->channel_id = channel_id;
+		return 0;
+	}
+
+	size  = prev_pkt->size;
+	type  = prev_pkt->type;
+	extra = prev_pkt->extra;
 
 	hdr >>= 6; // header size indicator
 	if (hdr == RTMP_PS_ONEBYTE) {
-		ts_field = prev_pkt[channel_id].ts_field;
+		ts_field = prev_pkt->ts_field;
 	} else {
-		if (ffurl_read_complete(h, buf, 3) != 3)
-			return AVERROR(EIO);
+		if (p->size < written+3)
+			return 0;
+		ts_field = AV_RB24(p->data+written);
 		written += 3;
-		ts_field = AV_RB24(buf);
 		if (hdr != RTMP_PS_FOURBYTES) {
-			if (ffurl_read_complete(h, buf, 3) != 3)
-				return AVERROR(EIO);
+			if (p->size < written+3)
+				return 0;
+			size = AV_RB24(p->data+written);
 			written += 3;
-			size = AV_RB24(buf);
-			if (ffurl_read_complete(h, buf, 1) != 1)
-				return AVERROR(EIO);
+			if (p->size < written+1)
+				return 0;
+			type = (RTMPPacketType)p->data[written];
 			written++;
-			type = buf[0];
 			if (hdr == RTMP_PS_TWELVEBYTES) {
-				if (ffurl_read_complete(h, buf, 4) != 4)
-					return AVERROR(EIO);
+				if (p->size < written+4)
+					return 0;
+				extra = AV_RL32(p->data+written);
 				written += 4;
-				extra = AV_RL32(buf);
 			}
 		}
 	}
 	if (ts_field == 0xFFFFFF) {
-		if (ffurl_read_complete(h, buf, 4) != 4)
-			return AVERROR(EIO);
-		timestamp = AV_RB32(buf);
+		if (p->size < written+4)
+			return 0;
+		timestamp = AV_RB32(p->data+written);
+		written += 4;
 	} else {
 		timestamp = ts_field;
 	}
 	if (hdr != RTMP_PS_TWELVEBYTES)
-		timestamp += prev_pkt[channel_id].timestamp;
+		timestamp += prev_pkt->timestamp;
 
-	if (!prev_pkt[channel_id].read) {
-		if ((ret = ff_rtmp_packet_create(p, channel_id, type, timestamp,
-			size)) < 0)
-			return ret;
-		p->read = written;
+	if (!prev_pkt->read) {
+		p->type = type;
+		p->timestamp = timestamp;
 		p->offset = 0;
-		prev_pkt[channel_id].ts_field   = ts_field;
-		prev_pkt[channel_id].timestamp  = timestamp;
+		prev_pkt->ts_field   = ts_field;
+		prev_pkt->timestamp  = timestamp;
 	} else {
 		// previous packet in this channel hasn't completed reading
-		RTMPPacket *prev = &prev_pkt[channel_id];
-		p->data          = prev->data;
-		p->size          = prev->size;
-		p->channel_id    = prev->channel_id;
-		p->type          = prev->type;
-		p->ts_field      = prev->ts_field;
-		p->extra         = prev->extra;
-		p->offset        = prev->offset;
-		p->read          = prev->read + written;
-		p->timestamp     = prev->timestamp;
-		prev->data       = NULL;
+		//RTMPPacket *prev = &prev_pkt[channel_id];
+		//p->data          = prev->data;
+		//p->size          = prev->size;
+		//p->channel_id    = prev->channel_id;
+		p->type          = prev_pkt->type;
+		p->ts_field      = prev_pkt->ts_field;
+		p->offset        = prev_pkt->offset;
+		p->timestamp     = prev_pkt->timestamp;
+		//prev->data       = NULL;
 	}
+	p->read = prev_pkt->read + written;
 	p->extra = extra;
 	// save history
-	prev_pkt[channel_id].channel_id = channel_id;
-	prev_pkt[channel_id].type       = type;
-	prev_pkt[channel_id].size       = size;
-	prev_pkt[channel_id].extra      = extra;
+	prev_pkt->channel_id = channel_id;
+	prev_pkt->type       = type;
+	prev_pkt->data       = p->data + written;
+	prev_pkt->size       = size;
+	prev_pkt->extra      = extra;
 	size = size - p->offset;
 
-	toread = FFMIN(size, chunk_size);
-	if (ffurl_read_complete(h, p->data + p->offset, toread) != toread) {
-		ff_rtmp_packet_destroy(p);
-		return AVERROR(EIO);
-	}
+	toread = FFMIN(size, rt->in_chunk_size);
+	if (p->size < written+toread)
+		return 0;
+	written   += toread;
 	size      -= toread;
 	p->read   += toread;
 	p->offset += toread;
 
 	if (size > 0) {
-		RTMPPacket *prev = &prev_pkt[channel_id];
-		prev->data = p->data;
-		prev->read = p->read;
-		prev->offset = p->offset;
-		p->data      = NULL;
-		return AVERROR(EAGAIN);
+		//RTMPPacket *prev = &prev_pkt[channel_id];
+		//prev->data = p->data;
+		prev_pkt->read = p->read;
+		prev_pkt->offset = p->offset;
+		//p->data      = NULL;
+		//return 0;//AVERROR(EAGAIN);
+	} else {
+		prev_pkt->read = 0; // read complete; reset if needed
+		prev_pkt->offset = 0;
+	}
+	return written;
+}
+
+AMODULE_API int
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket *prev_pkt)
+{
+	uint8_t *p = data;
+	int mode = RTMP_PS_TWELVEBYTES;
+	int off = 0;
+	int written = 0;
+	int ret;
+	int use_delta; // flag if using timestamp delta, not RTMP_PS_TWELVEBYTES
+	uint32_t timestamp; // full 32-bit timestamp or delta value
+
+	//if channel_id = 0, this is first presentation of prev_pkt, send full hdr.
+	use_delta = prev_pkt->channel_id &&
+		pkt->extra == prev_pkt->extra &&
+		pkt->timestamp >= prev_pkt->timestamp;
+
+	timestamp = pkt->timestamp;
+	if (use_delta) {
+		timestamp -= prev_pkt->timestamp;
+	}
+	if (timestamp >= 0xFFFFFF) {
+		pkt->ts_field = 0xFFFFFF;
+	} else {
+		pkt->ts_field = timestamp;
 	}
 
-	prev_pkt[channel_id].read = 0; // read complete; reset if needed
-	return p->read;
+	if (use_delta) {
+		if (pkt->type == prev_pkt->type
+		 && pkt->size == prev_pkt->size) {
+			mode = RTMP_PS_FOURBYTES;
+			if (pkt->ts_field == prev_pkt->ts_field)
+				mode = RTMP_PS_ONEBYTE;
+		} else {
+			mode = RTMP_PS_EIGHTBYTES;
+		}
+	}
+
+	if (pkt->channel_id < 64) {
+		bytestream_put_byte(&p, pkt->channel_id | (mode << 6));
+	} else if (pkt->channel_id < 64 + 256) {
+		bytestream_put_byte(&p, 0               | (mode << 6));
+		bytestream_put_byte(&p, pkt->channel_id - 64);
+	} else {
+		bytestream_put_byte(&p, 1               | (mode << 6));
+		bytestream_put_le16(&p, pkt->channel_id - 64);
+	}
+	if (mode != RTMP_PS_ONEBYTE) {
+		bytestream_put_be24(&p, pkt->ts_field);
+		if (mode != RTMP_PS_FOURBYTES) {
+			bytestream_put_be24(&p, pkt->size);
+			bytestream_put_byte(&p, pkt->type);
+			if (mode == RTMP_PS_TWELVEBYTES)
+				bytestream_put_le32(&p, pkt->extra);
+		}
+	}
+	if (pkt->ts_field == 0xFFFFFF)
+		bytestream_put_be32(&p, timestamp);
+	// save history
+	prev_pkt->channel_id = pkt->channel_id;
+	prev_pkt->type       = pkt->type;
+	prev_pkt->size       = pkt->size;
+	prev_pkt->timestamp  = pkt->timestamp;
+	prev_pkt->ts_field   = pkt->ts_field;
+	prev_pkt->extra      = pkt->extra;
+
+	if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
+		return ret;
+	written = p - pkt_hdr + pkt->size;
+	while (off < pkt->size) {
+		int towrite = FFMIN(rt->out_chunk_size, pkt->size - off);
+		if ((ret = ffurl_write(h, pkt->data + off, towrite)) < 0)
+			return ret;
+		off += towrite;
+		if (off < pkt->size) {
+			uint8_t marker = 0xC0 | pkt->channel_id;
+			if ((ret = ffurl_write(h, &marker, 1)) < 0)
+				return ret;
+			written++;
+			if (pkt->ts_field == 0xFFFFFF) {
+				uint8_t ts_header[4];
+				AV_WB32(ts_header, timestamp);
+				if ((ret = ffurl_write(h, ts_header, 4)) < 0)
+					return ret;
+				written += 4;
+			}
+		}
+	}
+	return written;
 }
