@@ -1,0 +1,47 @@
+1. 复数的资源路径代表集合操作, 非复数的资源路径代表具体某一资源对象:
+   /users/         =>   /user/<user_id>/
+   /clients/       =>   /client/<client_id>/
+   /devices/       =>   /device/<device_id>/
+   /device_agents/ =>   /device_agent/<device_agent_id>/
+
+2. 4种基本消息类型:
+   request:  请求者发送的4种请求消息(get|post|put|delete, 要不要直接放在request/路径目录下??)
+   response: 管理者发送的回应消息
+   event:    终端自己产生的事件消息
+   notify:   来自管理者发送的通知消息
+
+3. 消息格式:
+   MQTT主题: 即目标路径, 如/device/<device_id>/request
+   JSON消息体:
+      from:     源路径, 标记此消息由谁产生, 如/client/<client_id>
+      msgid:    消息id, 相对消息源的发送唯一标记, 如请求者发送request请求消息, 
+                管理者回应时需带上此id, 并发送回应消息至源路径/response目录下,
+                同一请求者发送消息id不可相同或重复, 不同请求者可能发送相同消息id
+   ?? action:   4种请求操作: get|post|put|delete, 仅对request类消息必须附带
+      result:   错误码, 0表示成功, 仅对response类消息必须附带
+
+   例: /device/<device_id>/channel/<channel_id>/config/request/get
+       { "from": "/client/<client_id>",
+         "msgid": 1234,
+         "action": "get",
+         "body": { } }
+
+       /client/<client_id>/response
+       { "from": "/device_agent/<device_agent_id>",
+         "msgid": 1234,
+         "result": 0,
+         "body": { "venc": "h264", "aenc": "aac", "fps": 25, "bps": "1024k" } }
+
+4. 发布消息原则:
+   请求者发送请求消息至资源路径/request目录下.
+   管理者订阅资源路径/request目录, 并将处理结果发至请求者/response目录下.
+
+   例:/client/<client_id>/request/get      查询客户端信息
+      /clients/notify                      通知所有客户端
+      /devices/request/post                添加设备
+      /client/<client_id>/response         回应客户端路径
+
+5. MQTT connect: 用户登陆/设备登陆/设备代理登陆
+   /user/<user_id>/login
+   /device/<device_id>/login
+   /device_agent/<device_agent_id>/login

@@ -33,27 +33,31 @@
       <nodes>
         <node text="/clients/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
           <nodes>
-            <node text="/client/&lt;clientid&gt;/request&#xD;&#xA;PUB: client&#xD;&#xA;SUB: server" />
-            <node text="/client/&lt;clientid&gt;/response&#xD;&#xA;PUB: all&#xD;&#xA;SUB: client" />
-            <node text="/client/&lt;clientid&gt;/event&#xD;&#xA;PUB: client&#xD;&#xA;SUB: all" />
+            <node text="/client/&lt;client_id&gt;/request&#xD;&#xA;PUB: client&#xD;&#xA;SUB: server" />
+            <node text="/client/&lt;client_id&gt;/response&#xD;&#xA;PUB: all&#xD;&#xA;SUB: client" />
+            <node text="/client/&lt;client_id&gt;/event&#xD;&#xA;PUB: client&#xD;&#xA;SUB: all" />
             <node text="/clients/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: client" />
           </nodes>
         </node>
-        <node text="/users/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server" />
-        <node text="/devices/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+        <node text="/users/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
           <nodes>
-            <node text="/device/&lt;devid&gt;/request&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
-            <node text="/device/&lt;devid&gt;/response&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
-            <node text="/device/&lt;devid&gt;/event&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
-            <node text="/devices/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
+            <node text="/user/&lt;user_id&gt;/login&#xD;&#xA;PUB: client&#xD;&#xA;SUB: server" />
           </nodes>
         </node>
-        <node text="/devAgents/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+        <node text="/devices/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
           <nodes>
-            <node text="/devAgent/&lt;devAgentId&gt;/request&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: server" />
-            <node text="/devAgent/&lt;devAgentId&gt;/response&#xD;&#xA;PUB: server&#xD;&#xA;SUB: devAgent" />
-            <node text="/devAgent/&lt;devAgentId&gt;/event&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
-            <node text="/devAgents/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
+            <node text="/device/&lt;device_id&gt;/request&#xD;&#xA;PUB: all&#xD;&#xA;SUB: device_agent" />
+            <node text="/device/&lt;device_id&gt;/response&#xD;&#xA;PUB: device_agent&#xD;&#xA;SUB: all" />
+            <node text="/device/&lt;device_id&gt;/event&#xD;&#xA;PUB: device_agent&#xD;&#xA;SUB: all" />
+            <node text="/devices/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: device_agent" />
+          </nodes>
+        </node>
+        <node text="/device_agents/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+          <nodes>
+            <node text="/device_agent/&lt;device_agent_id&gt;/request&#xD;&#xA;PUB: device_agent&#xD;&#xA;SUB: server" />
+            <node text="/device_agent/&lt;device_agent_id&gt;/response&#xD;&#xA;PUB: server&#xD;&#xA;SUB: device_agent" />
+            <node text="/device_agent/&lt;device_agent_id&gt;/event&#xD;&#xA;PUB: device_agent&#xD;&#xA;SUB: all" />
+            <node text="/device_agents/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: device_agent" />
           </nodes>
         </node>
       </nodes>
