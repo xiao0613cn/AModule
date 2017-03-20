@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<map name="iot_msg" document_type="Blumind" editor_version="1.3.21.1">
+  <!--Create by Blumind, you can download it free from http://www.blumind.org/download-->
+  <info>
+    <author>xiao</author>
+    <company>
+    </company>
+    <version>1.0</version>
+  </info>
+  <layout>MIND_MAP</layout>
+  <attributes>
+    <item name="editor_show_sidebar">True</item>
+  </attributes>
+  <style>
+    <back_color>White</back_color>
+    <fore_color>Black</fore_color>
+    <line_color>LightSlateGray</line_color>
+    <border_color>SlateGray</border_color>
+    <node_back_color>LightGray</node_back_color>
+    <node_fore_color>Black</node_fore_color>
+    <select_color>RoyalBlue</select_color>
+    <hover_color>MediumSlateBlue</hover_color>
+    <link_line_color>Green</link_line_color>
+  </style>
+  <nodes>
+    <node text="MQTT">
+      <style>
+        <back_color>Silver</back_color>
+        <fore_color>Black</fore_color>
+        <border_color>Black</border_color>
+        <padding>12</padding>
+      </style>
+      <nodes>
+        <node text="/clients/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+          <nodes>
+            <node text="/client/&lt;clientid&gt;/request&#xD;&#xA;PUB: client&#xD;&#xA;SUB: server" />
+            <node text="/client/&lt;clientid&gt;/response&#xD;&#xA;PUB: all&#xD;&#xA;SUB: client" />
+            <node text="/client/&lt;clientid&gt;/event&#xD;&#xA;PUB: client&#xD;&#xA;SUB: all" />
+            <node text="/clients/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: client" />
+          </nodes>
+        </node>
+        <node text="/users/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server" />
+        <node text="/devices/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+          <nodes>
+            <node text="/device/&lt;devid&gt;/request&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
+            <node text="/device/&lt;devid&gt;/response&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
+            <node text="/device/&lt;devid&gt;/event&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
+            <node text="/devices/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
+          </nodes>
+        </node>
+        <node text="/devAgents/&#xD;&#xA;PUB: all&#xD;&#xA;SUB: server">
+          <nodes>
+            <node text="/devAgent/&lt;devAgentId&gt;/request&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: server" />
+            <node text="/devAgent/&lt;devAgentId&gt;/response&#xD;&#xA;PUB: server&#xD;&#xA;SUB: devAgent" />
+            <node text="/devAgent/&lt;devAgentId&gt;/event&#xD;&#xA;PUB: devAgent&#xD;&#xA;SUB: all" />
+            <node text="/devAgents/notify&#xD;&#xA;PUB: all&#xD;&#xA;SUB: devAgent" />
+          </nodes>
+        </node>
+      </nodes>
+    </node>
+  </nodes>
+</map>
