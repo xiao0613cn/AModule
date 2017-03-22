@@ -53,4 +53,76 @@
    /device/<device_id>/login
    /device_agent/<device_agent_id>/login
 
-5.1 
+5.1 JSON元数据：可能在多条或多种消息内出现，做为共同结构体表示
+   user: {
+       //以下字段必选, 出现于所有含device元数据的消息中
+       id:         数字, 非空, 不为0(除添加用户消息/post/users外）
+       name:       
+       area_id:    数字, 
+
+       //以下字段可选, 根据权限或特定消息需要时出现
+       password；
+       devices: {[device,device,...]}
+   }
+
+   area: {
+       //
+       id:         数字, 非空, 不为0(除添加区域消息/post/areas外）
+       name:
+       parent_id: 
+
+       //
+       children: {[area,area,...]}
+       users: {[user,user,...]}
+       devices: {[device,device,...]}
+   }
+
+   device: {
+       //必选
+       id:         数字, 非空, 不为0(除添加设备消息/post/devices外）
+       name:       字串, 
+       agent_id:   数字, 为0表示私有设备, 无需代理
+       owner_id:   数字, 为0表示无所有者
+       area_id:    数字, 
+       status:
+
+       //可选
+       factory:    字串, 非空
+       net_addr:   字串, 网络地址(ip或域名)
+       net_port:   数字, 网络端口
+       login_user: 字串, 
+       login_pwd:  字串, 
+       private_sn:
+
+       channels: {[channel,channel,...]} 通道信息元数据
+       sensors: {[sensor,sensor,...]}
+       disks: {[disk,disk,...]}
+       
+       agent_name: 字串, 
+       owner_name: 字串, 
+       area_name:  字串, 
+   }
+
+   device_agent: {
+       //
+       id:
+       name:
+       reg_sn:
+       
+       //
+       devices: {[device,device,...]}
+   }
+
+   channel: {
+       //
+       id: 
+       name:
+       device_id:
+
+       //
+       streams: {[stream,stream,...]}
+       ptz:
+   }
+
+   stream: {
+        //
