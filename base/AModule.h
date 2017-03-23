@@ -2,6 +2,15 @@
 #define _AMODULE_H_
 
 
+typedef enum AObject_Status {
+	AObject_Invalid = 0,
+	AObject_Opening,
+	AObject_Opened,
+	AObject_Abort,
+	AObject_Closing,
+	AObject_Closed,
+} AObject_Status;
+
 typedef struct AModule AModule;
 typedef struct AObject AObject;
 

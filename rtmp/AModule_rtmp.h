@@ -119,7 +119,7 @@ AMODULE_API int
 rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket *prev_pkt);
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPacket *prev_pkt);
 //////////////////////////////////////////////////////////////////////////
 
 #endif

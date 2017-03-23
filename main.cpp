@@ -1,6 +1,10 @@
 #include "stdafx.h"
 //#include <map>
 #include "base/AModule_API.h"
+#define _MSC_STDINT_H_
+#include "rapidjson-1.1.0/include/rapidjson/document.h"
+#include "rapidjson-1.1.0/include/rapidjson/stringbuffer.h"
+#include "rapidjson-1.1.0/include/rapidjson/writer.h"
 
 extern AModule TCPModule;
 extern AModule FileModule;
@@ -16,7 +20,7 @@ extern AModule EchoModule;
 extern AModule HttpClientModule;
 
 #ifndef _WINDLL
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_WIN64)
 extern AModule M3U8ProxyModule;
 #endif
 #include "io/AModule_io.h"
@@ -193,30 +197,30 @@ static const char *pvd_path =
 	"}";
 
 static const char *g_opt = 
-"global_param {"
-"PVDProxy {"
-"       io: async_tcp {"
-"		address: '192.168.60.227',"
-"		port: 8101,"
-"               timeout: 5,"
+"{"
+"\"PVDProxy\": {"
+"       \"io\": \"async_tcp\" {"
+"		\"address\": \"192.168.60.227\","
+"		\"port\": 8101,"
+"               \"timeout\": 5,"
 "	},"
-"	username: 'admin',"
-"	password: '888888',"
-"	force_alarm: 0,"
-"	channel: 0,"
-"	linkmode: 0,"
-"	channel_count: ,"
-"	proactive: 1 {"
-"		io: async_tcp {"
-"			address: '192.168.20.16',"
-"			port: 8000,"
-"			timeout: 5,"
+"	\"username\": \"admin\","
+"	\"password\": \"888888\","
+"	\"force_alarm\": 0,"
+"	\"channel\": 0,"
+"	\"linkmode\": 0,"
+"	\"channel_count\": ,"
+"	\"proactive\": 1 {"
+"		\"io\": \"async_tcp\" {"
+"			\"address\": \"192.168.20.16\","
+"			\"port\": 8000,"
+"			\"timeout\": 5,"
 "		},"
-"		prefix: ,"
-"		first: 100,"
+"		\"prefix\": ,"
+"		\"first\": 100,"
 "	},"
 "},"
-"M3U8Proxy: 0,"
+"\"M3U8Proxy\": 0,"
 "}";
 
 struct RecvMsg {
@@ -766,6 +770,15 @@ int main(int argc, char* argv[])
 	rpc_argv.param._a1.data = 1;
 	rpc_argv.param._a2.data = 0x00040302;
 	p1(param_traits<3>(&rpc_argv.param));*/
+	rapidjson::Document d;
+	d.Parse("{ \"a\": 23, \"b\": { \"asf\":12 } }");
+	rapidjson::Value &a = d["a"];
+	a.SetInt(a.GetInt()+1);
+
+	rapidjson::StringBuffer strbuf;
+	rapidjson::Writer<rapidjson::StringBuffer> w(strbuf);
+	d.Accept(w);
+	strbuf.GetString();
 
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
@@ -796,7 +809,7 @@ int main(int argc, char* argv[])
 	AModuleRegister(&HTTPProxyModule);
 	AModuleRegister(&PVDProxyModule);
 	AModuleRegister(&DumpModule);
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_WIN64)
 	AModuleRegister(&M3U8ProxyModule);
 #endif
 	AModuleRegister(&EchoModule);

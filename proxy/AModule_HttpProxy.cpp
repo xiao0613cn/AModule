@@ -123,7 +123,7 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 	media_file_t *mf = (media_file_t*)(ctx+1);
 
-#ifdef _WINDLL
+#if defined(_WINDLL) || defined(_WIN64)
 	{
 #else
 	while (result > 0)

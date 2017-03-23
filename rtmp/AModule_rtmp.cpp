@@ -768,7 +768,7 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 }
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket *prev_pkt)
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPacket *prev_pkt)
 {
 	uint8_t *p = data;
 	int mode = RTMP_PS_TWELVEBYTES;
@@ -832,7 +832,8 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket 
 	prev_pkt->ts_field   = pkt->ts_field;
 	prev_pkt->extra      = pkt->extra;
 
-	if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
+	return p - data;
+	/*if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
 		return ret;
 	written = p - pkt_hdr + pkt->size;
 	while (off < pkt->size) {
@@ -854,5 +855,5 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *p, RTMPPacket 
 			}
 		}
 	}
-	return written;
+	return written;*/
 }

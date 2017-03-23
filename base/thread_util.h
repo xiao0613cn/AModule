@@ -253,5 +253,12 @@ CloseEvent(HANDLE h)
 }
 #endif //!_WIN32
 
+#ifdef __cplusplus
+template <typename TObject, void(TObject::*run)()>
+void* TObjectRun(void *p) {
+	(((TObject*)p)->*run)();
+	return NULL;
+}
+#endif
 
 #endif

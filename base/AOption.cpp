@@ -94,6 +94,17 @@ AOptionDecode(AOption **option, const char *name)
 			name = sep+1;
 			break;
 
+		/*case '[':
+			if ((current->parent == NULL)
+			 || (current->parent->value[0] != '\0')
+			 || (current != list_first_entry(&current->parent->children_list, AOption, brother_entry))
+			 || (current->name[0] != '\0')) {
+				 result = -EINVAL;
+				 goto _return;
+			}
+			name = sep+1;
+			break;*/
+
 		case '}':
 			if (sep != name)
 				AOptionSetNameOrValue(current, name, sep-name);

@@ -16,15 +16,6 @@ struct SyncRequest {
 };
 #define to_req(msg) container_of(msg, SyncRequest, msg)
 
-enum StreamStatus {
-	stream_invalid = 0,
-	stream_opening,
-	stream_opened,
-	stream_abort,
-	stream_closing,
-	stream_closed,
-};
-
 #define syncreq_cache_count  32
 
 struct SyncControl {
@@ -129,7 +120,7 @@ static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 	sc->stream = NULL;
 	sc->open_result = 0;
 	sc->close_msg = NULL;
-	sc->status = stream_invalid;
+	sc->status = AObject_Invalid;
 	sc->request_count = 0;
 	INIT_LIST_HEAD(&sc->syncreq_list);
 	memset(sc->syncreq_cache_list, 0, sizeof(sc->syncreq_cache_list));
@@ -146,9 +137,9 @@ static int SyncControlOpenStatus(SyncRequest *req, int &result)
 	int old_status;
 	switch (sc->status)
 	{
-	case stream_abort:
+	case AObject_Abort:
 		result = -EINTR;
-	case stream_opening:
+	case AObject_Opening:
 		if (result >= 0)
 		{
 			while (sc->object.reqix_count < sc->stream->reqix_count) {
@@ -165,33 +156,33 @@ static int SyncControlOpenStatus(SyncRequest *req, int &result)
 			AMessage *msg = req->from;
 			req->msg.done = &SyncRequestDone;
 			req->from = NULL;
-			old_status = InterlockedCompareExchange(&sc->status, stream_opened, stream_opening);
-			if (old_status == stream_opening)
+			old_status = InterlockedCompareExchange(&sc->status, AObject_Opened, AObject_Opening);
+			if (old_status == AObject_Opening)
 				return 1;
 
-			assert(old_status == stream_abort);
+			assert(old_status == AObject_Abort);
 			sc->open_result = -EINTR;
 			req->msg.done = &SyncControlOpenDone;
 			req->from = msg;
 		}
 
-		old_status = InterlockedExchange(&sc->status, stream_closing);
-		assert((old_status == stream_opening) || (old_status == stream_abort));
+		old_status = InterlockedExchange(&sc->status, AObject_Closing);
+		assert((old_status == AObject_Opening) || (old_status == AObject_Abort));
 
 		AMsgInit(&req->msg, AMsgType_Unknown, NULL, 0);
 		result = sc->stream->close(sc->stream, &req->msg);
 		if (result == 0)
 			return 0;
 
-	case stream_closing:
+	case AObject_Closing:
 		result = InterlockedAdd(&sc->request_count, -1);
 		assert(result == 0);
 		result = sc->open_result;
 
 		req->msg.done = &SyncRequestDone;
 		req->from = NULL;
-		old_status = InterlockedExchange(&sc->status, stream_closed);
-		assert(old_status == stream_closing);
+		old_status = InterlockedExchange(&sc->status, AObject_Closed);
+		assert(old_status == AObject_Closing);
 		return -1;
 
 	default:
@@ -215,11 +206,11 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 {
 	SyncControl *sc = to_sc(object);
 
-	int result = InterlockedCompareExchange(&sc->status, stream_opening, stream_invalid);
-	if (result != stream_invalid) {
-		if (result == stream_closed)
-			result = InterlockedCompareExchange(&sc->status, stream_opening, stream_closed);
-		if (result != stream_closed)
+	int result = InterlockedCompareExchange(&sc->status, AObject_Opening, AObject_Invalid);
+	if (result != AObject_Invalid) {
+		if (result == AObject_Closed)
+			result = InterlockedCompareExchange(&sc->status, AObject_Opening, AObject_Closed);
+		if (result != AObject_Closed)
 			return -EBUSY;
 	}
 
@@ -265,8 +256,8 @@ static void SyncControlClosed(SyncControl *sc, SyncRequest *req)
 	req->msg.done = &SyncRequestDone;
 	req->from = NULL;
 
-	int old_status = InterlockedExchange(&sc->status, stream_closed);
-	assert(old_status == stream_closing);
+	int old_status = InterlockedExchange(&sc->status, AObject_Closed);
+	assert(old_status == AObject_Closing);
 }
 
 static int SyncControlCloseDone(AMessage *msg, int result)
@@ -311,7 +302,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 		} else {
 			msg = NULL;
 		}
-		if (sc->status != stream_opened) {
+		if (sc->status != AObject_Opened) {
 			req->from = NULL;
 			result = -EINTR;
 		} else if (list_empty(&req->request_list)) {
@@ -400,7 +391,7 @@ static int SyncRequestCancelDispath(SyncRequest *req, AMessage *from)
 static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 {
 	SyncControl *sc = to_sc(object);
-	if (sc->status != stream_opened)
+	if (sc->status != AObject_Opened)
 		return -ENOENT;
 
 	int flag = (reqix & ~Aiosync_IndexMask);
@@ -415,7 +406,7 @@ static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 
 	int result;
 	pthread_mutex_lock(&req->mutex);
-	if (sc->status != stream_opened) {
+	if (sc->status != AObject_Opened) {
 		result = -EINTR;
 	} else {
 		switch (flag)
@@ -462,7 +453,7 @@ static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 static int SyncControlCancel(AObject *object, int reqix, AMessage *msg)
 {
 	SyncControl *sc = to_sc(object);
-	if (sc->status != stream_opened)
+	if (sc->status != AObject_Opened)
 		return -ENOENT;
 
 	int flag = (reqix & ~Aiosync_IndexMask);
@@ -485,7 +476,7 @@ static int SyncControlCancel(AObject *object, int reqix, AMessage *msg)
 
 	int result = 0;
 	pthread_mutex_lock(&req->mutex);
-	if (sc->status != stream_opened) {
+	if (sc->status != AObject_Opened) {
 		result = -EINTR;
 	} else if (msg == NULL) {
 		result = sc->stream->cancel(sc->stream, reqix, NULL);
@@ -513,23 +504,23 @@ static int SyncControlClose(AObject *object, AMessage *msg)
 		return sc->stream->close(sc->stream, NULL);
 	}
 
-	int new_status = stream_abort;
-	int test_status = stream_opening;
+	int new_status = AObject_Abort;
+	int test_status = AObject_Opening;
 	for (;;) {
 		int old_status = InterlockedCompareExchange(&sc->status, new_status, test_status);
-		if ((old_status == stream_invalid) || (old_status == stream_closed))
+		if ((old_status == AObject_Invalid) || (old_status == AObject_Closed))
 			return -ENOENT;
-		if ((old_status == stream_abort) || (old_status == stream_closing))
+		if ((old_status == AObject_Abort) || (old_status == AObject_Closing))
 			return -EBUSY;
 		if (old_status != test_status) {
-			test_status = stream_opened;
-			new_status = stream_closing;
+			test_status = AObject_Opened;
+			new_status = AObject_Closing;
 			Sleep(0);
 			continue;
 		}
-		if (old_status == stream_opening)
+		if (old_status == AObject_Opening)
 			return 1;
-		assert(old_status == stream_opened);
+		assert(old_status == AObject_Opened);
 		break;
 	}
 
