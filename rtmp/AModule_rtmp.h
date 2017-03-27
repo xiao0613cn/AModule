@@ -53,6 +53,30 @@ rtmp_calc_swfhash(RTMPCtx *rt, const unsigned char *swfdata, int swfsize);
 AMODULE_API int
 rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
 
+AMODULE_API int
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath);
+
+AMODULE_API int
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, const char *playpath);
+
+AMODULE_API int
+rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data);
+
+AMODULE_API int
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, const char *playpath);
+
+AMODULE_API int
+rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
+
+AMODULE_API int
+rtmp_gen_getStreamLength(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
+
+AMODULE_API int
+rtmp_gen_play(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
+
+AMODULE_API int
+rtmp_gen_FCUnpublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
+
 //////////////////////////////////////////////////////////////////////////
 /** maximum possible number of different RTMP channels */
 #define RTMP_CHANNELS 65599
@@ -116,10 +140,10 @@ typedef struct RTMPPacket {
 } RTMPPacket;
 
 AMODULE_API int
-rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt);
+rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPacket *prev_pkt);
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 //////////////////////////////////////////////////////////////////////////
 
 #endif

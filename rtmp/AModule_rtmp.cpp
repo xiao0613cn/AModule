@@ -768,7 +768,7 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 }
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPacket *prev_pkt)
+rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 {
 	uint8_t *p = data;
 	int mode = RTMP_PS_TWELVEBYTES;
@@ -832,7 +832,7 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPa
 	prev_pkt->ts_field   = pkt->ts_field;
 	prev_pkt->extra      = pkt->extra;
 
-	return p - data;
+	return (p - data);
 	/*if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
 		return ret;
 	written = p - pkt_hdr + pkt->size;
@@ -856,4 +856,48 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char data[16], RTMPPacket *pkt, RTMPPa
 		}
 	}
 	return written;*/
+}
+
+AMODULE_API int
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath);
+{
+	uint8_t *p = data;
+	ff_amf_write_string_sz(&p, "releaseStream");
+	ff_amf_write_number(&p, ++rt->nb_invokes);
+	ff_amf_write_null(&p);
+	ff_amf_write_string(&p, playpath, strlen(playpath));
+	return p - data;
+}
+
+AMODULE_API int
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, const char *playpath)
+{
+	uint8_t *p = data;
+	ff_amf_write_string_sz(&p, "FCPublish");
+	ff_amf_write_number(&p, ++rt->nb_invokes);
+	ff_amf_write_null(&p);
+	ff_amf_write_string(&p, playpath, strlen(playpath));
+	return p - data;
+}
+
+AMODULE_API int
+rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data)
+{
+	uint8_t *p = data;
+	ff_amf_write_string(&p, "createStream");
+	ff_amf_write_number(&p, ++rt->nb_invokes);
+	ff_amf_write_null(&p);
+	return p - data;
+}
+
+AMODULE_API int
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, const char *playpath)
+{
+	uint8_t *p = data;
+	ff_amf_write_string(&p, "publish");
+	ff_amf_write_number(&p, ++rt->nb_invokes);
+	ff_amf_write_null(&p);
+	ff_amf_write_string(&p, playpath, strlen(playpath));
+	ff_amf_write_string(&p, "live");
+	return p - data;
 }
