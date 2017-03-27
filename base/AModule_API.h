@@ -83,6 +83,12 @@ int TObjectMsgDone(AMessage *msg, int result)
 }
 #define TObjectDone(type, msg, from, done) \
 	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
+
+template <AModule &module>
+class auto_reg_t {
+public:
+	auto_reg_t() { AModuleRegister(&module); }
+};
 #endif
 
 #define async_begin(status, result) \

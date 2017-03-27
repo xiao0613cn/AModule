@@ -23,6 +23,7 @@
 #ifdef _WIN32
 #define __attribute__(x)  
 #pragma warning(disable: 4706)
+#define AMODULE_API  __declspec(dllexport)
 #endif
 #ifndef NULL
 #define NULL  0
@@ -80,7 +81,7 @@ static void __rb_rotate_right(struct rb_node *node, struct rb_root *root)
 	rb_set_parent(node, left);
 }
 
-void rb_insert_color(struct rb_node *node, struct rb_root *root)
+AMODULE_API void rb_insert_color(struct rb_node *node, struct rb_root *root)
 {
 	struct rb_node *parent, *gparent;
 
@@ -226,7 +227,7 @@ static void __rb_erase_color(struct rb_node *node, struct rb_node *parent,
 		rb_set_black(node);
 }
 
-void rb_erase(struct rb_node *node, struct rb_root *root)
+AMODULE_API void rb_erase(struct rb_node *node, struct rb_root *root)
 {
 	struct rb_node *child, *parent;
 	int color;
@@ -297,7 +298,7 @@ EXPORT_SYMBOL(rb_erase);
 /*
  * This function returns the first node (in sort order) of the tree.
  */
-struct rb_node *rb_first(const struct rb_root *root)
+AMODULE_API struct rb_node *rb_first(const struct rb_root *root)
 {
 	struct rb_node	*n;
 
@@ -310,7 +311,7 @@ struct rb_node *rb_first(const struct rb_root *root)
 }
 EXPORT_SYMBOL(rb_first);
 
-struct rb_node *rb_last(const struct rb_root *root)
+AMODULE_API struct rb_node *rb_last(const struct rb_root *root)
 {
 	struct rb_node	*n;
 
@@ -323,7 +324,7 @@ struct rb_node *rb_last(const struct rb_root *root)
 }
 EXPORT_SYMBOL(rb_last);
 
-struct rb_node *rb_next(const struct rb_node *node)
+AMODULE_API struct rb_node *rb_next(const struct rb_node *node)
 {
 	struct rb_node *parent;
 
@@ -352,7 +353,7 @@ struct rb_node *rb_next(const struct rb_node *node)
 }
 EXPORT_SYMBOL(rb_next);
 
-struct rb_node *rb_prev(const struct rb_node *node)
+AMODULE_API struct rb_node *rb_prev(const struct rb_node *node)
 {
 	struct rb_node *parent;
 
@@ -377,7 +378,7 @@ struct rb_node *rb_prev(const struct rb_node *node)
 }
 EXPORT_SYMBOL(rb_prev);
 
-void rb_replace_node(struct rb_node *victim, struct rb_node *new_node,
+AMODULE_API void rb_replace_node(struct rb_node *victim, struct rb_node *new_node,
 		     struct rb_root *root)
 {
 	struct rb_node *parent = rb_parent(victim);

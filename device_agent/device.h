@@ -6,9 +6,9 @@ typedef struct ADevice {
 	AObject          object;
 	AObject_Status   status;
 	struct rb_node   map_node;    // device map tree entry in DeviceManager
-	struct list_head check_entry; // opening | checking active list entry in DeviceManager
-	DWORD            active;
+	struct list_head heart_entry; // checking heart list entry in DeviceManager
 
+	DWORD      active;
 	DWORDLONG  id;
 	char       name[128];
 
@@ -26,8 +26,14 @@ typedef struct ADevice {
 	char       owner_name[128];
 	DWORDLONG  area_id;
 	char       area_name[128];
-} ADevice;
 
+	inline void init() {
+		status = AObject_Invalid;
+		RB_CLEAR_NODE(&map_node);
+		INIT_LIST_HEAD(&heart_entry);
+		memset(&this->active, 0, sizeof(ADevice) - offsetof(ADevice, active));
+	}
+} ADevice;
 
 
 

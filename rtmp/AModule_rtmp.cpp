@@ -859,7 +859,7 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacke
 }
 
 AMODULE_API int
-rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath);
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "releaseStream");
@@ -884,7 +884,7 @@ AMODULE_API int
 rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data)
 {
 	uint8_t *p = data;
-	ff_amf_write_string(&p, "createStream");
+	ff_amf_write_string_sz(&p, "createStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
 	return p - data;
@@ -894,10 +894,10 @@ AMODULE_API int
 rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, const char *playpath)
 {
 	uint8_t *p = data;
-	ff_amf_write_string(&p, "publish");
+	ff_amf_write_string_sz(&p, "publish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
 	ff_amf_write_string(&p, playpath, strlen(playpath));
-	ff_amf_write_string(&p, "live");
+	ff_amf_write_string(&p, "live", 4);
 	return p - data;
 }
