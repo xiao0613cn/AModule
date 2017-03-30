@@ -32,12 +32,12 @@ rtmp_init(RTMPCtx *rt, int is_input)
 
 	rt->is_input = is_input;
 	if (is_input) {
-		rt->flashver_len = snprintf(rt->flashver, sizeof(rt->flashver),
+		snprintf(rt->flashver, sizeof(rt->flashver),
 			"%s %d,%d,%d,%d",
 			RTMP_CLIENT_PLATFORM, RTMP_CLIENT_VER1, RTMP_CLIENT_VER2,
 			RTMP_CLIENT_VER3, RTMP_CLIENT_VER4);
 	} else {
-		rt->flashver_len = snprintf(rt->flashver, sizeof(rt->flashver),
+		snprintf(rt->flashver, sizeof(rt->flashver),
 			"FMLE/3.0 (compatible; %s %d,%d,%d,%d)",
 			RTMP_CLIENT_PLATFORM, RTMP_CLIENT_VER1, RTMP_CLIENT_VER2,
 			RTMP_CLIENT_VER3, RTMP_CLIENT_VER4);
@@ -589,7 +589,7 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcur
         ff_amf_write_string_sz(&p, "nonprivate");
     }
     ff_amf_write_field_name_sz(&p, "flashVer");
-    ff_amf_write_string(&p, rt->flashver, rt->flashver_len);
+    ff_amf_write_string(&p, rt->flashver, strlen(rt->flashver));
 
     if (rt->swfurl) {
         ff_amf_write_field_name_sz(&p, "swfUrl");
@@ -659,7 +659,7 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 	int written = 0;
 	int ret, toread;
 
-	uint32_t hdr = p->data[0];
+	uint8_t hdr = p->data[0];
 	assert(p->size > 1);
 	written++;
 	channel_id = hdr & 0x3F;
@@ -717,6 +717,14 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 	if (hdr != RTMP_PS_TWELVEBYTES)
 		timestamp += prev_pkt->timestamp;
 
+	if (prev_pkt->read && size != prev_pkt->size) {
+		av_log(NULL, AV_LOG_ERROR, "RTMP packet size mismatch %d != %d\n",
+			size,
+			prev_pkt->size);
+		//ff_rtmp_packet_destroy(&prev_pkt[channel_id]);
+		prev_pkt->read = 0;
+	}
+
 	if (!prev_pkt->read) {
 		p->type = type;
 		p->timestamp = timestamp;
@@ -759,7 +767,7 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 		prev_pkt->read = p->read;
 		prev_pkt->offset = p->offset;
 		//p->data      = NULL;
-		//return 0;//AVERROR(EAGAIN);
+		//return AVERROR(EAGAIN);
 	} else {
 		prev_pkt->read = 0; // read complete; reset if needed
 		prev_pkt->offset = 0;
@@ -768,9 +776,9 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 }
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacket *prev_pkt)
+rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 {
-	uint8_t *p = data;
+	uint8_t *p = pkt->data;
 	int mode = RTMP_PS_TWELVEBYTES;
 	int off = 0;
 	int written = 0;
@@ -831,8 +839,9 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacke
 	prev_pkt->timestamp  = pkt->timestamp;
 	prev_pkt->ts_field   = pkt->ts_field;
 	prev_pkt->extra      = pkt->extra;
+	prev_pkt->offset     = pkt->offset = 0;
 
-	return (p - data);
+	return (p - pkt->data);
 	/*if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
 		return ret;
 	written = p - pkt_hdr + pkt->size;
@@ -859,24 +868,42 @@ rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacke
 }
 
 AMODULE_API int
-rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath)
+rtmp_gen_next_head(RTMPCtx *rt, RTMPPacket *pkt, unsigned char *data)
+{
+	int towrite = FFMIN(rt->out_chunk_size, pkt->size - pkt->offset);
+	pkt->offset += towrite;
+	if (pkt->offset >= pkt->size)
+		return 0;
+
+	int written = 1;
+	data[0] = 0xC0 | pkt->channel_id;
+
+	if (pkt->ts_field == 0xFFFFFF) {
+		AV_WB32(data+written, pkt->timestamp);
+		written += 4;
+	}
+	return written;
+}
+
+AMODULE_API int
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "releaseStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
-	ff_amf_write_string(&p, playpath, strlen(playpath));
+	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
 	return p - data;
 }
 
 AMODULE_API int
-rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, const char *playpath)
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "FCPublish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
-	ff_amf_write_string(&p, playpath, strlen(playpath));
+	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
 	return p - data;
 }
 
@@ -891,13 +918,24 @@ rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data)
 }
 
 AMODULE_API int
-rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, const char *playpath)
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "publish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
-	ff_amf_write_string(&p, playpath, strlen(playpath));
-	ff_amf_write_string(&p, "live", 4);
+	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
+	ff_amf_write_string_sz(&p, "live");
+	return p - data;
+}
+
+AMODULE_API int
+rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data)
+{
+	uint8_t *p = data;
+	ff_amf_write_string_sz(&p, "deleteStream");
+	ff_amf_write_number(&p, ++rt->nb_invokes);
+	ff_amf_write_null(&p);
+	ff_amf_write_number(&p, rt->stream_id);
 	return p - data;
 }

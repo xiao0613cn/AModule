@@ -8,7 +8,7 @@
  *
  * based on http://ubiqx.org/libcifs/source/Auth/MD5.c
  *          from Christopher R. Hertel (crh@ubiqx.mn.org)
- * Simplified, cleaned and IMO redundant comments removed by michael.
+ * Simplified, cleaned and IMO redundant comments removed by Michael.
  *
  * If you use gcc, then version 4.1 or later and -fomit-frame-pointer is
  * strongly recommended.
@@ -66,16 +66,21 @@ static const uint32_t T[64] = { // T[i]= fabs(sin(i+1)<<32)
     0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 };
 
-#define CORE(i, a, b, c, d) do {                                        \
-        t = S[i >> 4][i & 3];                                           \
+#define CORE(i, a, b, c, d)                                             \
+    do {                                                                \
+        t  = S[i >> 4][i & 3];                                          \
         a += T[i];                                                      \
                                                                         \
         if (i < 32) {                                                   \
-            if (i < 16) a += (d ^ (b & (c ^ d))) + X[       i  & 15];   \
-            else        a += ((d & b) | (~d & c)) + X[(1 + 5*i) & 15];  \
+            if (i < 16)                                                 \
+                a += (d ^ (b & (c ^ d)))  + X[       i  & 15];          \
+            else                                                        \
+                a += ((d & b) | (~d & c)) + X[(1 + 5*i) & 15];          \
         } else {                                                        \
-            if (i < 48) a += (b ^ c ^ d)         + X[(5 + 3*i) & 15];   \
-            else        a += (c ^ (b | ~d))      + X[(    7*i) & 15];   \
+            if (i < 48)                                                 \
+                a += (b ^ c ^ d)          + X[(5 + 3*i) & 15];          \
+            else                                                        \
+                a += (c ^ (b | ~d))       + X[(    7*i) & 15];          \
         }                                                               \
         a = b + (a << t | a >> (32 - t));                               \
     } while (0)
@@ -110,10 +115,13 @@ static void body(uint32_t ABCD[4], uint32_t *src, int nblocks)
     }
 #else
 #define CORE2(i)                                                        \
-    CORE( i,   a,b,c,d); CORE((i+1),d,a,b,c);                           \
-    CORE((i+2),c,d,a,b); CORE((i+3),b,c,d,a)
-#define CORE4(i) CORE2(i); CORE2((i+4)); CORE2((i+8)); CORE2((i+12))
-    CORE4(0); CORE4(16); CORE4(32); CORE4(48);
+        CORE(i, a, b, c, d); CORE((i + 1), d, a, b, c);                 \
+        CORE((i + 2), c, d, a, b); CORE((i + 3), b, c, d, a)
+#define CORE4(i) CORE2(i); CORE2((i + 4)); CORE2((i + 8)); CORE2((i + 12))
+        CORE4(0);
+        CORE4(16);
+        CORE4(32);
+        CORE4(48);
 #endif
 
     ABCD[0] += d;
@@ -138,7 +146,7 @@ void av_md5_update(AVMD5 *ctx, const uint8_t *src, int len)
     const uint8_t *end;
     int j;
 
-    j = ctx->len & 63;
+    j         = ctx->len & 63;
     ctx->len += len;
 
     if (j) {
@@ -177,10 +185,10 @@ void av_md5_final(AVMD5 *ctx, uint8_t *dst)
     while ((ctx->len & 63) != 56)
         av_md5_update(ctx, "", 1);
 
-    av_md5_update(ctx, (uint8_t *)&finalcount, 8);
+    av_md5_update(ctx, (uint8_t *) &finalcount, 8);
 
     for (i = 0; i < 4; i++)
-        AV_WL32(dst + 4*i, ctx->ABCD[3 - i]);
+        AV_WL32(dst + 4 * i, ctx->ABCD[3 - i]);
 }
 
 void av_md5_sum(uint8_t *dst, const uint8_t *src, const int len)

@@ -10,7 +10,6 @@ typedef struct RTMPCtx {
 	int     encrypted;      ///< use an encrypted connection (RTMPE only)
 	int     is_input;       ///< input/output flag
 	char    flashver[64];   ///< version of the flash plugin
-	int     flashver_len;
 	unsigned char swfhash[32]; ///< SHA256 hash of the decompressed SWF file (32 bytes)
 	int     swfhash_len;    ///< length of the SHA256 hash
 	int     swfsize;        ///< size of the decompressed SWF file
@@ -19,9 +18,11 @@ typedef struct RTMPCtx {
 
 	char*   swfurl;         ///< url of the swf player
 	char*   pageurl;        ///< url of the web page
+	char*   playpath;       ///< stream identifier to play (with possible "mp4:" prefix)
 
 	int     c0c1_pos;
 	int     nb_invokes;
+	int     stream_id;
 
 	// rtmpe
 	struct FF_DH *dh;
@@ -49,9 +50,6 @@ rtmp_check_c2(RTMPCtx *rt, const unsigned char c2[RTMP_HANDSHAKE_PACKET_SIZE],
 
 AMODULE_API int
 rtmp_calc_swfhash(RTMPCtx *rt, const unsigned char *swfdata, int swfsize);
-
-AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
 
 //////////////////////////////////////////////////////////////////////////
 /** maximum possible number of different RTMP channels */
@@ -115,26 +113,41 @@ typedef struct RTMPPacket {
     int            read;       ///< amount read, including headers
 } RTMPPacket;
 
+// input: pkt->data         pkt->size
+// output: prev_pkt->data   prev_pkt->size
+// return: ==0: need more data, >0: get one chunk, (prev_pkt->read == 0): read complete
 AMODULE_API int
 rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, RTMPPacket *prev_pkt);
+rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, const char *playpath);
+rtmp_gen_next_head(RTMPCtx *rt, RTMPPacket *pkt, unsigned char *data);
+
+static inline int
+rtmp_guess_outsize(RTMPCtx *rt, int pkt_size) {
+	return (16 + (pkt_size/rt->out_chunk_size)*5 + pkt_size);
+}
+//////////////////////////////////////////////////////////////////////////
 
 AMODULE_API int
-rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, const char *playpath);
+rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
+
+AMODULE_API int
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data);
+
+AMODULE_API int
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data);
 
 AMODULE_API int
 rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data);
 
 AMODULE_API int
-rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, const char *playpath);
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data);
 
 AMODULE_API int
-rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
+rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data);
 
 AMODULE_API int
 rtmp_gen_getStreamLength(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);

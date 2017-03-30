@@ -16,6 +16,10 @@
                   <-- event --
                    -- notify -->
 
+   用户(user)的管理者为主服务器(用户服务)
+   设备端(device)的管理者为设备代理(device_agent)或其自身(device)
+   设备代理(device_agent)的管理者为主服务器(设备服务)
+
 3. 消息格式:
    MQTT主题: 即目标路径, 消息类型放前，资源路径在后，如/request/device/<device_id>
    JSON消息体:
@@ -26,12 +30,14 @@
    ?? action:   4种请求操作: get|post|put|delete, 仅对request类消息必须附带
       result:   错误码, 0表示成功, 仅对response类消息必须附带
 
-   例: /request/device/<device_id>/channel/<channel_id>/config
+   例: 客户端(client)获取通道参数配置
+       /request/device/<device_id>/channel/<channel_id>/config
        { "from": "/client/<client_id>",
          "msgid": 1234,
          "action": "get",
          "body": { } }
 
+       设备代理(device_agent)回应通道参数请求
        /response/client/<client_id>
        { "from": "/device_agent/<device_agent_id>",
          "msgid": 1234,
@@ -41,6 +47,51 @@
 4. 发布消息原则:
    请求者发送请求消息至/request资源路径目录下.
    管理者订阅/request资源路径目录, 并将处理结果发至/response请求者目录下.
+
+       用户(user)一般以客户端(client)登陆, 则发送请求消息到
+       /request/client/<client_id>/
+          PUB: client
+          SUB: server
+
+       主服务器(用户服务)订阅此目录, 并将处理结果返回到
+       /response/client/<client_id>/ 客户端(client)订阅此目录, 做为接收消息回应
+          PUB: all
+          SUB: client
+       
+       主服务器(用户服务)向用户(所有登陆端)推送通知
+       /notify/user/<user_id>/ 
+          PUB: all
+          SUB: client
+
+       向当前登陆的所有客户端推送通知
+       /notify/clients
+          PUB: all
+          SUB: client
+
+       主服务器(用户服务)向指定客户端推送通知
+       /notify/client/<client_id>/
+          PUB: all
+          SUB: client
+
+       /request/device/<device_id>
+          PUB: all
+          SUB: device_agent
+
+       /response/device/<device_id>
+          PUB: server
+          SUB: device_agent
+
+       /event/device/<device_id>
+          PUB: device_agent
+          SUB: all
+
+       /request/device_agent/<device_agent_id>
+          PUB: device_agent
+          SUB: server
+
+       /response/device_agent/<device_agent_id>
+          PUB: server
+          SUB: device_agent
 
    例:/request/client/<client_id>     查询客户端登陆信息(action: get)
       /request/devices                添加设备(action: post)
@@ -62,7 +113,7 @@
 
        //以下字段可选, 根据权限或特定消息需要时出现
        password；
-       devices: {[device,device,...]}
+       devices: [{device},{device},...]
    }
 
    area: {
@@ -72,9 +123,9 @@
        parent_id: 
 
        //
-       children: {[area,area,...]}
-       users: {[user,user,...]}
-       devices: {[device,device,...]}
+       children: [{area},{area},...]
+       users: [{user},{user},...]
+       devices: [{device},{device},...]
    }
 
    device: {
@@ -94,9 +145,9 @@
        login_pwd:  字串, 
        private_sn:
 
-       channels: {[channel,channel,...]} 通道信息元数据
-       sensors: {[sensor,sensor,...]}
-       disks: {[disk,disk,...]}
+       channels: [{channel},{channel},...] 通道信息元数据
+       sensors: [{sensor},{sensor},...]
+       disks: [{disk},{disk},...]
        
        agent_name: 字串, 
        owner_name: 字串, 
@@ -104,25 +155,20 @@
    }
 
    device_agent: {
-       //
        id:
        name:
        reg_sn:
        
-       //
-       devices: {[device,device,...]}
+       devices: [{device},{device},...]
    }
 
    channel: {
-       //
        id: 
        name:
        device_id:
 
-       //
-       streams: {[stream,stream,...]}
+       streams: [{stream},{stream},...]
        ptz:
    }
 
-   stream: {
-        //
+   stream: { }

@@ -89,7 +89,7 @@ void ff_amf_write_object_end(uint8_t **dst)
 int ff_amf_read_bool(GetByteContext *bc, int *val)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_BOOL)
-        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
+        return AVERROR_INVALIDDATA;
     *val = bytestream2_get_byte(bc);
     return 0;
 }
@@ -98,7 +98,7 @@ int ff_amf_read_number(GetByteContext *bc, double *val)
 {
     uint64_t read;
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_NUMBER)
-        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
+        return AVERROR_INVALIDDATA;
     read = bytestream2_get_be64(bc);
     *val = av_int2double(read);
     return 0;
@@ -126,14 +126,14 @@ int ff_amf_read_string(GetByteContext *bc, uint8_t *str,
                        int strsize, int *length)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_STRING)
-        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
+        return AVERROR_INVALIDDATA;
     return ff_amf_get_string(bc, str, strsize, length);
 }
 
 int ff_amf_read_null(GetByteContext *bc)
 {
     if (bytestream2_get_byte(bc) != AMF_DATA_TYPE_NULL)
-        return AVERROR(EINVAL); //AVERROR_INVALIDDATA;
+        return AVERROR_INVALIDDATA;
     return 0;
 }
 #if 0
@@ -236,6 +236,14 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
     }
     if (hdr != RTMP_PS_TWELVEBYTES)
         timestamp += prev_pkt[channel_id].timestamp;
+
+    if (prev_pkt[channel_id].read && size != prev_pkt[channel_id].size) {
+        av_log(NULL, AV_LOG_ERROR, "RTMP packet size mismatch %d != %d\n",
+                size,
+                prev_pkt[channel_id].size);
+        ff_rtmp_packet_destroy(&prev_pkt[channel_id]);
+        prev_pkt[channel_id].read = 0;
+    }
 
     if (!prev_pkt[channel_id].read) {
         if ((ret = ff_rtmp_packet_create(p, channel_id, type, timestamp,
@@ -442,6 +450,7 @@ int ff_amf_tag_size(const uint8_t *data, const uint8_t *data_end)
     case AMF_DATA_TYPE_STRING:      return 3 + AV_RB16(data);
     case AMF_DATA_TYPE_LONG_STRING: return 5 + AV_RB32(data);
     case AMF_DATA_TYPE_NULL:        return 1;
+    case AMF_DATA_TYPE_DATE:        return 11;
     case AMF_DATA_TYPE_ARRAY:
         parse_key = 0;
     case AMF_DATA_TYPE_MIXEDARRAY:

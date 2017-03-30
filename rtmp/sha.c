@@ -22,6 +22,7 @@
  */
 
 #include <string.h>
+#include <errno.h>
 //#include "avutil.h"
 #include "bswap.h"
 #include "sha.h"
@@ -288,7 +289,7 @@ av_cold int av_sha_init(AVSHA *ctx, int bits)
         ctx->transform = sha256_transform;
         break;
     default:
-        return -1;
+        return AVERROR(EINVAL);
     }
     ctx->count = 0;
     return 0;
