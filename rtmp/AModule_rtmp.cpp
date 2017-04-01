@@ -2,10 +2,10 @@
 #include "../base/AModule_API.h"
 #include "AModule_rtmp.h"
 extern "C" {
-#include "lfg.h"
-#include "sha.h"
-#include "md5.h"
-#include "bytestream.h"
+#include "../crypto/lfg.h"
+#include "../crypto/sha.h"
+#include "../crypto/md5.h"
+#include "../crypto/bytestream.h"
 #include "rtmppkt.h"
 #if CONFIG_FFRTMPCRYPT_PROTOCOL
 #include "rtmpdh.h"
@@ -566,7 +566,7 @@ fail:
  * Generate 'connect' call and send it to the server.
  */
 AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcurl, char *param)
+rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, RTMPPacket *pkt, uint8_t *param)
 {
     uint8_t *p;
     int ret;
@@ -579,9 +579,9 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcur
     ff_amf_write_string_sz(&p, "connect");
     ff_amf_write_number(&p, ++rt->nb_invokes);
     ff_amf_write_object_start(&p);
-    if (app) {
+    if (rt->app) {
         ff_amf_write_field_name_sz(&p, "app");
-        ff_amf_write_string2(&p, app[0], app[1]); //rt->app, rt->auth_params);
+        ff_amf_write_string2(&p, rt->app, rt->auth_params);
     }
 
     if (!rt->is_input) {
@@ -595,9 +595,9 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcur
         ff_amf_write_field_name_sz(&p, "swfUrl");
         ff_amf_write_string(&p, rt->swfurl, strlen(rt->swfurl));
     }
-    if (tcurl) {
+    if (rt->tcurl) {
         ff_amf_write_field_name_sz(&p, "tcUrl");
-        ff_amf_write_string2(&p, tcurl[0], tcurl[1]); //rt->tcurl, rt->auth_params);
+        ff_amf_write_string2(&p, rt->tcurl, rt->auth_params);
     }
     if (rt->is_input) {
         ff_amf_write_field_name_sz(&p, "fpad");
@@ -643,6 +643,11 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, const char **app, const char **tcur
             else
                 break;
         }
+    }
+    if (pkt != NULL) {
+	    pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0, 0);
+	    pkt->data = data;
+	    pkt->size = p - data;
     }
     return p - data;
     //pkt->size = p - pkt->data;
@@ -868,7 +873,7 @@ rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 }
 
 AMODULE_API int
-rtmp_gen_next_head(RTMPCtx *rt, RTMPPacket *pkt, unsigned char *data)
+rtmp_gen_next_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	int towrite = FFMIN(rt->out_chunk_size, pkt->size - pkt->offset);
 	pkt->offset += towrite;
@@ -886,39 +891,57 @@ rtmp_gen_next_head(RTMPCtx *rt, RTMPPacket *pkt, unsigned char *data)
 }
 
 AMODULE_API int
-rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data)
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "releaseStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
 	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
+
+	if (pkt != NULL) {
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0, 0);
+		pkt->data = data;
+		pkt->size = p - data;
+	}
 	return p - data;
 }
 
 AMODULE_API int
-rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data)
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "FCPublish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
 	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
+
+	if (pkt != NULL) {
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->data = data;
+		pkt->size = p - data;
+	}
 	return p - data;
 }
 
 AMODULE_API int
-rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data)
+rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "createStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
+
+	if (pkt != NULL) {
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->data = data;
+		pkt->size = p - data;
+	}
 	return p - data;
 }
 
 AMODULE_API int
-rtmp_gen_publish(RTMPCtx *rt, unsigned char *data)
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "publish");
@@ -926,16 +949,28 @@ rtmp_gen_publish(RTMPCtx *rt, unsigned char *data)
 	ff_amf_write_null(&p);
 	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
 	ff_amf_write_string_sz(&p, "live");
+
+	if (pkt != NULL) {
+		pkt->init(RTMP_SOURCE_CHANNEL, RTMP_PT_INVOKE, 0, rt->stream_id);
+		pkt->data = data;
+		pkt->size = p - data;
+	}
 	return p - data;
 }
 
 AMODULE_API int
-rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data)
+rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
 	ff_amf_write_string_sz(&p, "deleteStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
 	ff_amf_write_number(&p, rt->stream_id);
+
+	if (pkt != NULL) {
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->data = data;
+		pkt->size = p - data;
+	}
 	return p - data;
 }

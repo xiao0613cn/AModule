@@ -20,9 +20,9 @@
  */
 
 #define _CRT_SECURE_NO_WARNINGS
-#include "bytestream.h"
+#include "../crypto/bytestream.h"
 //#include "libavutil/avstring.h"
-#include "intfloat.h"
+#include "../crypto/intfloat.h"
 //#include "avformat.h"
 
 #define AMODULE_API

@@ -2,9 +2,9 @@
 //#include <map>
 #include "base/AModule_API.h"
 #define _MSC_STDINT_H_
-#include "rapidjson-1.1.0/include/rapidjson/document.h"
-#include "rapidjson-1.1.0/include/rapidjson/stringbuffer.h"
-#include "rapidjson-1.1.0/include/rapidjson/writer.h"
+//#include "rapidjson-1.1.0/include/rapidjson/document.h"
+//#include "rapidjson-1.1.0/include/rapidjson/stringbuffer.h"
+//#include "rapidjson-1.1.0/include/rapidjson/writer.h"
 
 extern AModule TCPModule;
 extern AModule FileModule;
@@ -770,6 +770,7 @@ int main(int argc, char* argv[])
 	rpc_argv.param._a1.data = 1;
 	rpc_argv.param._a2.data = 0x00040302;
 	p1(param_traits<3>(&rpc_argv.param));*/
+#ifdef rapidjson
 	rapidjson::Document d;
 	d.Parse("{ \"a\": 23, \"b\": { \"asf\":12 } }");
 	rapidjson::Value &a = d["a"];
@@ -779,7 +780,7 @@ int main(int argc, char* argv[])
 	rapidjson::Writer<rapidjson::StringBuffer> w(strbuf);
 	d.Accept(w);
 	strbuf.GetString();
-
+#endif
 	TRACE("sizeof(int) = %d, sizeof(long) = %d, sizeof(void*) = %d, sizeof(long long) = %d.\n",
 		sizeof(int), sizeof(long), sizeof(void*), sizeof(long long));
 	//async_test();

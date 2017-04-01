@@ -417,7 +417,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\av_md5.c"
+				RelativePath=".\crypto\av_md5.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -437,7 +437,31 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\rtmp\h264_decode_sps.cpp"
+				RelativePath=".\crypto\crc.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\device_agent\device.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\device_agent\device_agent.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\device_agent\device_manager.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\media\h264_decode_sps.cpp"
 				>
 			</File>
 			<File
@@ -474,7 +498,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\lfg.c"
+				RelativePath=".\crypto\lfg.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -492,6 +516,10 @@
 						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\media\libPSutil.cpp"
+				>
 			</File>
 			<File
 				RelativePath=".\main.cpp"
@@ -546,7 +574,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\rtmp\sha.c"
+				RelativePath=".\crypto\sha.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
@@ -680,11 +708,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
@@ -728,7 +756,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
@@ -736,7 +764,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\bytestream.h"
+				RelativePath=".\crypto\bytestream.h"
 				>
 			</File>
 			<File
@@ -753,6 +781,18 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\crc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\crypto\crc.h"
+				>
+			</File>
+			<File
+				RelativePath=".\device_agent\device.h"
+				>
+			</File>
+			<File
+				RelativePath=".\device_agent\device_manager.h"
 				>
 			</File>
 			<File
@@ -784,7 +824,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\h264_decode_sps.h"
+				RelativePath=".\media\h264_decode_sps.h"
 				>
 			</File>
 			<File
@@ -804,7 +844,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\internal.h"
+				RelativePath=".\crypto\internal.h"
 				>
 			</File>
 			<File
@@ -812,7 +852,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
@@ -820,11 +860,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -836,11 +876,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				>
+			</File>
+			<File
+				RelativePath=".\media\libPSutil.h"
 				>
 			</File>
 			<File
@@ -864,7 +908,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\md5.h"
+				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
@@ -952,11 +996,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
@@ -1016,19 +1060,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File

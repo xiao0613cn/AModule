@@ -5,7 +5,9 @@
 #define AV_HAVE_FAST_UNALIGNED 1
 #define AV_HAVE_INCOMPATIBLE_FORK_ABI 0
 
+#define CONFIG_HARDCODED_TABLES      1
 #define CONFIG_FFRTMPCRYPT_PROTOCOL  0
+#define CONFIG_SMALL                 0
 
 #if defined(__GNUC__)
 #    define av_unused __attribute__((unused))
@@ -24,6 +26,7 @@
 #define av_unused
 #define av_cold
 #define av_log(...)
+#define av_pure
 
 #ifndef av_always_inline
 #if defined(_MSC_VER)

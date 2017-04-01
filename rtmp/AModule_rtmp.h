@@ -19,6 +19,9 @@ typedef struct RTMPCtx {
 	char*   swfurl;         ///< url of the swf player
 	char*   pageurl;        ///< url of the web page
 	char*   playpath;       ///< stream identifier to play (with possible "mp4:" prefix)
+	char*   app;            ///< name of application
+	char*   tcurl;          ///< url of the target stream
+	char    auth_params[500];
 
 	int     c0c1_pos;
 	int     nb_invokes;
@@ -61,7 +64,9 @@ rtmp_calc_swfhash(RTMPCtx *rt, const unsigned char *swfdata, int swfsize);
  */
 enum RTMPChannel { // RTMP chunk basic header: chunk stream id
     RTMP_NETWORK_CHANNEL = 2,   ///< channel for network-related messages (bandwidth report, ping, etc)
+                                ///< RTMPPacketType: (?1?,) 2, 3, 4, 5, 6
     RTMP_SYSTEM_CHANNEL,        ///< channel for sending server control messages
+                                ///< RTMPPacketType: 1, 20
     RTMP_AUDIO_CHANNEL,         ///< channel for audio data
     RTMP_VIDEO_CHANNEL   = 6,   ///< channel for video data
     RTMP_SOURCE_CHANNEL  = 8,   ///< channel for a/v invokes
@@ -111,6 +116,17 @@ typedef struct RTMPPacket {
     int            size;       ///< packet payload size
     int            offset;     ///< amount of data read so far
     int            read;       ///< amount read, including headers
+#ifdef _cplusplus
+    inline void init(int cid, RTMPPacketType t, uint32_t ts, uint32_t msid) {
+	    channel_id = cid;
+	    type = t;
+	    timestamp = ts;
+	    ts_field = 0;
+	    extra = msid;
+	    data = NULL;
+	    size = offset = read = 0;
+    }
+#endif
 } RTMPPacket;
 
 // input: pkt->data         pkt->size
@@ -123,7 +139,7 @@ AMODULE_API int
 rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_next_head(RTMPCtx *rt, RTMPPacket *pkt, unsigned char *data);
+rtmp_gen_next_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 static inline int
 rtmp_guess_outsize(RTMPCtx *rt, int pkt_size) {
@@ -132,22 +148,22 @@ rtmp_guess_outsize(RTMPCtx *rt, int pkt_size) {
 //////////////////////////////////////////////////////////////////////////
 
 AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, const char **app, const char **tcurl, char *param);
+rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, unsigned char *param);
 
 AMODULE_API int
-rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data);
+rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 AMODULE_API int
-rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data);
+rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 AMODULE_API int
-rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data);
+rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 AMODULE_API int
-rtmp_gen_publish(RTMPCtx *rt, unsigned char *data);
+rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 AMODULE_API int
-rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data);
+rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 AMODULE_API int
 rtmp_gen_getStreamLength(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
@@ -158,4 +174,37 @@ rtmp_gen_play(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 AMODULE_API int
 rtmp_gen_FCUnpublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
+//////////////////////////////////////////////////////////////////////////
+/*    client                    server
+	|  ----- c0 c1 ---------> |     \
+	| <----- s0 s1 s2 ------  |     - handshake
+	|  ----- c2 ------------> |     /
+
+	|  ----- connect -------> |   cid: 3, RTMP_SYSTEM_CHANNEL
+	| <----- server BW -----  |   cid: 2, RTMP_NETWORK_CHANNEL
+	| <----- client BW -----  |   cid: 2
+	| <- ping(stream begin0)- |   cid: 2
+	| <--- out chunk size --  |   cid: 3, RTMP_SYSTEM_CHANNEL
+	| <-- _result(connect) -  |   cid: 3
+
+	|  --- out chunk size --> |   cid: 3
+	| <----- onBWDone ------  |   cid: 3
+	|  ----- _checkbw ------> |   cid: 3
+	| <-- _result(_checkbw)-  |   cid: 3
+
+	|  ----- releaseStream -> |   cid: 3
+	| <-- _result(release) -  |   cid: 3
+
+	|  ----- FCPublish -----> |   cid: 3
+	| <---- onFCPublish ----  |   cid: 3
+
+	|  ----- createStream --> |   cid: 3
+	| <--_result(create sid)- |   cid: 3
+
+	|  ----- publish -------> |   cid: 8, RTMP_SOURCE_CHANNEL
+	| <- ping(stream begin1)- |   cid: 2
+	| <----- onStatus ------  |   cid: 3, NetStream.Publish.Start
+	|  ..... video data ....> |   cid: 6, RTMP_VIDEO_CHANNEL
+	|  ..... video data ....> |   cid: 6, RTMP_VIDEO_CHANNEL
+*/
 #endif
