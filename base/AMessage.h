@@ -69,12 +69,14 @@ AMsgListClear(struct list_head *head, int result)
 	}
 }
 
-static inline void
+static inline int
 AMsgListPush(pthread_mutex_t *mutex, struct list_head *list, AMessage *msg)
 {
 	pthread_mutex_lock(mutex);
+	int first = list_empty(list);
 	list_add_tail(&msg->entry, list);
 	pthread_mutex_unlock(mutex);
+	return first;
 }
 
 AMODULE_API AMessage*
@@ -110,106 +112,9 @@ AInOutMsgInit(AInOutMsg *iom, int type, char *indata, int insize)
 }
 
 //////////////////////////////////////////////////////////////////////////
-typedef struct ARefsBuf
-{
-	long    refs;
-	int     size;
-	void  (*free)(void*);
-	int     bgn;
-	int     end;
-	char    data[0];
-
-#ifdef __cplusplus
-	void  reset() { bgn = end = 0; }
-	int   len() { return (end - bgn); }
-	char* ptr() { return (data + bgn); }
-
-	int   caps() { return (size - bgn); }
-	int   left() { return (size - end); }
-	char* next() { return (data + end); }
-
-	void  pop(int len) { bgn += len; }
-	void  push(int len) { end += len; }
-	void  mempush(const void *p, int n) { memcpy(next(), p, n); push(n); }
+#ifndef _AREFSBUF_H_
+#include "ARefsBuf.h"
 #endif
-} ARefsBuf;
-
-static inline ARefsBuf*
-ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
-{
-	if (alloc_func == NULL) alloc_func = &malloc;
-	if (free_func == NULL) free_func = &free;
-
-	ARefsBuf *buf = (ARefsBuf*)alloc_func(sizeof(ARefsBuf)+_align_8bytes(size));
-	if (buf != NULL) {
-		buf->refs = 1;
-		buf->size = size;
-		buf->free = free_func;
-		buf->bgn = 0;
-		buf->end = 0;
-	}
-	return buf;
-}
-
-static inline long
-ARefsBufAddRef(ARefsBuf *buf)
-{
-	return InterlockedAdd(&buf->refs, 1);
-}
-
-static inline long
-ARefsBufRelease(ARefsBuf *buf)
-{
-	long result = InterlockedAdd(&buf->refs, -1);
-	if (result <= 0)
-		(buf->free)(buf);
-	return result;
-}
-
-static inline int
-ARefsBufCheck(ARefsBuf *&buf, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
-{
-	if (buf == NULL) {
-		buf = ARefsBufCreate(max(left,size), alloc_func, free_func);
-		return (buf == NULL) ? -ENOMEM : 1;
-	}
-
-	if (buf->left() >= left)
-		return 0;
-
-	ARefsBuf *b2 = ARefsBufCreate(max(buf->len()+left,size), alloc_func, free_func);
-	if (b2 == NULL)
-		return -ENOMEM;
-
-	b2->mempush(buf->ptr(), buf->len());
-	ARefsBufRelease(buf);
-	buf = b2;
-	return 1;
-}
-
-typedef struct ARefsChain
-{
-	ARefsBuf *buf;
-	int     type;
-	int     pos;
-	int     len;
-	struct list_head entry;
-
-#ifdef __cplusplus
-	void    init(int t, ARefsBuf *b, int p, int n) {
-		buf = b; if (b != NULL) ARefsBufAddRef(b);
-		type = t; pos = p; len = n;
-	}
-	char*   ptr() { return buf->data + pos; }
-#endif
-} ARefsChain;
-
-static inline int
-ARefsChainCheckBuf(ARefsChain *&chain, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
-{
-
-}
-
 // ARefsMsg::msg.type = AMsgType_RefsMsg
 typedef struct ARefsMsg
 {

@@ -3,8 +3,9 @@
 
 #include "stdafx.h"
 #include "libPSutil.h"
+extern "C" {
 #include "../crypto/crc.h"
-
+};
 
 //////////////////////////////////////////////////////////////////////////
 // PS encode function

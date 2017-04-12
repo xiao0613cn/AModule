@@ -436,6 +436,14 @@ static int TCPServerRequest(AObject *object, int reqix, AMessage *msg)
 	return 1;
 }
 
+static int TCPServerCancel(AObject *object, int reqix, AMessage *msg)
+{
+	TCPServer *server = to_server(object);
+	if (server->sock != INVALID_SOCKET)
+		shutdown(server->sock, SD_BOTH);
+	return 1;
+}
+
 static int TCPServerClose(AObject *object, AMessage *msg)
 {
 	TCPServer *server = to_server(object);
@@ -461,6 +469,6 @@ AModule TCPServerModule = {
 	NULL,
 	NULL,
 	&TCPServerRequest,
-	NULL,
+	&TCPServerCancel,
 	&TCPServerClose,
 };

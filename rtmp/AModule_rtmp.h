@@ -116,7 +116,7 @@ typedef struct RTMPPacket {
     int            size;       ///< packet payload size
     int            offset;     ///< amount of data read so far
     int            read;       ///< amount read, including headers
-#ifdef _cplusplus
+#ifdef __cplusplus
     inline void init(int cid, RTMPPacketType t, uint32_t ts, uint32_t msid) {
 	    channel_id = cid;
 	    type = t;
@@ -148,7 +148,7 @@ rtmp_guess_outsize(RTMPCtx *rt, int pkt_size) {
 //////////////////////////////////////////////////////////////////////////
 
 AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, unsigned char *param);
+rtmp_gen_connect(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt, char *param);
 
 AMODULE_API int
 rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);

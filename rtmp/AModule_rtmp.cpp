@@ -566,7 +566,7 @@ fail:
  * Generate 'connect' call and send it to the server.
  */
 AMODULE_API int
-rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, RTMPPacket *pkt, uint8_t *param)
+rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, RTMPPacket *pkt, char *param)
 {
     uint8_t *p;
     int ret;
@@ -917,7 +917,7 @@ rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 	ff_amf_write_string(&p, rt->playpath, strlen(rt->playpath));
 
 	if (pkt != NULL) {
-		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0, 0);
 		pkt->data = data;
 		pkt->size = p - data;
 	}
@@ -933,7 +933,7 @@ rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 	ff_amf_write_null(&p);
 
 	if (pkt != NULL) {
-		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0, 0);
 		pkt->data = data;
 		pkt->size = p - data;
 	}
@@ -968,7 +968,7 @@ rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 	ff_amf_write_number(&p, rt->stream_id);
 
 	if (pkt != NULL) {
-		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0);
+		pkt->init(RTMP_SYSTEM_CHANNEL, RTMP_PT_INVOKE, 0, 0);
 		pkt->data = data;
 		pkt->size = p - data;
 	}

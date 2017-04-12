@@ -437,6 +437,18 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\iot\buffer.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath=".\crypto\crc.c"
 				>
 				<FileConfiguration
@@ -528,6 +540,30 @@
 			<File
 				RelativePath=".\PVDClient\md5.cpp"
 				>
+			</File>
+			<File
+				RelativePath=".\iot\mqtt_codec.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\iot\mqtt_message.c"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\base\rbtree.c"
@@ -668,6 +704,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\iot\AModule_iot.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\rpc\AModule_rpc.h"
 				>
 			</File>
@@ -685,6 +725,10 @@
 			</File>
 			<File
 				RelativePath=".\base\AOption.h"
+				>
+			</File>
+			<File
+				RelativePath=".\base\ARefsBuf.h"
 				>
 			</File>
 			<File
@@ -708,11 +752,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
@@ -752,15 +796,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
-				>
-			</File>
-			<File
 				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\buffer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\iot\buffer_.h"
 				>
 			</File>
 			<File
@@ -860,11 +908,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -876,11 +924,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
@@ -904,7 +952,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
+				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
@@ -912,11 +960,23 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\mem.h"
+				>
+			</File>
+			<File
+				RelativePath=".\iot\mqtt_codec.h"
+				>
+			</File>
+			<File
+				RelativePath=".\iot\mqtt_message.h"
+				>
+			</File>
+			<File
+				RelativePath=".\iot\mqttconst.h"
 				>
 			</File>
 			<File
@@ -1048,6 +1108,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\iot\umock_c_prod.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavcodec\vaapi.h"
 				>
 			</File>
@@ -1060,11 +1124,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
@@ -1093,18 +1157,6 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
-		</Filter>
-		<Filter
-			Name="operator"
-			>
-		</Filter>
-		<Filter
-			Name="base"
-			>
-			<File
-				RelativePath=".\base\srsw.hpp"
-				>
-			</File>
 		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"
