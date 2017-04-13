@@ -837,6 +837,11 @@ int main(int argc, char* argv[])
 				test_run(NULL, reset_option);
 				continue;
 			}
+			else if (_strnicmp_c(str, "test_mqtt") == 0) {
+				extern int test_mqtt();
+				test_mqtt();
+				continue;
+			}
 			else if (str[0] == 'q')
 				goto _return;
 			else

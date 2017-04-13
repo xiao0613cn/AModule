@@ -11,8 +11,10 @@
 //#include "azure_c_shared_utility/macro_utils.h"
 //#include "azure_c_shared_utility/xlogging.h"
 #include "mqtt_codec.h"
+#include "mqtt_message.h"
 //#include <inttypes.h>
 
+#define VARIABLE_HEADER_OFFSET          2
 #define PAYLOAD_OFFSET                      5
 #define PACKET_TYPE_BYTE(p)                 ((uint8_t)(((uint8_t)(p)) & 0xf0))
 #define FLAG_VALUE_BYTE(p)                  ((uint8_t)(((uint8_t)(p)) & 0xf))
@@ -25,11 +27,6 @@
 #define CLEAN_SESSION_FLAG                  0x02
 
 #define NEXT_128_CHUNK                      0x80
-#define PUBLISH_DUP_FLAG                    0x8
-#define PUBLISH_QOS_EXACTLY_ONCE            0x4
-#define PUBLISH_QOS_AT_LEAST_ONCE           0x2
-#define PUBLISH_QOS_RETAIN                  0x1
-
 #define PROTOCOL_NUMBER                     4
 #define CONN_FLAG_BYTE_OFFSET               7
 
@@ -56,7 +53,7 @@ typedef struct MQTTCODEC_INSTANCE_TAG
     CODEC_STATE_RESULT codecState;
     size_t bufferOffset;
     int headerFlags;
-    BUFFER_HANDLE headerData;
+    MQTT_BUFFER headerData;
     ON_PACKET_COMPLETE_CALLBACK packetComplete;
     void* callContext;
     uint8_t storeRemainLen[4];
@@ -125,7 +122,7 @@ static uint16_t byteutil_read_uint16(uint8_t** buffer, size_t len)
 	}
 	else
 	{
-		LOG(AZ_LOG_ERROR, LOG_LINE, "byteutil_read_uint16 == NULL or less than 2");
+		//LOG(AZ_LOG_ERROR, LOG_LINE, "byteutil_read_uint16 == NULL or less than 2");
 	}
 	return result;
 }
@@ -154,7 +151,7 @@ static char* byteutil_readUTF(uint8_t** buffer, size_t* byteLen)
 	}
 	else
 	{
-		LOG(AZ_LOG_ERROR, LOG_LINE, "readByte buffer == NULL.");
+		//LOG(AZ_LOG_ERROR, LOG_LINE, "readByte buffer == NULL.");
 	}
 	return result;
 }
@@ -169,7 +166,7 @@ static uint8_t byteutil_readByte(uint8_t** buffer)
 	}
 	else
 	{
-		LOG(AZ_LOG_ERROR, LOG_LINE, "readByte buffer == NULL.");
+		//LOG(AZ_LOG_ERROR, LOG_LINE, "readByte buffer == NULL.");
 	}
 	return result;
 }
@@ -415,7 +412,7 @@ static int constructFixedHeader(BUFFER_HANDLE ctrlPacket, CONTROL_PACKET_TYPE pa
         size_t packetLen = BUFFER_length(ctrlPacket);
         uint8_t remainSize[4] ={ 0 };
         size_t index = 0;
-	BUFFER_HANDLE fixedHeader;
+	MQTT_BUFFER fixedHeader = { 0 };
 
         // Calculate the length of packet
         do
@@ -430,25 +427,19 @@ static int constructFixedHeader(BUFFER_HANDLE ctrlPacket, CONTROL_PACKET_TYPE pa
             remainSize[index++] = encode;
         } while (packetLen > 0);
 
-        fixedHeader = BUFFER_new();
-        if (fixedHeader == NULL)
+        if (BUFFER_pre_build(&fixedHeader, index + 1) != 0)
         {
-            result = __FAILURE__;
-        }
-        else if (BUFFER_pre_build(fixedHeader, index + 1) != 0)
-        {
-            BUFFER_delete(fixedHeader);
             result = __FAILURE__;
         }
         else
         {
-            uint8_t* iterator = BUFFER_u_char(fixedHeader);
+            uint8_t* iterator = BUFFER_u_char(&fixedHeader);
             *iterator = (uint8_t)packetType | flags;
             iterator++;
             (void)memcpy(iterator, remainSize, index);
 
-            result = BUFFER_prepend(ctrlPacket, fixedHeader);
-            BUFFER_delete(fixedHeader);
+            result = BUFFER_prepend(ctrlPacket, &fixedHeader);
+            BUFFER_unbuild(&fixedHeader);
         }
     }
     return result;
@@ -625,8 +616,8 @@ static int prepareheaderDataInfo(MQTTCODEC_INSTANCE* codecData, uint8_t remainLe
 
             if (totalLen > 0)
             {
-                codecData->headerData = BUFFER_new();
-                (void)BUFFER_pre_build(codecData->headerData, totalLen);
+                //codecData->headerData = BUFFER_new();
+                (void)BUFFER_pre_build(&codecData->headerData, totalLen);
                 codecData->bufferOffset = 0;
             }
             codecData->codecState = CODEC_STATE_VAR_HEADER;
@@ -639,208 +630,158 @@ static int prepareheaderDataInfo(MQTTCODEC_INSTANCE* codecData, uint8_t remainLe
     return result;
 }
 
-static void recvCompleteCallback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData)
-{
-	MQTT_CLIENT* mqtt_client = (MQTT_CLIENT*)context;
-	if ((mqtt_client != NULL && headerData != NULL) || packet == PINGRESP_TYPE)
-	{
-	}
-}
-
 static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 {
-	size_t len = BUFFER_length(codecData->headerData);
-	uint8_t* iterator = BUFFER_u_char(codecData->headerData);
+	size_t len = BUFFER_length(&codecData->headerData);
+	uint8_t* iterator = BUFFER_u_char(&codecData->headerData);
 
 	switch (codecData->currPacket)
 	{
 	case CONNACK_TYPE:
-		{
-			/*Codes_SRS_MQTT_CLIENT_07_028: [If the actionResult parameter is of type CONNECT_ACK then the msgInfo value shall be a CONNECT_ACK structure.]*/
-			CONNECT_ACK connack = { 0 };
-			connack.isSessionPresent = (byteutil_readByte(&iterator) == 0x1) ? true : false;
-			connack.returnCode = byteutil_readByte(&iterator);
+	{
+		/*Codes_SRS_MQTT_CLIENT_07_028: [If the actionResult parameter is of type CONNECT_ACK then the msgInfo value shall be a CONNECT_ACK structure.]*/
+		CONNECT_ACK connack = { 0 };
+		connack.isSessionPresent = (byteutil_readByte(&iterator) == 0x1) ? true : false;
+		connack.returnCode = byteutil_readByte(&iterator);
 
-			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, &connack);
-			break;
-		}
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &connack);
+		break;
+	}
 	case PUBLISH_TYPE:
+	{
+		uint8_t* initialPos = iterator;
+		MQTT_MESSAGE msg;
+		msg.isDuplicateMsg = (codecData->headerFlags & PUBLISH_DUP_FLAG) ? true : false;
+		msg.isMessageRetained = (codecData->headerFlags & PUBLISH_QOS_RETAIN) ? true : false;
+		msg.qosInfo = (codecData->headerFlags == 0) ? DELIVER_AT_MOST_ONCE : (codecData->headerFlags & PUBLISH_QOS_AT_LEAST_ONCE) ? DELIVER_AT_LEAST_ONCE : DELIVER_EXACTLY_ONCE;
+
+		msg.topicName = byteutil_readUTF(&iterator, NULL);
+		if (msg.topicName == NULL)
 		{
-			bool isDuplicateMsg = (flags & DUPLICATE_FLAG_MASK) ? true : false;
-			bool isRetainMsg = (flags & RETAIN_FLAG_MASK) ? true : false;
-			QOS_VALUE qosValue = (flags == 0) ? DELIVER_AT_MOST_ONCE : (flags & QOS_LEAST_ONCE_FLAG_MASK) ? DELIVER_AT_LEAST_ONCE : DELIVER_EXACTLY_ONCE;
-
-			uint8_t* initialPos = iterator;
-			size_t length = len - (iterator - initialPos);
-			char* topicName = byteutil_readUTF(&iterator, &length);
-			if (topicName == NULL)
-			{
-				codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, NULL);
-				break;
-			}
-
-			uint16_t packetId = 0;
-			length = len - (iterator - initialPos);
-			if (qosValue != DELIVER_AT_MOST_ONCE)
-			{
-				packetId = byteutil_read_uint16(&iterator, length);
-			}
-			length = len - (iterator - initialPos);
-
-			MQTT_MESSAGE_HANDLE msgHandle = mqttmessage_create(packetId, topicName, qosValue, iterator, length);
-			if (msgHandle == NULL)
-			{
-				codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, NULL);
-				break;
-			}
-
-			if (mqttmessage_setIsDuplicateMsg(msgHandle, isDuplicateMsg) != 0 ||
-				mqttmessage_setIsRetained(msgHandle, isRetainMsg) != 0)
-			{
-				codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, NULL);
-			}
-			else
-			{
-				codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, msgHandle);
-
-				/*BUFFER_HANDLE pubRel = NULL;
-				if (qosValue == DELIVER_EXACTLY_ONCE)
-				{
-					pubRel = mqtt_codec_publishReceived(packetId);
-					if (pubRel == NULL)
-					{
-						LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish receive message.");
-						set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-					}
-				}
-				else if (qosValue == DELIVER_AT_LEAST_ONCE)
-				{
-					pubRel = mqtt_codec_publishAck(packetId);
-					if (pubRel == NULL)
-					{
-						LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish ack message.");
-						set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-					}
-				}
-				if (pubRel != NULL)
-				{
-					size_t size = BUFFER_length(pubRel);
-					(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
-					BUFFER_delete(pubRel);
-				}*/
-			}
-			mqttmessage_destroy(msgHandle);
-			free(topicName);
+			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, NULL);
 			break;
 		}
+
+		msg.packetId = 0;
+		if (msg.qosInfo != DELIVER_AT_MOST_ONCE)
+		{
+			msg.packetId = byteutil_read_uint16(&iterator, len - (iterator - initialPos));
+		}
+		msg.appPayload.message = iterator;
+		msg.appPayload.length = len - (iterator - initialPos);
+
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &msg);
+		/*BUFFER_HANDLE pubRel = NULL;
+		if (qosValue == DELIVER_EXACTLY_ONCE)
+		{
+			pubRel = mqtt_codec_publishReceived(packetId);
+			if (pubRel == NULL)
+			{
+				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish receive message.");
+				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
+			}
+		}
+		else if (qosValue == DELIVER_AT_LEAST_ONCE)
+		{
+			pubRel = mqtt_codec_publishAck(packetId);
+			if (pubRel == NULL)
+			{
+				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish ack message.");
+				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
+			}
+		}
+		if (pubRel != NULL)
+		{
+			size_t size = BUFFER_length(pubRel);
+			(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
+			BUFFER_delete(pubRel);
+		}*/
+		free(msg.topicName);
+		break;
+	}
 	case PUBACK_TYPE:
 	case PUBREC_TYPE:
 	case PUBREL_TYPE:
 	case PUBCOMP_TYPE:
+	{
+		/*Codes_SRS_MQTT_CLIENT_07_029: [If the actionResult parameter are of types PUBACK_TYPE, PUBREC_TYPE, PUBREL_TYPE or PUBCOMP_TYPE then the msgInfo value shall be a PUBLISH_ACK structure.]*/
+		PUBLISH_ACK publish_ack = { 0 };
+		publish_ack.packetId = byteutil_read_uint16(&iterator, len);
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &publish_ack);
+
+		/*BUFFER_HANDLE pubRel = NULL;
+		mqtt_client->fnOperationCallback(mqtt_client, action, (void*)&publish_ack, mqtt_client->ctx);
+		if (packet == PUBREC_TYPE)
 		{
-			/*Codes_SRS_MQTT_CLIENT_07_029: [If the actionResult parameter are of types PUBACK_TYPE, PUBREC_TYPE, PUBREL_TYPE or PUBCOMP_TYPE then the msgInfo value shall be a PUBLISH_ACK structure.]*/
-			PUBLISH_ACK publish_ack = { 0 };
-			publish_ack.packetId = byteutil_read_uint16(&iterator, len);
-			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, codecData->headerData, &publish_ack);
-
-			/*BUFFER_HANDLE pubRel = NULL;
-			mqtt_client->fnOperationCallback(mqtt_client, action, (void*)&publish_ack, mqtt_client->ctx);
-			if (packet == PUBREC_TYPE)
+			pubRel = mqtt_codec_publishRelease(publish_ack.packetId);
+			if (pubRel == NULL)
 			{
-				pubRel = mqtt_codec_publishRelease(publish_ack.packetId);
-				if (pubRel == NULL)
-				{
-					LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish release message.");
-					set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-				}
-			}
-			else if (packet == PUBREL_TYPE)
-			{
-				pubRel = mqtt_codec_publishComplete(publish_ack.packetId);
-				if (pubRel == NULL)
-				{
-					LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish complete message.");
-					set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-				}
-			}
-			if (pubRel != NULL)
-			{
-				size_t size = BUFFER_length(pubRel);
-				(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
-				BUFFER_delete(pubRel);
-			}*/
-			break;
-		}
-	case SUBACK_TYPE:
-		{
-			/*Codes_SRS_MQTT_CLIENT_07_030: [If the actionResult parameter is of type SUBACK_TYPE then the msgInfo value shall be a SUBSCRIBE_ACK structure.]*/
-			SUBSCRIBE_ACK suback = { 0 };
-
-			size_t remainLen = len;
-			suback.packetId = byteutil_read_uint16(&iterator, len);
-			remainLen -= 2;
-
-			// Allocate the remaining len
-			suback.qosReturn = (QOS_VALUE*)malloc(sizeof(QOS_VALUE)*remainLen);
-			if (suback.qosReturn != NULL)
-			{
-				while (remainLen > 0)
-				{
-					suback.qosReturn[suback.qosCount++] = byteutil_readByte(&iterator);
-					remainLen--;
-					if (mqtt_client->logTrace)
-					{
-						STRING_sprintf(trace_log, " | RETURN_CODE: %"PRIu16, suback.qosReturn[suback.qosCount-1]);
-					}
-				}
-
-				if (mqtt_client->logTrace)
-				{
-					log_incoming_trace(mqtt_client, trace_log);
-					STRING_delete(trace_log);
-				}
-				mqtt_client->fnOperationCallback(mqtt_client, MQTT_CLIENT_ON_SUBSCRIBE_ACK, (void*)&suback, mqtt_client->ctx);
-				free(suback.qosReturn);
-			}
-			else
-			{
-				LOG(AZ_LOG_ERROR, LOG_LINE, "allocation of quality of service value failed.");
+				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish release message.");
 				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
 			}
-			break;
 		}
-	case UNSUBACK_TYPE:
+		else if (packet == PUBREL_TYPE)
 		{
-			if (mqtt_client->fnOperationCallback)
+			pubRel = mqtt_codec_publishComplete(publish_ack.packetId);
+			if (pubRel == NULL)
 			{
-				STRING_HANDLE trace_log = NULL;
-
-				/*Codes_SRS_MQTT_CLIENT_07_031: [If the actionResult parameter is of type UNSUBACK_TYPE then the msgInfo value shall be a UNSUBSCRIBE_ACK structure.]*/
-				UNSUBSCRIBE_ACK unsuback = { 0 };
-				iterator += VARIABLE_HEADER_OFFSET;
-				unsuback.packetId = byteutil_read_uint16(&iterator, len);
-
-				if (mqtt_client->logTrace)
-				{
-					trace_log = STRING_construct_sprintf("UNSUBACK | PACKET_ID: %"PRIu16, unsuback.packetId);
-					log_incoming_trace(mqtt_client, trace_log);
-					STRING_delete(trace_log);
-				}
-				mqtt_client->fnOperationCallback(mqtt_client, MQTT_CLIENT_ON_UNSUBSCRIBE_ACK, (void*)&unsuback, mqtt_client->ctx);
+				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish complete message.");
+				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
 			}
-			break;
 		}
-	case PINGRESP_TYPE:
-		mqtt_client->timeSincePing = 0;
-		// Ping responses do not get forwarded
-		if (mqtt_client->logTrace)
+		if (pubRel != NULL)
 		{
-			STRING_HANDLE trace_log = STRING_construct_sprintf("PINGRESP");
-			log_incoming_trace(mqtt_client, trace_log);
-			STRING_delete(trace_log);
+			size_t size = BUFFER_length(pubRel);
+			(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
+			BUFFER_delete(pubRel);
+		}*/
+		break;
+	}
+	case SUBACK_TYPE:
+	{
+		/*Codes_SRS_MQTT_CLIENT_07_030: [If the actionResult parameter is of type SUBACK_TYPE then the msgInfo value shall be a SUBSCRIBE_ACK structure.]*/
+		SUBSCRIBE_ACK suback = { 0 };
+
+		size_t remainLen = len;
+		suback.packetId = byteutil_read_uint16(&iterator, len);
+		remainLen -= 2;
+
+		// Allocate the remaining len
+		suback.qosReturn = (QOS_VALUE*)malloc(sizeof(QOS_VALUE)*remainLen);
+		if (suback.qosReturn != NULL)
+		{
+			while (remainLen > 0)
+			{
+				suback.qosReturn[suback.qosCount++] = byteutil_readByte(&iterator);
+				remainLen--;
+			}
+
+			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &suback);
+			free(suback.qosReturn);
+		}
+		else
+		{
+			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, NULL);
+			//LOG(AZ_LOG_ERROR, LOG_LINE, "allocation of quality of service value failed.");
+			//set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
 		}
 		break;
+	}
+	case UNSUBACK_TYPE:
+	{
+		/*Codes_SRS_MQTT_CLIENT_07_031: [If the actionResult parameter is of type UNSUBACK_TYPE then the msgInfo value shall be a UNSUBSCRIBE_ACK structure.]*/
+		UNSUBSCRIBE_ACK unsuback = { 0 };
+		iterator += VARIABLE_HEADER_OFFSET;
+		unsuback.packetId = byteutil_read_uint16(&iterator, len);
+
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &unsuback);
+		break;
+	}
+	case PINGRESP_TYPE:
+		//mqtt_client->timeSincePing = 0;
+		// Ping responses do not get forwarded
 	default:
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, NULL);
 		break;
 	}
 
@@ -848,8 +789,7 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 	codecData->currPacket = UNKNOWN_TYPE;
 	codecData->codecState = CODEC_STATE_FIXED_HEADER;
 	codecData->headerFlags = 0;
-	BUFFER_delete(codecData->headerData);
-	codecData->headerData = NULL;
+	BUFFER_unbuild(&codecData->headerData);
 }
 
 MQTTCODEC_HANDLE mqtt_codec_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx)
@@ -866,7 +806,7 @@ MQTTCODEC_HANDLE mqtt_codec_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, v
         result->bufferOffset = 0;
         result->packetComplete = packetComplete;
         result->callContext = callbackCtx;
-        result->headerData = NULL;
+        memset(&result->headerData, 0, sizeof(result->headerData));
         memset(result->storeRemainLen, 0, 4 * sizeof(uint8_t));
         result->remainLenIndex = 0;
     }
@@ -879,8 +819,8 @@ void mqtt_codec_destroy(MQTTCODEC_HANDLE handle)
     if (handle != NULL)
     {
         MQTTCODEC_INSTANCE* codecData = (MQTTCODEC_INSTANCE*)handle;
-        /* Codes_SRS_MQTT_CODEC_07_004: [mqtt_codec_destroy shall deallocate all memory that has been allocated by this object.] */
-        BUFFER_delete(codecData->headerData);
+	/* Codes_SRS_MQTT_CODEC_07_004: [mqtt_codec_destroy shall deallocate all memory that has been allocated by this object.] */
+	BUFFER_unbuild(&codecData->headerData);
         free(codecData);
     }
 }
@@ -997,12 +937,11 @@ BUFFER_HANDLE mqtt_codec_publish(QOS_VALUE qosValue, bool duplicateMsg, bool ser
     else
     {
         PUBLISH_HEADER_INFO publishInfo ={ 0 };
-	uint8_t headerFlags;
+        uint8_t headerFlags = 0;
         publishInfo.topicName = topicName;
         publishInfo.packetId = packetId;
         publishInfo.qualityOfServiceValue = qosValue;
 
-        headerFlags = 0;
         if (duplicateMsg) headerFlags |= PUBLISH_DUP_FLAG;
         if (serverRetain) headerFlags |= PUBLISH_QOS_RETAIN;
         if (qosValue != DELIVER_AT_MOST_ONCE)
@@ -1337,13 +1276,7 @@ int mqtt_codec_bytesReceived(MQTTCODEC_HANDLE handle, const unsigned char* buffe
             }
             else if (codec_Data->codecState == CODEC_STATE_VAR_HEADER)
             {
-                if (codec_Data->headerData == NULL)
-                {
-                    codec_Data->codecState = CODEC_STATE_PAYLOAD;
-                }
-                else
-                {
-                    uint8_t* dataBytes = BUFFER_u_char(codec_Data->headerData);
+                    uint8_t* dataBytes = BUFFER_u_char(&codec_Data->headerData);
                     if (dataBytes == NULL)
                     {
                         /* Codes_SRS_MQTT_CODEC_07_035: [If any error is encountered then the packet state will be marked as error and mqtt_codec_bytesReceived shall return a non-zero value.] */
@@ -1352,19 +1285,17 @@ int mqtt_codec_bytesReceived(MQTTCODEC_HANDLE handle, const unsigned char* buffe
                     }
                     else
                     {
-			    size_t totalLen;
+                        size_t totalLen = BUFFER_length(&codec_Data->headerData);
                         // Increment the data
                         dataBytes += codec_Data->bufferOffset++;
                         *dataBytes = iterator;
 
-                        totalLen = BUFFER_length(codec_Data->headerData);
                         if (codec_Data->bufferOffset >= totalLen)
                         {
                             /* Codes_SRS_MQTT_CODEC_07_034: [Upon a constructing a complete MQTT packet mqtt_codec_bytesReceived shall call the ON_PACKET_COMPLETE_CALLBACK function.] */
                             completePacketData(codec_Data);
                         }
                     }
-                }
             }
             else
             {

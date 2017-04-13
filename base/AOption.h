@@ -24,11 +24,16 @@ AMODULE_API AOption*
 AOptionCreate2(struct list_head *list);
 
 static inline AOption*
-AOptionCreate(AOption *parent)
+AOptionCreate(AOption *parent, const char *name = NULL, const char *value = NULL)
 {
 	AOption *option = AOptionCreate2(parent ? &parent->children_list : NULL);
-	if (option != NULL)
+	if (option != NULL) {
 		option->parent = parent;
+		if (name != NULL)
+			strcpy_sz(option->name, name);
+		if (value != NULL)
+			strcpy_sz(option->value, value);
+	}
 	return option;
 }
 

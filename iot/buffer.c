@@ -6,14 +6,10 @@
 #include <memory.h>
 //#include "azure_c_shared_utility/gballoc.h"
 #include "buffer_.h"
+typedef MQTT_BUFFER BUFFER;
 //#include "azure_c_shared_utility/optimize_size.h"
 //#include "azure_c_shared_utility/xlogging.h"
 
-typedef struct BUFFER_TAG
-{
-    unsigned char* buffer;
-    size_t size;
-}BUFFER;
 
 /* Codes_SRS_BUFFER_07_001: [BUFFER_new shall allocate a BUFFER_HANDLE that will contain a NULL unsigned char*.] */
 BUFFER_HANDLE BUFFER_new(void)

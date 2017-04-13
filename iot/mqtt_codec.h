@@ -4,15 +4,12 @@
 #ifndef MQTT_CODEC_H
 #define MQTT_CODEC_H
 
-#ifdef __cplusplus
-#include <cstdint>
-#include <cstdbool>
-#include <cstddef>
-extern "C" {
-#else
 #include <stdint.h>
 //#include <stdbool.h>
 #include <stddef.h>
+#ifdef __cplusplus
+extern "C" {
+#else
 #endif // __cplusplus
 
 //#include "azure_c_shared_utility/xio.h"

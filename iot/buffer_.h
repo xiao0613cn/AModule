@@ -14,7 +14,11 @@ extern "C"
 
 #include "umock_c_prod.h"
 
-typedef struct BUFFER_TAG* BUFFER_HANDLE;
+typedef struct MQTT_BUFFER_TAG
+{
+	unsigned char* buffer;
+	size_t size;
+} MQTT_BUFFER, * BUFFER_HANDLE;
 
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, BUFFER_new);
 MOCKABLE_FUNCTION(, BUFFER_HANDLE, BUFFER_create, const unsigned char* source, size_t size);
