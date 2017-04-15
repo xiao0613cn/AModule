@@ -66,6 +66,13 @@
 		(ptr) = null; \
 	} else { }
 #endif
+#ifndef release_f
+#define release_f(ptr, null, func) \
+	if (ptr != null) { \
+		func; \
+		ptr = null; \
+	} else { }
+#endif
 
 
 #ifdef __cplusplus

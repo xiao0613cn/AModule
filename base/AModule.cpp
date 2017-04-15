@@ -283,13 +283,13 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 		return count;
 	}
 
-	__int64 v = opt ? _atoi64(opt->value) : kv->defnum;
+	int64_t v = opt ? _atoi64(opt->value) : kv->defnum;
 	switch (kv->type)
 	{
-	case ObjKV_int8:   *(__int8*)((char*)object+kv->offset) = (__int8)v; break;
-	case ObjKV_int16:  *(__int16*)((char*)object+kv->offset) = (__int16)v; break;
-	case ObjKV_int32:  *(__int32*)((char*)object+kv->offset) = (__int32)v; break;
-	case ObjKV_int64:  *(__int64*)((char*)object+kv->offset) = v; break;
+	case ObjKV_int8:   *(int8_t*)((char*)object+kv->offset) = (int8_t)v; break;
+	case ObjKV_int16:  *(int16_t*)((char*)object+kv->offset) = (int16_t)v; break;
+	case ObjKV_int32:  *(int32_t*)((char*)object+kv->offset) = (int32_t)v; break;
+	case ObjKV_int64:  *(int64_t*)((char*)object+kv->offset) = v; break;
 	default: return 0;
 	}
 	return 1;

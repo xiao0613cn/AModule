@@ -44,10 +44,6 @@
 	result modifiers function(##__VA_ARGS__)
 #endif
 
-#ifndef API_CALL
-#define API_CALL
-#endif
-
 #ifndef __FAILURE__
 #include <errno.h>
 #define __FAILURE__   (-EFAULT)

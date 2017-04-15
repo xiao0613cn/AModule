@@ -109,10 +109,10 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
 enum ObjKV_Types {
 	ObjKV_string = 0,
 	ObjKV_char   = 1,
-	ObjKV_int8   = 8*sizeof(__int8),
-	ObjKV_int16  = 8*sizeof(__int16),
-	ObjKV_int32  = 8*sizeof(__int32),
-	ObjKV_int64  = 8*sizeof(__int64),
+	ObjKV_int8   = 8*sizeof(int8_t),
+	ObjKV_int16  = 8*sizeof(int16_t),
+	ObjKV_int32  = 8*sizeof(int32_t),
+	ObjKV_int64  = 8*sizeof(int64_t),
 	ObjKV_object = 256,
 	ObjKV_get,  // int get(AObject *obj, void *ptr, int len);
 	ObjKV_set,  // int set(AObject *obj, const void *ptr, int len);
@@ -124,13 +124,13 @@ typedef struct ObjKV {
 	ObjKV_Types type;
 	int         size;
 	union {
-	__int64     defnum;
+	int64_t     defnum;
 	const char *defstr;
 	};
 } ObjKV;
 
 #define ObjKV_T(type, member, kv, def) \
-	{ #member, offsetof(type, member), kv, sizeof(((type*)0)->member), {(__int64)def} },
+	{ #member, offsetof(type, member), kv, sizeof(((type*)0)->member), {(int64_t)def} },
 
 #define ObjKV_S(type, member, defstr) \
 	ObjKV_T(type, member, ObjKV_string, defstr)
