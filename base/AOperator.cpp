@@ -145,13 +145,13 @@ static void* AThreadRun(void *p)
 			if (events[ix].data.u64 == 0) {
 				while (read(pool->signal[1], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				//TRACE2("%d: wakeup for working_list(%lld)...\n", __threadid(), *(uint64_t*)sigbuf);
+				//TRACE2("%d: wakeup for working_list(%lld)...\n", gettid(), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else if (events[ix].data.u64 == 1) {
 				while (read(at->signal[0], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				TRACE2("%d: wakeup for private_list(%lld)...\n", __threadid(), *(uint64_t*)sigbuf);
+				TRACE2("%d: wakeup for private_list(%lld)...\n", gettid(), *(uint64_t*)sigbuf);
 				max_timewait = 0;
 			}
 			else {

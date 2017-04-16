@@ -65,8 +65,13 @@ pthread_join(pthread_t tid, void **value_ptr) {
 	return 0;
 }
 
-static inline DWORD
+static inline pthread_t
 pthread_self() {
+	return GetCurrentThread();
+}
+
+static inline unsigned long
+gettid() {
 	return GetCurrentThreadId();
 }
 #endif //PTHREAD_H
@@ -128,8 +133,8 @@ pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, long msec)
 }
 
 static inline unsigned long
-__threadid() {
-	return syscall(__NR_gettid);
+gettid() {
+	return syscall(SYS_gettid);
 }
 
 static inline long
