@@ -133,7 +133,7 @@ static char* byteutil_readUTF(uint8_t** buffer, size_t* byteLen)
 	if (buffer != NULL)
 	{
 		// Get the length of the string
-		uint16_t len = byteutil_read_uint16(buffer, *byteLen);
+		uint16_t len = byteutil_read_uint16(buffer, byteLen ? *byteLen : 2);
 		if (len > 0)
 		{
 			result = (char*)malloc(len + 1);

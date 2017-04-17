@@ -7,15 +7,6 @@
 //#include "azure_c_shared_utility/optimize_size.h"
 //#include "azure_c_shared_utility/gballoc.h"
 
-typedef struct MQTT_MESSAGE_TAG
-{
-    uint16_t packetId;
-    char* topicName;
-    QOS_VALUE qosInfo;
-    APP_PAYLOAD appPayload;
-    bool isDuplicateMsg;
-    bool isMessageRetained;
-} MQTT_MESSAGE;
 
 MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength)
 {

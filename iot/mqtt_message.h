@@ -17,7 +17,22 @@ extern "C" {
 #include "mqttconst.h"
 //#include "azure_c_shared_utility/umock_c_prod.h"
 
-typedef struct MQTT_MESSAGE_TAG* MQTT_MESSAGE_HANDLE;
+typedef struct APP_PAYLOAD_TAG
+{
+	uint8_t* message;
+	size_t length;
+} APP_PAYLOAD;
+
+typedef struct MQTT_MESSAGE_TAG
+{
+	uint16_t packetId;
+	char* topicName;
+	QOS_VALUE qosInfo;
+	APP_PAYLOAD appPayload;
+	bool isDuplicateMsg;
+	bool isMessageRetained;
+} MQTT_MESSAGE, * MQTT_MESSAGE_HANDLE;
+
 
 MOCKABLE_FUNCTION(, MQTT_MESSAGE_HANDLE, mqttmessage_create, uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength);
 MOCKABLE_FUNCTION(,void, mqttmessage_destroy, MQTT_MESSAGE_HANDLE handle);

@@ -14,6 +14,34 @@ void mqtt_packet_done(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFF
 	TRACE("recv mqtt packet(%d), flags(%d), buffer size(%d).\n", packet, flags, headerData->size);
 }
 
+void* send_mqtt(void *p)
+{
+	AObject *tcp = (AObject*)p;
+	AMessage msg;
+
+	SUBSCRIBE_PAYLOAD subList = {
+		"test_mqtt_sub/#",
+		DELIVER_AT_MOST_ONCE
+	};
+	BUFFER_HANDLE sub = mqtt_codec_subscribe(10, &subList, 1, NULL);
+
+	msg.init(ioMsgType_Block, sub->buffer, sub->size);
+	ioInput(tcp, &msg);
+	BUFFER_delete(sub);
+
+	BUFFER_HANDLE heart = mqtt_codec_ping();
+	for (;;) {
+		::Sleep(10*1000);
+
+		msg.init(ioMsgType_Block, heart->buffer, heart->size);
+		int ret = ioInput(tcp, &msg);
+		if (ret < 0)
+			break;
+	}
+	BUFFER_delete(heart);
+	return NULL;
+}
+
 int test_mqtt()
 {
 	AObject *tcp = NULL;
@@ -39,7 +67,7 @@ int test_mqtt()
 			NULL,
 			NULL,
 			NULL,
-			10,
+			20,
 			false,
 			true,
 			DELIVER_AT_MOST_ONCE,
@@ -51,6 +79,9 @@ int test_mqtt()
 		ret = ioInput(tcp, &msg);
 		BUFFER_delete(buf);
 	}
+
+	pthread_t tid = pthread_null;
+	pthread_create(&tid, NULL, &send_mqtt, tcp);
 
 	ARefsBuf *buf = ARefsBufCreate(64*1024, NULL, NULL);
 	MQTTCODEC_HANDLE mqtt = mqtt_codec_create(&mqtt_packet_done, NULL);
@@ -64,5 +95,7 @@ int test_mqtt()
 	}
 	ARefsBufRelease(buf);
 	mqtt_codec_destroy(mqtt);
+	pthread_join(tid, NULL);
+	tcp->release2();
 	return ret;
 }

@@ -259,9 +259,9 @@ CloseEvent(HANDLE h)
 #endif //!_WIN32
 
 #ifdef __cplusplus
-template <typename TObject, void(TObject::*run)()>
-void* TObjectRun(void *p) {
-	(((TObject*)p)->*run)();
+template <typename object_t, void(object_t::*run)()>
+void* pthread_object_run(void *p) {
+	(((object_t*)p)->*run)();
 	return NULL;
 }
 #endif

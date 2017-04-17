@@ -363,14 +363,6 @@
 			<File
 				RelativePath=".\proxy\AModule_m3u8.cpp"
 				>
-				<FileConfiguration
-					Name="Debug DLL|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
@@ -586,10 +578,6 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\rpc\rpc_func.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\rtmp\rtmppkt.c"
 				>
 				<FileConfiguration
@@ -665,6 +653,10 @@
 					/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath=".\device_agent\stream.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Í·ÎÄ¼þ"
@@ -705,10 +697,6 @@
 			</File>
 			<File
 				RelativePath=".\iot\AModule_iot.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\rpc\AModule_rpc.h"
 				>
 			</File>
 			<File
@@ -952,15 +940,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\crypto\md5.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
@@ -1036,10 +1024,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rpc\rpc_func.h"
-				>
-			</File>
-			<File
 				RelativePath=".\rtmp\rtmpcrypt.h"
 				>
 			</File>
@@ -1056,11 +1040,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
@@ -1080,11 +1064,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libswscale\swscale.h"
+				RelativePath=".\device_agent\stream.h"
 				>
 			</File>
 			<File
-				RelativePath=".\base\sys_util.h"
+				RelativePath=".\ffmpeg\libswscale\swscale.h"
 				>
 			</File>
 			<File
@@ -1124,7 +1108,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File
@@ -1132,11 +1120,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
+				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
 			<File

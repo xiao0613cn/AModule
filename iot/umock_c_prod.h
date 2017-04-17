@@ -53,7 +53,7 @@
 static __inline int
 mallocAndStrcpy_c(char **pptr, const char *str) {
 	int len = strlen(str);
-	*(pptr) = malloc(len+4);
+	*(pptr) = (char*)malloc(len+4);
 	strncpy(*(pptr), str, len+1);
 	return 0;
 }

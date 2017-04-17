@@ -69,7 +69,7 @@ h264_decode_sps(BYTE * buf,unsigned int nLen,int &width,int &height)
 	int forbidden_zero_bit=u(1,buf,StartBit);  
 	int nal_ref_idc=u(2,buf,StartBit);  
 	int nal_unit_type=u(5,buf,StartBit);  
-	if(nal_unit_type!=7)  
+	if (nal_unit_type == 7)  
 	{  
 		int profile_idc=u(8,buf,StartBit);  
 		int constraint_set0_flag=u(1,buf,StartBit);//(buf[1] & 0x80)>>7;  
@@ -111,10 +111,10 @@ h264_decode_sps(BYTE * buf,unsigned int nLen,int &width,int &height)
 			int offset_for_top_to_bottom_field=Se(buf,nLen,StartBit);  
 			int num_ref_frames_in_pic_order_cnt_cycle=Ue(buf,nLen,StartBit);  
 
-			int *offset_for_ref_frame=new int[num_ref_frames_in_pic_order_cnt_cycle];  
+			//int *offset_for_ref_frame=new int[num_ref_frames_in_pic_order_cnt_cycle];  
 			for( int i = 0; i < num_ref_frames_in_pic_order_cnt_cycle; i++ )  
-				offset_for_ref_frame[i]=Se(buf,nLen,StartBit);  
-			delete [] offset_for_ref_frame;  
+				/*offset_for_ref_frame[i]=*/Se(buf,nLen,StartBit);  
+			//delete [] offset_for_ref_frame;  
 		}  
 		int num_ref_frames=Ue(buf,nLen,StartBit);  
 		int gaps_in_frame_num_value_allowed_flag=u(1,buf,StartBit);  

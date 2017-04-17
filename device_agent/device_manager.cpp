@@ -31,7 +31,7 @@ AMODULE_API void DM_init() { DM.init(); }
 int DeviceManager::start()
 {
 	int ret = pthread_create(&open_thread, NULL,
-		&TObjectRun<DeviceManager, &DeviceManager::run_open>, this);
+		&pthread_object_run<DeviceManager, &DeviceManager::run_open>, this);
 	return ret;
 }
 AMODULE_API int DM_start() { return DM.start(); }

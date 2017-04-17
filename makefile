@@ -1,63 +1,65 @@
 
-CXX:= g++
-CFLAGS:= -fPIC -I./ -D_DEBUG -lstdc++ -fpermissive -g
-#CFLAGS:= -fPIC -I./ -lstdc++ -fpermissive -O2
+CXX = g++
+CXXFLAGS = -fPIC -I./ -D_DEBUG -fpermissive -g
+#CXXFLAGS = -fPIC -I./ -fpermissive -O2
+LD_FLAGS = -lstdc++ -lpthread
 
-TAR:= ./build/AModule
-LIB_DEPEND:= -lpthread
-LOG:= 2>./build/log
+TARGET_PATH = ./bin/AModule
+LOG_PATH = 2>./bin/$(BUILD_DIR).log
+BUILD_DIR = Debug
 
 vpath %.h ./
 
 sources := $(wildcard ./*.cpp) $(wildcard ./base/*.cpp) $(wildcard ./io/*.cpp) \
 	$(wildcard ./SyncControl/*.cpp) $(wildcard ./PVDClient/*.cpp) \
 	$(filter-out %m3u8.cpp, $(wildcard ./proxy/*.cpp))
-objects := $(patsubst %.cpp, ./build/%.o, $(notdir $(sources)))
+objects := $(patsubst %.cpp, ./$(BUILD_DIR)/%.o, $(notdir $(sources)))
 dependence := $(patsubst %.o, %.d, $(objects))
 
 all: $(objects)
-	$(CXX) $(CFLAGS) $^ -o $(TAR) $(LIB_DEPEND) $(LOG)
+	$(CXX) $(CXXFLAGS) $^ -o $(TARGET_PATH) $(LD_FLAGS) $(LOG_PATH)
 
-./build/%.o: %.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: %.cpp 
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 
-./build/%.o: ./base/%.cpp
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: ./base/%.cpp
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 
-./build/%.o: ./io/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: ./io/%.cpp 
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 
-./build/%.o: ./SyncControl/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: ./SyncControl/%.cpp 
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 
-./build/%.o: ./PVDClient/%.cpp 
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: ./PVDClient/%.cpp 
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 
-./build/%.o: $(filter-out ./proxy/AModule_m3u8.cpp, ./proxy/%.cpp)
-	$(CXX) -c $(CFLAGS) $< -o $@ $(LOG)
+./$(BUILD_DIR)/%.o: $(filter-out ./proxy/AModule_m3u8.cpp, ./proxy/%.cpp)
+	$(CXX) -c $(CXXFLAGS) $< -o $@ $(LOG_PATH)
 	
 define gen_dep 
 	set -e; rm -f $@; \
-	$(CXX) -MM $(CFLAGS) $< > $@.tmp $(LOG); \
+	$(CXX) -MM $(CXXFLAGS) $< > $@.tmp $(LOG_PATH); \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.tmp > $@; \
 	rm -f $@.tmp
 endef
 
-./build/%.d: %.cpp
-	$(gen_dep)
+#./$(BUILD_DIR)/%.d: %.cpp
+#	$(gen_dep)
 
-./build/%.d: ./base/%.cpp
-	$(gen_dep)
+#./$(BUILD_DIR)/%.d: ./base/%.cpp
+#	$(gen_dep)
 
 -include $(dependence)
 
 .PHONY: clean echo debug
 clean:
-	rm -f ./build/*
-	rm -f $(TAR)
+	rm -f ./$(BUILD_DIR)/*
+	rm -f $(TARGET_PATH)
 	
 echo:   # debug util
 	@echo sources=$(sources)  
 	@echo objects=$(objects)  
 	@echo dependence=$(dependence)  
-	@echo CFLAGS=$(CFLAGS)
+	@echo CXXFLAGS=$(CXXFLAGS)
+	@echo LD_FLAGS=$(LD_FLAGS)

@@ -4,19 +4,18 @@
 #ifndef MQTTCONST_H
 #define MQTTCONST_H
 
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
 #ifdef __cplusplus
-#include <cstddef>
-#include <cstdint>
 extern "C" {
 #else
-#include <stddef.h>
-typedef int bool;
+typedef unsigned char bool;
 #define true 1
 #define false 0
 #endif /* __cplusplus */
 
-#include <stdint.h>
-#include <string.h>
 //#include "azure_c_shared_utility/crt_abstractions.h"
 #include "umock_c_prod.h"
 
@@ -41,6 +40,7 @@ typedef int bool;
 
 DEFINE_ENUM(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES)
 
+
 #define QOS_VALUE_VALUES \
     DELIVER_AT_MOST_ONCE = 0x00, \
     DELIVER_AT_LEAST_ONCE = 0x01, \
@@ -49,11 +49,14 @@ DEFINE_ENUM(CONTROL_PACKET_TYPE, CONTROL_PACKET_TYPE_VALUES)
 
 DEFINE_ENUM(QOS_VALUE, QOS_VALUE_VALUES)
 
-typedef struct APP_PAYLOAD_TAG
-{
-    uint8_t* message;
-    size_t length;
-} APP_PAYLOAD;
+
+#define PUBLISH_FLAG_MASK \
+	PUBLISH_QOS_RETAIN        = 0x1, \
+	PUBLISH_QOS_AT_LEAST_ONCE = 0x2, \
+	PUBLISH_QOS_EXACTLY_ONCE  = 0x4, \
+	PUBLISH_DUP_FLAG          = 0x8
+
+DEFINE_ENUM(PUBLISH_FLAG, PUBLISH_FLAG_MASK)
 
 typedef struct MQTT_CLIENT_OPTIONS_TAG
 {

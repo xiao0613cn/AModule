@@ -3,6 +3,7 @@
 #include "../io/AModule_io.h"
 #include "../PVDClient/PvdNetCmd.h"
 #include "../base/srsw.hpp"
+#include "../media/h264_decode_sps.h"
 
 
 static AObject *pvd = NULL;
@@ -682,6 +683,17 @@ static int PVDRecvDone(AMessage *msg, int result)
 		if (ptr != NULL) {
 			memcpy(ptr, phead+1, min(len,msg->size-sizeof(pvdnet_head)));
 		}
+	}
+	if (msg->type == AMsgType_RefsMsg) {
+	if (Stream_IsValidFrame(rt_msg.ptr(), rt_msg.size)) {
+		STREAM_HEADER *sh = (STREAM_HEADER*)rt_msg.ptr();
+		if (sh->nFrameType == STREAM_FRAME_VIDEO_I)
+		{
+			int width, height;
+			h264_decode_sps((BYTE*)rt_msg.ptr()+sh->nHeaderSize+4, rt_msg.size-sh->nHeaderSize, width, height);
+			TRACE("h264_decode_sps(%d x %d).\n", width, height);
+		}
+	}
 	}
 
 	AOperatorTimewait(&sm->timer, NULL, 0);
