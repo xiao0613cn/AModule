@@ -20,9 +20,6 @@
   linux/lib/rbtree.c
 */
 
-#define __attribute__(x)  
-#pragma warning(disable: 4706)
-
 #ifndef NULL
 #define NULL  0
 #endif

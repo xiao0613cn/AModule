@@ -19,11 +19,11 @@
 #ifndef container_of
 #define container_of(ptr, type, member)   ((type*)((char*)(ptr) - (char*)(&((type*)0)->member)))
 #endif
+
+#ifdef _WIN32
 #ifndef __attribute__
 #define __attribute__(x) 
 #endif
-
-#ifdef _WIN32
 
 static inline void*
 dlopen(const char *filename, int flag) {
@@ -45,6 +45,16 @@ dlsym(void *handle, const char *symbol) {
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <netdb.h>
+
+#ifndef __stdcall
+#define __stdcall 
+#endif
+#ifndef __cdecl
+#define __cdecl 
+#endif
+#ifndef __fastcall
+#define __fastcall  
+#endif
 
 #ifndef max
 #define max(a, b)    (((a) > (b)) ? (a) : (b))
@@ -82,13 +92,6 @@ typedef unsigned char  BYTE;
 typedef int            BOOL;
 #define TRUE      1
 #define FALSE     0
-
-#ifndef __stdcall
-#define __stdcall 
-#endif
-#ifndef __cdecl
-#define __cdecl 
-#endif
 
 #endif //!_WIN32
 

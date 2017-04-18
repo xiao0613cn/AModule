@@ -25,10 +25,9 @@ extern AModule M3U8ProxyModule;
 #endif
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
-extern "C" {
 #include "http/http_parser.h"
 #include "base/wait_queue.h"
-};
+
 //#include "rpc/AModule_rpc.h"
 
 DWORD async_test_tick;

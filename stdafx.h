@@ -17,7 +17,7 @@
 #define _CRTDBG_MAP_ALLOC_NEW
 #include <crtdbg.h>
 #pragma warning(default: 4985)
-#endif
+#endif //_DEBUG
 
 #include <tchar.h>
 
@@ -25,8 +25,8 @@
 #pragma comment(lib, "ws2_32.lib")
 #include <Windows.h>
 
-#pragma warning(disable: 4200)
-#endif
+#pragma warning(disable: 4200) // 使用了非标准扩展 : 结构/联合中的零大小数组
+#endif //_WIN32
 
 // TODO: 在此处引用程序需要的其他头文件
 #include "base/AModule_API.h"

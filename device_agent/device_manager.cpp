@@ -110,7 +110,8 @@ void DeviceManager::run_open()
 			TRACE("dev(%lld): open(%s:%d) = %d.\n", dev->id,
 				dev->net_addr, dev->net_port, result);
 			dev->status = (result >= 0 ? AObject_Opened : AObject_Abort);
-		} else {
+		}
+		if (dev->status != AObject_Opened) {
 			dev->object.close(&dev->object, NULL);
 			dev->status = AObject_Closed;
 		}

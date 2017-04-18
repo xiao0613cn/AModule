@@ -7,6 +7,7 @@
 #include <process.h>
 #endif
 
+#define pthread_null  NULL
 #ifndef PTHREAD_H
 typedef CRITICAL_SECTION pthread_mutex_t;
 typedef struct pthread_mutexattr_t pthread_mutexattr_t;
@@ -42,7 +43,6 @@ pthread_mutex_destroy(pthread_mutex_t *mutex) {
 
 typedef HANDLE pthread_t;
 typedef struct pthread_attr_t pthread_attr_t;
-#define pthread_null  NULL
 
 static inline int 
 pthread_create(pthread_t *tid, const pthread_attr_t *attr, void*(*start)(void*), void *arg) {
@@ -264,6 +264,18 @@ void* pthread_object_run(void *p) {
 	(((object_t*)p)->*run)();
 	return NULL;
 }
-#endif
+
+struct pthread_auto_lock {
+	pthread_mutex_t *mutex;
+
+	pthread_auto_lock(pthread_mutex_t *m) {
+		mutex = m;
+		pthread_mutex_lock(mutex);
+	}
+	~pthread_auto_lock() {
+		pthread_mutex_unlock(mutex);
+	}
+};
+#endif //__cplusplus
 
 #endif

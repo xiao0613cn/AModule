@@ -6,13 +6,14 @@
 extern "C" {
 #include "../crypto/crc.h"
 };
+#pragma warning(disable: 4244) // 从“__int64”转换到“unsigned char”，可能丢失数据
 
 //////////////////////////////////////////////////////////////////////////
 // PS encode function
 #define MPEGPS_STARTCODE_LEN  6
 #define MARKER_BIT  1
 
-extern LIBPSUTIL_API long MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp)
+extern LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp)
 {
 	long long ullTmp = timestamp;
 	unsigned short usTmp = 0;
@@ -59,7 +60,7 @@ extern LIBPSUTIL_API long MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long lon
 	return sizeof(*ph);
 }
 
-extern LIBPSUTIL_API long MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
+extern LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
 {
 	sh->shsc = MAKEFOURCC(0,0,1,MPEGPS_SYSTEM_HEADER_START_CODE);
 	sh->hl = sizeof(*sh) - MPEGPS_STARTCODE_LEN;
@@ -77,7 +78,7 @@ extern LIBPSUTIL_API long MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
 	return sizeof(*sh);
 }
 
-extern LIBPSUTIL_API long MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh)
+extern LIBPSUTIL_API int MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh)
 {
 	mh->psmsc = MAKEFOURCC(0,0,1,MPEGPS_PROGRAM_STREAM_MAP);
 	mh->psml = sizeof(*mh) - MPEGPS_STARTCODE_LEN - sizeof(mh->esm);
@@ -94,7 +95,7 @@ extern LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader
 	return (MPEGPS_ESMap*)((unsigned char*)mh->esm + mh->esml);
 }
 
-extern LIBPSUTIL_API long MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
+extern LIBPSUTIL_API int MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
 {
 	MPEGPS_ESMap *esm = (MPEGPS_ESMap*)((unsigned char*)mh->esm + mh->esml);
 
@@ -105,18 +106,18 @@ extern LIBPSUTIL_API long MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
 	return MPEGPS_STARTCODE_LEN + mh->psml;
 }
 
-extern LIBPSUTIL_API long MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh)
+extern LIBPSUTIL_API int MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh)
 {
-	long psml = mh->psml;
+	int psml = mh->psml;
 	mh->psml = MAKETWOCC(mh->psml>>8,mh->psml);
 	mh->esml = MAKETWOCC(mh->esml>>8,mh->esml);
 
-	*(unsigned long*)((unsigned char*)mh+MPEGPS_STARTCODE_LEN+psml-4)
+	*(uint32_t*)((unsigned char*)mh+MPEGPS_STARTCODE_LEN+psml-4)
 		= av_crc(NULL, 0, (unsigned char*)mh+MPEGPS_STARTCODE_LEN, psml-4);
 	return MPEGPS_STARTCODE_LEN + psml;
 }
 
-extern LIBPSUTIL_API long MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length)
+extern LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length)
 {
 	if (stream_length > MPEGPS_PES_MAX_PPL) {
 		assert(FALSE);
@@ -162,9 +163,9 @@ extern LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const
 //////////////////////////////////////////////////////////////////////////
 // PS decode function
 
-inline long FillData(unsigned char *dest_ptr, long &dest_pos, long dest_len, const unsigned char *&src_ptr, long &src_len)
+inline int FillData(unsigned char *dest_ptr, int &dest_pos, int dest_len, const unsigned char *&src_ptr, int &src_len)
 {
-	long used = min(dest_len-dest_pos, src_len);
+	int used = min(dest_len-dest_pos, src_len);
 	memcpy(dest_ptr+dest_pos, src_ptr, used);
 
 	dest_pos += used;
@@ -173,15 +174,15 @@ inline long FillData(unsigned char *dest_ptr, long &dest_pos, long dest_len, con
 	return used;
 }
 
-extern long LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info)
+extern int LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info)
 {
 	memset(info, 0, sizeof(*info));
 	return 0;
 }
 
-static inline long MPEGPS_ParserFillHeader(MPEGPS_ParserInfo *info, const unsigned char *&buf, long &len)
+static inline int MPEGPS_ParserFillHeader(MPEGPS_ParserInfo *info, const unsigned char *&buf, int &len)
 {
-	long used = 0;
+	int used = 0;
 	if (info->header_pos < info->header_size)
 	{
 		used = min(info->header_size-info->header_pos, len);
@@ -196,7 +197,7 @@ static inline long MPEGPS_ParserFillHeader(MPEGPS_ParserInfo *info, const unsign
 
 #define MPEGPS_IsHeader(buf)  ((buf[0] == 0x00) && (buf[1] == 0x00) && (buf[2] == 0x01))
 
-static BOOL MPEGPS_ParserHeaderBegin(MPEGPS_ParserInfo *info, const unsigned char *buf, long len)
+static BOOL MPEGPS_ParserHeaderBegin(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
 {
 	assert(len >= MPEGPS_STARTCODE_LEN);
 	if (!MPEGPS_IsHeader(buf)) {
@@ -308,12 +309,12 @@ static void MPEGPS_ParserHeaderEnd(MPEGPS_ParserInfo *info)
 	}
 }
 
-extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, long len)
+extern int LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
 {
 	// fill header data
 	if (info->header_pos < info->header_size)
 	{
-		long used = FillData(info->header_data, info->header_pos, info->header_size, buf, len);
+		int used = FillData(info->header_data, info->header_pos, info->header_size, buf, len);
 		if (info->header_pos == info->header_size)
 			MPEGPS_ParserHeaderEnd(info);
 		return used;
@@ -322,7 +323,7 @@ extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsi
 	// skip content data
 	if (info->content_length != 0)
 	{
-		long used = min(info->content_length, len);
+		int used = min(info->content_length, len);
 		info->content_length -= used;
 
 		if (info->content_callback != NULL)
@@ -348,7 +349,7 @@ extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsi
 	// probe cache data
 	if (info->header_pos != 0)
 	{
-		long used = 0;
+		int used = 0;
 		if (info->header_pos < MPEGPS_STARTCODE_LEN)
 			used = FillData(info->header_data, info->header_pos, MPEGPS_STARTCODE_LEN, buf, len);
 		if (info->header_pos >= MPEGPS_STARTCODE_LEN)
@@ -363,7 +364,7 @@ extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsi
 	}
 
 	// probe header
-	long pos = 0;
+	int pos = 0;
 	while (len >= MPEGPS_STARTCODE_LEN)
 	{
 		if (MPEGPS_ParserHeaderBegin(info, buf, len)) {
@@ -381,12 +382,12 @@ extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsi
 	return pos+len;
 }
 
-extern long LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, long len)
+extern int LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
 {
-	long pos = 0;
+	int pos = 0;
 	while (pos < len)
 	{
-		long used = MPEGPS_ParserInput(info, buf+pos, len-pos);
+		int used = MPEGPS_ParserInput(info, buf+pos, len-pos);
 		if ((info->content_callback == NULL)
 		 && (info->header_size != 0)
 		 && (info->header_size == info->header_pos))

@@ -94,18 +94,22 @@ static inline struct page * rb_insert_page_cache(struct inode * inode,
 #ifndef	_LINUX_RBTREE_H
 #define	_LINUX_RBTREE_H
 
+#ifndef EXTERN_C
 #ifdef __cplusplus
-#ifndef EXTERN_C
 #define EXTERN_C     extern "C"
-#endif
-#else //__cplusplus
-#ifndef EXTERN_C
+#else
 #define EXTERN_C     extern
 #endif
-#ifndef inline
+#endif //EXTERN_C
+
+#ifdef _WIN32
+#if !defined(__cplusplus) && !defined(inline)
 #define inline __inline
 #endif
-#endif //!__cplusplus
+#ifndef __attribute__
+#define __attribute__(x)
+#endif
+#endif //_WIN32
 
 //#include <linux/kernel.h>
 //#include <linux/stddef.h>
@@ -265,6 +269,6 @@ type* rb_lower_##type(struct rb_root *root, keytype key) \
 		} \
 	} \
 	return it; \
-} \
+}
 
 #endif	/* _LINUX_RBTREE_H */

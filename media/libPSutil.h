@@ -6,15 +6,16 @@
 // 符号视为是被导出的。
 #ifdef LIBPSUTIL_EXPORTS
 #define LIBPSUTIL_API __declspec(dllexport)
-#elif defined(_USRDLL)
+#elif defined(_WIN32)
 #define LIBPSUTIL_API __declspec(dllimport)
 #else
 #define LIBPSUTIL_API
 #endif
+#include <stdint.h>
 
 #ifndef MAKEFOURCC
 #define MAKEFOURCC(ch0, ch1, ch2, ch3) \
-	(unsigned long)((unsigned char)(ch0) | ((unsigned char)(ch1)<<8) | \
+	(uint32_t)((unsigned char)(ch0) | ((unsigned char)(ch1)<<8) | \
 	               ((unsigned char)(ch2)<<16) | ((unsigned char)(ch3)<<24))
 #endif
 
@@ -73,7 +74,7 @@
 
 typedef struct MPEGPS_PackHeader
 {
-	unsigned long   psc;           //pack_start_code
+	uint32_t   psc;           //pack_start_code
 	unsigned short  scrb1;         //system_clock_reference_base1
 	unsigned short  scrb2;         //system_clock_reference_base2
 	unsigned short  scre;          //system_clock_reference_extension
@@ -90,7 +91,7 @@ typedef struct MPEGPS_PackHeader
 
 typedef struct MPEGPS_SystemHeader
 {
-	unsigned long   shsc;           //system_header_start_code
+	uint32_t   shsc;           //system_header_start_code
 	unsigned short  hl;             //head_length
 	unsigned char   m1;             //fill marker_bit
 	unsigned short  rbd;            //rate_bound
@@ -113,19 +114,19 @@ typedef struct MPEGPS_ESMap
 
 typedef struct MPEGPS_MapHeader
 {
-	unsigned long   psmsc;         //program_stream_map_start_code
+	uint32_t   psmsc;         //program_stream_map_start_code
 	unsigned short  psml;          //program_stream_map_length
 	unsigned char   uc1;
 	unsigned char   uc2;
 	unsigned short  psil;          //program_stream_info_length
 	unsigned short  esml;          //elementary_stream_map_length
 	MPEGPS_ESMap    esm[1];        //elementary_stream_map(at least one element)
-	unsigned long   s32crc;        //crc32 checksum
+	uint32_t   s32crc;        //crc32 checksum
 } MPEGPS_MapHeader;
 
 typedef struct MPEGPS_PESHeader
 {
-	unsigned long   pessc           ;   //PES_start_code
+	uint32_t   pessc           ;   //PES_start_code
 	unsigned short  ppl             ;   //PES_packet_length
 #if (BYTE_ORDER == LITTLE_ENDIAN)
 	unsigned short  ooc           :1;   //original_or_copy
@@ -167,16 +168,16 @@ typedef struct MPEGPS_PESHeader
 //////////////////////////////////////////////////////////////////////////
 
 // PS encode
-extern LIBPSUTIL_API long MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp);
-extern LIBPSUTIL_API long MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh);
+extern LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp);
+extern LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh);
 
-extern LIBPSUTIL_API long          MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh);
+extern LIBPSUTIL_API int           MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh);
 extern LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader *mh);
-extern LIBPSUTIL_API long          MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh);
-extern LIBPSUTIL_API long          MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh);
+extern LIBPSUTIL_API int           MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh);
+extern LIBPSUTIL_API int           MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh);
 
 #define MPEGPS_PES_MAX_PPL   (0xFFFF - sizeof(MPEGPS_PESHeader) + MPEGPS_STARTCODE_LEN)
-extern LIBPSUTIL_API long MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length);
+extern LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length);
 
 
 #define MPEGPS_PTS_FLAG       2
@@ -196,24 +197,24 @@ enum MPEGPS_ParserStatus
 struct MPEGPS_ParserInfo
 {
 	void           *user_data;
-	BOOL (__stdcall*unknown_header)(MPEGPS_ParserInfo *info, const unsigned char *buf, long len);
+	BOOL (__stdcall*unknown_header)(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
 	void (__stdcall*parse_header)(MPEGPS_ParserInfo *info);
 	void (__stdcall*header_callback)(MPEGPS_ParserInfo *info);
-	void (__stdcall*content_callback)(MPEGPS_ParserInfo *info, const unsigned char *buf, long len);
+	void (__stdcall*content_callback)(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
 
 	unsigned char   header_data[256];
-	long            header_pos;
-	long            header_size;
+	int             header_pos;
+	int             header_size;
 
-	long            content_length;
+	int             content_length;
 	long long       pts;
 	long long       dts;
 };
 
-extern long LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info);
-extern long LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, long len);
-extern long LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, long len);
+extern int LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info);
+extern int LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
+extern int LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
 
 
 // util function
-extern unsigned long crc32_checksum(unsigned char *data, unsigned int len);
+extern uint32_t crc32_checksum(unsigned char *data, unsigned int len);

@@ -84,6 +84,12 @@ define gen_dep_c
 	rm -f $@.tmp
 endef
 
+#./$(BUILD)/%.d: %.cpp
+#	$(gen_dep)
+
+#./$(BUILD)/%.d: ./base/%.cpp
+#	$(gen_dep)
+
 -include $(dependence)
 
 .PHONY: clean echo debug

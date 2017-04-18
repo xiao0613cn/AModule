@@ -7,7 +7,7 @@
 #else
 #define EXTERN_C     extern
 #endif
-#endif
+#endif //EXTERN_C
 
 #if defined(AMODULE_API_EXPORTS)
 #define AMODULE_API  EXTERN_C __declspec(dllexport)
@@ -96,7 +96,7 @@ class auto_reg_t {
 public:
 	auto_reg_t() { AModuleRegister(&module); }
 };
-#endif
+#endif //__cplusplus
 
 #define async_begin(status, result) \
 	while (result > 0) { \
