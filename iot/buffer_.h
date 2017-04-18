@@ -4,12 +4,12 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#ifdef __cplusplus
-#include <cstddef>
-extern "C"
-{
-#else
 #include <stddef.h>
+
+#ifdef __cplusplus
+//#include <cstddef>
+extern "C" {
+#else
 #endif
 
 #include "umock_c_prod.h"

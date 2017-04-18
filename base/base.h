@@ -83,6 +83,13 @@ typedef int            BOOL;
 #define TRUE      1
 #define FALSE     0
 
+#ifndef __stdcall
+#define __stdcall 
+#endif
+#ifndef __cdecl
+#define __cdecl 
+#endif
+
 #endif //!_WIN32
 
 #include "thread_util.h"

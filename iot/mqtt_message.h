@@ -4,14 +4,16 @@
 #ifndef MQTT_MESSAGE_H
 #define MQTT_MESSAGE_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
-#include <cstdint>
-#include <cstdbool>
-#include <cstddef>
+//#include <cstdint>
+//#include <cstdbool>
+//#include <cstddef>
 extern "C" {
 #else
 //#include <stdbool.h>
-#include <stddef.h>
 #endif // __cplusplus
 
 #include "mqttconst.h"
@@ -34,18 +36,18 @@ typedef struct MQTT_MESSAGE_TAG
 } MQTT_MESSAGE, * MQTT_MESSAGE_HANDLE;
 
 
-MOCKABLE_FUNCTION(, MQTT_MESSAGE_HANDLE, mqttmessage_create, uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength);
-MOCKABLE_FUNCTION(,void, mqttmessage_destroy, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(,MQTT_MESSAGE_HANDLE, mqttmessage_clone, MQTT_MESSAGE_HANDLE handle);
+MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength);
+void mqttmessage_destroy(MQTT_MESSAGE_HANDLE handle);
+MQTT_MESSAGE_HANDLE mqttmessage_clone(MQTT_MESSAGE_HANDLE handle);
 
-MOCKABLE_FUNCTION(, uint16_t, mqttmessage_getPacketId, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(, const char*, mqttmessage_getTopicName, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(, QOS_VALUE, mqttmessage_getQosType, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(, bool, mqttmessage_getIsDuplicateMsg, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(, bool, mqttmessage_getIsRetained, MQTT_MESSAGE_HANDLE handle);
-MOCKABLE_FUNCTION(, int, mqttmessage_setIsDuplicateMsg, MQTT_MESSAGE_HANDLE handle, bool duplicateMsg);
-MOCKABLE_FUNCTION(, int, mqttmessage_setIsRetained, MQTT_MESSAGE_HANDLE handle, bool retainMsg);
-MOCKABLE_FUNCTION(, const APP_PAYLOAD*, mqttmessage_getApplicationMsg, MQTT_MESSAGE_HANDLE handle);
+uint16_t mqttmessage_getPacketId(MQTT_MESSAGE_HANDLE handle);
+const char* mqttmessage_getTopicName(MQTT_MESSAGE_HANDLE handle);
+QOS_VALUE mqttmessage_getQosType(MQTT_MESSAGE_HANDLE handle);
+bool mqttmessage_getIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle);
+bool mqttmessage_getIsRetained(MQTT_MESSAGE_HANDLE handle);
+int mqttmessage_setIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle, bool duplicateMsg);
+int mqttmessage_setIsRetained(MQTT_MESSAGE_HANDLE handle, bool retainMsg);
+const APP_PAYLOAD* mqttmessage_getApplicationMsg(MQTT_MESSAGE_HANDLE handle);
 
 #ifdef __cplusplus
 }

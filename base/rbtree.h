@@ -93,17 +93,20 @@ static inline struct page * rb_insert_page_cache(struct inode * inode,
 
 #ifndef	_LINUX_RBTREE_H
 #define	_LINUX_RBTREE_H
-#ifdef _WIN32
-#ifdef __cplusplus
-extern "C" {
-#else //__cplusplus
-#define inline  __inline
-#endif //__cplusplus
-#endif //_WIN32
 
-#ifndef AMODULE_API
-#define AMODULE_API  extern
+#ifdef __cplusplus
+#ifndef EXTERN_C
+#define EXTERN_C     extern "C"
 #endif
+#else //__cplusplus
+#ifndef EXTERN_C
+#define EXTERN_C     extern
+#endif
+#ifndef inline
+#define inline __inline
+#endif
+#endif //!__cplusplus
+
 //#include <linux/kernel.h>
 //#include <linux/stddef.h>
 
@@ -153,17 +156,17 @@ static inline void rb_set_color(struct rb_node *rb, int color)
 #define RB_EMPTY_NODE(node)	(rb_parent(node) == node)
 #define RB_CLEAR_NODE(node)	(rb_set_parent(node, node))
 
-AMODULE_API void rb_insert_color(struct rb_node *, struct rb_root *);
-AMODULE_API void rb_erase(struct rb_node *, struct rb_root *);
+EXTERN_C void rb_insert_color(struct rb_node *, struct rb_root *);
+EXTERN_C void rb_erase(struct rb_node *, struct rb_root *);
 
 /* Find logical next and previous nodes in a tree */
-AMODULE_API struct rb_node *rb_next(const struct rb_node *);
-AMODULE_API struct rb_node *rb_prev(const struct rb_node *);
-AMODULE_API struct rb_node *rb_first(const struct rb_root *);
-AMODULE_API struct rb_node *rb_last(const struct rb_root *);
+EXTERN_C struct rb_node *rb_next(const struct rb_node *);
+EXTERN_C struct rb_node *rb_prev(const struct rb_node *);
+EXTERN_C struct rb_node *rb_first(const struct rb_root *);
+EXTERN_C struct rb_node *rb_last(const struct rb_root *);
 
 /* Fast replacement of a single node without remove/rebalance/add/rebalance */
-AMODULE_API void rb_replace_node(struct rb_node *victim, struct rb_node *new_node, 
+EXTERN_C void rb_replace_node(struct rb_node *victim, struct rb_node *new_node, 
 			    struct rb_root *root);
 
 static inline void rb_link_node(struct rb_node * node, struct rb_node * parent,
@@ -264,9 +267,4 @@ type* rb_lower_##type(struct rb_root *root, keytype key) \
 	return it; \
 } \
 
-#ifdef _WIN32
-#ifdef __cplusplus
-};
-#endif
-#endif
 #endif	/* _LINUX_RBTREE_H */

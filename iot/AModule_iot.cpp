@@ -1,9 +1,8 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
-extern "C" {
 #include "mqtt_codec.h"
-};
+
 
 void mqtt_packet_done(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)
 {

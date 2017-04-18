@@ -14,13 +14,13 @@
 
 #ifndef MAKEFOURCC
 #define MAKEFOURCC(ch0, ch1, ch2, ch3) \
-	(unsigned long)(unsigned char(ch0) | (unsigned char(ch1)<<8) | \
-	               (unsigned char(ch2)<<16) | (unsigned char(ch3)<<24))
+	(unsigned long)((unsigned char)(ch0) | ((unsigned char)(ch1)<<8) | \
+	               ((unsigned char)(ch2)<<16) | ((unsigned char)(ch3)<<24))
 #endif
 
 #ifndef MAKETWOCC
 #define MAKETWOCC(ch0, ch1) \
-	(unsigned short)(unsigned char(ch0) | (unsigned char(ch1)<<8))
+	(unsigned short)((unsigned char)(ch0) | ((unsigned char)(ch1)<<8))
 #endif
 
 //////////////////////////////////////////////////////////////////////////

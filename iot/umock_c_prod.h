@@ -41,7 +41,7 @@
 
 #ifndef MOCKABLE_FUNCTION
 #define MOCKABLE_FUNCTION(modifiers, result, function, ...) \
-	result modifiers function(##__VA_ARGS__)
+	result modifiers function(__VA_ARGS__)
 #endif
 
 #ifndef __FAILURE__

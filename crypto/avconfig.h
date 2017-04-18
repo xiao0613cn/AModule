@@ -32,8 +32,8 @@
 #if defined(_MSC_VER)
 #    define av_always_inline __forceinline
 #    define inline __inline
-#elif AV_GCC_VERSION_AT_LEAST(3,1)
-#    define av_always_inline __attribute__((always_inline)) inline
+//#elif AV_GCC_VERSION_AT_LEAST(3,1)
+//#    define av_always_inline __attribute__((always_inline)) inline
 #else
 #    define av_always_inline inline
 #endif

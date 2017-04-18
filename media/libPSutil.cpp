@@ -153,7 +153,7 @@ extern LIBPSUTIL_API void MPEGPS_PTS_Encode(unsigned char pdf, long long timesta
 
 extern LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const unsigned char buf[5])
 {
-	*timestamp = (long long(buf[0]&0x0E) << 29)
+	*timestamp = ((long long)(buf[0]&0x0E) << 29)
 	           | ((MAKETWOCC(buf[2],buf[1])>>1) << 15)
 	           | (MAKETWOCC(buf[4],buf[3])>>1);
 	return (buf[0]>>4);
@@ -266,11 +266,13 @@ static void MPEGPS_ParserHeaderEnd(MPEGPS_ParserInfo *info)
 		                     + MAKETWOCC(info->header_data[5], info->header_data[4])
 		                     - info->header_size;
 		if (info->content_length < 0) {
+#ifdef _WIN32
 			TCHAR buf[128];
 			_stprintf_s(buf, _T("pes[%02x]: parse error, header(%d): %02x, content(%d): %02x %02x.\n"),
 				info->header_data[3], info->header_size, pes->phdl,
 				info->content_length, info->header_data[4], info->header_data[5]);
 			::OutputDebugString(buf);
+#endif
 			info->header_size = 0;
 			info->header_pos = 0;
 			info->content_length = 0;
