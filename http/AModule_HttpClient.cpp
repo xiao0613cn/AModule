@@ -238,7 +238,7 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 	return result;
 }
 
-extern int HttpClientDoSendRequest(HttpClient *p, AMessage *msg)
+extern int HttpClientDoSend(HttpClient *p, AMessage *msg)
 {
 	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnSendStatus);
 	p->send_from = msg;
@@ -462,7 +462,7 @@ _continue:
 	return AMsgType_Private|((p->recv_parser.type == HTTP_REQUEST) ? p->recv_parser.method : p->recv_parser.status_code);
 }
 
-extern int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg)
+extern int HttpClientDoRecv(HttpClient *p, AMessage *msg)
 {
 	if (ARefsBufCheck(p->recv_buffer, send_bufsiz, recv_bufsiz) < 0)
 		return -ENOMEM;
@@ -501,11 +501,11 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 	}
 
 	if (reqix == Aio_Input) {
-		return HttpClientDoSendRequest(p, msg);
+		return HttpClientDoSend(p, msg);
 	}
 
 	if (reqix == Aio_Output) {
-		return HttpClientDoRecvResponse(p, msg);
+		return HttpClientDoRecv(p, msg);
 	}
 
 	if (reqix == Aio_AppendOutput) {

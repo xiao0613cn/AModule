@@ -38,15 +38,15 @@ struct AOperator {
 
 	AThread         *ao_thread;
 	union {
-	struct {
+	struct {         // post timer or runnable
 	DWORD            ao_tick;
 	struct rb_node   ao_tree;
 	struct list_head ao_list;
 	};
-#ifdef _WIN32
+#ifdef _WIN32            // win32 IOCP
 	OVERLAPPED       ao_ovlp;
 #else
-	struct {
+	struct {         // linux epoll
 	int              ao_fd;
 	uint32_t         ao_events;
 	};

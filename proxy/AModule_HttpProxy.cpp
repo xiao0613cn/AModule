@@ -31,7 +31,7 @@ static int HttpProxySendDone(AMessage *msg, int result)
 	if (result >= 0) {
 		p->send_msg.init();
 		p->send_msg.done = &HttpProxyDispatch;
-		result = HttpClientDoRecvResponse(p, &p->send_msg);
+		result = HttpClientDoRecv(p, &p->send_msg);
 	}
 	if (result != 0)
 		result = HttpProxyDispatch(&p->send_msg, result);
@@ -70,7 +70,7 @@ static int HttpGetFile(HttpClient *p, const char *url)
 		p->recv_parser.http_major, p->recv_parser.http_minor, status_code);
 
 	p->send_status = s_send_private_header;
-	int result = HttpClientDoSendRequest(p, &p->recv_msg);
+	int result = HttpClientDoSend(p, &p->recv_msg);
 	return result;
 }
 
@@ -94,7 +94,7 @@ static int HttpProxyGetStatus(AMessage *msg, int result)
 		p->recv_parser.http_major, p->recv_parser.http_minor);
 
 	p->send_status = s_send_private_header;
-	result = HttpClientDoSendRequest(p, &p->recv_msg);
+	result = HttpClientDoSend(p, &p->recv_msg);
 	return result;
 }
 
@@ -123,7 +123,7 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 	media_file_t *mf = (media_file_t*)(ctx+1);
 
-#if defined(_WINDLL) || defined(_WIN64) || !defined(_WIN32)
+#if 1
 	{
 #else
 	while (result > 0)
@@ -239,7 +239,7 @@ _check:
 
 		p->send_msg.init();
 		p->send_msg.done = &HttpProxyDispatch;
-		result = HttpClientDoRecvResponse(p, &p->send_msg);
+		result = HttpClientDoRecv(p, &p->send_msg);
 	}
 	if (result < 0)
 		HttpProxyClose(p);
@@ -275,7 +275,7 @@ static int HttpProxyOpen(AObject *object, AMessage *msg)
 
 	p->send_msg.init();
 	p->send_msg.done = &HttpProxyDispatch;
-	result = HttpClientDoRecvResponse(p, &p->send_msg);
+	result = HttpClientDoRecv(p, &p->send_msg);
 	if (result != 0)
 		result = HttpProxyDispatch(&p->send_msg, result);
 	return -EBUSY;

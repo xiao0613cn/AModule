@@ -80,7 +80,6 @@ typedef int             SOCKET;
 #endif
 
 typedef void *         HANDLE;
-typedef unsigned long  u_long;
 typedef unsigned long  DWORD;
 typedef long long      LONGLONG;
 typedef unsigned long long ULONGLONG;

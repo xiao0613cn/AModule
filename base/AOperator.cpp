@@ -1,5 +1,11 @@
 #include "stdafx.h"
-#ifndef _WIN32
+#ifdef _WIN32
+enum iocp_key {
+	iocp_key_unknown = 0,
+	iocp_key_signal,
+	iocp_key_sysio,
+};
+#else
 #include <sys/time.h>
 #include <sys/resource.h>
 #ifndef _NO_EVENTFD_H_
@@ -8,14 +14,7 @@
 #endif
 #include "AModule_API.h"
 
-enum iocp_key {
-	iocp_key_unknown = 0,
-	iocp_key_signal,
-	iocp_key_sysio,
-};
-
-static inline int AOperatorTimewaitCompare(DWORD tick, AOperator *asop)
-{
+static inline int AOperatorTimewaitCompare(DWORD tick, AOperator *asop) {
 	return int(tick - asop->ao_tick);
 }
 rb_tree_define(AOperator, ao_tree, DWORD, AOperatorTimewaitCompare)

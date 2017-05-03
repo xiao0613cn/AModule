@@ -90,8 +90,8 @@ HeaderGet(HttpClient *p, const char *header, int &len)
 extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option);
 extern void HttpClientRelease(AObject *object);
 extern int HttpClientAppendOutput(HttpClient *p, AMessage *msg);
-extern int HttpClientDoRecvResponse(HttpClient *p, AMessage *msg);
-extern int HttpClientDoSendRequest(HttpClient *p, AMessage *msg);
+extern int HttpClientDoRecv(HttpClient *p, AMessage *msg);
+extern int HttpClientDoSend(HttpClient *p, AMessage *msg);
 
 
 #endif
