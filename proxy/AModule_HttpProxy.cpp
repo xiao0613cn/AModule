@@ -251,7 +251,7 @@ static void on_http_timeout(struct list_head *conn)
 	HttpCtxExt *ctx = container_of(conn, HttpCtxExt, sm_conn_entry);
 	HttpClient *p = ctx->p();
 	ctx->active = 0;
-	p->io->close(p->io, NULL);
+	p->io->close(NULL);
 	p->object.release2();
 }
 

@@ -106,13 +106,13 @@ void DeviceManager::run_open()
 
 		dev->active = tick;
 		if (dev->status == AObject_Opening) {
-			int result = dev->object.open(&dev->object, NULL);
+			int result = dev->object.open(NULL);
 			TRACE("dev(%lld): open(%s:%d) = %d.\n", dev->id,
 				dev->net_addr, dev->net_port, result);
 			dev->status = (result >= 0 ? AObject_Opened : AObject_Abort);
 		}
 		if (dev->status != AObject_Opened) {
-			dev->object.close(&dev->object, NULL);
+			dev->object.close(NULL);
 			dev->status = AObject_Closed;
 		}
 		dev->object.release2();

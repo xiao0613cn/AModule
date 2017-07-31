@@ -83,7 +83,7 @@ static inline int PVDDoOpen(PVDClient *pvd, PVDStatus status)
 	pvd->outmsg.init(pvd->io_opt);
 
 	pvd->status = status;
-	return pvd->io->open(pvd->io, &pvd->outmsg);
+	return pvd->io->open(&pvd->outmsg);
 }
 
 static inline int PVDDoClose(PVDClient *pvd, PVDStatus status)
@@ -91,7 +91,7 @@ static inline int PVDDoClose(PVDClient *pvd, PVDStatus status)
 	pvd->outmsg.init();
 
 	pvd->status = status;
-	return pvd->io->close(pvd->io, &pvd->outmsg);
+	return pvd->io->close(&pvd->outmsg);
 }
 
 static inline void PVDInitInput(PVDClient *pvd, PVDStatus status, int type, int body)
@@ -320,7 +320,7 @@ static int PVDRequest(AObject *object, int reqix, AMessage *msg)
 			((pvdnet_head*)msg->data)->uUserId = pvd->userid;
 			msg->type = ioMsgType_Block;
 		}
-		return pvd->io->request(pvd->io, reqix, msg);
+		return pvd->io->request(reqix, msg);
 	}
 
 	pvd->outmsg.done = &TObjectDone(PVDClient, outmsg, outfrom, PVDOutputStatus);
@@ -337,7 +337,7 @@ static int PVDCancel(AObject *object, int reqix, AMessage *msg)
 	if (p->io == NULL)
 		return 1;
 
-	return p->io->cancel(p->io, reqix, msg);
+	return p->io->cancel(reqix, msg);
 }
 
 int PVDCloseStatus(PVDClient *pvd, int result)
@@ -400,7 +400,7 @@ static int PVDClose(AObject *object, AMessage *msg)
 		return -ENOENT;
 
 	if (msg == NULL)
-		return pvd->io->close(pvd->io, NULL);
+		return pvd->io->close(NULL);
 
 	pvd->outmsg.done = &TObjectDone(PVDClient, outmsg, outfrom, PVDCloseStatus);
 	pvd->outfrom = msg;

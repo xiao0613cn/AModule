@@ -110,8 +110,8 @@ int OnDumpRequest(DumpReq *req, int result)
 	}
 
 	DumpObject *dump = req->dump;
-	if (dump->object.reqix_count == 0) // open done
-		dump->object.reqix_count = dump->io->reqix_count;
+	//if (dump->object.reqix_count == 0) // open done
+	//	dump->object.reqix_count = dump->io->reqix_count;
 
 	req->from->init(req->msg);
 	if (req->file != NULL) {
@@ -165,7 +165,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
-	int result = dump->io->open(dump->io, &req->msg);
+	int result = dump->io->open(&req->msg);
 	if (result != 0) {
 		OnDumpRequest(req, result);
 	}
@@ -178,7 +178,7 @@ static int DumpSetOption(AObject *object, AOption *option)
 	if (dump->io == NULL)
 		return -ENOENT;
 
-	return dump->io->setopt(dump->io, option);
+	return dump->io->setopt(option);
 }
 
 static int DumpGetOption(AObject *object, AOption *option)
@@ -187,7 +187,7 @@ static int DumpGetOption(AObject *object, AOption *option)
 	if (dump->io == NULL)
 		return -ENOENT;
 
-	return dump->io->getopt(dump->io, option);
+	return dump->io->getopt(option);
 }
 
 static int DumpRequest(AObject *object, int reqix, AMessage *msg)
@@ -195,13 +195,13 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 	DumpObject *dump = to_dump(object);
 	DumpReq *req = DumpReqGet(dump, reqix);
 	if (req == NULL)
-		return dump->io->request(dump->io, reqix, msg);
+		return dump->io->request(reqix, msg);
 
 	req->msg.init(msg);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
-	int result = dump->io->request(dump->io, reqix, &req->msg);
+	int result = dump->io->request(reqix, &req->msg);
 	if (result != 0) {
 		OnDumpRequest(req, result);
 	}
@@ -211,7 +211,7 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 static int DumpCancel(AObject *object, int reqix, AMessage *msg)
 {
 	DumpObject *dump = to_dump(object);
-	return dump->io->cancel(dump->io, reqix, msg);
+	return dump->io->cancel(reqix, msg);
 }
 
 static int DumpClose(AObject *object, AMessage *msg)
@@ -220,7 +220,7 @@ static int DumpClose(AObject *object, AMessage *msg)
 	if (msg != NULL) {
 		release_s(dump->file, fclose, NULL);
 	}
-	return dump->io->close(dump->io, msg);
+	return dump->io->close(msg);
 }
 
 AModule DumpModule = {

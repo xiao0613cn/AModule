@@ -203,6 +203,33 @@ static inline int list_empty(const struct list_head *head)
 	return head->next == head;
 }
 
+#ifdef __cplusplus
+template <typename type_t>
+struct list_node : public list_head {
+#ifdef _DEBUG
+	type_t    *self;
+#endif
+	inline void init(type_t *p) {
+		INIT_LIST_HEAD(this);
+#ifdef _DEBUG
+		self = p;
+#endif
+	}
+	inline bool empty() { return !!list_empty(this); }
+	inline bool is_last(list_node *entry) { return !!list_is_last(entry, this); }
+	inline void       push_front(list_node *entry) { list_add(entry, this); }
+	inline void       push_back(list_node *entry) { list_add_tail(entry, this); }
+	inline list_node* pop_front() { list_node *entry = front(); entry->leave(); return entry; }
+	inline list_node* pop_back() { list_node *entry = back(); entry->leave(); return entry; }
+	inline list_node* front() { return (list_node*)next; }
+	inline list_node* back() { return (list_node*)prev; }
+
+	inline void leave() { list_del_init(this); }
+	inline void move_back(list_node *other) { list_move_tail(this, other); }
+	inline void move_front(list_node *other) { list_move(this, other); }
+};
+#endif
+
 /**
  * list_empty_careful - tests whether a list is empty and not being modified
  * @head: the list to test
@@ -361,6 +388,10 @@ static inline void list_splice_tail_init(struct list_head *list,
  */
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
+
+#define list_pop_front(ptr, type, member) \
+	list_entry((ptr)->next, type, member); \
+	list_del_init((ptr)->next);
 
 /**
  * list_for_each	-	iterate over a list

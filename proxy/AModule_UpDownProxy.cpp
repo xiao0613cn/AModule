@@ -36,14 +36,14 @@ static int PostClose(AMessage *msg, int result)
 	case post_closing:
 		AMsgInit(&up_msg.msg, AMsgType_Unknown, NULL, 0);
 		post_status = up_closing;
-		result = up_io->close(up_io, &up_msg.msg);
+		result = up_io->close(&up_msg.msg);
 		if (result == 0)
 			return 0;
 
 	case up_closing:
 		AMsgInit(&up_msg.msg, AMsgType_Unknown, NULL, 0);
 		post_status = down_closing;
-		result = down_io->close(down_io, &up_msg.msg);
+		result = down_io->close(&up_msg.msg);
 		if (result == 0)
 			return 0;
 
@@ -99,7 +99,7 @@ static int UpMsg(AMessage *msg, int result)
 		case post_none:
 			AMsgInit(&up_msg.msg, AMsgType_Option, up_option, 0);
 			post_status = up_opening;
-			result = up_io->open(up_io, &up_msg.msg);
+			result = up_io->open(&up_msg.msg);
 			break;
 
 		case up_opening:
@@ -111,7 +111,7 @@ static int UpMsg(AMessage *msg, int result)
 		case up_opened:
 			AMsgInit(&up_msg.msg, AMsgType_Option, down_option, 0);
 			post_status = down_opening;
-			result = down_io->open(down_io, &up_msg.msg);
+			result = down_io->open(&up_msg.msg);
 			break;
 
 		case down_opening:

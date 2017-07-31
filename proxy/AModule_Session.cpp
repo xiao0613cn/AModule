@@ -297,7 +297,7 @@ SessionCheck(SessionManager *sm)
 		SessionCtx *s = list_first_entry(&timeout_sess, SessionCtx, sm_timeout_entry);
 		list_del_init(&s->sm_timeout_entry);
 
-		s->object.close(&s->object, NULL);
+		s->object.close(NULL);
 		AObjectRelease(&s->object);
 	}
 	while (!list_empty(&timeout_conn)) {

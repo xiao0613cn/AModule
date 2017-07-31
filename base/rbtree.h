@@ -155,6 +155,7 @@ static inline void rb_set_color(struct rb_node *rb, int color)
 #define RB_ROOT	(struct rb_root) { NULL, }
 #define INIT_RB_ROOT(root)       ((root)->rb_node = NULL)
 #define	rb_entry(ptr, type, member) container_of(ptr, type, member)
+#define rb_first_entry(root, type, member)    rb_entry(rb_first(root), type, member)
 
 #define RB_EMPTY_ROOT(root)	((root)->rb_node == NULL)
 #define RB_EMPTY_NODE(node)	(rb_parent(node) == node)

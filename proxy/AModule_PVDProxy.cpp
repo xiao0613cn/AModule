@@ -215,7 +215,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		p->inmsg.init();
 		p->inmsg.done = &PVDProxyCloseStream;
 
-		result = p->client->close(p->client, &p->inmsg);
+		result = p->client->close(&p->inmsg);
 		if (result != 0)
 			result = p->inmsg.done(&p->inmsg, result);
 	}
@@ -245,7 +245,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 		p->outmsg.done = &PVDProxyRecvStream;
 
 		AObjectAddRef(&p->object);
-		result = rt->request(rt, Aiosync_NotifyBack|0, &p->outmsg);
+		result = rt->request(Aiosync_NotifyBack|0, &p->outmsg);
 		if (result < 0) {
 			AObjectRelease(&p->object);
 		} else {
@@ -308,7 +308,7 @@ static int PVDProactiveRTStream(PVDProxy *p)
 	p_rt->outmsg.init(proactive_io);
 	p_rt->outmsg.done = &PVDProactiveRTConnect;
 
-	result = p_rt->client->open(p_rt->client, &p_rt->outmsg);
+	result = p_rt->client->open(&p_rt->outmsg);
 	if (result != 0)
 		result = PVDProactiveRTConnect(&p_rt->outmsg, result);
 	return result;
@@ -385,7 +385,7 @@ int PVDProxyDispatch(PVDProxy *p, int result)
 			p->outmsg.done = &PVDProxyRecvDone;
 			p->outtick = GetTickCount();
 
-			result = pvd->request(pvd, Aiosync_NotifyBack|Aio_Output, &p->outmsg);
+			result = pvd->request(Aiosync_NotifyBack|Aio_Output, &p->outmsg);
 			if (result < 0) {
 				InterlockedExchange(&p->reqcount, 0);
 				return result;
@@ -500,7 +500,7 @@ static int PVDProxyOpen(AObject *object, AMessage *msg)
 		p->outmsg.done = &TObjectDone(PVDProxy, outmsg, outfrom, PVDProactiveOpenStatus);
 
 		p->outfrom = msg;
-		result = p->client->open(p->client, &p->outmsg);
+		result = p->client->open(&p->outmsg);
 		if (result > 0)
 			result = PVDProactiveOpenStatus(p, result);
 		return result;
@@ -529,7 +529,7 @@ static int PVDProxyRequest(AObject *object, int reqix, AMessage *msg)
 		if ((reqix != Aio_Output) || (p->proactive_id == 0))
 			return -ENOSYS;
 
-		return p->client->request(p->client, reqix, msg);
+		return p->client->request(reqix, msg);
 	}
 
 	int result = ARefsBufCheck(p->outbuf, max(msg->size,2048), 64*1024);
@@ -555,7 +555,7 @@ static int PVDProxyClose(AObject *object, AMessage *msg)
 	PVDProxy *p = to_proxy(object);
 	if (p->client == NULL)
 		return -ENOENT;
-	return p->client->close(p->client, msg);
+	return p->client->close(msg);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -569,7 +569,7 @@ static void PVDDoSend(AOperator *asop, int result)
 	DWORD tick = GetTickCount();
 	if (int(tick-rt_active) > 10*1000) {
 		TRACE("realtime timeout...\n");
-		rt->close(rt, NULL);
+		rt->close(NULL);
 		rt_active = tick;
 	}
 	do {
@@ -644,7 +644,7 @@ static void PVDDoClose(HeartMsg *sm, int result)
 	sm->msg.init();
 	sm->msg.done = &PVDCloseDone;
 
-	result = sm->object->close(sm->object, &sm->msg);
+	result = sm->object->close(&sm->msg);
 	if (result != 0)
 		PVDCloseDone(&sm->msg, result);
 }
@@ -713,7 +713,7 @@ static void PVDDoRecv(AOperator *asop, int result)
 	} else {
 		AMsgInit(&sm->msg, AMsgType_Unknown, NULL, 0);
 	}
-	result = sm->object->request(sm->object, sm->reqix, &sm->msg);
+	result = sm->object->request(sm->reqix, &sm->msg);
 	if (result != 0) {
 		sm->msg.done(&sm->msg, result);
 	}
@@ -734,10 +734,10 @@ static int PVDOpenDone(AMessage *msg, int result)
 
 		strcpy_sz(opt.name, "login_data");
 		opt.extend = &login_data;
-		sm->object->getopt(sm->object, &opt);
+		sm->object->getopt(&opt);
 
 		strcpy_sz(opt.name, "session_id");
-		sm->object->getopt(sm->object, &opt);
+		sm->object->getopt(&opt);
 		userid = atol(opt.value);
 
 		AOption *opt2 = AOptionFind(sm->option, "channel_count");
@@ -779,17 +779,17 @@ static void PVDDoOpen(AOperator *asop, int result)
 
 		strcpy_sz(opt.name, "version");
 		sprintf(opt.value, "%d", login_data.byDVRType);
-		sm->object->setopt(sm->object, &opt);
+		sm->object->setopt(&opt);
 
 		strcpy_sz(opt.name, "session_id");
 		sprintf(opt.value, "%ld", userid);
-		sm->object->setopt(sm->object, &opt);
+		sm->object->setopt(&opt);
 	}
 
 	sm->msg.init(sm->option);
 	sm->msg.done = &PVDOpenDone;
 
-	result = sm->object->open(sm->object, &sm->msg);
+	result = sm->object->open(&sm->msg);
 	if (result != 0)
 		PVDOpenDone(&sm->msg, result);
 }
@@ -872,13 +872,13 @@ static void PVDProxyExit(void)
 {
 	if (pvd != NULL) {
 		//pvd->cancel(pvd, ARequest_MsgLoop|Aio_Output, NULL);
-		pvd->close(pvd, NULL);
+		pvd->close(NULL);
 		AObjectRelease(pvd);
 		pvd = NULL;
 	}
 	if (rt != NULL) {
 		//rt->cancel(rt, ARequest_MsgLoop|0, NULL);
-		rt->close(rt, NULL);
+		rt->close(NULL);
 		AObjectRelease(rt);
 		rt = NULL;
 	}

@@ -21,10 +21,11 @@ typedef struct RTMPCtx {
 	char*   playpath;       ///< stream identifier to play (with possible "mp4:" prefix)
 	char*   app;            ///< name of application
 	char*   tcurl;          ///< url of the target stream
-	char    auth_params[500];
+	char*   auth_params;
 
 	int     c0c1_pos;
 	int     nb_invokes;
+	const char *cur_track;
 	int     stream_id;
 
 	// rtmpe
@@ -136,14 +137,14 @@ AMODULE_API int
 rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt);
+rtmp_gen_chunk_head(RTMPCtx *rt, uint8_t *pkt_hdr, RTMPPacket *pkt, RTMPPacket *prev_pkt);
 
 AMODULE_API int
 rtmp_gen_next_head(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt);
 
 static inline int
 rtmp_guess_outsize(RTMPCtx *rt, int pkt_size) {
-	return (16 + (pkt_size/rt->out_chunk_size)*5 + pkt_size);
+	return (16 + ((pkt_size+rt->out_chunk_size-1)/rt->out_chunk_size)*5 + pkt_size);
 }
 //////////////////////////////////////////////////////////////////////////
 

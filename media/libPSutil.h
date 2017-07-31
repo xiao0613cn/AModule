@@ -4,6 +4,7 @@
 // 任何其他项目上不应定义此符号。这样，源文件中包含此文件的任何其他项目都会将
 // LIBPSUTIL_API 函数视为是从 DLL 导入的，而此 DLL 则将用此宏定义的
 // 符号视为是被导出的。
+#ifndef LIBPSUTIL_API
 #ifdef LIBPSUTIL_EXPORTS
 #define LIBPSUTIL_API __declspec(dllexport)
 #elif defined(_WIN32)
@@ -11,6 +12,10 @@
 #else
 #define LIBPSUTIL_API
 #endif
+#else
+#undef LIBPSUTIL_API
+#define LIBPSUTIL_API
+#endif //LIBPSUTIL_API
 #include <stdint.h>
 
 #ifndef MAKEFOURCC

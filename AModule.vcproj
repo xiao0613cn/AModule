@@ -41,8 +41,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="ffmpeg/include"
-				PreprocessorDefinitions="WIN32;_DEBUG;AMODULE_API_INNER"
+				AdditionalIncludeDirectories="ffmpeg/include;./"
+				PreprocessorDefinitions="WIN32;_DEBUG;AMODULE_API_INNER;LIBPSUTIL_API"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
@@ -341,10 +341,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\proxy\AModule_EchoProxy.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\io\AModule_file.cpp"
 				>
 			</File>
@@ -526,10 +522,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\main.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\PVDClient\md5.cpp"
 				>
 			</File>
@@ -657,6 +649,18 @@
 				RelativePath=".\device_agent\stream.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\test2.cpp"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+			</File>
 		</Filter>
 		<Filter
 			Name="Í·ÎÄ¼þ"
@@ -668,7 +672,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\AEntity.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\aes.h"
+				>
+			</File>
+			<File
+				RelativePath=".\base\AEvent.h"
 				>
 			</File>
 			<File
@@ -701,6 +713,10 @@
 			</File>
 			<File
 				RelativePath=".\rtmp\AModule_rtmp.h"
+				>
+			</File>
+			<File
+				RelativePath=".\rtmp\AModule_rtmpconn.h"
 				>
 			</File>
 			<File
@@ -740,11 +756,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
@@ -816,11 +832,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
@@ -884,11 +900,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
@@ -896,11 +912,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -912,11 +928,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
@@ -1040,11 +1056,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
@@ -1108,19 +1124,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File

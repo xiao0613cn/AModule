@@ -57,7 +57,7 @@ int test_mqtt()
 
 	AMessage msg;
 	msg.init(&opt);
-	ret = tcp->open(tcp, &msg);
+	ret = tcp->open(&msg);
 	AOptionExit(&opt);
 	if (ret > 0) {
 		MQTT_CLIENT_OPTIONS client = {

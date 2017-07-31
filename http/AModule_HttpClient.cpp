@@ -127,7 +127,7 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 	p->send_msg.done = &TObjectDone(HttpClient, send_msg, send_from, HttpClientOnOpen);
 	p->send_from = msg;
 
-	int result = p->io->open(p->io, &p->send_msg);
+	int result = p->io->open(&p->send_msg);
 	if (result != 0)
 		result = HttpClientOnOpen(p, result);
 	return result;
@@ -492,12 +492,12 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 
 	if (msg->type == httpMsgType_RawData) {
 		msg->type = AMsgType_Unknown;
-		return p->io->request(p->io, reqix, msg);
+		return p->io->request(reqix, msg);
 	}
 
 	if (msg->type == httpMsgType_RawBlock) {
 		msg->type = ioMsgType_Block;
-		return p->io->request(p->io, reqix, msg);
+		return p->io->request(reqix, msg);
 	}
 
 	if (reqix == Aio_Input) {
@@ -520,7 +520,7 @@ static int HttpClientCancel(AObject *object, int reqix, AMessage *msg)
 	if (p->io == NULL)
 		return -ENOENT;
 
-	return p->io->cancel(p->io, reqix, msg);
+	return p->io->cancel(reqix, msg);
 }
 
 static int HttpClientClose(AObject *object, AMessage *msg)
@@ -529,7 +529,7 @@ static int HttpClientClose(AObject *object, AMessage *msg)
 	if (p->io == NULL)
 		return -ENOENT;
 
-	return p->io->close(p->io, msg);
+	return p->io->close(msg);
 }
 
 AModule HttpClientModule = {

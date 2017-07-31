@@ -46,11 +46,11 @@ static int PVDRTCreate(AObject **object, AObject *parent, AOption *option)
 		AOptionInit(&opt, NULL);
 
 		strcpy_sz(opt.name, "session_id");
-		if (parent->getopt(parent, &opt) >= 0)
+		if (parent->getopt(&opt) >= 0)
 			rt->userid = atol(opt.value);
 
 		strcpy_sz(opt.name, "version");
-		if (parent->getopt(parent, &opt) >= 0)
+		if (parent->getopt(&opt) >= 0)
 			rt->version = atol(opt.value);
 	}
 
@@ -192,7 +192,7 @@ int PVDRTOpenStatus(PVDRTStream *rt, int result)
 		case pvdnet_closing:
 			rt->outmsg.init();
 			rt->status = pvdnet_disconnected;
-			result = rt->io->close(rt->io, &rt->outmsg);
+			result = rt->io->close(&rt->outmsg);
 			if (result == 0)
 				return 0;
 
@@ -234,7 +234,7 @@ static int PVDRTOpen(AObject *object, AMessage *msg)
 	rt->outmsg.size = 0;
 
 	rt->status = pvdnet_connecting;
-	int result = rt->io->open(rt->io, &rt->outmsg);
+	int result = rt->io->open(&rt->outmsg);
 	if (result != 0)
 		result = PVDRTOpenStatus(rt, result);
 	return result;
@@ -313,7 +313,7 @@ static int PVDRTClose(AObject *object, AMessage *msg)
 	PVDRTStream *rt = to_rt(object);
 	if (rt->io == NULL)
 		return -ENOSYS;
-	return rt->io->close(rt->io, msg);
+	return rt->io->close(msg);
 }
 
 AModule PVDRTModule = {

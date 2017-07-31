@@ -6,12 +6,20 @@ typedef struct ARefsBuf
 {
 	long    refs;
 	int     size;
-	void  (*free)(void*);
+	void  (*free)(void*p);
+	void   *user;
 	int     bgn;
 	int     end;
 	char    data[0];
 
 #ifdef __cplusplus
+	long  addref() { return InterlockedAdd(&refs, 1); }
+	long  release2() {
+		long result = InterlockedAdd(&refs, -1);
+		if (result <= 0)
+			(this->free)(this);
+		return result;
+	}
 	void  reset() { bgn = end = 0; }
 	int   len() { return (end - bgn); }
 	char* ptr() { return (data + bgn); }
@@ -44,6 +52,7 @@ ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
 		buf->refs = 1;
 		buf->size = size;
 		buf->free = free_func;
+		buf->user = NULL;
 		buf->bgn = 0;
 		buf->end = 0;
 	}

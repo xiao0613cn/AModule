@@ -293,7 +293,7 @@ static int OnMp4AckDone(M3U8Proxy *p, int result)
 		p->outmsg.data = buf->ptr();
 		p->outmsg.size = buf->len();
 
-		int result = p->client->request(p->client, Aio_Input, &p->outmsg);
+		int result = p->client->request(Aio_Input, &p->outmsg);
 		if (result <= 0)
 			return result;
 	}
@@ -476,7 +476,7 @@ static int M3U8ProxyRequest(AObject *object, int reqix, AMessage *msg)
 		fputs(p->outmsg.data, stdout);
 
 		p->from = msg;
-		int result = p->client->request(p->client, Aio_Input, &p->outmsg);
+		int result = p->client->request(Aio_Input, &p->outmsg);
 		if (result > 0)
 			result = p->outmsg.size;
 		return result;
@@ -518,7 +518,7 @@ _reply:
 		fputs(p->outmsg.data, stdout);
 
 		p->from = msg;
-		int result = p->client->request(p->client, Aio_Input, &p->outmsg);
+		int result = p->client->request(Aio_Input, &p->outmsg);
 		if (result > 0)
 			result = OnMp4AckDone(p, result);
 		return result;
@@ -799,7 +799,7 @@ static void RTCheck(AOperator *opt, int result)
 {
 	if (result < 0) {
 		if (rt != NULL)
-			rt->cancel(rt, Aiosync_NotifyBack|0, &work_msg);
+			rt->cancel(Aiosync_NotifyBack|0, &work_msg);
 		if (rt_seq != 0) {
 			pts_offset = 0;
 			media_file_release(&tmp_media);
@@ -819,7 +819,7 @@ static void RTCheck(AOperator *opt, int result)
 		work_msg.done = &RTStreamDone;
 		pts_offset = 0;
 
-		result = rt->request(rt, Aiosync_NotifyBack|0, &work_msg);
+		result = rt->request(Aiosync_NotifyBack|0, &work_msg);
 		TRACE("rt stream register = %d.\n", result);
 		if (result < 0)
 			work_msg.done = NULL;

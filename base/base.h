@@ -9,7 +9,6 @@
 #include <time.h>
 #include <string.h>
 #include <limits.h>
-#include <stdint.h>
 
 #include "str_util.h"
 
@@ -21,21 +20,17 @@
 #endif
 
 #ifdef _WIN32
+#include "stdint.h"
+
 #ifndef __attribute__
 #define __attribute__(x) 
 #endif
 
-static inline void*
-dlopen(const char *filename, int flag) {
-	return LoadLibraryExA(filename, NULL, 0);
-}
-
-static inline void*
-dlsym(void *handle, const char *symbol) {
-	return GetProcAddress((HMODULE)handle, symbol);
-}
+#define dlopen(filename, flag)  LoadLibraryExA(filename, NULL, 0)
+#define dlsym(handle, funcname) GetProcAddress((HMODULE)handle, funcname)
 
 #else //_WIN32
+#include <stdint.h>
 
 #include <unistd.h>
 #include <fcntl.h>

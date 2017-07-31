@@ -13,6 +13,7 @@ static int  AObjectReqNull(AObject *other, int reqix, AMessage *msg) { return -E
 
 static LIST_HEAD(g_module);
 static AOption *g_option = NULL;
+static long volatile g_index = 0;
 
 AMODULE_API int
 AModuleRegister(AModule *module)
@@ -31,13 +32,18 @@ AModuleRegister(AModule *module)
 	if (module->close == NULL) module->close = &AObjectMsgNull;
 
 	list_add_tail(&module->global_entry, &g_module);
+	module->global_index = InterlockedAdd(&g_index, 1);
+
 	INIT_LIST_HEAD(&module->class_entry);
+	module->class_index = 0;
+	module->class_count = 0;
 
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
 		if (_stricmp(pos->class_name, module->class_name) == 0) {
 			list_add_tail(&module->class_entry, &pos->class_entry);
+			module->class_index = InterlockedAdd(&pos->class_count, 1);
 			break;
 		}
 	}
@@ -174,23 +180,6 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-AMODULE_API void
-AObjectInit(AObject *object, AModule *module)
-{
-	object->refcount = 1;
-	object->release = module->release;
-	object->extend = NULL;
-	object->module = module;
-	object->reqix_count = module->reqix_count;
-
-	object->open = module->open;
-	object->setopt = module->setopt;
-	object->getopt = module->getopt;
-	object->request = module->request;
-	object->cancel = module->cancel;
-	object->close = module->close;
-}
-
 AMODULE_API int
 AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
@@ -225,10 +214,11 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 		if (*object == NULL)
 			return -ENOMEM;
 
-		AObjectInit(*object, module);
+		(*object)->init(module);
+		(*object)->release = &AObjectFree;
+
 		if ((*object)->module->kv_map != NULL)
 			AObjectSetKVMap(*object, (*object)->module->kv_map, option, FALSE);
-		(*object)->release = &AObjectFree;
 	} else {
 		*object = NULL;
 	}
@@ -260,18 +250,18 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 	if (kv->type == ObjKV_object) {
 		//return (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0);
 		AObject *child = *(AObject**)((char*)object+kv->offset);
-		if ((child == NULL) && (opt == NULL))
+		if (opt == NULL)
 			return 0;
+
 		if (child == NULL) {
 			if (AObjectCreate(&child, object, opt, kv->defstr) < 0)
 				return 0;
 			*(AObject**)((char*)object+kv->offset) = child;
-			if (opt == NULL)
-				return 1;
-		} else {
-			if (opt == NULL)
-				return 0;
+			return 1;
 		}
+
+		if (child->module->kv_map == NULL)
+			return 0;
 
 		int count = 0;
 		AOption *child_opt;

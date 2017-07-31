@@ -1,33 +1,39 @@
 #ifndef _SPIN_LOCK_H_
 #define _SPIN_LOCK_H_
 
-typedef struct spin_lock {
+
+struct pthread_mutex_helper {
+	pthread_mutex_t *mutex;
+	pthread_mutex_helper(pthread_mutex_t *m) :mutex(m) {}
+
+	void lock() { pthread_mutex_lock(mutex); }
+	bool try_lock() { return !pthread_mutex_trylock(mutex); }
+	void unlock() { pthread_mutex_unlock(mutex); }
+};
+
+struct spin_lock_t {
 	long volatile count;
-} spin_lock;
+	spin_lock_t() :count(0) { }
 
-static inline void spin_lock_init(spin_lock *lock)
-{
-	InterlockedExchange(&lock->count, 0);
-}
+	void lock() { while (!try_lock()) Sleep(0); }
+	bool try_lock() { return (InterlockedCompareExchange(&count, 1, 0) == 0); }
+	void unlock() { InterlockedCompareExchange(&count, 0, 1); }
+};
 
-static inline long spin_lock_try_lock(spin_lock *lock)
-{
-	return (InterlockedCompareExchange(&lock->count, 1, 0) == 0);
-}
+struct spin_lock_helper {
+	long volatile *count;
+	spin_lock_helper(long volatile &n) :count(&n) { }
+	spin_lock_helper(spin_lock_t &l) :count(&l.count) { }
 
-static inline void spin_lock_lock(spin_lock *lock)
-{
-	while (!spin_lock_try_lock(lock))
-		Sleep(0);
-}
+	void lock() { while (!try_lock()) Sleep(0); }
+	bool try_lock() { return (InterlockedCompareExchange(count, 1, 0) == 0); }
+	void unlock() { InterlockedCompareExchange(count, 0, 1); }
+};
 
-static inline void spin_lock_unlock(spin_lock *lock)
-{
-	InterlockedCompareExchange(&lock->count, 0, 1);
-}
-
-static inline void spin_lock_release(spin_lock *lock)
-{
-}
+struct null_lock_helper {
+	void lock() { }
+	bool try_lock() { return true; }
+	void unlock() { }
+};
 
 #endif

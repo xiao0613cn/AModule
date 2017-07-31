@@ -576,10 +576,11 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, RTMPPacket *pkt, char *param)
         return ret;*/
     p = data;
 
+    rt->cur_track = "connect";
     ff_amf_write_string_sz(&p, "connect");
     ff_amf_write_number(&p, ++rt->nb_invokes);
     ff_amf_write_object_start(&p);
-    if (rt->app) {
+    if (rt->app && rt->auth_params) {
         ff_amf_write_field_name_sz(&p, "app");
         ff_amf_write_string2(&p, rt->app, rt->auth_params);
     }
@@ -595,7 +596,7 @@ rtmp_gen_connect(RTMPCtx *rt, uint8_t *data, RTMPPacket *pkt, char *param)
         ff_amf_write_field_name_sz(&p, "swfUrl");
         ff_amf_write_string(&p, rt->swfurl, strlen(rt->swfurl));
     }
-    if (rt->tcurl) {
+    if (rt->tcurl && rt->auth_params) {
         ff_amf_write_field_name_sz(&p, "tcUrl");
         ff_amf_write_string2(&p, rt->tcurl, rt->auth_params);
     }
@@ -781,9 +782,9 @@ rtmp_parse_one_chunk(RTMPCtx *rt, RTMPPacket *p, RTMPPacket *prev_pkt)
 }
 
 AMODULE_API int
-rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt)
+rtmp_gen_chunk_head(RTMPCtx *rt, uint8_t *pkt_hdr, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 {
-	uint8_t *p = pkt->data;
+	uint8_t *p = pkt_hdr;
 	int mode = RTMP_PS_TWELVEBYTES;
 	int off = 0;
 	int written = 0;
@@ -792,7 +793,8 @@ rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 	uint32_t timestamp; // full 32-bit timestamp or delta value
 
 	//if channel_id = 0, this is first presentation of prev_pkt, send full hdr.
-	use_delta = prev_pkt->channel_id &&
+	use_delta = prev_pkt != NULL &&
+		prev_pkt->channel_id &&
 		pkt->extra == prev_pkt->extra &&
 		pkt->timestamp >= prev_pkt->timestamp;
 
@@ -838,15 +840,16 @@ rtmp_gen_chunk_head(RTMPCtx *rt, RTMPPacket *pkt, RTMPPacket *prev_pkt)
 	if (pkt->ts_field == 0xFFFFFF)
 		bytestream_put_be32(&p, timestamp);
 	// save history
-	prev_pkt->channel_id = pkt->channel_id;
-	prev_pkt->type       = pkt->type;
-	prev_pkt->size       = pkt->size;
-	prev_pkt->timestamp  = pkt->timestamp;
-	prev_pkt->ts_field   = pkt->ts_field;
-	prev_pkt->extra      = pkt->extra;
-	prev_pkt->offset     = pkt->offset = 0;
-
-	return (p - pkt->data);
+	if (prev_pkt != NULL) {
+		prev_pkt->channel_id = pkt->channel_id;
+		prev_pkt->type       = pkt->type;
+		prev_pkt->size       = pkt->size;
+		prev_pkt->timestamp  = pkt->timestamp;
+		prev_pkt->ts_field   = pkt->ts_field;
+		prev_pkt->extra      = pkt->extra;
+		prev_pkt->offset     = pkt->offset = 0;
+	}
+	return (p - pkt_hdr);
 	/*if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
 		return ret;
 	written = p - pkt_hdr + pkt->size;
@@ -894,6 +897,7 @@ AMODULE_API int
 rtmp_gen_releaseStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
+	rt->cur_track = "releaseStream";
 	ff_amf_write_string_sz(&p, "releaseStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
@@ -911,6 +915,7 @@ AMODULE_API int
 rtmp_gen_FCPublish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
+	rt->cur_track = "FCPublish";
 	ff_amf_write_string_sz(&p, "FCPublish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
@@ -928,6 +933,7 @@ AMODULE_API int
 rtmp_gen_createStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
+	rt->cur_track = "createStream";
 	ff_amf_write_string_sz(&p, "createStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
@@ -944,6 +950,7 @@ AMODULE_API int
 rtmp_gen_publish(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
+	rt->cur_track = "publish";
 	ff_amf_write_string_sz(&p, "publish");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);
@@ -962,6 +969,7 @@ AMODULE_API int
 rtmp_gen_deleteStream(RTMPCtx *rt, unsigned char *data, RTMPPacket *pkt)
 {
 	uint8_t *p = data;
+	rt->cur_track = "deleteStream";
 	ff_amf_write_string_sz(&p, "deleteStream");
 	ff_amf_write_number(&p, ++rt->nb_invokes);
 	ff_amf_write_null(&p);

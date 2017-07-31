@@ -37,8 +37,8 @@ static SyncRequest* SyncRequestGet(SyncControl *sc, int reqix)
 	if (reqix < syncreq_cache_count)
 		return sc->syncreq_cache_list[reqix];
 
-	if (reqix > sc->object.reqix_count)
-		return NULL;
+	//if (reqix > sc->object.reqix_count)
+	//	return NULL;
 
 	SyncRequest *req;
 	list_for_each_entry(req, &sc->syncreq_list, SyncRequest, entry) {
@@ -111,7 +111,7 @@ static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 
 		*object = &sc->object;
 		extern AModule SyncControlModule;
-		AObjectInit(&sc->object, &SyncControlModule);
+		sc->object.init(&SyncControlModule);
 		sc->alloc_self = TRUE;
 	} else {
 		sc->alloc_self = FALSE;
@@ -142,13 +142,13 @@ static int SyncControlOpenStatus(SyncRequest *req, int &result)
 	case AObject_Opening:
 		if (result >= 0)
 		{
-			while (sc->object.reqix_count < sc->stream->reqix_count) {
+			/*while (sc->object.reqix_count < sc->stream->reqix_count) {
 				if (SyncRequestNew(sc, sc->object.reqix_count) == NULL) {
 					result = -ENOMEM;
 					break;
 				}
 				++sc->object.reqix_count;
-			}
+			}*/
 		}
 		AMsgInit(req->from, req->msg.type, req->msg.data, req->msg.size);
 		sc->open_result = result;
@@ -170,7 +170,7 @@ static int SyncControlOpenStatus(SyncRequest *req, int &result)
 		assert((old_status == AObject_Opening) || (old_status == AObject_Abort));
 
 		AMsgInit(&req->msg, AMsgType_Unknown, NULL, 0);
-		result = sc->stream->close(sc->stream, &req->msg);
+		result = sc->stream->close(&req->msg);
 		if (result == 0)
 			return 0;
 
@@ -219,7 +219,7 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 		req = SyncRequestNew(sc, 0);
 		if (req == NULL)
 			return -ENOMEM;
-		sc->object.reqix_count = 1;
+		//sc->object.reqix_count = 1;
 	}
 
 	result = InterlockedAdd(&sc->request_count, 1);
@@ -229,7 +229,7 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 	req->msg.done = &SyncControlOpenDone;
 	req->from = msg;
 
-	result = sc->stream->open(sc->stream, &req->msg);
+	result = sc->stream->open(&req->msg);
 	if (result != 0)
 		SyncControlOpenStatus(req, result);
 	return result;
@@ -238,13 +238,13 @@ static int SyncControlOpen(AObject *object, AMessage *msg)
 static int SyncControlSetOption(AObject *object, AOption *option)
 {
 	SyncControl *sc = to_sc(object);
-	return sc->stream->setopt(sc->stream, option);
+	return sc->stream->setopt(option);
 }
 
 static int SyncControlGetOption(AObject *object, AOption *option)
 {
 	SyncControl *sc = to_sc(object);
-	return sc->stream->getopt(sc->stream, option);
+	return sc->stream->getopt(option);
 }
 
 static void SyncControlClosed(SyncControl *sc, SyncRequest *req)
@@ -281,7 +281,7 @@ static int SyncControlDoClose(SyncControl *sc, SyncRequest *req)
 	req->msg.done = &SyncControlCloseDone;
 	req->from = sc->close_msg;
 
-	return sc->stream->close(sc->stream, &req->msg);
+	return sc->stream->close(&req->msg);
 }
 
 static void SyncRequestDispatchRequest(SyncRequest *req, int result)
@@ -327,7 +327,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 			break;
 
 		AMsgInit(&req->msg, req->from->type, req->from->data, req->from->size);
-		result = sc->stream->request(sc->stream, req->reqix, &req->msg);
+		result = sc->stream->request(req->reqix, &req->msg);
 		if (result == 0)
 			return;
 	}
@@ -442,7 +442,7 @@ static int SyncControlRequest(AObject *object, int reqix, AMessage *msg)
 	AObjectAddRef(&sc->object);
 	AMsgInit(&req->msg, msg->type, msg->data, msg->size);
 
-	result = sc->stream->request(sc->stream, reqix, &req->msg);
+	result = sc->stream->request(reqix, &req->msg);
 	if (result != 0) {
 		SyncRequestDispatchRequest(req, result);
 		result = 0;
@@ -479,7 +479,7 @@ static int SyncControlCancel(AObject *object, int reqix, AMessage *msg)
 	if (sc->status != AObject_Opened) {
 		result = -EINTR;
 	} else if (msg == NULL) {
-		result = sc->stream->cancel(sc->stream, reqix, NULL);
+		result = sc->stream->cancel(reqix, NULL);
 	} else if (msg != req->from) {
 		AMessage *pos;
 		result = -ENODEV;
@@ -501,7 +501,7 @@ static int SyncControlClose(AObject *object, AMessage *msg)
 	if (msg == NULL) {
 		if (sc->stream == NULL)
 			return -ENOENT;
-		return sc->stream->close(sc->stream, NULL);
+		return sc->stream->close(NULL);
 	}
 
 	int new_status = AObject_Abort;

@@ -14,11 +14,15 @@ typedef enum AObject_Status {
 typedef struct AModule AModule;
 typedef struct AObject AObject;
 
-struct AObject {
-	long volatile refcount;
+struct AModule {
+	const char *class_name;
+	const char *module_name;
+	int         object_size;
+	int   (*init)(AOption *global_option, AOption *module_option);
+	void  (*exit)(void);
+	int   (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
-	void   *extend;
-	AModule *module;
+	int   (*probe)(AObject *other, AMessage *msg);
 	int     reqix_count;
 
 	int   (*open)(AObject *object, AMessage *msg);
@@ -27,19 +31,46 @@ struct AObject {
 	int   (*request)(AObject *object, int reqix, AMessage *msg);
 	int   (*cancel)(AObject *object, int reqix, AMessage *msg);
 	int   (*close)(AObject *object, AMessage *msg);
+
+	struct ObjKV *kv_map;
+	struct list_head global_entry;
+	long             global_index;
+	struct list_head class_entry;
+	long             class_index;
+	long             class_count;
+};
+
+struct AObject {
+	long volatile refcount;
+	void        (*release)(AObject *object);
+	AModule      *module;
+
 #ifdef __cplusplus
-	long    addref() { return InterlockedAdd(&refcount, 1); }
-	long    release2() {
+	void init(AModule *m) {
+		refcount = 1;
+		release = m->release;
+		module = m;
+	}
+	long addref() {
+		return InterlockedAdd(&refcount, 1);
+	}
+	long release2() {
 		long result = InterlockedAdd(&refcount, -1);
 		if (result <= 0)
 			this->release(this);
 		return result;
 	}
-#endif
-};
 
-AMODULE_API void
-AObjectInit(AObject *object, AModule *module);
+	long open(AMessage *msg) { return module->open(this, msg); }
+	long getopt(AOption *opt) { return module->getopt(this, opt); }
+	long setopt(AOption *opt) { return module->setopt(this, opt); }
+	long request(int reqix, AMessage *msg) { return module->request(this, reqix, msg); }
+	long cancel(int reqix, AMessage *msg) { return module->cancel(this, reqix, msg); }
+	long close(AMessage *msg) { return module->close(this, msg); }
+};
+#else
+};
+#endif
 
 AMODULE_API int
 AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module);
@@ -63,29 +94,6 @@ AObjectRelease(AObject *object) {
 AMODULE_API void
 AObjectFree(AObject *object);
 
-
-struct AModule {
-	const char *class_name;
-	const char *module_name;
-	int         object_size;
-	int   (*init)(AOption *global_option, AOption *module_option);
-	void  (*exit)(void);
-	int   (*create)(AObject **object, AObject *parent, AOption *option);
-	void  (*release)(AObject *object);
-	int   (*probe)(AObject *other, AMessage *msg);
-	int     reqix_count;
-
-	int   (*open)(AObject *object, AMessage *msg);
-	int   (*setopt)(AObject *object, AOption *option);
-	int   (*getopt)(AObject *object, AOption *option);
-	int   (*request)(AObject *object, int reqix, AMessage *msg);
-	int   (*cancel)(AObject *object, int reqix, AMessage *msg);
-	int   (*close)(AObject *object, AMessage *msg);
-
-	struct ObjKV *kv_map;
-	struct list_head global_entry;
-	struct list_head class_entry;
-};
 
 AMODULE_API int
 AModuleRegister(AModule *module);
@@ -149,5 +157,6 @@ AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip
 
 AMODULE_API int
 AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map);
+
 
 #endif

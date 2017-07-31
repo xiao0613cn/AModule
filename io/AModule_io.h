@@ -19,24 +19,24 @@ enum AModule_ioRequest {
 
 static inline int
 ioInput(AObject *io, AMessage *msg) {
-	return io->request(io, Aio_Input, msg);
+	return io->request(Aio_Input, msg);
 }
 
 static inline int
 ioOutput(AObject *io, AMessage *msg) {
-	return io->request(io, Aio_Output, msg);
+	return io->request(Aio_Output, msg);
 }
 
 static inline int
 ioOutput(AObject *io, AMessage *msg, void *data, int size, int type = AMsgType_Unknown) {
 	AMsgInit(msg, type, data, size);
-	return io->request(io, Aio_Output, msg);
+	return io->request(Aio_Output, msg);
 }
 
 static inline int
 ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown) {
 	AMsgInit(msg, type, buf->next(), buf->left());
-	return io->request(io, Aio_Output, msg);
+	return io->request(Aio_Output, msg);
 }
 
 #define ioMsgType_Block           (AMsgType_Class|0)
