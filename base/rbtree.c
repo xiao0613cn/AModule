@@ -26,9 +26,11 @@
 #ifndef EXPORT_SYMBOL
 #define EXPORT_SYMBOL(x)
 #endif
+#ifdef _WIN32
+#pragma warning(disable: 4706) // 条件表达式内的赋值
+#endif
 #include "rbtree.h"
 //#include <linux/module.h>
-
 
 static void __rb_rotate_left(struct rb_node *node, struct rb_root *root)
 {

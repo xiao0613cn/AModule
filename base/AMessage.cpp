@@ -43,8 +43,7 @@ AMsgDispatch2(pthread_mutex_t *mutex, struct list_head *notify_list, AMessage *f
 		msg->done(msg, 1);
 	}
 	while (!list_empty(&quit_list)) {
-		msg = list_first_entry(&quit_list, AMessage, entry);
-		list_del_init(&msg->entry);
+		msg = list_pop_front(&quit_list, AMessage, entry);
 		msg->done(msg, -1);
 	}
 	return (msg != NULL);

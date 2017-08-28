@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "AModule_API.h"
+#include <ctype.h>
 
 
 AMODULE_API void
@@ -24,6 +25,11 @@ AOptionInit(AOption *option, struct list_head *list)
 {
 	option->name[0] = '\0';
 	option->value[0] = '\0';
+	option->name_len = 0;
+	option->value_len = 0;
+
+	option->type = AOption_Any;
+	option->value_i64 = 0;
 	option->extend = NULL;
 	INIT_LIST_HEAD(&option->children_list);
 
@@ -44,45 +50,107 @@ AOptionCreate2(struct list_head *list)
 	return option;
 }
 
-static void
-AOptionSetNameOrValue(AOption *option, const char *str, size_t len)
+static inline void
+AOptionSetKeyOrValue(AOption *option, char sep, char keysep)
 {
-	if (!option->name[0]) {
-		strncpy_sz(option->name, str, len);
-	} else if (!option->value[0]) {
-		strncpy_sz(option->value, str, len);
+	if (keysep == 0) {
+		if (option->name_len < _countof(option->name)-1)
+			option->name[option->name_len++] = sep;
+	} else if (keysep == 1) {
+		if (option->value_len < _countof(option->value)-1)
+			option->value[option->value_len++] = sep;
 	}
 }
 
+static inline void
+AOptionEndKeyOrValue(AOption *current, char keysep)
+{
+	if (keysep == 0) {
+		current->name[current->name_len] = '\0';
+	} else if (keysep == 1) {
+		current->value[current->value_len] = '\0';
+	}
+}
+
+static inline void
+AOptionDecodeSlash(AOption *current, char sep, char keysep)
+{
+	switch (sep)
+	{
+	case '"': case '\\': case '/': break;
+	case 'b': sep = '\b'; break;
+	case 'f': sep = '\f'; break;
+	case 'n': sep = '\n'; break;
+	case 'r': sep = '\r'; break;
+	case 't': sep = '\t'; break;
+	case 'u': return;
+	default: break;
+	}
+	AOptionSetKeyOrValue(current, sep, keysep);
+}
+
 AMODULE_API int
-AOptionDecode(AOption **option, const char *name)
+AOptionDecode(AOption **option, const char *name, int len)
 {
 	AOption *current = AOptionCreate(NULL);
 	*option = current;
 	if (current == NULL)
 		return -ENOMEM;
 
-	int result = -EINVAL;
-	char ident = '\0';
-	int layer = 0;
-	for (const char *sep = name; ; ++sep)
+	int  result  = -EINVAL;
+	char ident   = '\0';
+	char comment = '\0';
+	char keysep  = '\0';
+	char slash   = '\0';
+	int  layer   = 0;
+
+	const char *raw_str = name;
+	for (const char *sep = name, *end = name+len; sep != end; ++sep)
 	{
-		if ((ident != '\0') && (*sep != '\0') && (*sep != ident))
-			continue;
+		if (*sep == '\0') {
+			AOptionEndKeyOrValue(current, keysep);
+			if (layer == 0)
+				return (sep - raw_str);
+			result = -EINVAL;
+			goto _return;
+		}
+
+		if (ident != '\0') {
+			if (slash != '\0') {
+				AOptionDecodeSlash(current, *sep, keysep);
+				slash = '\0';
+				continue;
+			}
+			if (*sep == '\\') {
+				slash = *sep;
+				continue;
+			}
+			if (*sep != ident) {
+				AOptionSetKeyOrValue(current, *sep, keysep);
+				continue;
+			}
+		}
+
+		if (comment != '\0') {
+			if (*sep != '\n') {
+				name = sep+1;
+				continue;
+			}
+			comment = '\0';
+		}
 
 		switch (*sep)
 		{
-		case '\0':
-			if (sep != name)
-				AOptionSetNameOrValue(current, name, sep-name);
-			if (layer == 0)
-				return 0;
-			result = -EINVAL;
-			goto _return;
-
 		case '{':
-			if (sep != name)
-				AOptionSetNameOrValue(current, name, sep-name);
+		case '[':
+			if (sep != name) {
+				AOptionEndKeyOrValue(current, keysep);
+			}
+			if ((*sep == '[') && (current->value[0] == '\0')) {
+				current->value[0] = '[';
+				current->value[1] = '\0';
+				current->type = AOption_Array;
+			}
 
 			current = AOptionCreate(current);
 			if (current == NULL) {
@@ -91,23 +159,15 @@ AOptionDecode(AOption **option, const char *name)
 			}
 
 			++layer;
+			keysep = 0;
 			name = sep+1;
 			break;
 
-		/*case '[':
-			if ((current->parent == NULL)
-			 || (current->parent->value[0] != '\0')
-			 || (current != list_first_entry(&current->parent->children_list, AOption, brother_entry))
-			 || (current->name[0] != '\0')) {
-				 result = -EINVAL;
-				 goto _return;
-			}
-			name = sep+1;
-			break;*/
-
 		case '}':
-			if (sep != name)
-				AOptionSetNameOrValue(current, name, sep-name);
+		case ']':
+			if (sep != name) {
+				AOptionEndKeyOrValue(current, keysep);
+			}
 			if (--layer < 0) {
 				result = -EINVAL;
 				goto _return;
@@ -120,16 +180,18 @@ AOptionDecode(AOption **option, const char *name)
 			} else {
 				current = current->parent;
 			}
-
 			if (layer == 0)
-				return 0;
+				return (sep+1 - raw_str);
+
+			keysep = 0;
 			name = sep+1;
 			assert(current != NULL);
 			break;
 
 		case ',':
-			if (sep != name)
-				AOptionSetNameOrValue(current, name, sep-name);
+			if (sep != name) {
+				AOptionEndKeyOrValue(current, keysep);
+			}
 			if (layer == 0) {
 				result = -EINVAL;
 				goto _return;
@@ -141,33 +203,213 @@ AOptionDecode(AOption **option, const char *name)
 				goto _return;
 			}
 
+			keysep = 0;
 			name = sep+1;
 			break;
 
-		case '\"':
+		case '"':
 		case '\'':
-			if (ident == '\0')
+		case '`':
+			if (ident == '\0') {
 				ident = *sep;
-			else
+				if ((keysep == 1) && (current->type == AOption_Any))
+					current->type = AOption_String;
+			} else {
+				assert(ident == *sep);
 				ident = '\0';
+				if ((keysep == 1) && (current->type == AOption_String)
+				 && (current->value_len != sep-name))
+					current->type = AOption_StrExt;
+			}
 		case ' ':
 		case '\t':
 		case '\n':
 		case '\r':
 		case ':':
 		case '=':
-			if (sep != name)
-				AOptionSetNameOrValue(current, name, sep-name);
+		case '#':
+			if (sep != name) {
+				AOptionEndKeyOrValue(current, keysep);
+				keysep ++;
+			}
 			name = sep+1;
+
+			if (*sep == '#')
+				comment = *sep;
 			break;
 
 		default:
+			AOptionSetKeyOrValue(current, *sep, keysep);
 			break;
 		}
 	}
 _return:
 	AOptionRelease(*option);
 	*option = NULL;
+	return result;
+}
+
+AMODULE_API int
+AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len))
+{
+#define write_sn(s, n) \
+	ret = write_cb(p, s, n); \
+	if (ret < 0) \
+		return ret; \
+	result += n;
+
+#define write_str(s) \
+	len = strlen(s); \
+	write_sn(s, len)
+
+#define write_sc(s, i, c) \
+	if (s[i] != c[0]) { \
+		write_sn(c, 1) \
+	}
+
+	int result = 0;
+	int ret, len;
+	const AOption *current = option;
+	for (;;) {
+		if (current->name[0] != '\0') {
+			write_sc(current->name, 0, "\"");
+			write_str(current->name);
+			write_sc(current->name, len-1, "\"");
+		}
+
+		if ((current->value[0] == '\0') && list_empty(&current->children_list)) {
+			goto _next;
+		}
+		if (current->name[0] != '\0') {
+			write_sn(":", 1);
+		}
+
+		// array
+		if ((current->type == AOption_Array) || (current->value[0] == '[')) {
+			write_sn("[", 1);
+			if (!list_empty(&current->children_list)) {
+				current = list_first_entry(&current->children_list, AOption, brother_entry);
+				continue;
+			} else {
+				write_sn("]", 1);
+				goto _next;
+			}
+		}
+
+		// value
+		if (list_empty(&current->children_list)) {
+			if ((current->type != AOption_String)
+			 && (current->type != AOption_StrExt)
+			 && ((current->value[0] == '+')
+			  || (current->value[0] == '-')
+			  || isdigit(current->value[0])))
+			{
+				write_str(current->value);
+			} else {
+				write_sc(current->value, 0, "\"");
+				write_str(current->value);
+				write_sc(current->value, len-1, "\"");
+			}
+			goto _next;
+		}
+
+		// object
+		write_sn("{", 1);
+		current = list_first_entry(&current->children_list, AOption, brother_entry);
+		continue;
+_next:
+		if ((current != option)
+		 && list_is_last(&current->brother_entry, &current->parent->children_list))
+		{
+			current = current->parent;
+			if ((current->type == AOption_Array) || (current->value[0] == '[')) {
+				write_sn("]", 1);
+			} else {
+				write_sn("}", 1);
+			}
+			goto _next;
+		}
+
+		if (current != option) {
+			current = list_entry(current->brother_entry.next, AOption, brother_entry);
+			write_sn(",", 1);
+			continue;
+		}
+		return result;
+	}
+}
+
+AMODULE_API int
+AOptionLoad(AOption **option, const char *path)
+{
+	*option = NULL;
+	FILE *fp = fopen(path, "rb");
+	if (fp == NULL)
+		return -ENOENT;
+
+	fseek(fp, 0, SEEK_END);
+
+	long len = ftell(fp);
+	if (len <= 0) {
+		fclose(fp);
+		return -EIO;
+	}
+
+	char *buf = (char*)malloc(len+8);
+	if (buf == NULL) {
+		fclose(fp);
+		return -ENOMEM;
+	}
+
+	fseek(fp, 0, SEEK_SET);
+	int result = fread(buf, len, 1, fp);
+	if (result <= 0) {
+		result = -EIO;
+	} else {
+		result = AOptionDecode(option, buf, len);
+	}
+
+	free(buf);
+	fclose(fp);
+	return result;
+}
+
+static int write_buf(void *p, const char *str, int len)
+{
+	ARefsBuf **buf = (ARefsBuf**)p;
+	int result = ARefsBufCheck(*buf, len, 0, NULL, NULL);
+	if (result < 0)
+		return result;
+
+	(*buf)->mempush(str, len);
+	return len;
+}
+
+AMODULE_API int
+AOptionSave(const AOption *option, const char *path)
+{
+	ARefsBuf *buf = NULL;
+	int result = ARefsBufCheck(buf, 512, 0, NULL, NULL);
+	if (result < 0)
+		return result;
+
+	result = AOptionEncode(option, &buf, write_buf);
+	if (result < 0) {
+		buf->release2();
+		return result;
+	}
+
+	FILE *fp = fopen(path, "wb");
+	if (fp == NULL) {
+		buf->release2();
+		return -errno;
+	}
+
+	result = buf->len();
+	fwrite(buf->ptr(), result, 1, fp);
+	fclose(fp);
+
+	buf->release2();
 	return result;
 }
 
@@ -183,6 +425,10 @@ AOptionClone2(AOption *option, struct list_head *list)
 
 	strcpy_sz(current->name, option->name);
 	strcpy_sz(current->value, option->value);
+	current->name_len = option->name_len;
+	current->value_len = option->value_len;
+	current->type = option->type;
+	current->value_i64 = option->value_i64;
 
 	AOption *pos;
 	list_for_each_entry(pos, &option->children_list, AOption, brother_entry)
@@ -202,7 +448,7 @@ AOptionFind2(struct list_head *list, const char *name)
 	AOption *child;
 	list_for_each_entry(child, list, AOption, brother_entry)
 	{
-		if (_stricmp(child->name, name) == 0)
+		if (strcasecmp(child->name, name) == 0)
 			return child;
 	}
 	return NULL;
@@ -214,8 +460,8 @@ AOptionFind3(struct list_head *list, const char *name, const char *value)
 	AOption *child;
 	list_for_each_entry(child, list, AOption, brother_entry)
 	{
-		if ((_stricmp(child->name, name) == 0)
-		 && (_stricmp(child->value, value) == 0))
+		if ((strcasecmp(child->name, name) == 0)
+		 && (strcasecmp(child->value, value) == 0))
 			return child;
 	}
 	return NULL;

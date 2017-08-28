@@ -8,7 +8,7 @@ struct PVDRTStream {
 	AObject   object;
 	AObject  *io;
 	PVDStatus status;
-	DWORD     userid;
+	uint32_t  userid;
 	DWORD     version;
 
 	AMessage  outmsg;
@@ -20,7 +20,7 @@ struct PVDRTStream {
 #define from_outmsg(msg) container_of(msg, PVDRTStream, outmsg)
 
 #define TAG_SIZE  4
-#define MAKE_TAG(ptr)  (BYTE(ptr[0])|(BYTE(ptr[1])<<8)|(BYTE(ptr[2])<<16)|(BYTE(ptr[3])<<24))
+#define MAKE_TAG(ptr)  (uint8_t(ptr[0])|(uint8_t(ptr[1])<<8)|(uint8_t(ptr[2])<<16)|(uint8_t(ptr[3])<<24))
 
 static void PVDRTRelease(AObject *object)
 {
@@ -243,11 +243,11 @@ static int PVDRTOpen(AObject *object, AMessage *msg)
 static int PVDRTSetOption(AObject *object, AOption *option)
 {
 	PVDRTStream *rt = to_rt(object);
-	if (_stricmp(option->name, "version") == 0) {
+	if (strcasecmp(option->name, "version") == 0) {
 		rt->version = atol(option->value);
 		return 1;
 	}
-	if (_stricmp(option->name, "session_id") == 0) {
+	if (strcasecmp(option->name, "session_id") == 0) {
 		rt->userid = atol(option->value);
 		return 1;
 	}
@@ -333,3 +333,5 @@ AModule PVDRTModule = {
 	NULL,
 	&PVDRTClose,
 };
+
+static auto_reg_t<PVDRTModule> auto_reg;

@@ -458,7 +458,7 @@ static int M3U8ProxyRequest(AObject *object, int reqix, AMessage *msg)
 	fputs(msg->data, stdout);
 
 	char *file_name = msg->data + sizeof("GET /")-1;
-	if (_strnicmp_c(file_name, live_m3u8" HTTP/") == 0)
+	if (strncasecmp_sz(file_name, live_m3u8" HTTP/") == 0)
 	{
 		char *content = p->reply + 200;
 		int m3u8_len = m3u8_file_build(content, sizeof(p->reply)-200, p->last_seq);
@@ -481,7 +481,7 @@ static int M3U8ProxyRequest(AObject *object, int reqix, AMessage *msg)
 			result = p->outmsg.size;
 		return result;
 	}
-	if (_strnicmp_c(file_name, live_prefix) == 0)
+	if (strncasecmp_sz(file_name, live_prefix) == 0)
 	{
 		media_file_release(&p->reply_file);
 		p->reply_index = 0;
@@ -529,8 +529,8 @@ _reply:
 		return -EACCES;
 
 	*end++ = '\0';
-	if ((_strnicmp_c(end, "HTTP/1.0\r\n") != 0)
-	 && (_strnicmp_c(end, "HTTP/1.1\r\n") != 0))
+	if ((strncasecmp_sz(end, "HTTP/1.0\r\n") != 0)
+	 && (strncasecmp_sz(end, "HTTP/1.1\r\n") != 0))
 		return msg->size;
 
 	M3U8OpenFile(p, file_name);
@@ -795,7 +795,7 @@ static void av_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 	fputs(log_buf, stdout);
 }
 
-static void RTCheck(AOperator *opt, int result)
+static int RTCheck(AOperator *opt, int result)
 {
 	if (result < 0) {
 		if (rt != NULL)
@@ -811,7 +811,7 @@ static void RTCheck(AOperator *opt, int result)
 		}
 		release_s(tmp_avfx, avformat_close_output, NULL);
 		opt->callback = NULL;
-		return;
+		return result;
 	}
 
 	if ((rt != NULL) && (work_msg.done == NULL)) {
@@ -846,7 +846,7 @@ static void RTCheck(AOperator *opt, int result)
 	AOperatorTimewait(opt, NULL, 5*1000);
 }
 
-static int M3U8ProxyInit(AOption *global_option, AOption *module_option)
+static int M3U8ProxyInit(AOption *global_option, AOption *module_option, int first)
 {
 	if ((module_option != NULL) && (module_option->value[0] == '0'))
 		return 0;
@@ -879,7 +879,7 @@ static int M3U8ProxyInit(AOption *global_option, AOption *module_option)
 	return 1;
 }
 
-static void M3U8ProxyExit(void)
+static void M3U8ProxyExit(int inited)
 {
 }
 
@@ -887,8 +887,8 @@ static int M3U8ProxyProbe(AObject *object, AMessage *msg)
 {
 	if (msg->type != AMsgType_Unknown)
 		return -1;
-	if ((_strnicmp_c(msg->data, "GET /"live_m3u8" HTTP/") != 0)
-	 && (_strnicmp_c(msg->data, "GET /"live_prefix) != 0))
+	if ((strncasecmp_sz(msg->data, "GET /"live_m3u8" HTTP/") != 0)
+	 && (strncasecmp_sz(msg->data, "GET /"live_prefix) != 0))
 		return -1;
 	return 80;
 }
@@ -910,3 +910,5 @@ AModule M3U8ProxyModule = {
 	NULL,
 	NULL,
 };
+
+static auto_reg_t<M3U8ProxyModule> auto_reg;

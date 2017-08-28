@@ -33,6 +33,18 @@ typedef struct MQTTCODEC_INSTANCE_TAG* MQTTCODEC_HANDLE;
 
 typedef void(*ON_PACKET_COMPLETE_CALLBACK)(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag);
 
+#ifdef __cplusplus
+};
+
+template <typename TObject, void(TObject::*cb)(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)>
+void mqtt_packet_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)
+{
+	(((TObject*)context)->*cb)(packet, flags, headerData, packetTag);
+}
+
+extern "C" {
+#endif
+
 MQTTCODEC_HANDLE mqtt_codec_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx);
 void mqtt_codec_destroy(MQTTCODEC_HANDLE handle);
 
@@ -50,7 +62,7 @@ BUFFER_HANDLE mqtt_codec_unsubscribe(uint16_t packetId, const char** unsubscribe
 int mqtt_codec_bytesReceived(MQTTCODEC_HANDLE handle, const unsigned char* buffer, size_t size);
 
 #ifdef __cplusplus
-}
+};
 #endif // __cplusplus
 
 #endif // MQTT_CODEC_H

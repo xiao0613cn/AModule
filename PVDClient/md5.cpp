@@ -236,7 +236,7 @@ static int MD5Encode(unsigned char* szEncoded, const unsigned char* szData, int 
 	return 16;
 }
 
-static int chap_auth(BYTE *hash, BYTE id, BYTE *pwd, int pwd_size, BYTE *chal, int chal_size)
+static int chap_auth(uint8_t *hash, uint8_t id, uint8_t *pwd, int pwd_size, uint8_t *chal, int chal_size)
 {
 	MD5_CTX context;
 
@@ -254,7 +254,7 @@ static int chap_auth(BYTE *hash, BYTE id, BYTE *pwd, int pwd_size, BYTE *chal, i
   pwdlen:密码的长度
 output:hash:加密后的密码(默认长度为16个字节)
 */
-int MD5_enc(BYTE id, BYTE *pwd, BYTE pwdlen, BYTE *hash)
+int MD5_enc(uint8_t id, uint8_t *pwd, uint8_t pwdlen, uint8_t *hash)
 {
   unsigned char chal[] = {0x50,0xfd,0xfd,0x87,0x1c,0x1b,0xd1,0x44,0x9b,0x67,0xdb,0x0d,0x7e,0xed,0xd9,0x1e};
   return chap_auth(hash, id, pwd, pwdlen, chal, 16);

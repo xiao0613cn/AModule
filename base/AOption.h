@@ -3,10 +3,31 @@
 
 
 //////////////////////////////////////////////////////////////////////////
+// same as cJSON ??
+enum AOption_Types {
+	AOption_Any = 0,
+	AOption_false,
+	AOption_true,
+	AOption_NULL,
+	AOption_Number,
+	AOption_String,
+	AOption_StrExt, // has "\\ \/ \b \f \n \r \t \u..."
+	AOption_Array,
+	AOption_Object,
+};
+
 typedef struct AOption
 {
-	char        name[64];
-	char        value[BUFSIZ];
+	char        name[32];
+	char        value[144];
+	int         name_len;
+	int         value_len;
+
+	AOption_Types type;
+	union {
+	int64_t     value_i64;
+	double      value_dbl;
+	};
 	void       *extend;
 
 	struct list_head children_list;
@@ -38,7 +59,17 @@ AOptionCreate(AOption *parent, const char *name = NULL, const char *value = NULL
 }
 
 AMODULE_API int
-AOptionDecode(AOption **option, const char *name);
+AOptionDecode(AOption **option, const char *name, int len);
+
+AMODULE_API int
+AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len));
+
+AMODULE_API int
+AOptionLoad(AOption **option, const char *path);
+
+AMODULE_API int
+AOptionSave(const AOption *option, const char *path);
+
 
 AMODULE_API AOption*
 AOptionFind2(struct list_head *list, const char *name);
@@ -69,8 +100,8 @@ AOptionClone(AOption *option, AOption *parent)
 AMODULE_API void
 AOptionRelease(AOption *option);
 
-static inline const char*
-AOptionGet(AOption *option, const char *name, const char *def_value = NULL)
+static inline char*
+AOptionGet(AOption *option, const char *name, char *def_value = NULL)
 {
 	AOption *child = AOptionFind(option, name);
 	if ((child == NULL) || (child->value[0] == '\0'))
@@ -78,8 +109,8 @@ AOptionGet(AOption *option, const char *name, const char *def_value = NULL)
 	return child->value;
 }
 
-static inline const char*
-AOptionGet2(AOption *option, const char *name, const char *def_value = NULL)
+static inline char*
+AOptionGet2(AOption *option, const char *name, char *def_value = NULL)
 {
 	AOption *child = AOptionFind(option, name);
 	if (child == NULL)
@@ -87,14 +118,16 @@ AOptionGet2(AOption *option, const char *name, const char *def_value = NULL)
 	return child->value;
 }
 
-static inline int
-AOptionGetInt(AOption *option, const char *name, int def_value = 0)
+static inline int64_t
+AOptionGetI64(AOption *option, const char *name, int64_t def_value)
 {
 	AOption *child = AOptionFind(option, name);
 	if ((child == NULL) || (child->value[0] == '\0'))
 		return def_value;
-	return atoi(child->value);
+	return atoll(child->value);
 }
+
+#define AOptionGetInt(opt, name, def)  (int)AOptionGetI64(opt, name, def)
 
 static inline char*
 AOptionGet2(struct list_head *list, const char *name, char *def_value = NULL)
@@ -105,17 +138,27 @@ AOptionGet2(struct list_head *list, const char *name, char *def_value = NULL)
 	return child->value;
 }
 
-static inline int
+static inline AOption*
 AOptionSet2(struct list_head *list, const char *name, const char *value)
 {
 	AOption *child = AOptionFind2(list, name);
 	if (child == NULL) {
 		child = AOptionCreate2(list);
 		if (child == NULL)
-			return -ENOMEM;
+			return NULL;
 		strcpy_sz(child->name, name);
 	}
 	strcpy_sz(child->value, value);
+	return child;
+}
+
+static inline AOption*
+AOptionSet(AOption *options, const char *name, const char *value)
+{
+	AOption *child = AOptionSet2(&options->children_list, name, value);
+	if (child != NULL)
+		child->parent = options;
+	return child;
 }
 
 static inline void

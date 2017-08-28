@@ -1,19 +1,26 @@
 #include "stdafx.h"
 #include "AModule_API.h"
 
+static LIST_HEAD(g_module);
+static AOption *g_option = NULL;
+static BOOL g_inited = FALSE;
+static long g_index = 0;
 
-static int  AModuleInitNull(AOption *global_option, AOption *module_option) { return 0; }
-static void AModuleExitNull(void) { }
+AMODULE_API struct list_head*
+AModuleList()
+{
+	return &g_module;
+}
+
+
+static int  AModuleInitNull(AOption *global_option, AOption *module_option, int first) { return 0; }
+static void AModuleExitNull(int inited) { }
 static int  AModuleCreateNull(AObject **object, AObject *parent, AOption *option) { return -ENOSYS; }
 static void AModuleReleaseNull(AObject *object) { }
 static int  AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
 static int  AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
 static int  AObjectMsgNull(AObject *other, AMessage *msg) { return -ENOSYS; }
 static int  AObjectReqNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
-
-static LIST_HEAD(g_module);
-static AOption *g_option = NULL;
-static long volatile g_index = 0;
 
 AMODULE_API int
 AModuleRegister(AModule *module)
@@ -41,20 +48,23 @@ AModuleRegister(AModule *module)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if (_stricmp(pos->class_name, module->class_name) == 0) {
+		if (strcasecmp(pos->class_name, module->class_name) == 0) {
 			list_add_tail(&module->class_entry, &pos->class_entry);
 			module->class_index = InterlockedAdd(&pos->class_count, 1);
 			break;
 		}
 	}
 
+	if (!g_inited)
+		return 0;
+
 	AOption *option = AOptionFind(g_option, module->module_name);
 	if ((g_option != NULL) && (option == NULL))
 		option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
-	int result = module->init(g_option, option);
+	int result = module->init(g_option, option, TRUE);
 	if (result < 0) {
-		module->exit();
+		module->exit(result);
 
 		list_del_init(&module->global_entry);
 		if (!list_empty(&module->class_entry))
@@ -64,20 +74,24 @@ AModuleRegister(AModule *module)
 }
 
 AMODULE_API int
-AModuleInitOption(AOption *option)
+AModuleInit(AOption *option)
 {
 	release_s(g_option, AOptionRelease, NULL);
 	g_option = option;
+	BOOL first = !g_inited;
+	if (!g_inited)
+		g_inited = TRUE;
 
 	AModule *module;
 	list_for_each_entry(module, &g_module, AModule, global_entry)
 	{
 		option = AOptionFind(g_option, module->module_name);
-		if (option == NULL)
+		if ((option == NULL) && (g_option != NULL))
 			option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
-		if (module->init(g_option, option) < 0) {
-			module->exit();
+		int result = module->init(g_option, option, first);
+		if (result < 0) {
+			TRACE("module(%s) reload config failed = 0x%X.\n", module->module_name, -result);
 		}
 	}
 	return 1;
@@ -86,11 +100,11 @@ AModuleInitOption(AOption *option)
 AMODULE_API int
 AModuleExit(void)
 {
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
-	{
-		pos->exit();
+	while (!list_empty(&g_module)) {
+		AModule *pos = list_pop_front(&g_module, AModule, global_entry);
+		pos->exit(TRUE);
 	}
+	g_inited = FALSE;
 	release_s(g_option, AOptionRelease, NULL);
 	return 1;
 }
@@ -101,9 +115,9 @@ AModuleFind(const char *class_name, const char *module_name)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
+		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
-		if ((module_name == NULL) || (_stricmp(module_name, pos->module_name) == 0))
+		if ((module_name == NULL) || (strcasecmp(module_name, pos->module_name) == 0))
 			return pos;
 		if (class_name == NULL)
 			continue;
@@ -111,7 +125,7 @@ AModuleFind(const char *class_name, const char *module_name)
 		AModule *class_pos;
 		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
 		{
-			if (_stricmp(module_name, class_pos->module_name) == 0)
+			if (strcasecmp(module_name, class_pos->module_name) == 0)
 				return class_pos;
 		}
 		break;
@@ -125,7 +139,7 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
+		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
 		if (comp(param, pos) == 0)
 			return pos;
@@ -153,7 +167,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 	AModule *pos;
 	list_for_each_entry(pos, &g_module, AModule, global_entry)
 	{
-		if ((class_name != NULL) && (_stricmp(class_name, pos->class_name) != 0))
+		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
 
 		ret = pos->probe(other, msg);
@@ -250,18 +264,18 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 	if (kv->type == ObjKV_object) {
 		//return (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0);
 		AObject *child = *(AObject**)((char*)object+kv->offset);
-		if (opt == NULL)
+		if ((child == NULL) && (opt == NULL))
 			return 0;
-
 		if (child == NULL) {
 			if (AObjectCreate(&child, object, opt, kv->defstr) < 0)
 				return 0;
 			*(AObject**)((char*)object+kv->offset) = child;
-			return 1;
+			if (opt == NULL)
+				return 1;
+		} else {
+			if (opt == NULL)
+				return 0;
 		}
-
-		if (child->module->kv_map == NULL)
-			return 0;
 
 		int count = 0;
 		AOption *child_opt;

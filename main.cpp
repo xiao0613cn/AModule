@@ -6,23 +6,8 @@
 //#include "rapidjson-1.1.0/include/rapidjson/stringbuffer.h"
 //#include "rapidjson-1.1.0/include/rapidjson/writer.h"
 
-extern AModule TCPModule;
-extern AModule FileModule;
-extern AModule TCPServerModule;
-extern AModule AsyncTcpModule;
-extern AModule SyncControlModule;
-extern AModule PVDClientModule;
-extern AModule PVDRTModule;
-extern AModule HTTPProxyModule;
-extern AModule PVDProxyModule;
-extern AModule DumpModule;
-extern AModule EchoModule;
-extern AModule HttpClientModule;
-
 #ifndef _WINDLL
-#if defined(_WIN32) && !defined(_WIN64)
-extern AModule M3U8ProxyModule;
-#endif
+
 #include "io/AModule_io.h"
 #include "PVDClient/PvdNetCmd.h"
 #include "http/http_parser.h"
@@ -174,7 +159,7 @@ void __stdcall rbtree_test()
 #endif
 
 	while (!RB_EMPTY_ROOT(&root)) {
-		r = rb_entry(rb_first(&root), myrb_node, rb_node);
+		r = rb_first_entry(&root, myrb_node, rb_node);
 
 		rb_erase(&r->rb_node, &root);
 		free(r);
@@ -795,25 +780,9 @@ int main(int argc, char* argv[])
 		if (option != NULL)
 			ResetOption(option);
 	}
-	AModuleInitOption(option);
+	AModuleInit(option);
 	option = NULL;
-
 	AThreadBegin(NULL, NULL, 20*1000);
-	AModuleRegister(&TCPModule);
-	AModuleRegister(&FileModule);
-	AModuleRegister(&TCPServerModule);
-	AModuleRegister(&AsyncTcpModule);
-	AModuleRegister(&SyncControlModule);
-	AModuleRegister(&PVDClientModule);
-	AModuleRegister(&PVDRTModule);
-	AModuleRegister(&HTTPProxyModule);
-	AModuleRegister(&PVDProxyModule);
-	AModuleRegister(&DumpModule);
-#if defined(_WIN32) && !defined(_WIN64)
-	AModuleRegister(&M3U8ProxyModule);
-#endif
-	AModuleRegister(&EchoModule);
-	AModuleRegister(&HttpClientModule);
 
 	char str[256];
 	const char *path;
@@ -881,21 +850,8 @@ BOOL WINAPI DllMain(HINSTANCE hDll, DWORD dwReason, void *pReserved)
 	switch (dwReason)
 	{
 	case DLL_PROCESS_ATTACH:
-		AModuleInitOption(NULL);
+		AModuleInit(NULL);
 		AThreadBegin(NULL, NULL, 20*1000);
-		AModuleRegister(&TCPModule);
-		AModuleRegister(&FileModule);
-		AModuleRegister(&TCPServerModule);
-		AModuleRegister(&AsyncTcpModule);
-		AModuleRegister(&SyncControlModule);
-		AModuleRegister(&PVDClientModule);
-		AModuleRegister(&PVDRTModule);
-		AModuleRegister(&HTTPProxyModule);
-		AModuleRegister(&PVDProxyModule);
-		AModuleRegister(&DumpModule);
-	//	AModuleRegister(&M3U8ProxyModule);
-		AModuleRegister(&EchoModule);
-		AModuleRegister(&HttpClientModule);
 		break;
 	case DLL_THREAD_ATTACH:
 		break;

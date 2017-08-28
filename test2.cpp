@@ -8,7 +8,7 @@
 #include "base/spinlock.h"
 #include "base/AEvent.h"
 
-rb_tree_define(AEntity, em_node, AEntity*, AEntityCmp)
+rb_tree_define(AEntity, _node, AEntity*, AEntityCmp)
 
 int main()
 {

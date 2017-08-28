@@ -30,7 +30,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 			return -EINVAL;
 
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-		tcp->sock = (SOCKET)msg->data;
+		tcp->sock = (SOCKET)(long)msg->data;
 		return 1;
 	}
 
@@ -54,21 +54,39 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		return -EIO;
 	}
 
+	struct addrinfo *ai_valid = ai;
+	do {
+		if (ai_valid->ai_protocol != IPPROTO_UDP)
+			break;
+	} while ((ai_valid = ai_valid->ai_next) != NULL);
+	if (ai_valid == NULL) {
+		TRACE("invalid address: %s, ai_protocol = %d.\n", addr->value, ai->ai_protocol);
+		release_s(ai, freeaddrinfo, NULL);
+		return -EINVAL;
+	}
+
 	if (tcp->sock == INVALID_SOCKET) {
-		tcp->sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
+		tcp->sock = socket(ai_valid->ai_family, SOCK_STREAM, ai_valid->ai_protocol);
 		if (tcp->sock == INVALID_SOCKET) {
 			release_s(ai, freeaddrinfo, NULL);
 			return -EIO;
 		}
 	}
 
-	AOption *timeout = AOptionFind(option, "timeout");
-	int result = tcp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, (timeout?atol(timeout->value):20));
+	int timeout = AOptionGetInt(option, "timeout", 20);
+	int result = tcp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, timeout);
 	release_s(ai, freeaddrinfo, NULL);
 
 	if (result < 0) {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 	} else {
+#ifdef _WIN32
+		int tv = timeout*1000;
+#else
+		struct timeval tv = { timeout, 0 };
+#endif
+		setsockopt(tcp->sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
+		setsockopt(tcp->sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 		result = 1;
 	}
 	return result;
@@ -77,9 +95,9 @@ static int TCPOpen(AObject *object, AMessage *msg)
 static int TCPSetOption(AObject *object, AOption *option)
 {
 	TCPObject *tcp = to_tcp(object);
-	if (_stricmp(option->name, "socket") == 0) {
+	if (strcasecmp(option->name, "socket") == 0) {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-		tcp->sock = (SOCKET)option->extend;
+		tcp->sock = (SOCKET)(long)option->extend;
 		return 1;
 	}
 	return -ENOSYS;
@@ -150,11 +168,13 @@ static int TCPClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-static int TCPInit(AOption *global_option, AOption *module_option)
+static int TCPInit(AOption *global_option, AOption *module_option, BOOL first)
 {
 #ifdef _WIN32
-	WSADATA wsadata;
-	WSAStartup(WINSOCK_VERSION, &wsadata);
+	if (first) {
+		WSADATA wsadata;
+		WSAStartup(WINSOCK_VERSION, &wsadata);
+	}
 #endif
 	return 1;
 }
@@ -176,5 +196,7 @@ AModule TCPModule = {
 	&TcpCancel,
 	&TCPClose,
 };
+
+static auto_reg_t<TCPModule> auto_reg;
 
 //////////////////////////////////////////////////////////////////////////

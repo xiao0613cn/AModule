@@ -50,20 +50,15 @@ static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 }
 
 #ifdef _WIN32
-static void AsyncTcpRequestDone(AOperator *asop, int result)
+static int AsyncTcpRequestDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
-
-	if (result <= 0) {
-		result = -EIO;
-		result = ovlp->msg->done(ovlp->msg, -EIO);
-		return;
-	}
+	if (result <= 0)
+		return ovlp->msg->done(ovlp->msg, -EIO);
 
 	if (!ioMsgType_isBlock(ovlp->msg->type)) {
 		ovlp->msg->size = result;
-		result = ovlp->msg->done(ovlp->msg, result);
-		return;
+		return ovlp->msg->done(ovlp->msg, result);
 	}
 
 	ovlp->buf.buf += result;
@@ -78,12 +73,12 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 		else
 			result = iocp_recvv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
 		if (result == 0)
-			return;
+			return result;
 	}
-	result = ovlp->msg->done(ovlp->msg, result);
+	return ovlp->msg->done(ovlp->msg, result);
 }
 
-static void AsyncTcpOpenDone(AOperator *asop, int result)
+static int AsyncTcpOpenDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 	AsyncTcp *tcp = ovlp->tcp;
@@ -93,7 +88,7 @@ static void AsyncTcpOpenDone(AOperator *asop, int result)
 
 	tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
 	tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
-	result = ovlp->msg->done(ovlp->msg, result);
+	return ovlp->msg->done(ovlp->msg, result);
 }
 #else
 static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
@@ -176,7 +171,7 @@ static void AsyncOvlpSignal(AsyncTcp *tcp, AsyncOvlp *ovlp)
 	}
 }
 
-static void AsyncTcpCloseDone(AOperator *asop, int result)
+static int AsyncTcpCloseDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 	AsyncTcp *tcp = ovlp->tcp;
@@ -192,7 +187,7 @@ static void AsyncTcpCloseDone(AOperator *asop, int result)
 		tcp->recv_ovlp.perform_count, tcp->recv_ovlp.signal_count);
 
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
-	result = tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, 1);
+	return tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, 1);
 }
 
 static void AsyncOvlpError(AsyncTcp *tcp, int events)
@@ -218,15 +213,15 @@ static void AsyncOvlpError(AsyncTcp *tcp, int events)
 		assert(0);
 }
 
-static void AsyncTcpRequestDone(AOperator *asop, int result)
+static int AsyncTcpRequestDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 	AsyncTcp *tcp = ovlp->tcp;
 	assert(ovlp == &tcp->send_ovlp);
 
-	if (result & (EPOLLHUP|EPOLLERR)) {
+	if ((result < 0) || (result & (EPOLLHUP|EPOLLERR))) {
 		AsyncOvlpError(tcp, result);
-		return;
+		return result;
 	}
 
 	if (result & EPOLLOUT)
@@ -234,17 +229,18 @@ static void AsyncTcpRequestDone(AOperator *asop, int result)
 
 	if (result & EPOLLIN)
 		AsyncOvlpSignal(tcp, &tcp->recv_ovlp);
+	return result;
 }
 
-static void AsyncTcpOpenDone(AOperator *asop, int result)
+static int AsyncTcpOpenDone(AOperator *asop, int result)
 {
 	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
 	AsyncTcp *tcp = ovlp->tcp;
 	assert(ovlp == &tcp->send_ovlp);
 
-	if (result & (EPOLLHUP|EPOLLERR)) {
+	if ((result < 0) || (result & (EPOLLHUP|EPOLLERR))) {
 		AsyncOvlpError(tcp, result);
-		return;
+		return result;
 	}
 	
 	if (result & (EPOLLIN|EPOLLOUT)) { // checking connect
@@ -270,6 +266,7 @@ static void AsyncTcpOpenDone(AOperator *asop, int result)
 			result = ovlp->msg->done(ovlp->msg, error);
 		}
 	}
+	return result;
 }
 #endif
 
@@ -316,7 +313,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		if (msg->size != 0)
 			return -EINVAL;
 
-		tcp->sock = (SOCKET)msg->data;
+		tcp->sock = (SOCKET)(long)msg->data;
 		if (tcp->sock == INVALID_SOCKET)
 			return 1;
 #ifndef _WIN32
@@ -346,7 +343,18 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		return -EFAULT;
 	}
 
-	tcp->sock = socket(ai->ai_family, SOCK_STREAM, ai->ai_protocol);
+	struct addrinfo *ai_valid = ai;
+	do {
+		if (ai_valid->ai_protocol == IPPROTO_TCP)
+			break;
+	} while ((ai_valid = ai_valid->ai_next) != NULL);
+	if (ai_valid == NULL) {
+		TRACE("invalid address: %s, ai_protocol = %d.\n", addr->value, ai->ai_protocol);
+		release_s(ai, freeaddrinfo, NULL);
+		return -EINVAL;
+	}
+
+	tcp->sock = socket(ai_valid->ai_family, SOCK_STREAM, ai_valid->ai_protocol);
 	if (tcp->sock == INVALID_SOCKET) {
 		release_s(ai, freeaddrinfo, NULL);
 		return -EFAULT;
@@ -355,13 +363,13 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 #ifdef _WIN32
 	int result = AsyncTcpBind(tcp, msg);
 	if (result >= 0)
-		result = iocp_connect(tcp->sock, ai->ai_addr, ai->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
+		result = iocp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
 	if (result > 0)
 		result = 0;
 #else
 	int result = tcp_nonblock(tcp->sock, 1);
 	if (result == 0)
-		result = connect(tcp->sock, ai->ai_addr, ai->ai_addrlen);
+		result = connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen);
 
 	if ((result != 0) && (errno != EINPROGRESS)) {
 		result = -EIO;
@@ -456,11 +464,13 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 #endif
 }
 
-static int AsyncTcpInit(AOption *global_option, AOption *module_option)
+static int AsyncTcpInit(AOption *global_option, AOption *module_option, BOOL first)
 {
 #ifdef _WIN32
-	WSADATA wsadata;
-	WSAStartup(WINSOCK_VERSION, &wsadata);
+	if (first) {
+		WSADATA wsadata;
+		WSAStartup(WINSOCK_VERSION, &wsadata);
+	}
 #endif
 	return 1;
 }
@@ -482,3 +492,5 @@ AModule AsyncTcpModule = {
 	&AsyncTcpCancel,
 	&AsyncTcpClose,
 };
+
+static auto_reg_t<AsyncTcpModule> auto_reg;

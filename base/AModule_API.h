@@ -17,8 +17,25 @@
 #define AMODULE_API  EXTERN_C
 #endif
 
-#pragma warning(disable: 4100) //未引用的形参
-#pragma warning(disable: 4505) //未引用的本地函数已移除
+
+#ifdef _WIN32
+#pragma warning(disable: 4100) // 未引用的形参
+#pragma warning(disable: 4101) // 未引用的局部变量
+#pragma warning(disable: 4127) // 条件表达式是常量
+#pragma warning(disable: 4189) // 局部变量已初始化但不引用
+#pragma warning(disable: 4200) // 使用了非标准扩展 : 结构/联合中的零大小数组
+#pragma warning(disable: 4201) // 使用了非标准扩展 : 无名称的结构/联合
+#pragma warning(disable: 4505) // 未引用的本地函数已移除
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#endif
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -27,52 +44,30 @@
 // = 0: pending with success, will callback msg->done()
 // < 0: call failed, return error code
 
-#ifndef _BASE_UTIL_H_
 #include "base.h"
-#endif
-
-#ifndef _LIST_HEAD_H_
+#include "thread_util.h"
 #include "list.h"
-#endif
-
-#ifndef _LINUX_RBTREE_H
 #include "rbtree.h"
-#endif
-
-#ifndef _IOCP_UTIL_H_
 #include "iocp_util.h"
-#endif
+#include "func_util.h"
 
-#ifndef _AOPERATOR_H_
 #include "AOperator.h"
-#endif
-
-#ifndef _AOPTION_H_
 #include "AOption.h"
-#endif
-
-#ifndef _AMESSAGE_H_
 #include "AMessage.h"
-#endif
-
-#ifndef _AMODULE_H_
 #include "AModule.h"
-#endif
 
-#ifndef release_s
-#define release_s(ptr, release, null) \
-	if ((ptr) != null) { \
-		release(ptr); \
-		(ptr) = null; \
-	} else { }
-#endif
-#ifndef release_f
-#define release_f(ptr, null, func) \
-	if (ptr != null) { \
-		func; \
-		ptr = null; \
-	} else { }
-#endif
+
+#define impl_cpp0(ret, type, api) \
+	AMODULE_API ret type##_##api(type *p) { return p->api(); } \
+	ret type::api()
+
+#define impl_cpp1(ret, type, api, t1, a1) \
+	AMODULE_API ret type##_##api(type *p, t1 a1) { return p->api(a1); } \
+	ret type::api(t1 a1)
+
+#define impl_cpp2(ret, type, api, t1, a1, t2, a2) \
+	AMODULE_API ret type##_##api(type *p, t1 a1, t2 a2) { return p->api(a1, a2); } \
+	ret type::api(t1 a1, t2 a2)
 
 
 #ifdef __cplusplus
@@ -90,13 +85,7 @@ int TObjectMsgDone(AMessage *msg, int result)
 }
 #define TObjectDone(type, msg, from, done) \
 	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
-
-template <AModule &module>
-class auto_reg_t {
-public:
-	auto_reg_t() { AModuleRegister(&module); }
-};
-#endif //__cplusplus
+#endif
 
 #define async_begin(status, result) \
 	while (result > 0) { \

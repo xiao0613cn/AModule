@@ -741,30 +741,12 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 	{
 		/*Codes_SRS_MQTT_CLIENT_07_030: [If the actionResult parameter is of type SUBACK_TYPE then the msgInfo value shall be a SUBSCRIBE_ACK structure.]*/
 		SUBSCRIBE_ACK suback = { 0 };
-
-		size_t remainLen = len;
 		suback.packetId = byteutil_read_uint16(&iterator, len);
-		remainLen -= 2;
 
 		// Allocate the remaining len
-		suback.qosReturn = (QOS_VALUE*)malloc(sizeof(QOS_VALUE)*remainLen);
-		if (suback.qosReturn != NULL)
-		{
-			while (remainLen > 0)
-			{
-				suback.qosReturn[suback.qosCount++] = byteutil_readByte(&iterator);
-				remainLen--;
-			}
-
-			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &suback);
-			free(suback.qosReturn);
-		}
-		else
-		{
-			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, NULL);
-			//LOG(AZ_LOG_ERROR, LOG_LINE, "allocation of quality of service value failed.");
-			//set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-		}
+		suback.qosReturn = iterator;
+		suback.qosCount = len-2;
+		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &suback);
 		break;
 	}
 	case UNSUBACK_TYPE:

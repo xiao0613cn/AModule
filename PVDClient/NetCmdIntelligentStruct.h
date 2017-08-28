@@ -26,16 +26,16 @@
 //矩形坐标
 typedef  struct
 {
-	int  left;                      //矩形左坐标,CIF(0-352),D1(0-704)
-	int  top;                       //矩形上坐标,CIF(0-352),D1(0-704)
-	int  right;                     //矩形右坐标,CIF(0-352),D1(0-704)
-	int  bottom;                    //矩形下坐标,CIF(0-352),D1(0-704)
+	int32_t  left;                      //矩形左坐标,CIF(0-352),D1(0-704)
+	int32_t  top;                       //矩形上坐标,CIF(0-352),D1(0-704)
+	int32_t  right;                     //矩形右坐标,CIF(0-352),D1(0-704)
+	int32_t  bottom;                    //矩形下坐标,CIF(0-352),D1(0-704)
 }STRUCT_SDVR_ATMI_RECT, *PSTRUCT_SDVR_ATMI_RECT;
 
 //报警类型及位置信息
 typedef  struct
 {
-	int  alarm_type;                   //类型,NET_ATMI_ALARM_TYPE_E
+	int32_t  alarm_type;                   //类型,NET_ATMI_ALARM_TYPE_E
 	STRUCT_SDVR_ATMI_RECT  position;   //坐标位置
 }STRUCT_SDVR_ATMI_ALARM_POSITION_S, *PSTRUCT_SDVR_ATMI_ALARM_POSITION_S;
 
@@ -120,12 +120,12 @@ typedef struct
 
 typedef  struct
 {
-	BYTE  byChn;
-	BYTE  byReserver1;
-	BYTE  byInfoType;               // 上传信息类型：0-STRUCT_SDVR_ATMI_FACE_ALARM_S，
+	uint8_t  byChn;
+	uint8_t  byReserver1;
+	uint8_t  byInfoType;               // 上传信息类型：0-STRUCT_SDVR_ATMI_FACE_ALARM_S，
 	                                // 1-STRUCT_SDVR_ATMI_PANEL_ALARM_S，2-STRUCT_SDVR_ATMI_MONEY_ALARM_S
 	                                // 3-STRUCT_SDVR_ATMI_ENVI_ALARM_S，4-STRUCT_SDVR_HDC_RESULT
-	BYTE  byReserver2;
+	uint8_t  byReserver2;
 	union
 	{
 		STRUCT_SDVR_ATMI_FACE_ALARM_S   atmi_face_alarm;   // 1.人脸通道报警结构体
@@ -153,8 +153,8 @@ typedef  struct
 //一个点的坐标
 typedef  struct
 {
-	WORD  x;                        //横坐标
-	WORD  y;                        //纵坐标
+	uint16_t  x;                        //横坐标
+	uint16_t  y;                        //纵坐标
 }STRUCT_SDVR_ATMI_POINT_S;
 
 //区域类型
@@ -244,62 +244,62 @@ typedef  struct
 
 	//人员徘徊算法相关参数
 	DWORD  mv_block_cnt;            //移动距离(20，0表示此规则无效，最小为0，最大不限)
-	WORD  mv_stay_frames;           //场景中出现时间阈值(帧),存在总时间(0表示此规则无效，最小为0，最大不限)
-	WORD  mv_stay_valid_frames;     // ATM区域停留时间阈值(帧),
+	uint16_t  mv_stay_frames;           //场景中出现时间阈值(帧),存在总时间(0表示此规则无效，最小为0，最大不限)
+	uint16_t  mv_stay_valid_frames;     // ATM区域停留时间阈值(帧),
 	                                //ATM区域前停留时间(200, 0表示此规则无效，最小为0，最大不限)
 
 	//多人聚集算法相关参数
-	WORD  gather_cnt;               //最多聚集人数(默认4，最小为0，最大不限)
-	WORD  gather_interval_frames;   //报警间隔时间(帧)(1000 frames,约100秒，最小为0，最大不限)
+	uint16_t  gather_cnt;               //最多聚集人数(默认4，最小为0，最大不限)
+	uint16_t  gather_interval_frames;   //报警间隔时间(帧)(1000 frames,约100秒，最小为0，最大不限)
 	DWORD  gather_frame_cnt;        //多人聚集时间阈值(帧) (默认100，最小为0，最大不限)
 
 	//人员躺卧算法相关参数
 	DWORD liedown_frame_cnt;        //躺卧时间阈值(帧).(默认20 frames，，最小为0，最大不限)
 
 	//尾随取款算法相关参数
-	WORD  after_frame_cnt;          //可疑行为时间阈值(帧)(默认20 frames，最小为0，最大不限)
-	WORD  after_interval_frames;    //报警间隔时间(帧)(1000 frames，约100秒，最小为0，最大不限)
+	uint16_t  after_frame_cnt;          //可疑行为时间阈值(帧)(默认20 frames，最小为0，最大不限)
+	uint16_t  after_interval_frames;    //报警间隔时间(帧)(1000 frames，约100秒，最小为0，最大不限)
 
 	//禁止进入算法相关参数
-	WORD  forbid_frame_cnt;         //禁止站立时间阈值(帧)(20 frames，最小为0，最大不限)
-	WORD  reserve;                  //保留
+	uint16_t  forbid_frame_cnt;         //禁止站立时间阈值(帧)(20 frames，最小为0，最大不限)
+	uint16_t  reserve;                  //保留
 }STRUCT_SDVR_ATMI_SCENE_WARN_PARAM_S;
 
 /*设置面板报警参数*/
 typedef struct 
 {
-	int AlphaVal;						//检测库alpha值(5)
-	int BetaVal;						//检测库Beta值(3)
-	int MetinThVal;						//前景融背景阈值(4500)
-	int LBTWTriggerVal;					//取走遗留报警阈值(75)
+	int32_t AlphaVal;						//检测库alpha值(5)
+	int32_t BetaVal;						//检测库Beta值(3)
+	int32_t MetinThVal;						//前景融背景阈值(4500)
+	int32_t LBTWTriggerVal;					//取走遗留报警阈值(75)
 
-	int AppearCntThdVal;				//区域入侵报警基数(40)		//活动区灵敏度基数
-	int AppearCntTriggerVal;			//区域入侵报警阈值(40)		//活动区灵敏度阈值
-	int LBTWCntThdVal;					//取走遗留报警基数(75)		//粘贴区控制基数
-	int LBTWCntTriggerVal;				//取走遗留报警阈值(75)		//粘贴区报警阈值
+	int32_t AppearCntThdVal;				//区域入侵报警基数(40)		//活动区灵敏度基数
+	int32_t AppearCntTriggerVal;			//区域入侵报警阈值(40)		//活动区灵敏度阈值
+	int32_t LBTWCntThdVal;					//取走遗留报警基数(75)		//粘贴区控制基数
+	int32_t LBTWCntTriggerVal;				//取走遗留报警阈值(75)		//粘贴区报警阈值
 
-	int PanelTimeOutTriggerVal;			//超时报警阈值(1500)
+	int32_t PanelTimeOutTriggerVal;			//超时报警阈值(1500)
 
-	int OpenLightTriggerVal;			//进变化报警阈值(45)		//遮挡开始灵敏度
-	int CloseLightTriggerVal;			//出变化报警阈值(55)		//遮挡退出灵敏度
+	int32_t OpenLightTriggerVal;			//进变化报警阈值(45)		//遮挡开始灵敏度
+	int32_t CloseLightTriggerVal;			//出变化报警阈值(55)		//遮挡退出灵敏度
 
-	int AppearMinWidth;					//区域入侵最小目标宽度(10)
-	int AppearMinHeight;				//区域入侵最小目标高度(10)
-	int AppearMaxWidth;					//区域入侵最大目标宽度(200)
-	int AppearMaxHeight;				//区域入侵最大目标高度(200)
+	int32_t AppearMinWidth;					//区域入侵最小目标宽度(10)
+	int32_t AppearMinHeight;				//区域入侵最小目标高度(10)
+	int32_t AppearMaxWidth;					//区域入侵最大目标宽度(200)
+	int32_t AppearMaxHeight;				//区域入侵最大目标高度(200)
 
-	int LBTWMinWidth;					//取走遗留最小目标宽度(10)
-	int LBTWMinHeight;					//取走遗留最小目标高度(10)
-	int LBTWMaxWidth;					//取走遗留最大目标宽度(200)
-	int LBTWMaxHeight;					//取走遗留最大目标高度(200)
+	int32_t LBTWMinWidth;					//取走遗留最小目标宽度(10)
+	int32_t LBTWMinHeight;					//取走遗留最小目标高度(10)
+	int32_t LBTWMaxWidth;					//取走遗留最大目标宽度(200)
+	int32_t LBTWMaxHeight;					//取走遗留最大目标高度(200)
 
 }STRUCT_SDVR_ATMI_PANEL_PARAM_S;
 
 // 1.人脸通道设置结构体
 typedef  struct
 {
-	WORD  face_unusual;                       //是否打开异常人脸（戴口罩、蒙面等）检测功能，1 为打开，0为关闭。默认为0
-	WORD  output_oneface;                     //设置人脸只输出一次与否，0为否，1为是，默认为1
+	uint16_t  face_unusual;                       //是否打开异常人脸（戴口罩、蒙面等）检测功能，1 为打开，0为关闭。默认为0
+	uint16_t  output_oneface;                     //设置人脸只输出一次与否，0为否，1为是，默认为1
 	DWORD  fd_rate;                           //设置人脸检测跟踪间隔，从0开始，最大值不限，默认5
 	STRUCT_SDVR_ATMI_FACEROI_ALL_S face_roi;  //人脸通道的区域及其它参数
 	DWORD abnormalface_alarmtime;		//异常人脸触发报警时间阈值		//***新增***2013-3-13
@@ -341,30 +341,30 @@ typedef struct
 	                                //dwMutiObjWidthEdge = （dwMutiObjWidth / 2 - 5）/ 2，默认值25
 	DWORD  dwThreshBackDiff;        //背景差阀值，默认值50，比较敏感，(0-不限)
 	DWORD  dwThreshFrameDiff;       //帧间差阀值，默认值20，(0-不限)
-	BYTE  byStartPtLabel;           //起点检测标记，0表示任何目标均计数，1表示小于阀值的目标不计数，默认值为0
-	BYTE  byEndPtLable;             //终点检测标记，0表示任何目标均计数，1表示小于阀值的目标不计数，默认值为0
-	BYTE  byReserver[2];            //保留
+	uint8_t  byStartPtLabel;           //起点检测标记，0表示任何目标均计数，1表示小于阀值的目标不计数，默认值为0
+	uint8_t  byEndPtLable;             //终点检测标记，0表示任何目标均计数，1表示小于阀值的目标不计数，默认值为0
+	uint8_t  byReserver[2];            //保留
 	DWORD  dwHalfObjW;              //阀值，与前两项相关，宽度小于该阀值不计数，默认值为20。(objWidth/2)
 }STRUCT_SDVR_HDC_CTRLPARAM, *LPSTRUCT_SDVR_HDC_CTRLPARAM;
 
 //客户端设置或获取到主机四路智能总的结构体
 typedef  struct
 {
-	// int  chn;                    //通道号(0-MAXCH)
-	BYTE  byChn;                    //通道号
-	BYTE  byReserver1;              //保留
-	BYTE  bySetInfoType;            //设置参数类型：0- STRUCT_SDVR_ATMI_SET_FACE_S，
+	// int32_t  chn;                    //通道号(0-MAXCH)
+	uint8_t  byChn;                    //通道号
+	uint8_t  byReserver1;              //保留
+	uint8_t  bySetInfoType;            //设置参数类型：0- STRUCT_SDVR_ATMI_SET_FACE_S，
 	                                //1-STRUCT_SDVR_ATMI_SET_PANEL_S，2-STRUCT_SDVR_ATMI_SET_MONEY_S， 
 	                                //3-STRUCT_SDVR_ATMI_SET_ENVI_S，4-STRUCT_SDVR_HDC_CTRLPARAM
-	BYTE  byReserver2;              //保留
+	uint8_t  byReserver2;              //保留
 
-	int  chn_attri;                 //通道属性(人脸、面板、加钞、环境)，目前未用，防止以后用
-	SHORT  channel_enable;          //通道开关，0-关闭，1-打开，默认0
-	SHORT  if_pic;                  //是否需要抓取图片,0-需要，1-不需要，默认0
-	SHORT  enc_type;                //抓取图片的格式，0-CIF，1-D1，2路默认1，4路默认0
-	SHORT  email_linkage;           //联动email，0-不联动，1-联动，默认0
-	UINT  sensor_num;               //联动探头输出,按位表示，0-不联动，1-联动，默认1
-	UINT  rec_linkage;              //联动录像，按位表示，0-不联动，1-联动，默认0
+	int32_t  chn_attri;                 //通道属性(人脸、面板、加钞、环境)，目前未用，防止以后用
+	int16_t  channel_enable;          //通道开关，0-关闭，1-打开，默认0
+	int16_t  if_pic;                  //是否需要抓取图片,0-需要，1-不需要，默认0
+	int16_t  enc_type;                //抓取图片的格式，0-CIF，1-D1，2路默认1，4路默认0
+	int16_t  email_linkage;           //联动email，0-不联动，1-联动，默认0
+	uint32_t  sensor_num;               //联动探头输出,按位表示，0-不联动，1-联动，默认1
+	uint32_t  rec_linkage;              //联动录像，按位表示，0-不联动，1-联动，默认0
 
 	union
 	{

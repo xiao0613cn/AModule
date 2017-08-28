@@ -98,7 +98,7 @@ typedef struct SUBSCRIBE_PAYLOAD_TAG
 typedef struct SUBSCRIBE_ACK_TAG
 {
     uint16_t packetId;
-    QOS_VALUE* qosReturn;
+    uint8_t* qosReturn; //QOS_VALUE*
     size_t qosCount;
 } SUBSCRIBE_ACK;
 

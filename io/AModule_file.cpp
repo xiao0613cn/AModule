@@ -102,3 +102,5 @@ AModule FileModule = {
 	NULL,
 	&FileClose,
 };
+
+static auto_reg_t<FileModule> auto_reg;

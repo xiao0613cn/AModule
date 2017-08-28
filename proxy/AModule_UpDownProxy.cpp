@@ -82,12 +82,12 @@ static int DownMsg(AMessage *msg, int result)
 	return result;
 }
 
-static void DownTimer(AOperator *asop, int result)
+static int DownTimer(AOperator *asop, int result)
 {
 	assert(asop == &down_timer);
 	down_output = FALSE;
 	down_msg.done = &DownMsg;
-	DownMsg(&down_msg, 1);
+	return DownMsg(&down_msg, 1);
 }
 
 static int UpMsg(AMessage *msg, int result)
@@ -146,11 +146,11 @@ static int UpMsg(AMessage *msg, int result)
 	return result;
 }
 
-static void UpTimer(AOperator *asop, int result)
+static int UpTimer(AOperator *asop, int result)
 {
 	assert(asop == &up_timer);
 	if (result < 0)
-		return;
+		return result;
 
 	if (post_status == post_closing) {
 		if (down_msg.data != NULL) { //TEST down_io is output
@@ -164,9 +164,10 @@ static void UpTimer(AOperator *asop, int result)
 		up_msg.msg.done = &UpMsg;
 		UpMsg(&up_msg.msg, 1);
 	}
+	return result;
 }
 
-static int PostInit(AOption *global_option, AOption *module_option)
+static int PostInit(AOption *global_option, AOption *module_option, int first)
 {
 	if (module_option == NULL)
 		return 0;

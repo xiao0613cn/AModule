@@ -12,16 +12,16 @@
 #define NET_CMD_HEAD_FLAG    ('S'|('D'<<8)|('V'<<16)|('R'<<24))
 
 typedef struct ST_NET_CMD_HEAD {
-	unsigned long  uFlag;    //固定'SDVR'
-	unsigned long  uUserId;  //用户ID
-	unsigned short uCmd;     //网络命令
-	unsigned short uLen;     //数据长度
-	unsigned short uResult;  //返回结果(0-失败,1-成功)
-	unsigned short uReserve; //保留
+	uint32_t  uFlag;    //固定'SDVR'
+	uint32_t  uUserId;  //用户ID
+	uint16_t  uCmd;     //网络命令
+	uint16_t  uLen;     //数据长度
+	uint16_t  uResult;  //返回结果(0-失败,1-成功)
+	uint16_t  uReserve; //保留
 	//unsigned char  data[0];  //数据
 } pvdnet_head;
 
-inline int PVDCmdEncode(unsigned long userid, void *ptr, int type, int body)
+inline int PVDCmdEncode(uint32_t userid, void *ptr, int type, int body)
 {
 	pvdnet_head *phead = (pvdnet_head*)ptr;
 	phead->uFlag    = NET_CMD_HEAD_FLAG;
@@ -33,7 +33,7 @@ inline int PVDCmdEncode(unsigned long userid, void *ptr, int type, int body)
 	return sizeof(pvdnet_head)+body;
 }
 
-inline int PVDCmdDecode(unsigned long user_id, void *data, int size)
+inline int PVDCmdDecode(uint32_t user_id, void *data, int size)
 {
 	if (size < sizeof(pvdnet_head)) {
 		return 0;

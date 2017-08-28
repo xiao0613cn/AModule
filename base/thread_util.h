@@ -142,6 +142,27 @@ Sleep(DWORD ms) {
 #include <pthread.h>
 #define  pthread_null  0
 
+#ifdef HAVE_PTHREAD_COND_TIMEDWAIT_RELATIVE
+static inline int
+pthread_cond_init_mono(pthread_cond_t *cond, int broadcast) {
+	return pthread_cond_init(cond, NULL);
+}
+
+static inline int
+pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, unsigned long msec) {
+	if (msec == INFINITE)
+		return pthread_cond_wait(cond, mutex);
+
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	long nsec = ts.tv_nsec + (msec%1000)*(1000*1000);
+	ts.tv_sec += msec/1000 + nsec/(1000*1000*1000);
+	ts.tv_nsec = nsec%(1000*1000*1000);
+
+	return pthread_cond_timedwait_monotonic_np(cond, mutex, &ts);
+}
+#else
 static inline int
 pthread_cond_init_mono(pthread_cond_t *cond, int broadcast) {
 	pthread_condattr_t attr;
@@ -167,11 +188,13 @@ pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, unsigned lo
 
 	return pthread_cond_timedwait(cond, mutex, &ts);
 }
-
-static inline unsigned long
+#endif
+#ifndef ANDROID
+static inline pid_t
 gettid() {
 	return syscall(SYS_gettid);
 }
+#endif
 
 static inline long
 InterlockedAdd(long volatile *count, long value) {
@@ -295,14 +318,14 @@ void* pthread_object_run(void *p) {
 }
 
 struct pthread_auto_lock {
-	pthread_mutex_t *mutex;
+	pthread_mutex_t *_mutex;
 
 	pthread_auto_lock(pthread_mutex_t *m) {
-		mutex = m;
-		pthread_mutex_lock(mutex);
+		_mutex = m;
+		pthread_mutex_lock(_mutex);
 	}
 	~pthread_auto_lock() {
-		pthread_mutex_unlock(mutex);
+		pthread_mutex_unlock(_mutex);
 	}
 };
 #endif //__cplusplus

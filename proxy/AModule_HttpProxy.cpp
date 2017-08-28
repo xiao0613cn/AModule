@@ -87,7 +87,7 @@ static int HttpProxyGetStatus(AMessage *msg, int result)
 		return result;
 
 	p->recv_msg.init(ioMsgType_Block, ctx->proc_buf->data, 0);
-	append_proc("<html><body>connect count=%d</body></html>",
+	append_proc("<html><body>connect count=%ld</body></html>",
 		ctx->sm->conn_count);
 
 	append_data("HTTP/%d.%d 200 OK\r\n",
@@ -217,7 +217,7 @@ static int HttpProxyDispatch(AMessage *msg, int result)
 
 		const char *url = p->h_f_ptr(0);
 		for (const struct HttpDispatch *d = HttpDispatchMap; d->url != NULL; ++d) {
-			if (_strnicmp(url, d->url, d->len) == 0)
+			if (strncasecmp(url, d->url, d->len) == 0)
 			{
 				p->send_msg.done = NULL;
 				switch (p->recv_parser.method)
@@ -293,7 +293,7 @@ static int HttpProxyProbe(AObject *object, AMessage *msg)
 	return -1;
 }
 
-static void HttpProxyCheck(AOperator *asop, int result)
+static int HttpProxyCheck(AOperator *asop, int result)
 {
 	SessionManager *sm = container_of(asop, SessionManager, check_timer);
 	if (result >= 0) {
@@ -303,10 +303,14 @@ static void HttpProxyCheck(AOperator *asop, int result)
 	} else {
 		//shutdown
 	}
+	return result;
 }
 
-static int HttpProxyInit(AOption *global_option, AOption *module_option)
+static int HttpProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 {
+	if ((module_option == NULL) || !first)
+		return 0;
+
 	SessionInit(&sm, NULL);
 
 	sm.conn_tick_offset = offsetof(HttpCtxExt, active) - offsetof(HttpCtxExt, sm_conn_entry);
@@ -314,7 +318,7 @@ static int HttpProxyInit(AOption *global_option, AOption *module_option)
 
 	sm.check_timer.callback = &HttpProxyCheck;
 	AOperatorTimewait(&sm.check_timer, NULL, 5000);
-	return 0;
+	return 1;
 }
 
 AModule HTTPProxyModule = {
@@ -331,3 +335,5 @@ AModule HTTPProxyModule = {
 	NULL, NULL,
 	NULL,
 };
+
+static auto_reg_t<HTTPProxyModule> auto_reg;

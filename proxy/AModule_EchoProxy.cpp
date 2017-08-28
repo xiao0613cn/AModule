@@ -20,7 +20,7 @@ static int EchoProbe(AObject *object, AMessage *msg)
 {
 	if (msg->size < 4)
 		return -1;
-	return ((_strnicmp_c(msg->data, "echo") == 0) ? 100 : 0);
+	return ((strncasecmp_sz(msg->data, "echo") == 0) ? 100 : 0);
 }
 
 static int EchoOpen(AObject *echo, AMessage *msg)
@@ -73,3 +73,5 @@ AModule EchoModule = {
 	&EchoCancel,
 	&EchoClose,
 };
+
+static auto_reg_t<EchoModule> auto_reg;

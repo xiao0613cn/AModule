@@ -29,9 +29,7 @@ static void DumpRelease(AObject *object)
 	DumpObject *dump = to_dump(object);
 
 	while (!list_empty(&dump->req_list)) {
-		DumpReq *req = list_first_entry(&dump->req_list, DumpReq, entry);
-		list_del_init(&req->entry);
-
+		DumpReq *req = list_pop_front(&dump->req_list, DumpReq, entry);
 		if (!dump->single_file) {
 			release_s(req->file, fclose, NULL);
 		}
@@ -240,3 +238,5 @@ AModule DumpModule = {
 	&DumpClose,
 	kv_map,
 };
+
+static auto_reg_t<DumpModule> auto_reg;

@@ -9,6 +9,7 @@
 #include <time.h>
 #include <string.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include "str_util.h"
 
@@ -20,8 +21,6 @@
 #endif
 
 #ifdef _WIN32
-#include "stdint.h"
-
 #ifndef __attribute__
 #define __attribute__(x) 
 #endif
@@ -30,7 +29,6 @@
 #define dlsym(handle, funcname) GetProcAddress((HMODULE)handle, funcname)
 
 #else //_WIN32
-#include <stdint.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -40,6 +38,7 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <netdb.h>
+#include <netinet/in.h>
 
 #ifndef __stdcall
 #define __stdcall 
@@ -68,33 +67,32 @@ typedef int             SOCKET;
 #endif
 
 #ifndef INFINITE
-#define INFINITE  -1
+#define INFINITE  -1u
 #endif
 #ifndef _countof
 #define _countof(a)  (sizeof(a)/sizeof(a[0]))
 #endif
 
 typedef void *         HANDLE;
-typedef unsigned long  DWORD;
-typedef long long      LONGLONG;
-typedef unsigned long long ULONGLONG;
-typedef unsigned long long DWORDLONG;
-typedef unsigned int   UINT;
-typedef short          SHORT;
-typedef unsigned short WORD;
-typedef unsigned char  BYTE;
+typedef uint32_t       DWORD;
 typedef int            BOOL;
 #define TRUE      1
 #define FALSE     0
 
 #endif //!_WIN32
 
-#include "thread_util.h"
-
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL  0
 #endif
+
 #include <stdarg.h>
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+
+#define tm_args(tm) \
+	1900+(tm)->tm_year, 1+(tm)->tm_mon, (tm)->tm_mday, \
+	(tm)->tm_hour, (tm)->tm_min, (tm)->tm_sec
 
 #ifndef TRACE
 static int
@@ -104,19 +102,19 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	time_t t = time(NULL);
 	struct tm *tm = localtime(&t);
 
-	int outpos = snprintf(outbuf, BUFSIZ,
-		"[%04d-%02d-%02d %02d:%02d:%02d] %4d| [%s]: ",
-		1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday,
-		tm->tm_hour, tm->tm_min, tm->tm_sec,
-		l, f);
+	int outpos = snprintf(outbuf, sizeof(outbuf),
+		"%04d-%02d-%02d %02d:%02d:%02d %4d | %s():\t",
+		tm_args(tm), l, f);
 
 	va_list ap;
 	va_start(ap, fmt);
-	outpos += vsnprintf(outbuf+outpos, BUFSIZ-outpos, fmt, ap);
+	outpos += vsnprintf(outbuf+outpos, sizeof(outbuf)-outpos, fmt, ap);
 	va_end(ap);
 
 #ifdef _WIN32
 	OutputDebugStringA(outbuf);
+#elif defined(ANDROID)
+	__android_log_write(ANDROID_LOG_DEBUG, "AModule", outbuf);
 #endif
 	fputs(outbuf, stdout);
 	return outpos;

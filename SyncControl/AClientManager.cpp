@@ -245,7 +245,7 @@ int AClient::main_run(int result)
 		if (status != AObject_Opened) {
 			active = GetTickCount();
 			TRACE("%s: status = %s, result = 0x%X.\n",
-				module->module_name, StatusName(status), result);
+				module->module_name, StatusName(status), result>0?result:-result);
 		}
 
 		switch (status)
@@ -259,9 +259,9 @@ int AClient::main_run(int result)
 
 		case AObject_Opening:
 			status = AObject_Opened;
-			last_opened = TRUE;
 			if (on_open != NULL)
 				on_open(this);
+			last_opened = TRUE;
 
 			if (auto_request && (work_msg.done != NULL)) {
 				addref();

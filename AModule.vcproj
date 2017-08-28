@@ -341,6 +341,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\proxy\AModule_EchoProxy.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\io\AModule_file.cpp"
 				>
 			</File>
@@ -756,11 +760,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
@@ -832,11 +836,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
@@ -876,6 +880,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\func_util.h"
+				>
+			</File>
+			<File
 				RelativePath=".\media\h264_decode_sps.h"
 				>
 			</File>
@@ -900,11 +908,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
@@ -912,11 +920,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -928,11 +936,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
@@ -956,15 +964,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\crypto\md5.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
@@ -1056,11 +1064,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
@@ -1124,10 +1132,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
@@ -1137,6 +1141,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavformat\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File

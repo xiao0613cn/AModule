@@ -30,7 +30,7 @@ struct AThread {
 	int              epoll;
 	int              signal[2];
 	long volatile    bind_count;
-	struct list_head working_list;
+	struct list_head public_list;
 	struct list_head private_list;
 #endif
 	pthread_mutex_t  mutex;
@@ -41,7 +41,7 @@ struct AThread {
 static int AThreadCheckTimewait(AThread *pool, AThread *at)
 {
 	int max_timewait = at->max_timewait;
-	AOperator *asop;
+	DWORD cur_timetick = GetTickCount();
 
 	struct list_head timeout_list;
 	INIT_LIST_HEAD(&timeout_list);
@@ -49,13 +49,11 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 	struct list_head working_list;
 	INIT_LIST_HEAD(&working_list);
 #endif
-	DWORD curtick = GetTickCount();
 	pthread_mutex_lock(&pool->mutex);
-
 	for (struct rb_node *node = rb_first(&pool->waiting_tree); node != NULL; ) {
-		asop = rb_entry(node, AOperator, ao_tree);
+		AOperator *asop = rb_entry(node, AOperator, ao_tree);
 
-		int diff = AOperatorTimewaitCompare(curtick, asop);
+		int diff = AOperatorTimewaitCompare(cur_timetick, asop);
 		if (diff < -1) {
 			if (asop->ao_thread == NULL) {
 				asop->ao_thread = at;
@@ -69,32 +67,32 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 			break;
 		}
 
-		AOperator *pos;
-		list_for_each_entry(pos, &asop->ao_list, AOperator, ao_list) {
-			pos->ao_tick = 0;
+		while (!list_empty(&asop->ao_list)) {
+			list_entry(asop->ao_list.next, AOperator, ao_list)->ao_tick = 0;
+			list_move_tail(asop->ao_list.next, &timeout_list);
 		}
 		asop->ao_tick = 0;
-		list_cat(&asop->ao_list, &timeout_list);
+		list_add_tail(&asop->ao_list, &timeout_list);
 
 		node = rb_next(node);
 		rb_erase(&asop->ao_tree, &pool->waiting_tree);
+		RB_CLEAR_NODE(&asop->ao_tree);
 	}
 #ifndef _WIN32
-	list_splice_init(&pool->working_list, &working_list);
+	list_splice_init(&pool->public_list, &working_list);
 	list_splice_init(&at->private_list, &working_list);
 #endif
 	pthread_mutex_unlock(&pool->mutex);
 
 	while (!list_empty(&timeout_list)) {
-		asop = list_first_entry(&timeout_list, AOperator, ao_list);
-		list_del_init(&asop->ao_list);
+		AOperator *asop = list_pop_front(&timeout_list, AOperator, ao_list);
 		assert(asop->ao_tick == 0);
 		asop->callback(asop, 0);
 	}
 #ifndef _WIN32
 	while (!list_empty(&working_list)) {
-		asop = list_first_entry(&working_list, AOperator, ao_list);
-		list_del_init(&asop->ao_list);
+		AOperator *asop = list_pop_front(&working_list, AOperator, ao_list);
+		assert(asop->ao_tick == 0);
 		asop->callback(asop, 1);
 	}
 #endif
@@ -141,19 +139,14 @@ static void* AThreadRun(void *p)
 		int count = epoll_wait(at->epoll, events, _countof(events), max_timewait);
 		for (int ix = 0; ix < count; ++ix)
 		{
-			if (events[ix].data.u64 == 0) {
-				while (read(pool->signal[1], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
+			if ((events[ix].data.u64 == 0) || (events[ix].data.u64 == 1)) {
+				int fd = (events[ix].data.u64 ? pool->signal[1] : at->signal[0]);
+
+				while (read(fd, sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
 					;
-				//TRACE2("%d: wakeup for working_list(%lld)...\n", gettid(), *(uint64_t*)sigbuf);
+				//TRACE2("%d: wakeup for event signal(%lld)...\n", gettid(), events[ix].data.u64);
 				max_timewait = 0;
-			}
-			else if (events[ix].data.u64 == 1) {
-				while (read(at->signal[0], sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
-					;
-				TRACE2("%d: wakeup for private_list(%lld)...\n", gettid(), *(uint64_t*)sigbuf);
-				max_timewait = 0;
-			}
-			else {
+			} else {
 				AOperator *asop = (AOperator*)events[ix].data.ptr;
 				asop->callback(asop, events[ix].events);
 			}
@@ -268,17 +261,17 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 	//private_list signal
 	struct epoll_event epev;
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
-	epev.data.u64 = 1;
+	epev.data.u64 = 0;
 	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[0], &epev);
 
-	//working_list signal
+	//public_list signal
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
-	epev.data.u64 = 0;
+	epev.data.u64 = 1;
 	if (pool != NULL) {
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
 	} else {
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
-		INIT_LIST_HEAD(&at->working_list);
+		INIT_LIST_HEAD(&at->public_list);
 	}
 
 	at->bind_count = 0;
@@ -293,6 +286,17 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 	*p = at;
 	at->running = 1;
 	pthread_create(&at->thread, NULL, &AThreadRun, at);
+	return 1;
+}
+
+AMODULE_API int
+AThreadAbort(AThread *at)
+{
+	if (at == NULL)
+		at = work_thread[0];
+
+	at->running = 0;
+	AThreadWakeup(at, FALSE);
 	return 1;
 }
 
@@ -316,12 +320,11 @@ AThreadEnd(AThread *at)
 #ifndef _NO_EVENTFD_H_
 	if (at->pool == NULL)
 #endif
-	close(at->signal[1]);
+		close(at->signal[1]);
 	close(at->epoll);
 
 	while (!list_empty(&at->private_list)) {
-		AOperator *asop = list_first_entry(&at->private_list, AOperator, ao_list);
-		list_del_init(&asop->ao_list);
+		AOperator *asop = list_pop_front(&at->private_list, AOperator, ao_list);
 		asop->callback(asop, -EINTR);
 	}
 	if (at->pool != NULL) {
@@ -329,17 +332,15 @@ AThreadEnd(AThread *at)
 		return 1;
 	}
 
-	list_splice_init(&at->working_list, &at->pending_list);
+	list_splice_init(&at->public_list, &at->pending_list);
 #endif
 	pthread_mutex_destroy(&at->mutex);
 
-	AOperator *asop;
 	for (struct rb_node *node = rb_first(&at->waiting_tree); node != NULL; ) {
-		asop = rb_entry(node, AOperator, ao_tree);
+		AOperator *asop = rb_entry(node, AOperator, ao_tree);
 
 		while (!list_empty(&asop->ao_list)) {
-			AOperator *asop2 = list_first_entry(&asop->ao_list, AOperator, ao_list);
-			list_del_init(&asop2->ao_list);
+			AOperator *asop2 = list_pop_front(&asop->ao_list, AOperator, ao_list);
 			asop2->callback(asop2, -EINTR);
 		}
 
@@ -347,11 +348,12 @@ AThreadEnd(AThread *at)
 		rb_erase(&asop->ao_tree, &at->waiting_tree);
 		asop->callback(asop, -EINTR);
 	}
+
 	while (!list_empty(&at->pending_list)) {
-		asop = list_first_entry(&at->pending_list, AOperator, ao_list);
-		list_del_init(&asop->ao_list);
+		AOperator *asop = list_pop_front(&at->pending_list, AOperator, ao_list);
 		asop->callback(asop, -EINTR);
 	}
+
 	free(at);
 	return 1;
 }
@@ -376,8 +378,8 @@ AThreadPost(AThread *at, AOperator *asop, BOOL wakeup)
 		first = (list_empty(&at->private_list) ? 2 : 0);
 		list_add_tail(&asop->ao_list, &at->private_list);
 	} else {
-		first = (list_empty(&pool->working_list) ? 1 : 0);
-		list_add_tail(&asop->ao_list, &pool->working_list);
+		first = (list_empty(&pool->public_list) ? 1 : 0);
+		list_add_tail(&asop->ao_list, &pool->public_list);
 		at = pool;
 	}
 	pthread_mutex_unlock(&pool->mutex);
@@ -388,15 +390,6 @@ AThreadPost(AThread *at, AOperator *asop, BOOL wakeup)
 	return 0;
 }
 
-int AThreadAbort(AThread *at)
-{
-	if (at == NULL)
-		at = work_thread[0];
-
-	at->running = 0;
-	AThreadWakeup(at, FALSE);
-	return 1;
-}
 #ifdef _WIN32
 AMODULE_API int
 AThreadBind(AThread *at, HANDLE file)
@@ -435,7 +428,7 @@ AThreadBind(AThread *at, AOperator *asop, uint32_t event)
 	asop->ao_events = event;
 
 	struct epoll_event epev;
-	epev.events = asop->ao_events;
+	epev.events = event;
 	epev.data.ptr = asop;
 
 	int result = epoll_ctl(at->epoll, op, asop->ao_fd, &epev);
@@ -462,7 +455,6 @@ AThreadDefault(int ix)
 AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup)
 {
-	asop->ao_tick = tick;
 	asop->ao_thread = NULL;
 	if (tick == 0) {
 		return AThreadPost(at, asop, wakeup);
@@ -474,6 +466,8 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup)
 
 	if (tick == INFINITE) {
 		pthread_mutex_lock(&pool->mutex);
+		asop->ao_tick = tick;
+
 		list_add_tail(&asop->ao_list, &pool->pending_list);
 		pthread_mutex_unlock(&pool->mutex);
 		return 0;
@@ -482,6 +476,8 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup)
 	INIT_LIST_HEAD(&asop->ao_list);
 
 	pthread_mutex_lock(&pool->mutex);
+	asop->ao_tick = tick;
+
 	AOperator *node = rb_insert_AOperator(&pool->waiting_tree, asop, tick);
 	if (node != NULL) {
 		list_add_tail(&asop->ao_list, &node->ao_list);
@@ -521,8 +517,10 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 		}
 		else if (asop != node) {
 			assert(!list_empty(&node->ao_list));
-			assert(!list_empty(&asop->ao_list));
-			list_del_init(&asop->ao_list);
+			if (list_empty(&asop->ao_list))
+				signal = -1;
+			else
+				list_del_init(&asop->ao_list);
 		}
 		else if (list_empty(&asop->ao_list)) {
 			rb_erase(&asop->ao_tree, &pool->waiting_tree);
@@ -539,9 +537,9 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 			signal = (list_empty(&at->private_list) ? 2 : 0);
 			list_add_tail(&asop->ao_list, &at->private_list);
 		} else {
-			signal = (list_empty(&pool->working_list) ? 1 : 0);
+			signal = (list_empty(&pool->public_list) ? 1 : 0);
+			list_add_tail(&asop->ao_list, &pool->public_list);
 			at = pool;
-			list_add_tail(&asop->ao_list, &pool->working_list);
 		}
 	}
 #endif
@@ -549,7 +547,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 
 	if ((signal > 0) && wakeup_or_cancel) {
 #ifdef _WIN32
-		PostQueuedCompletionStatus(pool->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
+		PostQueuedCompletionStatus(at->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
 #else
 		AThreadWakeup(at, (signal==1));
 #endif

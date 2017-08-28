@@ -68,10 +68,10 @@ static void TCPClientRelease(TCPClient *client)
 }
 
 static int TCPClientInmsgDone(AMessage *msg, int result);
-static void TCPClientProcess(AOperator *asop, int result)
+static int TCPClientProcess(AOperator *asop, int result)
 {
 	TCPClient *client = container_of(asop, TCPClient, sysop);
-	TCPClientInmsgDone(&client->inmsg, (result>=0) ? 1 : result);
+	return TCPClientInmsgDone(&client->inmsg, (result>=0) ? 1 : result);
 }
 
 static TCPClient* TCPClientCreate(TCPServer *server)
@@ -143,7 +143,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				proxy_opt = AOptionFind(server->option, module->module_name);
 			else
 				proxy_opt = NULL;
-			if ((module == NULL) || (proxy_opt != NULL && _stricmp(proxy_opt->value, "bridge") == 0))
+			if ((module == NULL) || (proxy_opt != NULL && strcasecmp(proxy_opt->value, "bridge") == 0))
 			{
 				if (proxy_opt == NULL)
 					proxy_opt = server->default_bridge;
@@ -325,7 +325,7 @@ static int TCPServerDoAcceptEx(TCPServer *server)
 	return 0;
 }
 
-static void TCPServerAcceptExDone(AOperator *sysop, int result)
+static int TCPServerAcceptExDone(AOperator *sysop, int result)
 {
 	TCPServer *server = container_of(sysop, TCPServer, sysio);
 	if (result > 0) {
@@ -347,6 +347,7 @@ static void TCPServerAcceptExDone(AOperator *sysop, int result)
 		release_s(server->prepare, TCPClientRelease, NULL);
 		AObjectRelease(&server->object);
 	}
+	return result;
 }
 #endif
 
@@ -365,12 +366,12 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 		return -ENOMEM;
 
 	const char *af = AOptionGet(server->option, "family");
-	if ((af != NULL) && (_stricmp(af, "inet6") == 0))
+	if ((af != NULL) && (strcasecmp(af, "inet6") == 0))
 		server->io_family = AF_INET6;
 	else
 		server->io_family = AF_INET;
 
-	server->port = (u_short)AOptionGetInt(server->option, "port");
+	server->port = (u_short)AOptionGetInt(server->option, "port", 0);
 	if (server->port == 0)
 		return -EINVAL;
 
@@ -384,7 +385,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 		return -EIO;
 
 	server->io_module = AModuleFind("io", AOptionGet(server->option, "io", "tcp"));
-	server->async_tcp = (_stricmp(server->io_module->module_name, "async_tcp") == 0);
+	server->async_tcp = (strcasecmp(server->io_module->module_name, "async_tcp") == 0);
 	server->default_bridge = AOptionFind(server->option, "default_bridge");
 
 	if (!AOptionGetInt(server->option, "background", TRUE))
@@ -472,3 +473,5 @@ AModule TCPServerModule = {
 	&TCPServerCancel,
 	&TCPServerClose,
 };
+
+static auto_reg_t<TCPServerModule> auto_reg;

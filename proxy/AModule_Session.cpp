@@ -72,9 +72,7 @@ static int SessionClose(AObject *object, AMessage *msg)
 		s->unlock();
 
 		while (!list_empty(&timeout_user)) {
-			SessionCtx *user = list_first_entry(&timeout_user, SessionCtx, user_list);
-			list_del_init(&user->user_list);
-
+			SessionCtx *user = list_pop_front(&timeout_user, SessionCtx, user_list);
 			s->sm->on_session_timeout(user);
 		}*/
 	}
@@ -171,7 +169,7 @@ SessionNew(SessionManager *sm, const char *user, BOOL reuse)
 	{
 		long genid = InterlockedAdd(&sm->genid, 1);
 		DWORD tick = GetTickCount();
-		int len = snprintf(ssid, sizeof(ssid)-1, "%s%08x%08x", user, tick, genid);
+		int len = snprintf(ssid, sizeof(ssid)-1, "%s%08x%08lx", user, tick, genid);
 		ssid[len] = '\0';
 
 		sm->lock();
@@ -294,9 +292,7 @@ SessionCheck(SessionManager *sm)
 	sm->unlock();
 
 	while (!list_empty(&timeout_sess)) {
-		SessionCtx *s = list_first_entry(&timeout_sess, SessionCtx, sm_timeout_entry);
-		list_del_init(&s->sm_timeout_entry);
-
+		SessionCtx *s = list_pop_front(&timeout_sess, SessionCtx, sm_timeout_entry);
 		s->object.close(NULL);
 		AObjectRelease(&s->object);
 	}

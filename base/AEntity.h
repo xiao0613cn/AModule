@@ -27,8 +27,7 @@ struct AEntity {
 	int                   _com_count;
 
 	void init(AObject *o) {
-		_self = o;
-		_manager = NULL;
+		_self = o; _manager = NULL;
 		RB_CLEAR_NODE(&_node);
 		_com_list.init(NULL);
 		_com_count = 0;
@@ -38,8 +37,8 @@ struct AEntity {
 		assert(RB_EMPTY_NODE(&_node));
 	}
 
-	int  _append(AComponent *c) {
-		int valid = ((c->_entity == NULL) && c->_node.empty());
+	bool _append(AComponent *c) {
+		bool valid = ((c->_entity == NULL) && c->_node.empty());
 		if (valid) {
 			//c->_self->addref();
 			//this->_self->addref();
@@ -51,8 +50,8 @@ struct AEntity {
 		}
 		return valid;
 	}
-	int  _remove(AComponent *c) {
-		int valid = ((c->_entity == this) && !c->_node.empty());
+	bool _remove(AComponent *c) {
+		bool valid = ((c->_entity == this) && !c->_node.empty());
 		if (valid) {
 			c->_node.leave();
 			//c->_self->release2();
@@ -97,8 +96,8 @@ struct AEntityManager {
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;
 	}
-	int  _push(AEntity *e) {
-		int valid = (e->_manager == NULL && RB_EMPTY_NODE(&e->_node));
+	bool _push(AEntity *e) {
+		bool valid = (e->_manager == NULL && RB_EMPTY_NODE(&e->_node));
 		if (valid)
 			valid = (rb_insert_AEntity(&_entity_map, e, e) == NULL);
 		if (valid) {
@@ -110,8 +109,8 @@ struct AEntityManager {
 		}
 		return valid;
 	}
-	int  _pop(AEntity *e) {
-		int valid = !RB_EMPTY_NODE(&e->_node);
+	bool _pop(AEntity *e) {
+		bool valid = !RB_EMPTY_NODE(&e->_node);
 		if (valid) {
 			rb_erase(&e->_node, &_entity_map);
 			RB_CLEAR_NODE(&e->_node);
@@ -216,16 +215,16 @@ struct EMTmpl {
 		manager = em; locker = l;
 	}
 	// Enity
-	int  push(AEntity *e) {
+	bool push(AEntity *e) {
 		locker->lock();
-		int valid = manager->_push(e);
+		bool valid = manager->_push(e);
 		if (valid) e->_self->addref();
 		locker->unlock();
 		return valid;
 	}
-	int  pop(AEntity *e) {
+	bool pop(AEntity *e) {
 		locker->lock();
-		int valid = manager->_pop(e);
+		bool valid = manager->_pop(e);
 		locker->unlock();
 		if (valid) e->_self->release2();
 		return valid;
@@ -244,9 +243,9 @@ struct EMTmpl {
 		return result;
 	}
 	// Component
-	int  append(AEntity *e, AComponent *c) {
+	bool append(AEntity *e, AComponent *c) {
 		locker->lock();
-		int valid = e->_append(c);
+		bool valid = e->_append(c);
 		if (valid) {
 			e->_self->addref();
 			c->_self->addref();
@@ -254,9 +253,9 @@ struct EMTmpl {
 		locker->unlock();
 		return valid;
 	}
-	int  remove(AEntity *e, AComponent *c) {
+	bool remove(AEntity *e, AComponent *c) {
 		locker->lock();
-		int valid = e->_remove(c);
+		bool valid = e->_remove(c);
 		locker->unlock();
 		if (valid) c->_self->release2();
 		return valid;

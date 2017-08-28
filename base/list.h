@@ -174,15 +174,6 @@ static inline void list_move_tail(struct list_head *list,
 	list_add_tail(list, head);
 }
 
-static inline void list_cat(struct list_head *list, struct list_head *head)
-{
-	struct list_head *last_entry = list->prev;
-	list->prev = head->prev;
-	head->prev->next = list;
-	last_entry->next = head;
-	head->prev = last_entry;
-}
-
 /**
  * list_is_last - tests whether @list is the last entry in list @head
  * @list: the entry to test

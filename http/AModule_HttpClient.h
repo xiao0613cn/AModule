@@ -77,7 +77,7 @@ static inline const char*
 HeaderGet(HttpClient *p, const char *header, int &len)
 {
 	for (int ix = 1; ix < p->recv_header_count; ++ix) {
-		if ((_strnicmp(header, p->h_f_ptr(ix), p->h_f_len(ix)) == 0)
+		if ((strncasecmp(header, p->h_f_ptr(ix), p->h_f_len(ix)) == 0)
 		 && (header[p->h_f_len(ix)] == '\0'))
 		{
 			len = p->h_v_len(ix);

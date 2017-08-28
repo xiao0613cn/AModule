@@ -85,9 +85,7 @@ static void SyncControlRelease(AObject *object)
 
 	//assert(list_empty(&sc->syncreq_list));
 	while (!list_empty(&sc->syncreq_list)) {
-		SyncRequest *req = list_first_entry(&sc->syncreq_list, SyncRequest, entry);
-		list_del_init(&req->entry);
-
+		SyncRequest *req = list_pop_front(&sc->syncreq_list, SyncRequest, entry);
 		if (req->from != NULL) {
 			req->from->done(req->from, -EINTR);
 			req->from = NULL;
@@ -111,6 +109,7 @@ static int SyncControlCreate(AObject **object, AObject *parent, AOption *option)
 
 		*object = &sc->object;
 		extern AModule SyncControlModule;
+		//AObjectInit(&sc->object, &SyncControlModule);
 		sc->object.init(&SyncControlModule);
 		sc->alloc_self = TRUE;
 	} else {
@@ -309,8 +308,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 			req->from = NULL;
 			result = 0;
 		} else {
-			req->from = list_first_entry(&req->request_list, AMessage, entry);
-			list_del_init(&req->from->entry);
+			req->from = list_pop_front(&req->request_list, AMessage, entry);
 			result = 1;
 		}
 		pthread_mutex_unlock(&req->mutex);
@@ -319,8 +317,7 @@ static void SyncRequestDispatchRequest(SyncRequest *req, int result)
 			msg->done(msg, 1);
 		}
 		while (!list_empty(&quit_list)) {
-			msg = list_first_entry(&quit_list, AMessage, entry);
-			list_del_init(&msg->entry);
+			msg = list_pop_front(&quit_list, AMessage, entry);
 			msg->done(msg, -1);
 		}
 		if (result <= 0)
@@ -381,8 +378,7 @@ static int SyncRequestCancelDispath(SyncRequest *req, AMessage *from)
 		msg->done(msg, 1);
 	}
 	while (!list_empty(&quit_list)) {
-		msg = list_first_entry(&quit_list, AMessage, entry);
-		list_del_init(&msg->entry);
+		msg = list_pop_front(&quit_list, AMessage, entry);
 		msg->done(msg, -1);
 	}
 	return 1;
@@ -558,3 +554,5 @@ AModule SyncControlModule = {
 	&SyncControlCancel,
 	&SyncControlClose,
 };
+
+static auto_reg_t<SyncControlModule> auto_reg;

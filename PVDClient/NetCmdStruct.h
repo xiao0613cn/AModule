@@ -62,11 +62,11 @@
 //时间格式
 typedef struct
 {
-	BYTE byEnable;							//激活  0-屏蔽 1-激活	
-    BYTE byStartHour;
-	BYTE byStartMin;
-	BYTE byStopHour;
-	BYTE byStopMin;
+	uint8_t byEnable;							//激活  0-屏蔽 1-激活	
+    uint8_t byStartHour;
+	uint8_t byStartMin;
+	uint8_t byStopHour;
+	uint8_t byStopMin;
 }STRUCT_SDVR_SCHEDTIME, *LPSTRUCT_SDVR_SCHEDTIME;
 
 //登录设备
@@ -225,13 +225,13 @@ typedef struct
 	char sDVRID[48]; //平台分配给DVR的登录ID
 	char sSerialNumber[48]; //序列号：主机端必须填充，从前往后处理，其余补零
 	//DVR设备本身的序列号
-	BYTE byAlarmInPortNum; //DVR报警输入个数
-	BYTE byAlarmOutPortNum; //DVR报警输出个数
-	BYTE byDiskNum; //DVR 硬盘个数
-	BYTE byProtocol; //新类型产品该值定为0x20，按协议二处理
-	BYTE byChanNum; //DVR 通道个数
-	BYTE byEncodeType; //主机编码格式：1为ANSI字符串，中文采用GB2312编码；2为UTF8
-	BYTE reserve[26]; //保留
+	uint8_t byAlarmInPortNum; //DVR报警输入个数
+	uint8_t byAlarmOutPortNum; //DVR报警输出个数
+	uint8_t byDiskNum; //DVR 硬盘个数
+	uint8_t byProtocol; //新类型产品该值定为0x20，按协议二处理
+	uint8_t byChanNum; //DVR 通道个数
+	uint8_t byEncodeType; //主机编码格式：1为ANSI字符串，中文采用GB2312编码；2为UTF8
+	uint8_t reserve[26]; //保留
 	char sDvrName[32]; //主机名
 	char sChanName[128][32]; //通道名称
 }STRUCT_SDVR_INITIATIVE_LOGIN;
@@ -241,8 +241,8 @@ typedef struct
 {
 	DWORD  dvrtype;							//7004 8004 2201 2004
 	//DWORD  nreserve1;						//保留
-	WORD   device_type;					    //设备类型		枚举NET_DEV_TYPE_E
-	WORD   memory_size;					    //内存大小		枚举NET_MEMSIZE_E
+	uint16_t   device_type;					    //设备类型		枚举NET_DEV_TYPE_E
+	uint16_t   memory_size;					    //内存大小		枚举NET_MEMSIZE_E
 	DWORD  nreserve2;						//保留
  }STRUCT_SDVR_INFO, *LPSTRUCT_SDVR_INFO;
 
@@ -250,12 +250,12 @@ typedef struct
 typedef struct
 {
 	char szSerialNumber[SERIALNO_LEN];		//保留
-	BYTE byAlarmInPortNum;					//DVR报警输入个数
-	BYTE byAlarmOutPortNum;					//DVR报警输出个数
-	BYTE byDiskNum;							//DVR硬盘个数
-	BYTE byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
-	BYTE byChanNum;							//DVR通道个数
-	BYTE byStartChan;						//保留
+	uint8_t byAlarmInPortNum;					//DVR报警输入个数
+	uint8_t byAlarmOutPortNum;					//DVR报警输出个数
+	uint8_t byDiskNum;							//DVR硬盘个数
+	uint8_t byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
+	uint8_t byChanNum;							//DVR通道个数
+	uint8_t byStartChan;						//保留
 	char szDvrName[NAME_LEN];				//主机名
 	char szChanName[MAX_CHANNUM][NAME_LEN];	//通道名称
 }STRUCT_SDVR_DEVICE, *LPSTRUCT_SDVR_DEVICE;
@@ -264,12 +264,12 @@ typedef struct
 typedef struct
 {
 	char sSerialNumber[SERIALNO_LEN];		//保留
-	BYTE byAlarmInPortNum;					//DVR报警输入个数
-	BYTE byAlarmOutPortNum;					//DVR报警输出个数
-	BYTE byDiskNum;							//DVR硬盘个数
-	BYTE byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
-	BYTE byChanNum;							//DVR通道个数
-	BYTE byStartChan;						//保留
+	uint8_t byAlarmInPortNum;					//DVR报警输入个数
+	uint8_t byAlarmOutPortNum;					//DVR报警输出个数
+	uint8_t byDiskNum;							//DVR硬盘个数
+	uint8_t byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
+	uint8_t byChanNum;							//DVR通道个数
+	uint8_t byStartChan;						//保留
 	char szDvrName[NAME_LEN];				//主机名
 	char szChanName[MAX_CHANNUM_EX][NAME_LEN];//通道名称
 }STRUCT_SDVR_DEVICE_EX, *LPSTRUCT_SDVR_DEVICE_EX;
@@ -278,116 +278,116 @@ typedef struct
 typedef struct
 {
 	DWORD dwSize;
-	BYTE sDVRName[NAME_LEN];				//DVR名称
+	uint8_t sDVRName[NAME_LEN];				//DVR名称
 	DWORD dwDVRID;							//保留
 	DWORD dwRecycleRecord;					//保留
-	BYTE sSerialNumber[SERIALNO_LEN];		//序列号
-	BYTE sSoftwareVersion[16];				//软件版本号
-	BYTE sSoftwareBuildDate[16];			//软件生成日期
+	uint8_t sSerialNumber[SERIALNO_LEN];		//序列号
+	uint8_t sSoftwareVersion[16];				//软件版本号
+	uint8_t sSoftwareBuildDate[16];			//软件生成日期
 	DWORD dwDSPSoftwareVersion;				//DSP软件版本
-	BYTE sPanelVersion[16];					//前面板版本
-	BYTE sHardwareVersion[16];				//保留
-	BYTE byAlarmInPortNum;					//DVR报警输入个数
-	BYTE byAlarmOutPortNum;					//DVR报警输出个数
-	BYTE byRS232Num;						//保留
-	BYTE byRS485Num;						//保留
-	BYTE byNetworkPortNum;					//保留
-	BYTE byDiskCtrlNum;						//保留
-	BYTE byDiskNum;							//DVR 硬盘个数
-	BYTE byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
-	BYTE byChanNum;							//DVR 通道个数
-	BYTE byStartChan;						//保留
-	BYTE byDecordChans;						//主机默认可接入的IP设备路数。混合DVR每一个机型都有一个默认可接入的IP设备路数，如8路机默认可接入4路IPC，16路机默认可接入8路IPC。
+	uint8_t sPanelVersion[16];					//前面板版本
+	uint8_t sHardwareVersion[16];				//保留
+	uint8_t byAlarmInPortNum;					//DVR报警输入个数
+	uint8_t byAlarmOutPortNum;					//DVR报警输出个数
+	uint8_t byRS232Num;						//保留
+	uint8_t byRS485Num;						//保留
+	uint8_t byNetworkPortNum;					//保留
+	uint8_t byDiskCtrlNum;						//保留
+	uint8_t byDiskNum;							//DVR 硬盘个数
+	uint8_t byDVRType;							//DVR类型, 1:DVR 2:ATM DVR 3:DVS （建议使用NET_SDVR_GET_DVRTYPE命令）
+	uint8_t byChanNum;							//DVR 通道个数
+	uint8_t byStartChan;						//保留
+	uint8_t byDecordChans;						//主机默认可接入的IP设备路数。混合DVR每一个机型都有一个默认可接入的IP设备路数，如8路机默认可接入4路IPC，16路机默认可接入8路IPC。
 	//（默认路数不是最大路数，8路机最大可接入4+8=12个IPC,16路机最大可接入8+16=24个IPC）。获取时有效，设置时该值无效。
-	BYTE byVGANum;							//保留
-	BYTE byUSBNum;							//保留
+	uint8_t byVGANum;							//保留
+	uint8_t byUSBNum;							//保留
  }STRUCT_SDVR_DEVICEINFO, *LPSTRUCT_SDVR_DEVICEINFO;
 
 //报警信息
 typedef struct
 {
-	WORD wAlarm;							//探头报警  按位：0-第一通道  1-第2通道 ...
-	WORD wVlost;							//视频丢失  ...
-	WORD wMotion;							//移动报警	...
-	WORD wHide;								//保留		视频遮挡报警20110908...	
-	BYTE byDisk[MAX_DISKNUM];				//保留		...
+	uint16_t wAlarm;							//探头报警  按位：0-第一通道  1-第2通道 ...
+	uint16_t wVlost;							//视频丢失  ...
+	uint16_t wMotion;							//移动报警	...
+	uint16_t wHide;								//保留		视频遮挡报警20110908...	
+	uint8_t byDisk[MAX_DISKNUM];				//保留		...
 }STRUCT_SDVR_ALARM, *LPSTRUCT_SDVR_ALARM;
 
 //报警信息(老8000)
 typedef struct
 {
-	WORD wAlarm;							//探头报警  按位：0-第一通道  1-第2通道 ...
-	WORD wVlost;							//视频丢失  ...
-	WORD wMotion;							//移动报警	...
-	WORD wHide;								//保留		...	
+	uint16_t wAlarm;							//探头报警  按位：0-第一通道  1-第2通道 ...
+	uint16_t wVlost;							//视频丢失  ...
+	uint16_t wMotion;							//移动报警	...
+	uint16_t wHide;								//保留		...	
 }STRUCT_SDVR_ALARM_OLD, *LPSTRUCT_SDVR_ALARM_OLD;
 
 //报警信息(扩展)
 typedef struct
 {
-	BYTE wAlarm[MAX_CHANNUM_EX];			//探头报警  0-无报警  1-有报警
-	BYTE wVlost[MAX_CHANNUM_EX];			//视频丢失  ...
-	BYTE wMotion[MAX_CHANNUM_EX];			//移动报警	...
-	BYTE wHide[MAX_CHANNUM_EX];				//保留		视频遮挡报警20110908...	
-	BYTE byDisk[MAX_DISKNUM];				//保留		...
+	uint8_t wAlarm[MAX_CHANNUM_EX];			//探头报警  0-无报警  1-有报警
+	uint8_t wVlost[MAX_CHANNUM_EX];			//视频丢失  ...
+	uint8_t wMotion[MAX_CHANNUM_EX];			//移动报警	...
+	uint8_t wHide[MAX_CHANNUM_EX];				//保留		视频遮挡报警20110908...	
+	uint8_t byDisk[MAX_DISKNUM];				//保留		...
 }STRUCT_SDVR_ALARM_EX, *LPSTRUCT_SDVR_ALARM_EX;
 
 //报警处理
 typedef struct
 {
 	DWORD dwHandleType;				//按位(2-声音报警,5-监视器最大化)
-	WORD wAlarmOut;					//报警输出触发通道 按位对应通道
+	uint16_t wAlarmOut;					//报警输出触发通道 按位对应通道
 }STRUCT_SDVR_HANDLEEXCEPTION, *LPSTRUCT_SDVR_HANDLEEXCEPTION;
 
 //报警处理(扩展)
 typedef struct
 {
 	DWORD dwHandleType;				//按位(2-声音报警,5-监视器最大化)
-	BYTE szAlarmOut[MAX_CHANNUM_EX];//报警输出触发通道按位对应通道
+	uint8_t szAlarmOut[MAX_CHANNUM_EX];//报警输出触发通道按位对应通道
 }STRUCT_SDVR_HANDLEEXCEPTION_EX, *LPSTRUCT_SDVR_HANDLEEXCEPTION_EX;
 
 //实时视频
 typedef struct
 {
-	BYTE byChannel;						//通道号
-	BYTE byLinkMode;					//0-主码流 1-子码流  
-	BYTE byMultiCast;					//保留
+	uint8_t byChannel;						//通道号
+	uint8_t byLinkMode;					//0-主码流 1-子码流  
+	uint8_t byMultiCast;					//保留
 	char szMultiCastIP[16];				//保留
-	WORD wPort;							//保留 
+	uint16_t wPort;							//保留 
 }STRUCT_SDVR_REALPLAY, *LPSTRUCT_SDVR_REALPLAY;
 
 //实时视频(扩展)
 typedef struct	
 {
-	BYTE	byChannel;					//通道号
-	BYTE	byLinkMode;					//0-主码流 1-子码流  
-	BYTE	byMultiCast;				//是否多播（当主机设置了多播模式，使用UDP方式开视频的时候会自动选择多播）
+	uint8_t	byChannel;					//通道号
+	uint8_t	byLinkMode;					//0-主码流 1-子码流  
+	uint8_t	byMultiCast;				//是否多播（当主机设置了多播模式，使用UDP方式开视频的时候会自动选择多播）
 	DWORD	sMultiCastIP;				//多播IP地址(大字节序)
-	BYTE	OSDCharEncodingScheme;		//OSD字符的编码格式
-	BYTE 	reserve[11];				//保留
-	WORD 	wPort;						//多播端口(小字节序)
+	uint8_t	OSDCharEncodingScheme;		//OSD字符的编码格式
+	uint8_t 	reserve[11];				//保留
+	uint16_t 	wPort;						//多播端口(小字节序)
 }STRUCT_SDVR_REALPLAY_EX, *LPSTRUCT_SDVR_REALPLAY_EX;
 
 //主动连接获取实时视频
 typedef struct
 {
 	DWORD msgid; //消息ID,该id 由平台生成，DVR 原封不动返回,msgid 用于平台区分主机新建立的socket 连接。使平台可以知道该socket,连接对应的命令。与byChannel 无关。
-	BYTE byChannel; //通道号
-	BYTE byLinkMode; // 0-主码流1-子码流
-	BYTE byMultiCast; //是否多播(当主机设置了多播模式，使用UDP 方式开视频的时候会自动选择多播)
-	BYTE OSDCharEncodingScheme; // OSD 字符的编码格式
+	uint8_t byChannel; //通道号
+	uint8_t byLinkMode; // 0-主码流1-子码流
+	uint8_t byMultiCast; //是否多播(当主机设置了多播模式，使用UDP 方式开视频的时候会自动选择多播)
+	uint8_t OSDCharEncodingScheme; // OSD 字符的编码格式
 	DWORD sMultiCastIP; //多播IP 地址(大字节序)
-	BYTE reserve1[10]; //保留
-	WORD wPort;//多播端口(小字节序)
-	BYTE reserve2[16]; //保留
+	uint8_t reserve1[10]; //保留
+	uint16_t wPort;//多播端口(小字节序)
+	uint8_t reserve2[16]; //保留
 }STRUCT_SDVR_REALPLAY_INITIATIVE,*LPSTRUCT_SDVR_REALPLAY_INITIATIVE;
 
 //关闭实时视频
 typedef struct
 {
-	BYTE byChannel;						//通道号
-	BYTE byLinkMode;					//位：0-主码流 1-子码流  
- 	WORD uPort;							//本地端口
+	uint8_t byChannel;						//通道号
+	uint8_t byLinkMode;					//位：0-主码流 1-子码流  
+ 	uint16_t uPort;							//本地端口
 }STRUCT_SDVR_REALPLAY_STOP, *LPSTRUCT_SDVR_REALPLAY_STOP;
 
 //视频参数
@@ -401,14 +401,14 @@ typedef struct
 
 typedef struct
 {	
-	WORD wStartTime;					//高8位表示小时 低8位表示分钟
-	WORD wEndTime;						//高8位表示小时 低8位表示分钟
+	uint16_t wStartTime;					//高8位表示小时 低8位表示分钟
+	uint16_t wEndTime;						//高8位表示小时 低8位表示分钟
 	STRUCT_SDVR_VIDEOPARAM VideoParam;
 }STRUCT_SDVR_SCHEDULE_VIDEOPARAM, *LPSTRUCT_SDVR_SCHEDULE_VIDEOPARAM;
 
 typedef struct
 {
-	BYTE	byChannel;					//通道号
+	uint8_t	byChannel;					//通道号
 	STRUCT_SDVR_SCHEDULE_VIDEOPARAM Schedule_VideoParam[2];	//一天包含2个时间段
 	STRUCT_SDVR_VIDEOPARAM Default_VideoParam;				//不在时间段内就使用默认
 }STRUCT_SDVR_VIDEOEFFECT,*LPSTRUCT_SDVR_VIDEOEFFECT;
@@ -416,7 +416,7 @@ typedef struct
 //云台控制
 typedef struct
 {
-	BYTE	byPort;						//云台端口号
+	uint8_t	byPort;						//云台端口号
 	DWORD	dwPTZCommand;				//云台控制命令
 	DWORD   dwStop;						//是否停止
 	DWORD	dwIndex;					//预制点号
@@ -425,9 +425,9 @@ typedef struct
 
 typedef struct
 {
-	BYTE byPort;						//云台端口号
+	uint8_t byPort;						//云台端口号
 	DWORD dwSize;						//云台控制码有效长度
-	BYTE szCtrlBuf[PTZ_SIZE];			//云台控制码数据
+	uint8_t szCtrlBuf[PTZ_SIZE];			//云台控制码数据
 }STRUCT_SDVR_PTZ_TRANS;
 
 //网络键盘
@@ -443,8 +443,8 @@ typedef struct
 	DWORD dwDVRIP;						//DVR IP地址
 	DWORD dwDVRIPMask;					//DVR IP地址掩码
 	DWORD dwNetInterface;				//网络接口 1-10MBase-T 2-10MBase-T全双工 3-100MBase-TX 4-100M全双工 5-10M/100M自适应
-	WORD wDVRPort;						//端口号
-	BYTE byMACAddr[MACADDR_LEN];		//服务器的物理地址
+	uint16_t wDVRPort;						//端口号
+	uint8_t byMACAddr[MACADDR_LEN];		//服务器的物理地址
 }STRUCT_SDVR_ETHERNET, *LPSTRUCT_SDVR_ETHERNET;
  
 typedef struct
@@ -452,25 +452,25 @@ typedef struct
 	DWORD dwSize;
 	STRUCT_SDVR_ETHERNET struEtherNet[MAX_ETHERNET]; /* 以太网口 */
 	DWORD dwManageHostIP;				//远程管理主机地址		 
-	WORD wManageHostPort;				//保存
+	uint16_t wManageHostPort;				//保存
 	DWORD dwDNSIP;						//DNS服务器地址  
 	DWORD dwMultiCastIP;				//多播组地址
 	DWORD dwGatewayIP;       			//网关地址 
 	DWORD dwNFSIP;						//保存
-	BYTE szNFSDirectory[PATHNAME_LEN];	//保存
+	uint8_t szNFSDirectory[PATHNAME_LEN];	//保存
 	DWORD dwPPPOE;						//0-不启用,1-启用
-	BYTE szPPPoEUser[NAME_LEN];			//PPPoE用户名
+	uint8_t szPPPoEUser[NAME_LEN];			//PPPoE用户名
 	char szPPPoEPassword[PASSWD_LEN];	//PPPoE密码
 	DWORD dwPPPoEIP;					//PPPoE IP地址(只读)
-	WORD wHttpPort;						//HTTP端口号
+	uint16_t wHttpPort;						//HTTP端口号
 }STRUCT_SDVR_NETINFO, *LPSTRUCT_SDVR_NETINFO;
 
 //移动侦测
 typedef struct
 {
-	BYTE byMotionScope[18][22];			//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
-	BYTE byMotionSensitive;				//移动侦测灵敏度, 0 - 5,越高越灵敏,0xff关闭 
-	BYTE byEnableHandleMotion;			//是否处理移动侦测
+	uint8_t byMotionScope[18][22];			//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
+	uint8_t byMotionSensitive;				//移动侦测灵敏度, 0 - 5,越高越灵敏,0xff关闭 
+	uint8_t byEnableHandleMotion;			//是否处理移动侦测
 	STRUCT_SDVR_HANDLEEXCEPTION struMotionHandleType;	//处理方式 
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];//布防时间
 	DWORD dwRelRecord;					//保留
@@ -479,22 +479,22 @@ typedef struct
 //移动侦测(扩展)
 typedef struct
 {
-	BYTE byMotionScope[18][22];			//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
-	BYTE byMotionSensitive;				//移动侦测灵敏度, 0 - 5,越高越灵敏,0xFF关闭 
-	BYTE byEnableHandleMotion;			//是否处理移动侦测 
+	uint8_t byMotionScope[18][22];			//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
+	uint8_t byMotionSensitive;				//移动侦测灵敏度, 0 - 5,越高越灵敏,0xFF关闭 
+	uint8_t byEnableHandleMotion;			//是否处理移动侦测 
 	STRUCT_SDVR_HANDLEEXCEPTION_EX struMotionHandleType;			//处理方式 
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];	//布防时间
-	BYTE dwRelRecord[MAX_CHANNUM_EX];	//保留
+	uint8_t dwRelRecord[MAX_CHANNUM_EX];	//保留
 }STRUCT_SDVR_MOTION_EX, *LPSTRUCT_SDVR_MOTION_EX;
 
 //遮挡报警区域为704*576
 typedef struct
 {
 	DWORD dwEnableHideAlarm;										//保留
-	WORD wHideAlarmAreaTopLeftX;									//保留
-	WORD wHideAlarmAreaTopLeftY;									//保留
-	WORD wHideAlarmAreaWidth;										//保留
-	WORD wHideAlarmAreaHeight;										//保留
+	uint16_t wHideAlarmAreaTopLeftX;									//保留
+	uint16_t wHideAlarmAreaTopLeftY;									//保留
+	uint16_t wHideAlarmAreaWidth;										//保留
+	uint16_t wHideAlarmAreaHeight;										//保留
 	STRUCT_SDVR_HANDLEEXCEPTION struHideAlarmHandleType;			//保留
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];	//保留
 }STRUCT_SDVR_HIDEALARM, *LPSTRUCT_SDVR_HIDEALARM;
@@ -503,10 +503,10 @@ typedef struct
 typedef struct
 {
 	DWORD dwEnableHideAlarm;										//保留
-	WORD wHideAlarmAreaTopLeftX;									//保留
-	WORD wHideAlarmAreaTopLeftY;									//保留
-	WORD wHideAlarmAreaWidth;										//保留
-	WORD wHideAlarmAreaHeight;										//保留
+	uint16_t wHideAlarmAreaTopLeftX;									//保留
+	uint16_t wHideAlarmAreaTopLeftY;									//保留
+	uint16_t wHideAlarmAreaWidth;										//保留
+	uint16_t wHideAlarmAreaHeight;										//保留
 	STRUCT_SDVR_HANDLEEXCEPTION_EX stHideAlarmHandleType;			//保留
 	STRUCT_SDVR_SCHEDTIME stAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];	//保留
 }STRUCT_SDVR_HIDEALARM_EX, *LPSTRUCT_SDVR_HIDEALARM_EX;
@@ -514,7 +514,7 @@ typedef struct
 //信号丢失报警
 typedef struct
 {
-	BYTE byEnableHandleVILost;										//是否处理信号丢失报警 
+	uint8_t byEnableHandleVILost;										//是否处理信号丢失报警 
 	STRUCT_SDVR_HANDLEEXCEPTION stVILostHandleType;					//处理方式 	
 	STRUCT_SDVR_SCHEDTIME stAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];	//布防时间
 }STRUCT_SDVR_VILOST;
@@ -522,7 +522,7 @@ typedef struct
 //信号丢失报警
 typedef struct
 {
-	BYTE byEnableHandleVILost;										//是否处理信号丢失报警 
+	uint8_t byEnableHandleVILost;										//是否处理信号丢失报警 
 	STRUCT_SDVR_HANDLEEXCEPTION_EX strVILostHandleType;				//处理方式 	
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];	//布防时间
 }STRUCT_SDVR_VILOST_EX;
@@ -530,83 +530,83 @@ typedef struct
 //遮盖区域
 typedef struct
 {
-	WORD wHideAreaTopLeftX;						//遮盖区域的x坐标  
-	WORD wHideAreaTopLeftY;						//遮盖区域的y坐标  
-	WORD wHideAreaWidth;						//遮盖区域的宽 
-	WORD wHideAreaHeight;						//遮盖区域的高 
+	uint16_t wHideAreaTopLeftX;						//遮盖区域的x坐标  
+	uint16_t wHideAreaTopLeftY;						//遮盖区域的y坐标  
+	uint16_t wHideAreaWidth;						//遮盖区域的宽 
+	uint16_t wHideAreaHeight;						//遮盖区域的高 
 }STRUCT_SDVR_SHELTER, *LPSTRUCT_SDVR_SHELTER;
 
 //图像参数
 typedef struct
 {
-	BYTE byChannel;
+	uint8_t byChannel;
 	DWORD dwSize;
-	BYTE sChanName[NAME_LEN];						//通道名
+	uint8_t sChanName[NAME_LEN];						//通道名
 	DWORD dwVideoFormat;							//保留 
-	BYTE byBrightness;  							//保留
-	BYTE byContrast;    							//保留	
-	BYTE bySaturation;  							//保留
-	BYTE byHue;    									//保留 	
+	uint8_t byBrightness;  							//保留
+	uint8_t byContrast;    							//保留	
+	uint8_t bySaturation;  							//保留
+	uint8_t byHue;    									//保留 	
 	DWORD dwShowChanName;							//保留
-	WORD wShowNameTopLeftX;							//通道名称显示位置的x坐标 
-	WORD wShowNameTopLeftY;							//通道名称显示位置的y坐标  
+	uint16_t wShowNameTopLeftX;							//通道名称显示位置的x坐标 
+	uint16_t wShowNameTopLeftY;							//通道名称显示位置的y坐标  
 	STRUCT_SDVR_VILOST struVILost;					//信号丢失报警
 	STRUCT_SDVR_MOTION struMotion;					//移动侦测
 	STRUCT_SDVR_HIDEALARM struHideAlarm;			//保留
 	DWORD dwEnableHide;								//是否启动遮盖(0-禁用,1-实时屏蔽,2-回放屏蔽,3-全屏蔽)
 	STRUCT_SDVR_SHELTER	struShelter[MAX_SHELTERNUM];//保留
 	DWORD dwShowOsd;								//保留
-	WORD wOSDTopLeftX;								//保留
-	WORD wOSDTopLeftY;								//保留
-	BYTE byOSDType;									//保留
-	BYTE byDispWeek;								//保留	
-	BYTE byOSDAttrib;								//通道名 1-不透明 2-透明
+	uint16_t wOSDTopLeftX;								//保留
+	uint16_t wOSDTopLeftY;								//保留
+	uint8_t byOSDType;									//保留
+	uint8_t byDispWeek;								//保留	
+	uint8_t byOSDAttrib;								//通道名 1-不透明 2-透明
 }STRUCT_SDVR_PICINFO, *LPSTRUCT_SDVR_PICINFO;
 
 //图像参数(扩展)
 typedef struct
 {
-	BYTE byChannel;
+	uint8_t byChannel;
 	DWORD dwSize;
-	BYTE sChanName[NAME_LEN];						//通道名
+	uint8_t sChanName[NAME_LEN];						//通道名
 	DWORD dwVideoFormat;							//保留 
-	BYTE byBrightness;  							//保留
-	BYTE byContrast;    							//保留	
-	BYTE bySaturation;  							//保留
-	BYTE byHue;										//保留 	
+	uint8_t byBrightness;  							//保留
+	uint8_t byContrast;    							//保留	
+	uint8_t bySaturation;  							//保留
+	uint8_t byHue;										//保留 	
 	DWORD dwShowChanName;							//保留
-	WORD wShowNameTopLeftX;							//通道名称显示位置的x坐标 
-	WORD wShowNameTopLeftY;							//通道名称显示位置的y坐标  
+	uint16_t wShowNameTopLeftX;							//通道名称显示位置的x坐标 
+	uint16_t wShowNameTopLeftY;							//通道名称显示位置的y坐标  
 	STRUCT_SDVR_VILOST_EX struVILost;				//信号丢失报警
 	STRUCT_SDVR_MOTION_EX struMotion;				//移动侦测
 	STRUCT_SDVR_HIDEALARM_EX struHideAlarm;			//保留
 	DWORD dwEnableHide;								//是否启动遮盖 ,0-否,1-是  
 	STRUCT_SDVR_SHELTER	stShelter[MAX_SHELTERNUM];	//保留
 	DWORD dwShowOsd;								//保留
-	WORD wOSDTopLeftX;								//保留
-	WORD wOSDTopLeftY;								//保留
-	BYTE byOSDType;									//保留
-	BYTE byDispWeek;								//保留	
-	BYTE byOSDAttrib;								//通道名 1-不透明 2-透明
+	uint16_t wOSDTopLeftX;								//保留
+	uint16_t wOSDTopLeftY;								//保留
+	uint8_t byOSDType;									//保留
+	uint8_t byDispWeek;								//保留	
+	uint8_t byOSDAttrib;								//通道名 1-不透明 2-透明
 }STRUCT_SDVR_PICINFO_EX, *LPSTRUCT_SDVR_PICINFO_EX;
 
 
 //编码压缩参数
 typedef struct
 {
-	BYTE byStreamType;								//码流类型	0-无音频 ,1-有音频
-	BYTE byResolution;								//分辨率	0-CIF 1-HD1, 2-D1, 3-QCIF
-	BYTE byBitrateType;								//码率类型	0:变码率 1:定码率 2:定画质
-	BYTE byPicQuality;								//图象质量	1-最好 2-次好 3-较好 4-一般 5-较差 6-差	 改成：最高，较高，高，中，低，最低
+	uint8_t byStreamType;								//码流类型	0-无音频 ,1-有音频
+	uint8_t byResolution;								//分辨率	0-CIF 1-HD1, 2-D1, 3-QCIF
+	uint8_t byBitrateType;								//码率类型	0:变码率 1:定码率 2:定画质
+	uint8_t byPicQuality;								//图象质量	1-最好 2-次好 3-较好 4-一般 5-较差 6-差	 改成：最高，较高，高，中，低，最低
 	DWORD dwVideoBitrate;							//视频码率 0-100K，1-128K，2-256K，3-512K，4-1M，5-2M，6-3M，7-4M
 	DWORD dwVideoFrameRate;							//帧率		2 至 25
 }STRUCT_SDVR_COMPRESSION, *LPSTRUCT_SDVR_COMPRESSION;
 
 typedef struct
 {
-	BYTE byChannel;									//通道号   //BYTE
+	uint8_t byChannel;									//通道号   //uint8_t
 	DWORD dwSize;									//结构体大小
-	BYTE byRecordType;								//0x0:手动录像，0x1:定时录象，0x2:移动侦测，0x3:报警，0x0f:所有类型
+	uint8_t byRecordType;								//0x0:手动录像，0x1:定时录象，0x2:移动侦测，0x3:报警，0x0f:所有类型
 	STRUCT_SDVR_COMPRESSION stRecordPara;			//录像流（主码流）
 	STRUCT_SDVR_COMPRESSION stNetPara;				//网传流（子码流）
 }STRUCT_SDVR_COMPRESSINFO, *LPSTRUCT_SDVR_COMPRESSINFO;
@@ -615,20 +615,20 @@ typedef struct
 typedef struct
 {
 	STRUCT_SDVR_SCHEDTIME stRecordTime;				//录像时段
-	BYTE byRecordType;								//保留	
+	uint8_t byRecordType;								//保留	
 	char reservedData[3];
 }STRUCT_SDVR_RECORDSCHED, *LPSTRUCT_SDVR_RECORDSCHED;
 
 typedef struct
 {
-	WORD wAllDayRecord;								//保留	
-	BYTE byRecordType;								//保留	
+	uint16_t wAllDayRecord;								//保留	
+	uint8_t byRecordType;								//保留	
 	char reservedData;
 }STRUCT_SDVR_RECORDDAY, *LPSTRUCT_SDVR_RECORDDAY;
 
 typedef struct
 {
-	BYTE byChannel;									//通道号
+	uint8_t byChannel;									//通道号
 	DWORD dwSize;									//结构大小
 	DWORD dwRecord;									//是否录像 0-否 1-是 
 	STRUCT_SDVR_RECORDDAY stRecAllDay[MAX_DAYS];	//星期
@@ -639,85 +639,85 @@ typedef struct
 //云台协议
 typedef struct
 {
-	int nPTZNum;
+	int32_t nPTZNum;
 	char szPTZProtocol[MAXPTZNUM][10];
 }STRUCT_SDVR_PTZTYPE, *LPSTRUCT_SDVR_PTZTYPE;
 
 //解码器参数(云台参数)
 typedef struct	{
-	BYTE byChannel;
+	uint8_t byChannel;
 	DWORD dwSize;
 	DWORD dwBaudRate;								//波特率(bps)// 50 75 110 150 300 600 1200 2400 4800 9600 19200 38400 57600 76800 115.2k 
-	BYTE byDataBit;									//数据位 5 6 7 8
-	BYTE byStopBit;									//停止位 1 2 
-	BYTE byParity;									//保留
-	BYTE byFlowcontrol;								//保留
-	WORD wDecoderType;								//0-unknow 1-RV800  2-TOTA120 3-S1601 4-CLT-168 5-TD-500  6-V1200 7-ZION 8-ANT 9-CBC 10-CS850A 
+	uint8_t byDataBit;									//数据位 5 6 7 8
+	uint8_t byStopBit;									//停止位 1 2 
+	uint8_t byParity;									//保留
+	uint8_t byFlowcontrol;								//保留
+	uint16_t wDecoderType;								//0-unknow 1-RV800  2-TOTA120 3-S1601 4-CLT-168 5-TD-500  6-V1200 7-ZION 8-ANT 9-CBC 10-CS850A 
 													//11-CONCORD 12-HD600 13-SAMSUNG 14-YAAN 15-PIH 16-MG-CS160 17-WISDOM 18-PELCOD1 19-PELCOD2 20-PELCOD3 
 													//21-PELCOD4 22-PELCOP1 23-PELCOP2 24-PELCOP3 25-Philips 26-NEOCAM  27-ZHCD 28-DongTian 29-PELCOD5 30-PELCOD6
 													//31-Emerson 32-TOTA160 33-PELCOP5
-	WORD wDecoderAddress;							//解码器地址:0 - 255 
-	long byUarType;   //串口类别RS-485串口0; sdi-485 1; TVI485 2；这里的TVI485不是串口，只是一种通讯类型 
-	BYTE bySetPreset[MAX_PRESET - 4];					//保留
-	BYTE bySetCruise[MAX_PRESET];					//保留
-	BYTE bySetTrack[MAX_PRESET];					//保留
+	uint16_t wDecoderAddress;							//解码器地址:0 - 255 
+	int32_t byUarType;   //串口类别RS-485串口0; sdi-485 1; TVI485 2；这里的TVI485不是串口，只是一种通讯类型
+	uint8_t bySetPreset[MAX_PRESET - 4];					//保留
+	uint8_t bySetCruise[MAX_PRESET];					//保留
+	uint8_t bySetTrack[MAX_PRESET];					//保留
 }STRUCT_SDVR_DECODERINFO, *LPSTRUCT_SDVR_DECODERINFO;
 
 //报警输入参数
 typedef struct
 {
-	BYTE byChannel;									//编号
+	uint8_t byChannel;									//编号
 	DWORD dwSize;									//结构体大小
-	BYTE szAlarmInName[NAME_LEN];					//报警通道名
-	BYTE byAlarmType;								//保留
-	BYTE byAlarmInHandle;							//是否处理 0-1
+	uint8_t szAlarmInName[NAME_LEN];					//报警通道名
+	uint8_t byAlarmType;								//保留
+	uint8_t byAlarmInHandle;							//是否处理 0-1
 	STRUCT_SDVR_HANDLEEXCEPTION struAlarmHandleType;//处理方式 
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];//布防时间
-	BYTE byRelRecordChan[MAX_CHANNUM];				//报警触发的录象通道,为1表示触发该通道
-	BYTE byEnablePreset[MAX_CHANNUM];				//是否调用预置点 仅用byEnablePreset[0]来判断;
-	BYTE byPresetNo[MAX_CHANNUM];					//调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 
-	BYTE byEnableCruise[MAX_CHANNUM];				//保留
-	BYTE byCruiseNo[MAX_CHANNUM];					//保留
-	BYTE byEnablePtzTrack[MAX_CHANNUM];				//保留 
-	BYTE byPTZTrack[MAX_CHANNUM];					//保留
-	BYTE byRecordTm;								//报警录像时间 1-99秒 
+	uint8_t byRelRecordChan[MAX_CHANNUM];				//报警触发的录象通道,为1表示触发该通道
+	uint8_t byEnablePreset[MAX_CHANNUM];				//是否调用预置点 仅用byEnablePreset[0]来判断;
+	uint8_t byPresetNo[MAX_CHANNUM];					//调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 
+	uint8_t byEnableCruise[MAX_CHANNUM];				//保留
+	uint8_t byCruiseNo[MAX_CHANNUM];					//保留
+	uint8_t byEnablePtzTrack[MAX_CHANNUM];				//保留 
+	uint8_t byPTZTrack[MAX_CHANNUM];					//保留
+	uint8_t byRecordTm;								//报警录像时间 1-99秒 
 }STRUCT_SDVR_ALARMININFO, *LPSTRUCT_SDVR_ALARMININFO;
 
 //报警输入参数(扩展)
 typedef struct	{
-	BYTE byChannel;									//编号
+	uint8_t byChannel;									//编号
 	DWORD dwSize;									//结构体大小
-	BYTE sAlarmInName[NAME_LEN];					//报警通道名
-	BYTE byAlarmType;								//保留
-	BYTE byAlarmInHandle;							//是否处理 0-1
+	uint8_t sAlarmInName[NAME_LEN];					//报警通道名
+	uint8_t byAlarmType;								//保留
+	uint8_t byAlarmInHandle;							//是否处理 0-1
 	STRUCT_SDVR_HANDLEEXCEPTION_EX struAlarmHandleType;//处理方式 
 	STRUCT_SDVR_SCHEDTIME struAlarmTime[MAX_DAYS][MAX_TIMESEGMENT];//布防时间
-	BYTE byRelRecordChan[MAX_CHANNUM_EX];			//报警触发的录象通道,为1表示触发该通道
-	BYTE byEnablePreset[MAX_CHANNUM_EX];			//是否调用预置点 仅用byEnablePreset[0]来判断;
-	BYTE byPresetNo[MAX_CHANNUM_EX];				//调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 
-	BYTE byEnableCruise[MAX_CHANNUM_EX];			//保留
-	BYTE byCruiseNo[MAX_CHANNUM_EX];				//保留
-	BYTE byEnablePtzTrack[MAX_CHANNUM_EX];			//保留 
-	BYTE byPTZTrack[MAX_CHANNUM_EX];				//保留
-	BYTE byRecordTm;								//报警录像时间 1-99秒 
+	uint8_t byRelRecordChan[MAX_CHANNUM_EX];			//报警触发的录象通道,为1表示触发该通道
+	uint8_t byEnablePreset[MAX_CHANNUM_EX];			//是否调用预置点 仅用byEnablePreset[0]来判断;
+	uint8_t byPresetNo[MAX_CHANNUM_EX];				//调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 
+	uint8_t byEnableCruise[MAX_CHANNUM_EX];			//保留
+	uint8_t byCruiseNo[MAX_CHANNUM_EX];				//保留
+	uint8_t byEnablePtzTrack[MAX_CHANNUM_EX];			//保留 
+	uint8_t byPTZTrack[MAX_CHANNUM_EX];				//保留
+	uint8_t byRecordTm;								//报警录像时间 1-99秒 
 }STRUCT_SDVR_ALARMININFO_EX, *LPSTRUCT_SDVR_ALARMININFO_EX;
 
 //报警输出参数
 typedef struct
 {
-	BYTE byChannel;									//编号
+	uint8_t byChannel;									//编号
 	DWORD dwSize;									//结构大小
-	BYTE sAlarmOutName[NAME_LEN];					//名称 
+	uint8_t sAlarmOutName[NAME_LEN];					//名称 
 	DWORD dwAlarmOutDelay;							//输出保持时间 单位秒
-	BYTE byEnSchedule;								//报警输出布防时间激活 0-屏蔽 1-激活 
+	uint8_t byEnSchedule;								//报警输出布防时间激活 0-屏蔽 1-激活 
 	STRUCT_SDVR_SCHEDTIME struAlarmOutTime[MAX_DAYS][MAX_TIMESEGMENT];// 报警输出激活时间段 				
 }STRUCT_SDVR_ALARMOUTINFO, *LPSTRUCT_SDVR_ALARMOUTINFO;
 
 //用户权限
 typedef struct
 {
-	BYTE sUserName[NAME_LEN];						//用户名 
-	BYTE sPassword[PASSWD_LEN];						//密码 
+	uint8_t sUserName[NAME_LEN];						//用户名 
+	uint8_t sPassword[PASSWD_LEN];						//密码 
 	DWORD dwLocalRight[MAX_RIGHT];					//本地权限 
 	DWORD dwRemoteRight[MAX_RIGHT];					//远程权限 
 	/*数组 0: 通道权限*/
@@ -738,18 +738,18 @@ typedef struct
 	/*数组 15: 报警清除*/
 	/*数组 16: 远程预览*/
 	DWORD dwUserIP;									//用户IP地址(为0时表示允许任何地址) 
-	BYTE byMACAddr[MACADDR_LEN];					//物理地址 	
+	uint8_t byMACAddr[MACADDR_LEN];					//物理地址 	
 }STRUCT_SDVR_USER_INFO,*LPSTRUCT_SDVR_USER_INFO;
 
 //用户权限(扩展)
 typedef struct
 {
-	BYTE sUserName[NAME_LEN];						//用户名
-	BYTE sPassword[PASSWD_LEN];						//密码
-	BYTE dwLocalRight[MAX_RIGHT];					//本地权限
-	BYTE LocalChannel[MAX_CHANNUM_EX];				//本地通道权限
-	BYTE dwRemoteRight[MAX_RIGHT];					//远程权限
-	BYTE RemoteChannel[MAX_CHANNUM_EX];				//远程通道权限
+	uint8_t sUserName[NAME_LEN];						//用户名
+	uint8_t sPassword[PASSWD_LEN];						//密码
+	uint8_t dwLocalRight[MAX_RIGHT];					//本地权限
+	uint8_t LocalChannel[MAX_CHANNUM_EX];				//本地通道权限
+	uint8_t dwRemoteRight[MAX_RIGHT];					//远程权限
+	uint8_t RemoteChannel[MAX_CHANNUM_EX];				//远程通道权限
 	/*数组 0: 通道权限*/
 	/*数组 1: 显示设置*/
 	/*数组 2: 录像参数*/
@@ -768,7 +768,7 @@ typedef struct
 	/*数组 15: 报警清除*/
 	/*数组 16: 远程预览*/
 	DWORD dwUserIP;									//用户IP地址(为0时表示允许任何地址) 
-	BYTE byMACAddr[MACADDR_LEN];					//物理地址 	
+	uint8_t byMACAddr[MACADDR_LEN];					//物理地址 	
 }STRUCT_SDVR_USER_INFO_EX, *LPSTRUCT_SDVR_USER_INFO_EX;
 
 typedef struct
@@ -790,12 +790,12 @@ typedef struct
 	char sDNSUser[INFO_LEN];						//DNS账号
 	char sDNSPassword[INFO_LEN];					//DNS账号
 	char sDNSAddress[INFO_SEQ][INFO_LEN];			//DNS解析地址
-	BYTE sDNSALoginddress;							//DNS解析地址中sDNSAddress数组中的指定解析地址的行数
-	BYTE sDNSAutoCon;								//DNS自动重连
-	BYTE sDNSState;									//DNS登陆  0-注销 1-登陆
-	BYTE sDNSSave;									//DNS信息保存
-	WORD sDNServer;									//0-- hanbang.org.cn 1--oray.net 2--dyndns.com
-	WORD reserve;									//1--立刻重启，0--不重启
+	uint8_t sDNSALoginddress;							//DNS解析地址中sDNSAddress数组中的指定解析地址的行数
+	uint8_t sDNSAutoCon;								//DNS自动重连
+	uint8_t sDNSState;									//DNS登陆  0-注销 1-登陆
+	uint8_t sDNSSave;									//DNS信息保存
+	uint16_t sDNServer;									//0-- hanbang.org.cn 1--oray.net 2--dyndns.com
+	uint16_t reserve;									//1--立刻重启，0--不重启
 }STRUCT_SDVR_DNS, *LPSTRUCT_SDVR_DNS;
 
 //DNS(扩展)
@@ -804,26 +804,26 @@ typedef struct	{
 	char sDNSUser[INFO_LEN];							//DNS账号
 	char sDNSPassword[INFO_LEN];					//DNS账号
 	char sDNSAddress[INFO_SEQ][INFO_LEN];	//DNS解析地址
-	BYTE sDNSALoginddress;							//DNS解析地址中sDNSAddress数组中的指定解析地址的行数
-	BYTE sDNSAutoCon;									//DNS自动重连
-	BYTE sDNSState;										//DNS登陆  0-注销 1-登陆
-	BYTE sDNSSave;											//DNS信息保存
-	WORD sDNServer;             // 0--hanbang.org.cn 1--oray.net 2--dyndns.com 3--no-ip.com
+	uint8_t sDNSALoginddress;							//DNS解析地址中sDNSAddress数组中的指定解析地址的行数
+	uint8_t sDNSAutoCon;									//DNS自动重连
+	uint8_t sDNSState;										//DNS登陆  0-注销 1-登陆
+	uint8_t sDNSSave;											//DNS信息保存
+	uint16_t sDNServer;             // 0--hanbang.org.cn 1--oray.net 2--dyndns.com 3--no-ip.com
 	// 4--ddns.hbgk.net (扩展) 5--www.meibu.com 6--freedns.afraid.org 7--multi.super-ddns.com
-	BYTE  autoregist;				//用于表示DDNS自动注册时用户名是否默认，0-不默认，1-默认
-	BYTE  revserse;					//保留
-	BYTE sDNSname[128];		//域名服务器
+	uint8_t  autoregist;				//用于表示DDNS自动注册时用户名是否默认，0-不默认，1-默认
+	uint8_t  revserse;					//保留
+	uint8_t sDNSname[128];		//域名服务器
 }STRUCT_SDVR_DNS_EX, *LPSTRUCT_SDVR_DNS_EX;
 
 //PPPoE
 typedef struct
 {
 	DWORD dwSize;
-	BYTE szPPPoEUser[INFO_LEN];						//PPPoE用户名
+	uint8_t szPPPoEUser[INFO_LEN];						//PPPoE用户名
 	char szPPPoEPassword[INFO_LEN];					//PPPoE密码
-	BYTE byPPPoEAutoCon;							//PPPoE自动重连
-	BYTE byPPPoEState;								//PPPoE登陆  0-注销 1-登陆
-	BYTE byPPPoESave;								//DNS信息保存
+	uint8_t byPPPoEAutoCon;							//PPPoE自动重连
+	uint8_t byPPPoEState;								//PPPoE登陆  0-注销 1-登陆
+	uint8_t byPPPoESave;								//DNS信息保存
 	char reservedData;
 }STRUCT_SDVR_PPPoE, *LPSTRUCT_SDVR_PPPoE;
 
@@ -846,29 +846,29 @@ typedef struct
 //平台信息(扩展)
 typedef struct
 {
-	BYTE szRemoteIP[16];							//远端IP地址
-	BYTE szLocalIP[16];								//本地IP地址
-	BYTE szLocalIPMask[16];							//本地IP地址掩码
-	BYTE szUsername[NAME_LEN];						//用户名
-	BYTE szPassword[PASSWD_LEN];					//密码
-	BYTE byPPPMode;									//PPP模式, 0－主动，1－被动	
-	BYTE byRedial;									//是否回拨 ：0-否,1-是
-	BYTE byRedialMode;								//回拨模式,0-由拨入者指定,1-预置回拨号码
-	BYTE byDataEncrypt;								//数据加密,0-否,1-是
+	uint8_t szRemoteIP[16];							//远端IP地址
+	uint8_t szLocalIP[16];								//本地IP地址
+	uint8_t szLocalIPMask[16];							//本地IP地址掩码
+	uint8_t szUsername[NAME_LEN];						//用户名
+	uint8_t szPassword[PASSWD_LEN];					//密码
+	uint8_t byPPPMode;									//PPP模式, 0－主动，1－被动	
+	uint8_t byRedial;									//是否回拨 ：0-否,1-是
+	uint8_t byRedialMode;								//回拨模式,0-由拨入者指定,1-预置回拨号码
+	uint8_t byDataEncrypt;								//数据加密,0-否,1-是
 	DWORD dwMTU;									//MTU
-	BYTE sTelephoneNumber[PHONENUMBER_LEN];			//电话号码
+	uint8_t sTelephoneNumber[PHONENUMBER_LEN];			//电话号码
 }STRUCT_SDVR_PPPCFG, *LPSTRUCT_SDVR_PPPCFG;
 
 //串口信息
 typedef struct
 {
-	BYTE byChannel;
+	uint8_t byChannel;
 	DWORD dwSize;
 	DWORD dwBaudRate;								//波特率(bps)  
-	BYTE byDataBit;									//数据有几位 5－8 
-	BYTE byStopBit;									//停止位 1-2 
-	BYTE byParity;									//校验 0－无校验，1－奇校验，2－偶校验;
-	BYTE byFlowcontrol;								//0－无，1－软流控,2-硬流控
+	uint8_t byDataBit;									//数据有几位 5－8 
+	uint8_t byStopBit;									//停止位 1-2 
+	uint8_t byParity;									//校验 0－无校验，1－奇校验，2－偶校验;
+	uint8_t byFlowcontrol;								//0－无，1－软流控,2-硬流控
 	DWORD dwWorkMode;								//保留
 	STRUCT_SDVR_PPPCFG struPPPConfig;				//保留
 }STRUCT_SDVR_SERIALINFO, *LPSTRUCT_SDVR_SERIALINFO;
@@ -887,7 +887,7 @@ typedef struct
 //历史日志信息
 typedef struct
 {
-	BYTE byChannel;									//通道号
+	uint8_t byChannel;									//通道号
 	DWORD dwFileType;								//文件类型(0-全部,1-定时录像,2-移动侦测,3-报警触发,4-命令触发)	
 	STRUCT_SDVR_TIME stStartTime;					//录像开始时间
 	STRUCT_SDVR_TIME stStopTime;					//录像结束时间
@@ -905,16 +905,16 @@ typedef struct
 //下载
 typedef struct 
 {
-	BYTE year;										//年
-	BYTE month;										//月
-	BYTE day;										//日
-	BYTE channel;									//通道
-	BYTE bgn_hour;									//开始时
-	BYTE bgn_minute;								//开始分
-	BYTE bgn_second;								//开始秒
-	BYTE end_hour;									//结束时
-	BYTE end_minute;								//结束分
-	BYTE end_second;								//结束秒
+	uint8_t year;										//年
+	uint8_t month;										//月
+	uint8_t day;										//日
+	uint8_t channel;									//通道
+	uint8_t bgn_hour;									//开始时
+	uint8_t bgn_minute;								//开始分
+	uint8_t bgn_second;								//开始秒
+	uint8_t end_hour;									//结束时
+	uint8_t end_minute;								//结束分
+	uint8_t end_second;								//结束秒
 }TREC_BACKUPTIME, *LPTREC_BACKUPTIME;
 
 
@@ -930,9 +930,9 @@ typedef struct
 //通道状态
 typedef struct
 {
-	BYTE byRecordStatic;							//通道是否在录像,0-不录像,1-录像
-	BYTE bySignalStatic;							//连接的信号状态,0-正常,1-信号丢失
-	BYTE byHardwareStatic;							//保留
+	uint8_t byRecordStatic;							//通道是否在录像,0-不录像,1-录像
+	uint8_t bySignalStatic;							//连接的信号状态,0-正常,1-信号丢失
+	uint8_t byHardwareStatic;							//保留
 	char reservedData;
 	DWORD dwBitRate;								//实际码率
 	DWORD dwLinkNum;								//客户端连接的个数
@@ -964,17 +964,17 @@ typedef struct
 //报警输出状态
 typedef struct
 {
-	BYTE byAlarm;											//报警输出状态 0-不报警 1-报警
-	WORD wAlarm;											//报警输出状态 bit0-15代表16个报警输出, 0-状态不变 1-执行byAlarm操作
+	uint8_t byAlarm;											//报警输出状态 0-不报警 1-报警
+	uint16_t wAlarm;											//报警输出状态 bit0-15代表16个报警输出, 0-状态不变 1-执行byAlarm操作
 }STRUCT_SDVR_ALARMOUT, *LPSTRUCT_SDVR_ALARMOUT;
 
 //预置点
 typedef struct
 {
 	DWORD  byChannel;										//设置通道
-	WORD Preset[PRESETNUM];
-	WORD PresetPoll;										//多预置点轮巡开启或关闭表示1-255
-	WORD presettime;										//多预置点轮巡时间			1-99
+	uint16_t Preset[PRESETNUM];
+	uint16_t PresetPoll;										//多预置点轮巡开启或关闭表示1-255
+	uint16_t presettime;										//多预置点轮巡时间			1-99
 }STRUCT_DVR_PRESETPOLL, *LPSTRUCT_DVR_PRESETPOLL;
 
 //格式化硬盘
@@ -1019,29 +1019,29 @@ typedef struct
 	DWORD dwEnable;											//启用？0-禁用，1-启用
 	DWORD dwPeriod;											//轮训间隔，单位秒
 	DWORD dwFormat;											//画面格式：0-0ff, 1-1,  4-2x2, 9-3x3, 16-4x4
-	BYTE byCh_list[MAX_CHANNUM_EX];
+	uint8_t byCh_list[MAX_CHANNUM_EX];
 }STRUCT_SDVR_POLLCONFIG, *LPSTRUCT_SDVR_POLLCONFIG;
 
 typedef struct 
 {
-	BYTE byMatrix_channel[MAX_CHANNUM_EX];					//视频矩阵对应通道 从1开始，0xff表示关闭
-	BYTE byReserve[32];										//保留位
+	uint8_t byMatrix_channel[MAX_CHANNUM_EX];					//视频矩阵对应通道 从1开始，0xff表示关闭
+	uint8_t byReserve[32];										//保留位
 }STRUCT_SDVR_VIDEOMATRIX, *LPSTRUCT_SDVR_VIDEOMATRIX;
 
 //历史视频日志
 typedef struct
 {
-	unsigned uSecond : 6;			//秒: 0~59
-	unsigned uMinute : 6;			//分: 0~59
-	unsigned uHour : 5;				//时: 0~23
-	unsigned uDay : 5;				//日: 1~31
-	unsigned uMonth : 4;			//月: 1~12
-	unsigned nYear : 6;				//年: 2000~2063
+	uint32_t uSecond : 6;			//秒: 0~59
+	uint32_t uMinute : 6;			//分: 0~59
+	uint32_t uHour : 5;				//时: 0~23
+	uint32_t uDay : 5;				//日: 1~31
+	uint32_t uMonth : 4;			//月: 1~12
+	uint32_t nYear : 6;				//年: 2000~2063
 }MFS_FIELD_TIME, *LPMFS_FIELD_TIME;
 
 typedef union
 {
-	unsigned int nLogTime;
+	uint32_t nLogTime;
 	MFS_FIELD_TIME stFieldTime;
 }UNMFS_TIME, *LPUNMFS_TIME;
 
@@ -1049,12 +1049,12 @@ typedef union
 //0-查询失败，pc端可以再次查询；1-查询成功，并且每天都有录像数据；2-查询成功，并且至少有一天没有录像数据
 typedef struct
 {
-	BYTE byChannel;
-	BYTE byType;		//手动录像--0x01, 定时录像--0x02, 移动录像--0x03, 报警录像--0x04, 全部录像--0xFF或0x00
+	uint8_t byChannel;
+	uint8_t byType;		//手动录像--0x01, 定时录像--0x02, 移动录像--0x03, 报警录像--0x04, 全部录像--0xFF或0x00
 	UNMFS_TIME unStartTime;
 	UNMFS_TIME unEndTime;
-	WORD dwStart;
-	WORD dwNum;	//一次查询的个数，现在定义是100 
+	uint16_t dwStart;
+	uint16_t dwNum;	//一次查询的个数，现在定义是100 
 	//协议二中该项定义为码流类型，0-主码流，1-子码流 
 }STRUCT_SDVR_RECFIND, *LPSTRUCT_SDVR_RECFIND;
 
@@ -1063,11 +1063,11 @@ typedef struct
 {
 	UNMFS_TIME unStartTime;
 	UNMFS_TIME unEndTime;
-	unsigned int uLenght;
-	BYTE byChannel;
-	BYTE byType;
-	BYTE byReserve1;
-	BYTE byReserve2;
+	uint32_t uLenght;
+	uint8_t byChannel;
+	uint8_t byType;
+	uint8_t byReserve1;
+	uint8_t byReserve2;
 }MFS_RECSEG_INFO, *LPMFS_RECSEG_INFO;
 
 typedef struct
@@ -1079,60 +1079,60 @@ typedef struct
 //点播历史视频
 typedef struct
 {
-	BYTE byChannel;					//通道号(0,1,2,3....)
-	BYTE byType;							//点播放类型	0x01-手动录像,0x02-定时录像,0x04-移动录像,0x08-报警录像,0x09-卡号录像,0xff-所有录像
+	uint8_t byChannel;					//通道号(0,1,2,3....)
+	uint8_t byType;							//点播放类型	0x01-手动录像,0x02-定时录像,0x04-移动录像,0x08-报警录像,0x09-卡号录像,0xff-所有录像
 	UNMFS_TIME unBegTime;		//点播开始时间
-	BYTE byReserve1;					//保留1
-	BYTE byReserve2;					//保留2
+	uint8_t byReserve1;					//保留1
+	uint8_t byReserve2;					//保留2
 }STRUCT_SDVR_VOD, *LPSTRUCT_SDVR_VOD;
 
 //点播历史视频扩展(指定时间段)
 typedef struct
 {
-	BYTE byChannel;					//通道号(0,1,2,3....)
-	BYTE byType;					//点播放类型
+	uint8_t byChannel;					//通道号(0,1,2,3....)
+	uint8_t byType;					//点播放类型
 	UNMFS_TIME unBegTime;			//点播开始时间
 	UNMFS_TIME unEndTime;			//点播结束时间
-	BYTE streamtype;				//码流类型，0-主码流，1-子码流 
-	BYTE byReserve2;				//保留2
+	uint8_t streamtype;				//码流类型，0-主码流，1-子码流 
+	uint8_t byReserve2;				//保留2
 }STRUCT_SDVR_VOD_EX, *LPSTRUCT_SDVR_VOD_EX;
 
 //主动连接点播历史视频
 typedef struct
 {
 	DWORD msgid; //消息ID,该id 由平台生成，DVR 原封不动返回，msgid 用于平台区分主机新建立的socket 连接。使平台可以知道该socket 连接对应的命令。
-	BYTE byChannel; //通道号[0, n-1], n:通道数
-	BYTE byType; //点播类型
-	BYTE reserve1[2]; //保留
+	uint8_t byChannel; //通道号[0, n-1], n:通道数
+	uint8_t byType; //点播类型
+	uint8_t reserve1[2]; //保留
 	UNMFS_TIME unBegTime; //点播开始时间，同录像查询请求消息中定义，年份-2000
 	UNMFS_TIME unEndTime; //点播结束时间，时间跨度一天之内
-	BYTE streamtype;			//码流类型，0-主码流，1-子码流
-	BYTE reserve2[15];			//保留
+	uint8_t streamtype;			//码流类型，0-主码流，1-子码流
+	uint8_t reserve2[15];			//保留
 } STRUCT_SDVR_VOD_EX1;
 
 typedef struct
 {
 	DWORD msgid; //消息ID,该id 由平台生成，DVR 原封不动返回，msgid 用于平台区分主机新建立的socket 连接。使平台可以知道该socket 连接对应的命令。
 	DWORD dwVodID; //点播id
-	BYTE streamtype;      //码流类型，0-主码流，1-子码流
-	BYTE reserve[15];     //保留
+	uint8_t streamtype;      //码流类型，0-主码流，1-子码流
+	uint8_t reserve[15];     //保留
 }STRUCT_SDVR_VOD_ANS_EX;
 
 //点播控制
 typedef struct
 {
 	DWORD dwVodID;					//回放句柄
-	BYTE byCtrl;					//0-正常 1-暂停 2-快进 3-快退 4-帧进 5-慢放
-	BYTE bySpeed;					//快进快退慢放速度
-	BYTE bySeekFlag;				//拉进度条标志
-	BYTE byPecent;					//进度百分比
+	uint8_t byCtrl;					//0-正常 1-暂停 2-快进 3-快退 4-帧进 5-慢放
+	uint8_t bySpeed;					//快进快退慢放速度
+	uint8_t bySeekFlag;				//拉进度条标志
+	uint8_t byPecent;					//进度百分比
 }STRUCT_SDVR_VODCTL, *LPSTRUCT_SDVR_VODCTL;
 
 //下载历史视频
 typedef struct
 {
-	BYTE byChannel;					//通道号
-	BYTE byType;							//备份类型	0x00-手动录像,0x01-定时录像,0x02-移动录像,0x03-报警录像,0x04-卡号录像,0xff-所有录像
+	uint8_t byChannel;					//通道号
+	uint8_t byType;							//备份类型	0x00-手动录像,0x01-定时录像,0x02-移动录像,0x03-报警录像,0x04-卡号录像,0xff-所有录像
 	UNMFS_TIME unBegTime;		//开始时间
 	UNMFS_TIME unEndTime;		//结束时间
 }STRUCT_SDVR_BACKINFO, *LPSTRUCT_SDVR_BACKINFO;
@@ -1140,20 +1140,20 @@ typedef struct
 typedef struct
 {
 	DWORD msgid; //消息ID,该id 由平台生成，DVR 原封不动返回，msgid 用于平台区分主机新建立的socket 连接。使平台可以知道该socket 连接对应的命令。
-	BYTE byChannel; //通道号
-	BYTE byType; //备份类型：0-手动；1-定时；2-移动；3-探头报警；0x0f-所有录像
-	WORD file_index; //客户端下载的文件列表的索引号，从0 开始
+	uint8_t byChannel; //通道号
+	uint8_t byType; //备份类型：0-手动；1-定时；2-移动；3-探头报警；0x0f-所有录像
+	uint16_t file_index; //客户端下载的文件列表的索引号，从0 开始
 	DWORD file_offset; //文件偏移大小，刚开始为0
 	UNMFS_TIME unBegTime; //开始时间
 	UNMFS_TIME unEndTime; //结束时间
-	BYTE streamtype;   //码流类型，0-主码流，1-子码流
-	BYTE reserve[27];	//保留
+	uint8_t streamtype;   //码流类型，0-主码流，1-子码流
+	uint8_t reserve[27];	//保留
 }STRUCT_SDVR_BACKINFO_EX2;
 
 typedef struct
 {
 	DWORD msgid; //消息ID,该id由平台生成，DVR原封不动返回，msgid用于平台区分主机新建立的socket连接。使平台可以知道该socket连接对应的命令。
-	BYTE reserve[4]; //保留
+	uint8_t reserve[4]; //保留
 }STRUCT_SDVR_BACKINFO_RSP;
 
 //下载文件返回
@@ -1171,17 +1171,17 @@ typedef struct
 {
 	DWORD msgid; //消息ID,该id由平台生成，DVR原封不动返回，msgid用于平台区分主机新建立的
 	//socket连接。使平台可以知道该socket连接对应的命令。
-	BYTE reserve[4]; //保留
+	uint8_t reserve[4]; //保留
 }STRUCT_SDVR_VOICE;
 
 typedef struct
 {
 	DWORD msgid; //消息ID,该id由平台生成，DVR原封不动返回，msgid用于平台区分主机新建立的socket
 	//连接。使平台可以知道该socket连接对应的命令。
-	BYTE format; //音频压缩格式，见附件"音频数据压缩格式"，,默认的编码格式为PCM
-	BYTE bitspersample; //表示采样位宽(单位bit)，取值范围(1~255)，默认是16
-	BYTE samplerate; //表示采样率(单位K[1000])
-	BYTE reserved[7]; //保留
+	uint8_t format; //音频压缩格式，见附件"音频数据压缩格式"，,默认的编码格式为PCM
+	uint8_t bitspersample; //表示采样位宽(单位bit)，取值范围(1~255)，默认是16
+	uint8_t samplerate; //表示采样率(单位K[1000])
+	uint8_t reserved[7]; //保留
 	unsigned short msglen; //保留
 } STUCT_SDVR_VIOCE_S;
 
@@ -1189,34 +1189,34 @@ typedef struct
 typedef struct
 {
 	DWORD msgid; //消息ID，该id 由平台生成，DVR 原封不动返回
-	BYTE Channel; //通道号[0, n-1],n:通道数
-	BYTE pic_format; //图片格式，0--jpg，1-bmp；目前只能是jpg 格式
-	BYTE reserve1[10]; //保留
+	uint8_t Channel; //通道号[0, n-1],n:通道数
+	uint8_t pic_format; //图片格式，0--jpg，1-bmp；目前只能是jpg 格式
+	uint8_t reserve1[10]; //保留
 	DWORD len; //图片数据长度
-	BYTE reserve2[16]; //保留
+	uint8_t reserve2[16]; //保留
 	char data[]; //图片数据
 }STRUCT_SDVR_GET_PHOTO;
 
 //设备日志
 typedef struct
 {
-  WORD wYear;
-  BYTE byMonth;
-  BYTE byDay;
-  WORD wStart;
-  WORD wnum;  
+  uint16_t wYear;
+  uint8_t byMonth;
+  uint8_t byDay;
+  uint16_t wStart;
+  uint16_t wnum;  
 }STRUCT_SDVR_REQLOG, *LPSTRUCT_SDVR_REQLOG;
 
 //8000设备日志格式
 typedef struct
 {
   UNMFS_TIME		stTime;
-  BYTE				byType;			//类型
-  BYTE				byOperate;		//操作码
+  uint8_t				byType;			//类型
+  uint8_t				byOperate;		//操作码
   char				szAccount[18];	//用户
-  UINT				nIpAddr;		//0-Local other-ip
-  UINT				nInput;			//事件输入输出
-  UINT				nOutput;
+  uint32_t				nIpAddr;		//0-Local other-ip
+  uint32_t				nInput;			//事件输入输出
+  uint32_t				nOutput;
   char				szData[28];		//其他信息
 }MFS_LOG_DAT, *PMFS_LOG_DAT;
 
@@ -1235,7 +1235,7 @@ typedef struct
 	char SecType;					//次类型
 	char Param;						//参数类型
 	char Channel;					//通道号
-	unsigned int nHost;				//主机IP，0表示本机
+	uint32_t nHost;				//主机IP，0表示本机
 	char szUser[17];				//用户名
 	char HardDriver;				//硬盘号
 	char AlarmIn;					//报警输入
@@ -1293,14 +1293,14 @@ typedef struct
     NET_BITRATETYPE_E byBitrateType;	//码率类型
     NET_VQUALITY_E byPicQuality;		//图像质量
     DWORD dwVideoBitrate;				//视频码率 实际码率
-    WORD dwVideoFrameRate;				//帧率 PAL 2-30 N 2-30
-    WORD quant;							//量化因子 1-31
+    uint16_t dwVideoFrameRate;				//帧率 PAL 2-30 N 2-30
+    uint16_t quant;							//量化因子 1-31
 }STRUCT_DVR_VENC_CONFIG, *LPSTUCT_DVR_VENC;
 
 typedef struct 
 {
     DWORD 					enable;
-    BYTE 					chlist[MAX_CHANNUM_EX];
+    uint8_t 					chlist[MAX_CHANNUM_EX];
     STRUCT_DVR_VENC_CONFIG 	venc_conf; 
     DWORD 					reserve;
 }STRUCT_DVR_ZERO_VENC_CONFIG, *LPSTRUCT_DVR_ZERO_VENC;
@@ -1308,29 +1308,29 @@ typedef struct
 //视频遮挡报警状态
 typedef struct
 {
-	BYTE  byChannel;
+	uint8_t  byChannel;
 	DWORD dwVCoverEnable;          //遮挡报警使能，1-启用，0-不启用
 	DWORD dwSensorOut;			   //联动报警输出，按位表示，1-联动，0-不联动
 }STRUCT_SDVR_VCOVER_ALM,*LPSTRUCT_SDVR_VCOVER_ALM;
 
 typedef struct	
 {
-	BYTE  cbStreamType;      	//码流类型 1-主流 2-子流 3-第三码流
-	BYTE  cbReserve[3];			//保留
+	uint8_t  cbStreamType;      	//码流类型 1-主流 2-子流 3-第三码流
+	uint8_t  cbReserve[3];			//保留
 }STRUCT_SDVR_REQIPCWORKPARAM,*LPSTRUCT_SDVR_REQIPCWORKPARAM;
 
 typedef struct	
 {
-	BYTE	cbStartHour;  		//开始小时 0-23
-	BYTE	cbStartMin;  		//开始分钟 0-59
-	BYTE	cbStopHour; 		//结束小时  0-23
-	BYTE	cbStopMin;  		//结束分钟  0-59
+	uint8_t	cbStartHour;  		//开始小时 0-23
+	uint8_t	cbStartMin;  		//开始分钟 0-59
+	uint8_t	cbStopHour; 		//结束小时  0-23
+	uint8_t	cbStopMin;  		//结束分钟  0-59
 }STRUCT_SDVR_IPCSCHEDTIME,*LPSTRUCT_SDVR_IPCSCHEDTIME; 
 
 typedef struct
 {
-	WORD 	wLightRange;		//ICR亮度切换临界值，取值范围[80,120];
-	WORD 	wEnable;			//0-不支持1--亮度值有效  2--时间段有效
+	uint16_t 	wLightRange;		//ICR亮度切换临界值，取值范围[80,120];
+	uint16_t 	wEnable;			//0-不支持1--亮度值有效  2--时间段有效
 	STRUCT_SDVR_IPCSCHEDTIME stSchedTime[2];
 }STRUCT_SDVR_ICRTIME,*LPSTRUCT_SDVR_ICRTIME;
 //当wEnable = 1，wLightRange有效，采用亮度作为彩转黑判断条件；
@@ -1357,7 +1357,7 @@ typedef struct
 	DWORD dwSceneIndex;	//当前镜头索引值，表示基于cbSceneVal中的位置，例如dwSceneIndex = 2，
 	//则当前镜头为：cbSceneVal[2] = “JCD661 lens”，当cbSceneVal[x] =”\0”表示总共有
 	//x个数据项；
-	BYTE  cbSceneVal[8][32];	//该机型支持的镜头种类,//0 - Full Maual lens,1 - DC Iris lens, //2 - JCD661 lens,
+	uint8_t  cbSceneVal[8][32];	//该机型支持的镜头种类,//0 - Full Maual lens,1 - DC Iris lens, //2 - JCD661 lens,
 	//3 - Ricom NL3XZD lens,4 - Tamron 18X lens，当数组成员全部为0，表示不支持
 } STRUCT_SDVR_SCENEVAL,*LPSTRUCT_SDVR_SCENEVAL;
 
@@ -1373,7 +1373,7 @@ typedef struct
 {
 	DWORD dwAgcIndex;     //当前AGC的索引值，表示基于cbAgcVal中的位置，例如cbAgcVal =2，则表示AGC
 		//值为cbAgcVal[2]中的值；
-	BYTE  cbAgcVal[32];	  //AGC（自动增益）的支持参数列表,当cbAgcVal[1]= 0时表示cbAgcVal[0]中存储的是
+	uint8_t  cbAgcVal[32];	  //AGC（自动增益）的支持参数列表,当cbAgcVal[1]= 0时表示cbAgcVal[0]中存储的是
 	//一个取值范围，如cbAgcVal[0]= 128,则表示取值范围为：[1,128],当cbAgcVal[1]!=0
 	//时，则表示cbAgcVal数组中存储的是具体的值，例如 cbAgcVal[0]= 32，//cbAgcVal[1]=64等，当cbAgcVal [x] =0表示总共有x个数据项。
 	//当cbAgcVal[0]为非零值，cbAgcVal[1]=0 且dwAgcIndex = 0时，表示只有一个选项，AGC时间为cbAgcVal [0]的值；当cbAgcVal[0]为非零值，cbAgcVal[1]=0 且dwAgcIndex!=0时，表示一个取值范围，AGC时间为dwAgcIndex的值
@@ -1385,19 +1385,19 @@ typedef struct
 
 typedef struct
 {
-	BYTE	cbMinFrameRate;	//该机型支持的最小编码帧率值;，取值范围为：1—2^8，下同。只支持获取
-	BYTE	cbMaxFrameRate;	//该机型支持的最大编码帧率值; 取值范围为：1—2^8只支持获取
-	BYTE	cbCurFrameRate;	//该机型设置的当前编码帧率值; 取值范围为：1—2^8,支持设置与获取
-	BYTE    cbreserve;		//保留
+	uint8_t	cbMinFrameRate;	//该机型支持的最小编码帧率值;，取值范围为：1—2^8，下同。只支持获取
+	uint8_t	cbMaxFrameRate;	//该机型支持的最大编码帧率值; 取值范围为：1—2^8只支持获取
+	uint8_t	cbCurFrameRate;	//该机型设置的当前编码帧率值; 取值范围为：1—2^8,支持设置与获取
+	uint8_t    cbreserve;		//保留
 } STRUCT_SDVR_FRAMERATE,*LPSTRUCT_SDVR_FRAMERATE;
 
 typedef struct
 {
 	DWORD dwLength;			//结构体长度
-	BYTE  cbStreamEnable;   //是否开启当前码流: 0-不支持1-disable 2-enable
-	BYTE  cbStreamType;     //码流类型 0-不支持1-主流2-子流 3-第三码流
-	BYTE  cbAudioEnable;    //音频使能 0-不支持 1-无音频 ,2-有音频
-	BYTE  cbAntiFlicker;    //抗闪烁设置0-不支持1-60HZ   2-50HZ
+	uint8_t  cbStreamEnable;   //是否开启当前码流: 0-不支持1-disable 2-enable
+	uint8_t  cbStreamType;     //码流类型 0-不支持1-主流2-子流 3-第三码流
+	uint8_t  cbAudioEnable;    //音频使能 0-不支持 1-无音频 ,2-有音频
+	uint8_t  cbAntiFlicker;    //抗闪烁设置0-不支持1-60HZ   2-50HZ
 	STRUCT_SDVR_FRAMERATE  stFrameRate;		//编码帧率设置;
 	STRUCT_SDVR_SHUTTERVAL stShutterVal;	//快门相关参数获取
 	STRUCT_SDVR_SCENEVAL	stSceneVal;		//镜头相关参数获取
@@ -1405,27 +1405,27 @@ typedef struct
 	STRUCT_SDVR_AGCVAL		stAgcVal;		//Agc相关
 	DWORD	dwBitRateVal;		//视频码率  0-不支持1-100K 2-128K，3-256K，4-512K，5-1M，6-1.5M，7-2M，8-3M, 9-4M 10-5M，11-6M，12-7M，13-8M, 14-9M，15-10M，16-11 M，17-12M
 	//其他：码率值（kbps）有效范围 32~2^32,大于等于32，以K为单位；
-	BYTE	cbFoucusSpeedVal;	//当为0时表示不支持该功能
-	BYTE	cbDigitalFoucusVal;	// 当为0时表示不支持该功能
-	BYTE	cbImageTurnVal;		//当前图像翻转设置 //1-不翻转,2-水平翻转 3-垂直翻转, 4-水平&垂直,0-不支持
-	BYTE	cbBlackWhiteCtrlVal;//当前黑白模式设置 //1- Off, 2- On, 3–Auto, 0-不支持
-	BYTE	cbIRISCtrl;			//Iris control mode 光圈控制模式设置，1-Off,2-Basic, 3-Advanced,0-不支持
-	BYTE	cbAutoFoucusVal;	//自动对焦，1-开 2-关 0-不支持
-	BYTE 	cbAWBVal;			//白平衡场景模式设置，1-auto_wide, 2-auto_normal, 3-sunny, 4-shadow, 5-indoor,
+	uint8_t	cbFoucusSpeedVal;	//当为0时表示不支持该功能
+	uint8_t	cbDigitalFoucusVal;	// 当为0时表示不支持该功能
+	uint8_t	cbImageTurnVal;		//当前图像翻转设置 //1-不翻转,2-水平翻转 3-垂直翻转, 4-水平&垂直,0-不支持
+	uint8_t	cbBlackWhiteCtrlVal;//当前黑白模式设置 //1- Off, 2- On, 3–Auto, 0-不支持
+	uint8_t	cbIRISCtrl;			//Iris control mode 光圈控制模式设置，1-Off,2-Basic, 3-Advanced,0-不支持
+	uint8_t	cbAutoFoucusVal;	//自动对焦，1-开 2-关 0-不支持
+	uint8_t 	cbAWBVal;			//白平衡场景模式设置，1-auto_wide, 2-auto_normal, 3-sunny, 4-shadow, 5-indoor,
 	//6-lamp, 7-FL1, 8-FL2,0-不支持
-	BYTE 	cbA3Ctrl;			//3A控制0-不支持1-off; 2-Auto Exposure; 3-Auto White Balance; 4-both, (Auto Focus no support)
+	uint8_t 	cbA3Ctrl;			//3A控制0-不支持1-off; 2-Auto Exposure; 3-Auto White Balance; 4-both, (Auto Focus no support)
 
 	STRUCT_SDVR_ICRTIME stICRTime;
 	//当cbBlackWhiteCtrlVal = 3（3–Auto），stICRTime（滤光片切换模式设置）才允许设置，获取可以在任何情况
 	//下支持获取；
-	BYTE	cbFNRSuppVal;		//当前帧降噪设置，1-开,2-关,0-不支持
-	BYTE	cbStreamKindVal;	//当前码流类型，0-不支持1-定码流,2-变码流
-	BYTE	cbVideoOutKindVal;	//vout视频输出设置：0-不支持1-disable, 2-CVBS, 3-HDMI, 4-YPbPr等等
-	BYTE	cbWDRVal;			//宽动态设置, 1-开 2-关, 0-不支持
-	BYTE   cbColorMode;			//色彩风格设置1-TV 2-PC，0-不支持
-	BYTE   cbSharpNess;			//锐度设置，取值范围为：[1,255] ，0-不支持
-	BYTE	cbPlatformType;		//默认为0-不支持
-	BYTE	cbReserve[17];		//默认为0-不支持
+	uint8_t	cbFNRSuppVal;		//当前帧降噪设置，1-开,2-关,0-不支持
+	uint8_t	cbStreamKindVal;	//当前码流类型，0-不支持1-定码流,2-变码流
+	uint8_t	cbVideoOutKindVal;	//vout视频输出设置：0-不支持1-disable, 2-CVBS, 3-HDMI, 4-YPbPr等等
+	uint8_t	cbWDRVal;			//宽动态设置, 1-开 2-关, 0-不支持
+	uint8_t   cbColorMode;			//色彩风格设置1-TV 2-PC，0-不支持
+	uint8_t   cbSharpNess;			//锐度设置，取值范围为：[1,255] ，0-不支持
+	uint8_t	cbPlatformType;		//默认为0-不支持
+	uint8_t	cbReserve[17];		//默认为0-不支持
 }STRUCT_SDVR_REIPCWORKPARAM,*LPSTRUCT_SDVR_REIPCWORKPARAM;
 
 //用户权限模式
@@ -1441,7 +1441,7 @@ typedef struct
 //结构体数据项1
 //typedef struct 
 //{
-//	BYTE dwLocalRight[32]; //本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限 
+//	uint8_t dwLocalRight[32]; //本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限 
 //	/*数组1-常规设置*/
 //	/*数组2-录像设置*/
 //	/*数组3-输出设置*/
@@ -1456,8 +1456,8 @@ typedef struct
 //	/*数组12-关机重启*/
 //	/*数组-13-USB升级*/
 //	/*数组14-备份*/
-//	BYTE LocalChannel[128]; //本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
-//	BYTE dwRemoteRight[32]; //远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限 
+//	uint8_t LocalChannel[128]; //本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
+//	uint8_t dwRemoteRight[32]; //远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限 
 //	/*数组1-远程预览*/
 //	/*数组2-参数设置*/
 //	/*数组3-远程回放*/
@@ -1466,16 +1466,16 @@ typedef struct
 //	/*数组6-语音对讲*/
 //	/*数组7-远程升级*/
 //	/*数组8-远程重启*/
-//	BYTE RemoteChannel[128]; //用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
+//	uint8_t RemoteChannel[128]; //用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
 //}STRUCT_USERINFO, *LPSTRUCT_USERINFO;
 
 typedef struct{
-	BYTE sUserName[NAME_LEN];		    //用户名 
-	BYTE sPassword[32];					//密码
-	BYTE dwLocalRight[MAX_RIGHT];	    //本地权限
-	BYTE LocalChannel[MAX_CHANNUM];		//本地通道权限
-	BYTE dwRemoteRight[MAX_RIGHT];	    //远程权限
-	BYTE RemoteChannel[MAX_CHANNUM];	//远程通道权限
+	uint8_t sUserName[NAME_LEN];		    //用户名 
+	uint8_t sPassword[32];					//密码
+	uint8_t dwLocalRight[MAX_RIGHT];	    //本地权限
+	uint8_t LocalChannel[MAX_CHANNUM];		//本地通道权限
+	uint8_t dwRemoteRight[MAX_RIGHT];	    //远程权限
+	uint8_t RemoteChannel[MAX_CHANNUM];	//远程通道权限
 	//数组 1: 显示设置
 	//数组 2: 录像参数
 	//数组 3: 定时录像
@@ -1493,7 +1493,7 @@ typedef struct{
 	//数组 15: 报警清除
 	//数组 16: 远程预览
 	DWORD dwUserIP;				//用户IP地址(为0时表示允许任何地址)	
-	BYTE byMACAddr[8];			//物理地址	
+	uint8_t byMACAddr[8];			//物理地址	
 }STRUCT_USERINFO, *LPSTRUCT_USERINFO;
 
 
@@ -1502,7 +1502,7 @@ typedef struct{
 //结构体数据项2
 //typedef struct 
 //{
-//	BYTE dwLocalRight[32]; //本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限
+//	uint8_t dwLocalRight[32]; //本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限
 //	/*数组 1: 手动录像*/
 //	/*数组 2: 手动报警*/
 //	/*数组 3: 录像回放*/
@@ -1531,8 +1531,8 @@ typedef struct{
 //	/*数组 26：升级权限*/
 //	/*数组 27：定时重启*/ 
 //	/*数组 28：卡号录像*/
-//	BYTE LocalChannel[128]; //本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
-//	BYTE dwRemoteRight[32]; //远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限
+//	uint8_t LocalChannel[128]; //本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
+//	uint8_t dwRemoteRight[32]; //远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限
 //	/*数组 1: 远程预览*/ 
 //	/*数组 2: 参数设置*/
 //	/*数组 3: 远程回放*/ 
@@ -1541,24 +1541,24 @@ typedef struct{
 //	/*数组 6: 语音对讲*/
 //	/*数组 7: 远程升级*/
 //	/*数组 8：远程重启*/
-//	BYTE RemoteChannel[128]; //用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
+//	uint8_t RemoteChannel[128]; //用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
 //}STRUCT_USERINFO_GUI, *LPSTRUCT_USERINFO_GUI;
 
 typedef struct
 {
-	BYTE sUserName[32];  		//用户名 以’\0’结束字符串
-	BYTE sPassword[32];  		//密码 以’\0’结束字符串
-	BYTE dwLocalRight[32]; 		//本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限
+	uint8_t sUserName[32];  		//用户名 以’\0’结束字符串
+	uint8_t sPassword[32];  		//密码 以’\0’结束字符串
+	uint8_t dwLocalRight[32]; 		//本地权限 1.数组0未使用；2.取值：0-无权限，1-有权限
 	/*数组 1: 手动录像*//*数组 2: 手动报警*//*数组 3: 录像回放*//*数组 4: 备份管理*/
 	/*数组 5: 磁盘管理*//*数组 6: 系统关机*//*数组 7: 系统重启*//*数组 8: 云台控制权限*//*数组 9: 报警清除权限*//*数组 10: 常规设置*/ /*数组 11: 输出设置*/ /*数组 12: 录像设置*//*数组 13: 定时录像*/ 
 	/*数组14：报警设置*/ /*数组 15：串口设置*/ /*数组 16：云台设置*/ /*数组 17：网络设置*//*数组 18：系统信息*/ /*数组 19：录像状态*/          /*数组 20：报警状态*/ /*数组 21：在线状态*/
 	/*数组 22：日志查询*/ /*数组 23：快速设置*/ /*数组 24：用户管理*/ /*数组 25：恢复出厂设置*/ /*数组 26：升级权限*/ /*数组 27：定时重启*/ /*数组 28：卡号录像*/
-	BYTE LocalChannel[128]; 	//本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
-	BYTE dwRemoteRight[32]; 	//远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限
+	uint8_t LocalChannel[128]; 	//本地用户对通道的操作权限，最大128个通道，0-无权限，1-有权限
+	uint8_t dwRemoteRight[32]; 	//远程登陆用户所具备的权限 1.数组0未使用；2.取值：0-无权限，1-有权限
 	/*数组 1: 远程预览*/ /*数组 2: 参数设置*/ /*数组 3: 远程回放*/ /*数组 4: 远程备份*/ /*数组 5: 查看日志*/ /*数组 6: 语音对讲*/ /*数组 7: 远程升级*/ /*数组 8：远程重启*/
-	BYTE RemoteChannel[128]; 	//用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
+	uint8_t RemoteChannel[128]; 	//用户远程登陆时对通道所具备的权限，最大128个通道，0-无权限，1-有权限
 	DWORD dwUserIP;				//用户登录时pc机的ip地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有ip地址为设定值的pc机才可以使用该用户登录到DVR上
-	BYTE byMACAddr[8]; 			//用户登录时PC机的MAC地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有MAC地址为设定值的PC机才可以使用该用户登陆到DVR上
+	uint8_t byMACAddr[8]; 			//用户登录时PC机的MAC地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有MAC地址为设定值的PC机才可以使用该用户登陆到DVR上
 }STRUCT_USERINFO_GUI, *LPSTRUCT_USERINFO_GUI;
 
 
@@ -1566,8 +1566,8 @@ typedef struct
 //结构体数据项3
 //typedef struct 
 //{
-//	BYTE grp_name[32]; //分组名
-//	ULONGLONG local_authority[64]; // 本地用户使用权限，每位代表一个通道,bit0~bit63表示0~63通道，每个数组代表一种权限，
+//	uint8_t grp_name[32]; //分组名
+//	uint64_t local_authority[64]; // 本地用户使用权限，每位代表一个通道,bit0~bit63表示0~63通道，每个数组代表一种权限，
 //	/*数组0：实时预览*/
 //	/*数组1：手动录像*/
 //	/*数组2：录像查询回放*/
@@ -1589,7 +1589,7 @@ typedef struct
 //	/*数组18：出厂设置*/
 //	/*数组19：系统关机*/
 //	/*数组20：卡号录像*/
-//	ULONGLONG remote_authority[64];//远程权限，每位代表一个通道，bit0~bit63表示0~63通道，每个数组代表一种权限，
+//	uint64_t remote_authority[64];//远程权限，每位代表一个通道，bit0~bit63表示0~63通道，每个数组代表一种权限，
 //	/*数组0：远程预览*/
 //	/*数组1：参数设置*/
 //	/*数组2：远程回放*/
@@ -1601,28 +1601,28 @@ typedef struct
 
 typedef struct 
 {
-	BYTE user[32];				//用户名 以’\0’结束字符串
-	BYTE pwd[32];				//密码 以’\0’结束字符串
-	BYTE grp_name[32]; 			//分组名
-	ULONGLONG local_authority[64]; 		// 本地用户使用权限，每位代表一个通道,bit0~bit63表示0~63通道，每个数组代表一种权限，
+	uint8_t user[32];				//用户名 以’\0’结束字符串
+	uint8_t pwd[32];				//密码 以’\0’结束字符串
+	uint8_t grp_name[32]; 			//分组名
+	uint64_t local_authority[64]; 		// 本地用户使用权限，每位代表一个通道,bit0~bit63表示0~63通道，每个数组代表一种权限，
 	/*数组0：实时预览*//*数组1：手动录像*//*数组2：录像查询回放*//*数组3：备份管理*//*数组4：录像参数*//*数组5：云台设置*//*数组6：截图设置*//*数组7：通道设置*//*数组8：定时录像*//*数组9：移动检测*//*数组10：报警管理*/
 	/*数组11：常规设置*//*数组12：串口设置*//*数组13：磁盘设置*//*数组14：网络设置*//*数组15：信息查看*//*数组16：升级管理*//*数组17：快速设置*//*数组18：出厂设置*//*数组19：系统关机*//*数组20：卡号录像*/
 	/*数组21: 录像查询 */ /* 数组22: 录像回放 */ /* 数组23: 录像删除 */ 
-	ULONGLONG remote_authority[64];   	//远程权限，每位代表一个通道，bit0~bit63表示0~63通道，每个数组代表一种权限，/*数组0：远程预览*//*数组1：参数设置*//*数组2：远程回放*//*数组3：远程备份*//*数组4：查看日志*//*数组5：语音对讲*//*数组6：远程升级*/ 
+	uint64_t remote_authority[64];   	//远程权限，每位代表一个通道，bit0~bit63表示0~63通道，每个数组代表一种权限，/*数组0：远程预览*//*数组1：参数设置*//*数组2：远程回放*//*数组3：远程备份*//*数组4：查看日志*//*数组5：语音对讲*//*数组6：远程升级*/ 
 	DWORD bind_ipaddr; 
-	BYTE  bind_macaddr[8];
+	uint8_t  bind_macaddr[8];
 }STRUCT_USERINFO_9000, *LPSTRUCT_USERINFO_9000;
 
 //用户信息扩展1
 //typedef struct
 //{
 //	DWORD dwSize;//结构体大小
-//	WORD dwUserInfoMode;//用户权限模式，1-老的权限模式，2-新GUI权限模式，3-9000项目权限模式
-//	BYTE reserve[2];//保留
-//	BYTE user[32];//用户名
-//	BYTE pwd[32];//密码
+//	uint16_t dwUserInfoMode;//用户权限模式，1-老的权限模式，2-新GUI权限模式，3-9000项目权限模式
+//	uint8_t reserve[2];//保留
+//	uint8_t user[32];//用户名
+//	uint8_t pwd[32];//密码
 //	DWORD bind_ipaddr; //用户登录时pc机的ip地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有ip地址为设定值的pc机才可以使用该用户登录到DVR上
-//	BYTE  bind_macaddr[8];//用户登录时PC机的MAC地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有MAC地址为设定值的PC机才可以使用该用户登陆到DVR上
+//	uint8_t  bind_macaddr[8];//用户登录时PC机的MAC地址，为0表示任何PC机都可以使用该用户登陆到DVR上，不为0表示只有MAC地址为设定值的PC机才可以使用该用户登陆到DVR上
 //	union
 //	{
 //		STRUCT_USERINFO userInfo;//当dwUserInfoMode=1时，使用该结构体
@@ -1634,9 +1634,9 @@ typedef struct
 typedef struct
 {
 	DWORD dwSize;
-	WORD dwUserInfoMode;  //用户权限模式，1-老的权限模式，2-新GUI权限模式，3-9000项目权限模式
-	BYTE right_ver;		/* 用户权限版本标志: 0-旧版本，1-新版本v1(将录像查询回放权限删除，分别增加录像查询，回放，删除三个权限 */
-	BYTE reserve;      //保留
+	uint16_t dwUserInfoMode;  //用户权限模式，1-老的权限模式，2-新GUI权限模式，3-9000项目权限模式
+	uint8_t right_ver;		/* 用户权限版本标志: 0-旧版本，1-新版本v1(将录像查询回放权限删除，分别增加录像查询，回放，删除三个权限 */
+	uint8_t reserve;      //保留
 	union 
 	{
 		STRUCT_USERINFO userInfo[MAX_USERNUM];			//当dwUserInfoMode=1时，使用该结构体 
@@ -1648,17 +1648,17 @@ typedef struct
 //获取主机通道参数支持范围
 //码流类型
 typedef struct { 
-	BYTE dwBitrateTypeIndex; //当前码流类型索引值，表示基于dwBitrateType中的位置 
+	uint8_t dwBitrateTypeIndex; //当前码流类型索引值，表示基于dwBitrateType中的位置 
 	//例如dwBitrateTypeIndex = 0，则当前码流类型为dwBitrateType的第0位所指定的码流类型，即变码流。
-	BYTE dwBitrateType; //支持的码流类型，每一位代表一种码流类型，该位为1表示支持该码流类型，从低位开始，第0位是变码流，第1位是定码流
+	uint8_t dwBitrateType; //支持的码流类型，每一位代表一种码流类型，该位为1表示支持该码流类型，从低位开始，第0位是变码流，第1位是定码流
 } STRUCT_SDVR_BITRATETYPE, *LPSTRUCT_SDVR_BITRATETYPE;
 
 //获取主机通道参数支持范围
 //图片质量
 typedef struct { 
-	BYTE dwPicQualityIndex; //当前图像质量索引值，表示基于dwPicQuality中的位置 
+	uint8_t dwPicQualityIndex; //当前图像质量索引值，表示基于dwPicQuality中的位置 
 	//例如dwPicQualityIndex = 0，则当前图像质量为dwBitrateType的第0位所指定的图像质量，即变码流。
-	BYTE dwPicQuality; //支持的图像质量，每一位代表一种图像质量，该位为1表示支持该图像质量，从低位开始，第0位是最高，第1位是较高，第2位是高，第3位是中，第4位是低，第5位是最低
+	uint8_t dwPicQuality; //支持的图像质量，每一位代表一种图像质量，该位为1表示支持该图像质量，从低位开始，第0位是最高，第1位是较高，第2位是高，第3位是中，第4位是低，第5位是最低
 } STRUCT_SDVR_PICQUALITY, *LPSTRUCT_SDVR_PICQUALITY;
 
 //获取主机通道参数支持范围
@@ -1672,17 +1672,17 @@ typedef struct {
 //获取主机通道参数支持范围
 //帧率
 typedef struct { 
-	WORD VideoFrameRate;	   //当前帧率值。
-	WORD dwVideoFrameRate_min; //支持的最小帧率值
-	WORD dwVideoFrameRate_max; //支持的最大帧率值
+	uint16_t VideoFrameRate;	   //当前帧率值。
+	uint16_t dwVideoFrameRate_min; //支持的最小帧率值
+	uint16_t dwVideoFrameRate_max; //支持的最大帧率值
 } STRUCT_SDVR_VIDEOFRAMERATE, *LPSTRUCT_SDVR_VIDEOFRAMERATE;
 
 //获取主机通道参数支持范围
 //结构体数据项
 typedef struct {
-	BYTE byStream_support;//是否支持该码流，即本结构体的值是否有效，1表示有效，0表示无效
-	BYTE byAudio_support; //是否支持音频，0-不支持，1-支持 
-	BYTE reserve[2]; //保留
+	uint8_t byStream_support;//是否支持该码流，即本结构体的值是否有效，1表示有效，0表示无效
+	uint8_t byAudio_support; //是否支持音频，0-不支持，1-支持 
+	uint8_t reserve[2]; //保留
 	STRUCT_SDVR_RESOLUTION byResolution_support;		//支持的分辨率  
 	STRUCT_SDVR_BITRATETYPE byBitrateType_support;		//支持的码流类型
 	STRUCT_SDVR_PICQUALITY byPicQuality_support;		//支持的图像质量
@@ -1695,21 +1695,21 @@ typedef struct {
 //typedef struct 
 //{
 //	DWORD dwSize;//结构体大小
-//	BYTE byChannel; //通道号 
-//	BYTE byRecordType;  //0x0:手动录像，0x1:定时录象，0x2:移动侦测，0x3:报警，0x0f:所有类型 
-//	BYTE byCompressionType; //码流，0-主码流，1-字码流1，字码流2……
-//	BYTE byReserv;//支持的码流，每位代表一种码流，该位为1表示支持该码流，从低位开始，第0位代表主码流，第1位代表子码流1，第2位代表子码流2，……
+//	uint8_t byChannel; //通道号 
+//	uint8_t byRecordType;  //0x0:手动录像，0x1:定时录象，0x2:移动侦测，0x3:报警，0x0f:所有类型 
+//	uint8_t byCompressionType; //码流，0-主码流，1-字码流1，字码流2……
+//	uint8_t byReserv;//支持的码流，每位代表一种码流，该位为1表示支持该码流，从低位开始，第0位代表主码流，第1位代表子码流1，第2位代表子码流2，……
 //	STRUCT_SDVR_COMPRESSION_SUPPORT struRecordPara;//码流支持的参数
-//	BYTE  reserve[2];//保留
+//	uint8_t  reserve[2];//保留
 //}STRUCT_SDVR_COMPRESSINFO_SUPPORT, *LPSTRUCT_SDVR_COMPRESSINFO_SUPPORT;
 
 typedef struct { 
 	DWORD dwResolution; //分辨率值，如：0x07800438，高两字节（0x0780=1920）、低两字节（0x0438=1080）；
 	DWORD dwVideoBitrate_support [32];//该分辨率下支持的码率范围，每一个数组代表一种码率，数组的值如果为0，表示该数组未用到，不为0，表示支持的码率值，单位为Kbit/s
-	WORD dwVideoFrameRate_min; //该分辨率下的最小帧率
-	WORD dwVideoFrameRate_max; //该分辨率下的最大帧率
-	BYTE  dwPicQuality_support[10];//该分辨率下支持的图像质量等级,每个数组代表一种图像质量等级，0数组是最高， 1数组是较高， 2数组是高， 3数组是中，4数组是低， 5数组是最低，该数组为1，表示支持该种图像质量
-	BYTE  reserve[2];	//保留
+	uint16_t dwVideoFrameRate_min; //该分辨率下的最小帧率
+	uint16_t dwVideoFrameRate_max; //该分辨率下的最大帧率
+	uint8_t  dwPicQuality_support[10];//该分辨率下支持的图像质量等级,每个数组代表一种图像质量等级，0数组是最高， 1数组是较高， 2数组是高， 3数组是中，4数组是低， 5数组是最低，该数组为1，表示支持该种图像质量
+	uint8_t  reserve[2];	//保留
 } STRUCT_SDVR_RESOLUTIONINFO;
 
 //获取主机通道参数支持范围
@@ -1717,20 +1717,20 @@ typedef struct {
 typedef struct 
 {
 	DWORD dwSize;				//结构体大小
-	BYTE byChannel; 			//通道号
-	BYTE byCompressionType; 	//码流，0-主码流，1-子码流1，子码流2..
-	BYTE byCompression_support;	//支持的码流，每位代表一种码流，该位为1表示支持该码流， 从低位开始，0位代表主码流，第1位代表子码流1，第2位代表子码流2，..
-	BYTE dwBitrateTypeIndex;	//当前码流类型索引值，表示基于dwBitrateType中的位置,例如dwBitrateTypeIndex = 0，则当前码流类型为dwBitrateType的第0位,所指定的码流类型，即变码流。
-	BYTE byBitrateType_support; //支持的码流类型，每一位代表一种码流类型，该位为1表示支持该码流类型，从低位开始，第0位是变码流，第1位是定码流
-	BYTE byRecordType_index;	//当前录像类型索引值
-	BYTE byRecordType_support;	//支持的录像类型，每位代表一种录像类型，该位为1表示支持该类型，从低位开始，第0位手动录像，第1位定时录像，第2位移动录像，第3位报警录像，……第15位所有录像
-	BYTE byAudioflag;			//当前是否有音频，0-无音频，1-有音频
-	BYTE byAudio_support;		//是否支持音频，0-不支持，1-支持，当不支持音频时，byAudioflag只能为0
-	BYTE dwPicQuality;			//当前图像质量， 0--最高， 1-较高， 2-高， 3-中，4-低， 5-最低
-	WORD dwVideoFrameRate;		//当前帧率值
+	uint8_t byChannel; 			//通道号
+	uint8_t byCompressionType; 	//码流，0-主码流，1-子码流1，子码流2..
+	uint8_t byCompression_support;	//支持的码流，每位代表一种码流，该位为1表示支持该码流， 从低位开始，0位代表主码流，第1位代表子码流1，第2位代表子码流2，..
+	uint8_t dwBitrateTypeIndex;	//当前码流类型索引值，表示基于dwBitrateType中的位置,例如dwBitrateTypeIndex = 0，则当前码流类型为dwBitrateType的第0位,所指定的码流类型，即变码流。
+	uint8_t byBitrateType_support; //支持的码流类型，每一位代表一种码流类型，该位为1表示支持该码流类型，从低位开始，第0位是变码流，第1位是定码流
+	uint8_t byRecordType_index;	//当前录像类型索引值
+	uint8_t byRecordType_support;	//支持的录像类型，每位代表一种录像类型，该位为1表示支持该类型，从低位开始，第0位手动录像，第1位定时录像，第2位移动录像，第3位报警录像，……第15位所有录像
+	uint8_t byAudioflag;			//当前是否有音频，0-无音频，1-有音频
+	uint8_t byAudio_support;		//是否支持音频，0-不支持，1-支持，当不支持音频时，byAudioflag只能为0
+	uint8_t dwPicQuality;			//当前图像质量， 0--最高， 1-较高， 2-高， 3-中，4-低， 5-最低
+	uint16_t dwVideoFrameRate;		//当前帧率值
 	DWORD dwVideoBitrate;		//当前码率值，单位为Kbit/s
-	BYTE  reserve[3];			//保留
-	BYTE  dwResoluIndex;		//当前分辨率索引值，表示基于byResolution_support中的位置
+	uint8_t  reserve[3];			//保留
+	uint8_t  dwResoluIndex;		//当前分辨率索引值，表示基于byResolution_support中的位置
 	STRUCT_SDVR_RESOLUTIONINFO byResolution_support[16]; //支持的分辨率，最大16种分辨率，每个结构体代表一种分辨率及该分辨率下支持的码率，帧率，图像质量范围，该结构体的dwResolution为0，表示该结构体未用到
 }STRUCT_SDVR_COMPRESSINFO_SUPPORT,*LPSTRUCT_SDVR_COMPRESSINFO_SUPPORT;
 
@@ -1738,14 +1738,14 @@ typedef struct
 //NVR日志信息查询 (NVR / IPC)
 typedef struct
 {
-	WORD dwYear;			// 年: 2000~2063
-	BYTE dwMonth;			// 月: 1~12
-	BYTE dwDay;				// 日: 1~31
-	WORD dwStart; 			// 查询从第几条开始，一般为0。
-	WORD dwnum;  			// 一次查询个数，最多为100。
-	BYTE priType;    		// 主类型 （需扩展所有）
-	BYTE secType;  			// 次类型
-	BYTE reserve[6];		// 保留
+	uint16_t dwYear;			// 年: 2000~2063
+	uint8_t dwMonth;			// 月: 1~12
+	uint8_t dwDay;				// 日: 1~31
+	uint16_t dwStart; 			// 查询从第几条开始，一般为0。
+	uint16_t dwnum;  			// 一次查询个数，最多为100。
+	uint8_t priType;    		// 主类型 （需扩展所有）
+	uint8_t secType;  			// 次类型
+	uint8_t reserve[6];		// 保留
 } STRUCT_REQLOG_EX, *LPSTRUCT_REQLOG_EX;
 
 //NVR日志信息查询 (NVR / IPC)返回结构
@@ -1755,19 +1755,19 @@ typedef struct
 	DWORD	totalLogNum;			// 日志总条数
 	DWORD	curLogNum;				// 本次查到的条数
 	DWORD	dwStart; 				// 本次查询到的日志的起始编号
-	BYTE	encType;				// 编码格式 1- UTF-8  2-gb2312   
-	BYTE	reserve[3];				// 保留
-	BYTE	sigalLogData[100][128];  // 日志信息 (每次查询最多支持100条日志，日志多于100条
+	uint8_t	encType;				// 编码格式 1- UTF-8  2-gb2312   
+	uint8_t	reserve[3];				// 保留
+	uint8_t	sigalLogData[100][128];  // 日志信息 (每次查询最多支持100条日志，日志多于100条
 	//时，需要多次调用，每条128字节，每条以‘\0’结束)
 } STRUCT_SDVR_LOGINFO_EX, *LPSTRUCT_SDVR_LOGINFO_EX;
 
 //复合（零）通道编码参数配置(扩展)
 typedef struct	
 {
-	BYTE 	byStreamType;		//码流类型	0-无音频 ,1-有音频
-	BYTE 	byResolution; 		//分辨率	0-CIF 1-HD1, 2-D1，3-QCIF 4-720p 5-1080p
-	BYTE 	byBitrateType;		//码率类型	0:变码率，1:定码率 
-	BYTE 	byPicQuality;		//图象质量	1-最好 2-次好 3-较好 4-一般5-较差 6-差
+	uint8_t 	byStreamType;		//码流类型	0-无音频 ,1-有音频
+	uint8_t 	byResolution; 		//分辨率	0-CIF 1-HD1, 2-D1，3-QCIF 4-720p 5-1080p
+	uint8_t 	byBitrateType;		//码率类型	0:变码率，1:定码率 
+	uint8_t 	byPicQuality;		//图象质量	1-最好 2-次好 3-较好 4-一般5-较差 6-差
 	DWORD 	dwVideoBitrate; 	//视频码率 0-100K 1-128K，2-256K，3-512K，4-1M，5-1.5M，6-2M，7-3M, 8-4M
 	//其他：码率值（kbps）有效范围 30~2^32//大于等于30，以K为单位
 	short	nFrame;				//帧率：一般情况下为 2-30，表示帧率值，nTimebase值为1
@@ -1780,45 +1780,45 @@ typedef struct
 typedef struct 
 {
 	DWORD 		enable;			//复合通道是否启用，0--不启用，1--启用
-	BYTE		chlist[128];	//选择的通道，当enable=1时有效
+	uint8_t		chlist[128];	//选择的通道，当enable=1时有效
 	STRUCT_DVR_VENC_CONFIG_EX	venc_conf;	 //复合通道的视频参数
-	BYTE		format;			//画面格式，0—off，1—1画面，4—2*2画面，9---3*3画面，16---4*4画面。
-	BYTE		SwitchTime;		//切换时间
-	BYTE		reserve[2];		//保留
+	uint8_t		format;			//画面格式，0—off，1—1画面，4—2*2画面，9---3*3画面，16---4*4画面。
+	uint8_t		SwitchTime;		//切换时间
+	uint8_t		reserve[2];		//保留
 }STRUCT_DVR_ZERO_VENC_CONFIG_EX, *LPSTRUCT_DVR_ZERO_VENC_EX;
 
 //夏令时按周设置时间
 typedef struct
 {
-	BYTE	month;		//夏令时按周设置，月[1，12]
-	BYTE	weeks;		//夏令时按周设置，周[1，5]
-	BYTE	week;		//夏令时按周设置，星期[0，6]
-	BYTE	hour;		//夏令时按周设置，时[0，23]
-	BYTE	min;		//夏令时按周设置，分[0，59]
-	BYTE	sec;		//夏令时按周设置，秒[0，59]
+	uint8_t	month;		//夏令时按周设置，月[1，12]
+	uint8_t	weeks;		//夏令时按周设置，周[1，5]
+	uint8_t	week;		//夏令时按周设置，星期[0，6]
+	uint8_t	hour;		//夏令时按周设置，时[0，23]
+	uint8_t	min;		//夏令时按周设置，分[0，59]
+	uint8_t	sec;		//夏令时按周设置，秒[0，59]
 } STRUCT_SDVR_DST_WEEK_TIME_S, *LPSTRUCT_SDVR_DST_WEEK_TIME_S;
 //说明：按周设置的时间，表示第几月的第几个星期几的几时几分几秒，如month=5，weeks=2，week=1，hour=10，min=0，sec=0，表示5月份的第2个星期1的10：00：00
 
 //夏令时时间设置
 typedef struct
 {
-	BYTE	dst_en;			//夏令时使能键，0-不使能，1-使能
-	BYTE	dsttype_en;		//按周设置为0, 按日期设置为1
+	uint8_t	dst_en;			//夏令时使能键，0-不使能，1-使能
+	uint8_t	dsttype_en;		//按周设置为0, 按日期设置为1
 	SYSTIME	start_date;		//按日期设置的开始时间
 	SYSTIME	end_date;		//按日期设置的结束时间
 	STRUCT_SDVR_DST_WEEK_TIME_S	start_time;		//按周设置的开始时间
 	STRUCT_SDVR_DST_WEEK_TIME_S	end_time;		//按周设置的结束时间
-	BYTE		reserve[4];	//保留
+	uint8_t		reserve[4];	//保留
 }STRUCT_SDVR_DST_TIME_S, *LPSTRUCT_SDVR_DST_TIME_S;
 
 // 亮度色度相关
 typedef struct
 {
-	BYTE brightness;					// 亮度      取值范围[0，255] 缺省值128
-	BYTE constrast;						// 对比度    取值范围[0，255] 缺省值128
-	BYTE saturation;					// 饱和度    取值范围[0，255] 缺省值128
-	BYTE hue;							// 色度      取值范围[0，255] 缺省值128
-	BYTE sharp;							// 锐度      取值范围[0，255]
+	uint8_t brightness;					// 亮度      取值范围[0，255] 缺省值128
+	uint8_t constrast;						// 对比度    取值范围[0，255] 缺省值128
+	uint8_t saturation;					// 饱和度    取值范围[0，255] 缺省值128
+	uint8_t hue;							// 色度      取值范围[0，255] 缺省值128
+	uint8_t sharp;							// 锐度      取值范围[0，255]
 	DWORD reserved;						// 预留
 }VIDEO_INFO, *LPVIDEO_INFO;
 
@@ -1827,26 +1827,26 @@ typedef struct
 {
 	DWORD dwSize; 					// 长度（结构体大小）
 	// 通道名相关
-	BYTE sChanName[32];				// 通道名 以’\0’结束字符串
-	BYTE byChannel; 				// 通道号 [0, n－1] n:通道数
+	uint8_t sChanName[32];				// 通道名 以’\0’结束字符串
+	uint8_t byChannel; 				// 通道号 [0, n－1] n:通道数
 	DWORD dwShowChanName;			// 是否显示通道名 0-显示 1-不显示
-	BYTE byOSDAttrib;				// 通道名 1-不透明 2-透明（只针对PC端显示）
-	WORD wShowNameTopLeftX;			// 通道名称显示位置的x坐标 左->右 0~视频实际宽度－通道名长度
-	WORD wShowNameTopLeftY;			// 通道名称显示位置的y坐标 上->下 0~视频实际高度－字体高度
+	uint8_t byOSDAttrib;				// 通道名 1-不透明 2-透明（只针对PC端显示）
+	uint16_t wShowNameTopLeftX;			// 通道名称显示位置的x坐标 左->右 0~视频实际宽度－通道名长度
+	uint16_t wShowNameTopLeftY;			// 通道名称显示位置的y坐标 上->下 0~视频实际高度－字体高度
 
 	// 日期相关
 	DWORD dwShowTime;					// 是否显示时间 0-显示 1-不显示
-	WORD wOSDTopLeftX;					// 时间osd坐标X [0, 实际宽－时码长度]
-	WORD wOSDTopLeftY;					// 时间osd坐标Y[0, 实际高－字体高度]
-	BYTE byDateFormat;					// 日期格式
+	uint16_t wOSDTopLeftX;					// 时间osd坐标X [0, 实际宽－时码长度]
+	uint16_t wOSDTopLeftY;					// 时间osd坐标Y[0, 实际高－字体高度]
+	uint8_t byDateFormat;					// 日期格式
 	//  0 - YYYY-MM-DD    （缺省值）
 	//  1 - MM-DD-YYYY
 	//  2 - YYYY年MM月DD日
 	//  3 - MM月DD日YYYY年
 
 	// 星期相关
-	BYTE byDispWeek;				    // 是否显示星期 0-显示 1-不显示
-	BYTE byOSDLanguage;					// 星期语言 0-中文 1-英文 (可扩展)
+	uint8_t byDispWeek;				    // 是否显示星期 0-显示 1-不显示
+	uint8_t byOSDLanguage;					// 星期语言 0-中文 1-英文 (可扩展)
 
 	// 亮度色度相关
 	VIDEO_INFO  videoinfo;              // 视频信息
@@ -1860,38 +1860,38 @@ typedef struct
 
 typedef struct
 {
-	BYTE    streamtype;			// 流类型     0-变码流（缺省值） 1-定码流
-	BYTE    quality;			// 视频质量   1-最高 2-较高 3-高（缺省值） 4-中 5-低 6-最低
-	BYTE    resolution;			// 主码流     0-CIF 1-D1（缺省值） 2-720P 3-1080P
+	uint8_t    streamtype;			// 流类型     0-变码流（缺省值） 1-定码流
+	uint8_t    quality;			// 视频质量   1-最高 2-较高 3-高（缺省值） 4-中 5-低 6-最低
+	uint8_t    resolution;			// 主码流     0-CIF 1-D1（缺省值） 2-720P 3-1080P
 	// 子码流     0-CIF 1-D1(缺省值)
-	BYTE    framerate;			// 帧率       取值范围[2,25] 缺省值25
-	BYTE    maxbitrate;			//视频码率 0-100K 1-128K，2-256K，3-512K，4-1M，5-1.5M，6-2M，7-3M, 
+	uint8_t    framerate;			// 帧率       取值范围[2,25] 缺省值25
+	uint8_t    maxbitrate;			//视频码率 0-100K 1-128K，2-256K，3-512K，4-1M，5-1.5M，6-2M，7-3M, 
 	//8-4M 其他：码率值（kbps）有效范围 30~2^32，大于等于32，以K为单位
-	BYTE    audio;				// 音频标识   0-无音频 1-有音频（缺省值）
+	uint8_t    audio;				// 音频标识   0-无音频 1-有音频（缺省值）
 	DWORD   reserved;			// 预留
 }STRUCT_RECORD_PARAM,  *PSTRUCT_RECORD_PARAM;
 
 typedef struct
 {
-	BYTE starth;				// 起始时间-时
-	BYTE startm;				// 起始时间-分
-	BYTE stoph;					// 结束时间-时
-	BYTE stopm;					// 结束时间-分
-	BYTE recType;				// 录像类型  0 - 无 1-手动(无效)  2-定时  3-移动  4-报警 5-移动 | 报警  6 -移动 & 报警
-	BYTE reserve[3];			// 保留
+	uint8_t starth;				// 起始时间-时
+	uint8_t startm;				// 起始时间-分
+	uint8_t stoph;					// 结束时间-时
+	uint8_t stopm;					// 结束时间-分
+	uint8_t recType;				// 录像类型  0 - 无 1-手动(无效)  2-定时  3-移动  4-报警 5-移动 | 报警  6 -移动 & 报警
+	uint8_t reserve[3];			// 保留
 }STRUCT_REC_TIME_PERIOD, *PSTRUCT_REC_TIME_PERIOD;
 
 typedef struct
 {
-	BYTE Enable;  		// 完整天使能  0-不使能(缺省值) 1-使能
-	BYTE recType; 		// 完整天对应的录像类型 0 - 无 1-手动(无效)  2-定时  3-移动  4-报警 5-移动 | 报警  6- 移动 & 报警
-	BYTE reserve[2];	// 保留
+	uint8_t Enable;  		// 完整天使能  0-不使能(缺省值) 1-使能
+	uint8_t recType; 		// 完整天对应的录像类型 0 - 无 1-手动(无效)  2-定时  3-移动  4-报警 5-移动 | 报警  6- 移动 & 报警
+	uint8_t reserve[2];	// 保留
 }STRUCT_FULL_DAY_S;
 
 typedef struct
 {
-	BYTE enable;				// 使能时间表 0-不使能(缺省值) 1-使能    
-	BYTE weekEnable;			// 每天使能位 0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
+	uint8_t enable;				// 使能时间表 0-不使能(缺省值) 1-使能    
+	uint8_t weekEnable;			// 每天使能位 0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
 	STRUCT_FULL_DAY_S	fullDayEnable[8];			// 完整天录像
 	STRUCT_REC_TIME_PERIOD struAlarmTime[8][8]; 	// [0-7][0]代表全天使能的设置项
 
@@ -1902,8 +1902,8 @@ typedef struct
 typedef struct
 {
 	DWORD   dwSize;					// 结构体大小
-	BYTE	byChannel;				// 通道号
-	WORD    preRecTime;				// 预录时间      取值范围[5,30]秒  缺省值10
+	uint8_t	byChannel;				// 通道号
+	uint16_t    preRecTime;				// 预录时间      取值范围[5,30]秒  缺省值10
 	DWORD   delayRecTime;			// 录像持续时间  取值范围[0,180]秒  缺省值30 
 	//(对3-移动录像 4-报警录像 5-移动 | 报警  6-移动 & 报警 有效)
 	STRUCT_REC_TIME_SCHEDULE timeschedule;		// 录像时间表与录像类型设置
@@ -1923,8 +1923,8 @@ typedef struct
 typedef struct
 {
 	DWORD   dwSize;					// 结构体大小
-	BYTE	byChannel;				// 通道号
-	WORD    preRecTime;				// 预录时间      取值范围[5,30]秒  缺省值10
+	uint8_t	byChannel;				// 通道号
+	uint16_t    preRecTime;				// 预录时间      取值范围[5,30]秒  缺省值10
 	DWORD   delayRecTime;			// 录像持续时间  取值范围[0,180]秒  缺省值30 
 	//(对3-移动录像 4-报警录像 5-移动 | 报警  6-移动 & 报警 有效)
 	STRUCT_REC_TIME_SCHEDULE timeschedule;		// 录像时间表与录像类型设置
@@ -1943,140 +1943,140 @@ typedef struct
 
 typedef struct	
 {
-	BYTE	byStartHour;  			//开始小时 0-23
-	BYTE	byStartMin;  			//开始分钟 0-59
-	BYTE	byStopHour; 			//结束小时  0-23
-	BYTE	byStopMin;  			//结束分钟  0-59
+	uint8_t	byStartHour;  			//开始小时 0-23
+	uint8_t	byStartMin;  			//开始分钟 0-59
+	uint8_t	byStopHour; 			//结束小时  0-23
+	uint8_t	byStopMin;  			//结束分钟  0-59
 }STRUCT_NVR_SCHEDTIME;		
 
 //移动侦测(NVR)
 typedef struct	
 {
 	DWORD dwSize;				//长度（结构体大小）
-	BYTE byChannel;				//通道号 [0, n－1] n:通道数
+	uint8_t byChannel;				//通道号 [0, n－1] n:通道数
 
-	BYTE byMotionScope[18][22];	//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
-	BYTE byMotionSensitive;		//移动侦测灵敏度, 0 - 5,越高越灵敏 
+	uint8_t byMotionScope[18][22];	//侦测区域,共有22*18个小宏块,为1表示该宏块是移动侦测区域,0-表示不是 
+	uint8_t byMotionSensitive;		//移动侦测灵敏度, 0 - 5,越高越灵敏 
 
 	// 时间表相关
-	BYTE byEnableHandleMotion;	// 移动侦测布防使能 0-撤防 1-布防	
-	BYTE weekEnable;			// 设置每天0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
-	BYTE fullDayEnable[8];		// 完整天录像 0-不使能(缺省值) 1-使能,若此项使能,则对应的天为全天布防,不用判断时间段
+	uint8_t byEnableHandleMotion;	// 移动侦测布防使能 0-撤防 1-布防	
+	uint8_t weekEnable;			// 设置每天0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
+	uint8_t fullDayEnable[8];		// 完整天录像 0-不使能(缺省值) 1-使能,若此项使能,则对应的天为全天布防,不用判断时间段
 	STRUCT_NVR_SCHEDTIME struAlarmTime[8][8];		//布防时间段, 8个时间段
 	DWORD	dwHandleType;							//按位 2-声音报警5-监视器最大化 //6-邮件上传
 
 	// 联动报警输出
-	BYTE	alarmOut_local[16];				//报警输出端口(本地)
-	BYTE	alarmOut_remote[128][16];		//报警输出端口(前端设备)
+	uint8_t	alarmOut_local[16];				//报警输出端口(本地)
+	uint8_t	alarmOut_remote[128][16];		//报警输出端口(前端设备)
 
 	// 联动录像    
-	BYTE record_channel[128];				// 联动的录像通道，为0-不联动 1-联动
+	uint8_t record_channel[128];				// 联动的录像通道，为0-不联动 1-联动
 
 	// 联动其他  
-	BYTE byEnablePreset[128];			    // 是否调用预置点 仅用byEnablePreset[0]来判断;
-	BYTE byPresetNo[128];				    // 调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 [1, 254]
+	uint8_t byEnablePreset[128];			    // 是否调用预置点 仅用byEnablePreset[0]来判断;
+	uint8_t byPresetNo[128];				    // 调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 [1, 254]
 	DWORD reserve[32];						// 保留
 }STRUCT_NVR_MOTION, *LPSTRUCT_NVR_MOTION;
 
 //获取NVR云台协议列表
 typedef struct
 {
-	BYTE  Type; 		//  0-NVR本地云台，1-前端设备云台 (为1时byChannel生效)
-	BYTE  byChannel;   	//  [0, n-1],n:通道数
-	BYTE  reserve[2];	//	保留
+	uint8_t  Type; 		//  0-NVR本地云台，1-前端设备云台 (为1时byChannel生效)
+	uint8_t  byChannel;   	//  [0, n-1],n:通道数
+	uint8_t  reserve[2];	//	保留
 }STRUCT_NVR_PTZLIST, *LPSTRUCT_NVR_PTZLIST;
 
 typedef struct 
 {
 	DWORD	ptznum;					// 协议个数（限制为最多100个）
-	BYTE	reserve[4];				// 保留
-	BYTE	ptztype[100][10];		// 协议名列表―――0，unknow;
+	uint8_t	reserve[4];				// 保留
+	uint8_t	ptztype[100][10];		// 协议名列表―――0，unknow;
 }STRUCT_NVR_PTZLIST_INFO, *LPSTRUCT_NVR_PTZLIST_INFO;
 
 //报警输入参数（NVR）
 typedef struct
 {
 	DWORD dwSize;						// 结构体大小
-	BYTE opType;                        // 0-本地 1-前端 (为1时,byChannel有效)
-	BYTE byChannel;                     // 操作前端某通道设备 [0, n-1], n:通道个数
-	BYTE byAlarmInPort;				    // 报警输入端口号[0, n-1], n:报警输入个数
-	BYTE sAlarmInName[32];			    // 报警输入端口名， 以’\0’结束字符串
-	BYTE byAlarmType;				    // 探头类型 0-常闭1-常开
-	BYTE byEnSchedule;					// 报警输入布防时间激活 0-屏蔽 1-激活 
-	BYTE weekEnable;               		// 每天使能位0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]来设置每一天) 
-	BYTE allDayEnable[8];						// 全天使能 ,0-不使能 1-使能若此项使能,则对应的天为全天布防,不用判断时间段	
+	uint8_t opType;                        // 0-本地 1-前端 (为1时,byChannel有效)
+	uint8_t byChannel;                     // 操作前端某通道设备 [0, n-1], n:通道个数
+	uint8_t byAlarmInPort;				    // 报警输入端口号[0, n-1], n:报警输入个数
+	uint8_t sAlarmInName[32];			    // 报警输入端口名， 以’\0’结束字符串
+	uint8_t byAlarmType;				    // 探头类型 0-常闭1-常开
+	uint8_t byEnSchedule;					// 报警输入布防时间激活 0-屏蔽 1-激活 
+	uint8_t weekEnable;               		// 每天使能位0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]来设置每一天) 
+	uint8_t allDayEnable[8];						// 全天使能 ,0-不使能 1-使能若此项使能,则对应的天为全天布防,不用判断时间段	
 	STRUCT_NVR_SCHEDTIME struAlarmTime[8][8];	// 布防时间段
 	DWORD	dwHandleType;	           			// 按位 2-声音报警 5-监视器最大化 //6-邮件上传
 
 	// 联动报警输出
-	BYTE  alarmOut_local[16];		    // 报警输出端口(本地)
-	BYTE  alarmOut_remote[128][16];		// 报警输出端口(前端设备)
+	uint8_t  alarmOut_local[16];		    // 报警输出端口(本地)
+	uint8_t  alarmOut_remote[128][16];		// 报警输出端口(前端设备)
 
 	// 联动录像
-	BYTE byRelRecordChan[128];		    // 报警触发的录象通道,为1表示触发该通道 
+	uint8_t byRelRecordChan[128];		    // 报警触发的录象通道,为1表示触发该通道 
 
 	// 联动其他
-	BYTE byEnablePreset[128];			// 是否调用预置点 仅用byEnablePreset[0]来判断
-	BYTE byPresetNo[128];				// 调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 [1, 254]
-	BYTE reserve[32];			        // 保留
+	uint8_t byEnablePreset[128];			// 是否调用预置点 仅用byEnablePreset[0]来判断
+	uint8_t byPresetNo[128];				// 调用的云台预置点序号,一个报警输入可以调用多个通道的云台预置点, 0xff表示不调用预置点 [1, 254]
+	uint8_t reserve[32];			        // 保留
 } STRUCT_NVR_ALRMIN, *LPSTRUCT_NVR_ALRMIN;
 
 //报警输出参数（NVR）
 typedef struct	
 {
 	DWORD dwSize;					// 结构体大小
-	BYTE opType;                    // 0-本地 1-前端 (为1时,byChannel有效)
-	BYTE byChannel;                 // 操作前端某通道设备 [0, n-1], n:通道个数
-	BYTE byALarmoutPort;			// 报警输出通道号 [0, n-1], n:报警输出端口数
-	BYTE sAlarmOutName[32];			// 名称 以’\0’结束字符串
+	uint8_t opType;                    // 0-本地 1-前端 (为1时,byChannel有效)
+	uint8_t byChannel;                 // 操作前端某通道设备 [0, n-1], n:通道个数
+	uint8_t byALarmoutPort;			// 报警输出通道号 [0, n-1], n:报警输出端口数
+	uint8_t sAlarmOutName[32];			// 名称 以’\0’结束字符串
 	DWORD dwAlarmOutDelay;			// 输出保持时间 单位秒 [2, 300]
-	BYTE byAlarmType;				// 探头类型 0-常闭1-常开 (保留)    
-	BYTE byEnSchedule;				// 报警输出布防时间激活 0-屏蔽 1-激活 
-	BYTE weekEnable;				// 每天使能位0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
-	BYTE fullDayEnable[8];     		// 完整天录像 0-不使能(缺省值) 1-使能
+	uint8_t byAlarmType;				// 探头类型 0-常闭1-常开 (保留)    
+	uint8_t byEnSchedule;				// 报警输出布防时间激活 0-屏蔽 1-激活 
+	uint8_t weekEnable;				// 每天使能位0-不使能 1-使能(若使能,只取struAlarmTime[0][0~7]对每天做设置)  
+	uint8_t fullDayEnable[8];     		// 完整天录像 0-不使能(缺省值) 1-使能
 	STRUCT_NVR_SCHEDTIME struAlarmTime[8][8]; //布防时间段, 8个时间段
 
-	BYTE  reserve[32]; 				// 保留
+	uint8_t  reserve[32]; 				// 保留
 }STRUCT_NVR_ALARMOUTINFO, *LPSTRUCT_NVR_ALARMOUTINFO;
 
 //获取设备信息扩展(NVR)
 typedef struct	
 {
 	DWORD dwSize;						// 结构体大小
-	BYTE sDVRName[32];					// 设备, 以’\0’结束字符串
+	uint8_t sDVRName[32];					// 设备, 以’\0’结束字符串
 	DWORD dwDVRID;						// 保留
 	DWORD dwRecycleRecord;				// 协议二: //录像覆盖策略 0-循环覆盖 1-提示覆盖
-	BYTE sSerialNumber[48];				// 序列号
-	BYTE sSoftwareVersion[64];			// 软件版本号以’\0’结束字符串协议二: （主机型号 软件版本号）
-	BYTE sSoftwareBuildDate[32];		// 软件生成日期以’\0’结束字符串协议二:（Build 100112）
+	uint8_t sSerialNumber[48];				// 序列号
+	uint8_t sSoftwareVersion[64];			// 软件版本号以’\0’结束字符串协议二: （主机型号 软件版本号）
+	uint8_t sSoftwareBuildDate[32];		// 软件生成日期以’\0’结束字符串协议二:（Build 100112）
 	DWORD dwDSPSoftwareVersion;			// DSP软件版本
-	BYTE sPanelVersion[32];				// 前面板版本，以’\0’结束字符串，IPC无
-	BYTE sHardwareVersion[32];	        // (保留)协议二: 当软件版本号超过16字节时会使用作为主机型号显示
-	BYTE byAlarmInPortNum;		        // 报警输入个数, NVR只取本地报警输入
-	BYTE byAlarmOutPortNum;	  	    	// 报警输出个数, NVR只取本地报警输出
-	BYTE byRS232Num;			        // 保留
-	BYTE byRS485Num;					// 保留
-	BYTE byNetworkPortNum;				// 保留
-	BYTE byDiskCtrlNum;					// 保留
-	BYTE byDiskNum;						// 硬盘个数
-	BYTE byDVRType;						// DVR类型, 1:NVR 2:ATM NVR 3:DVS 4:IPC 5:NVR （建议使用//NET_SDVR_GET_DVRTYPE命令）
-	BYTE byChanNum;						// 通道个数[0, 128]
-	BYTE byStartChan;					// 保留
-	BYTE byDecordChans;					// 保留
-	BYTE byVGANum;						// 保留
-	BYTE byUSBNum;						// 保留
-	BYTE bySDI485Num;					// 保留
-	BYTE reserve[2];					// 保留
+	uint8_t sPanelVersion[32];				// 前面板版本，以’\0’结束字符串，IPC无
+	uint8_t sHardwareVersion[32];	        // (保留)协议二: 当软件版本号超过16字节时会使用作为主机型号显示
+	uint8_t byAlarmInPortNum;		        // 报警输入个数, NVR只取本地报警输入
+	uint8_t byAlarmOutPortNum;	  	    	// 报警输出个数, NVR只取本地报警输出
+	uint8_t byRS232Num;			        // 保留
+	uint8_t byRS485Num;					// 保留
+	uint8_t byNetworkPortNum;				// 保留
+	uint8_t byDiskCtrlNum;					// 保留
+	uint8_t byDiskNum;						// 硬盘个数
+	uint8_t byDVRType;						// DVR类型, 1:NVR 2:ATM NVR 3:DVS 4:IPC 5:NVR （建议使用//NET_SDVR_GET_DVRTYPE命令）
+	uint8_t byChanNum;						// 通道个数[0, 128]
+	uint8_t byStartChan;					// 保留
+	uint8_t byDecordChans;					// 保留
+	uint8_t byVGANum;						// 保留
+	uint8_t byUSBNum;						// 保留
+	uint8_t bySDI485Num;					// 保留
+	uint8_t reserve[2];					// 保留
 }STRUCT_SDVR_DEVICEINFO_EX, *LPSTRUCT_SDVR_DEVICEINFO_EX;
 
 
 //获取主机设备工作状态扩展(NVR)
 typedef struct 
 {
-	BYTE byRecordState;				// 通道是否在录像,0-不录像,1-录像
-	BYTE bySignalState;				// 连接的信号状态,0-正常,1-信号丢失
-	BYTE byHardwareState;			// 保留
-	BYTE byLinkNum; 				// 客户端连接的个数：同一通道当前时间的实时流的连接数。不分主子码流，同一IP多个连接算多个连接
+	uint8_t byRecordState;				// 通道是否在录像,0-不录像,1-录像
+	uint8_t bySignalState;				// 连接的信号状态,0-正常,1-信号丢失
+	uint8_t byHardwareState;			// 保留
+	uint8_t byLinkNum; 				// 客户端连接的个数：同一通道当前时间的实时流的连接数。不分主子码流，同一IP多个连接算多个连接
 	DWORD dwBitRate;				// 实际码率
 }STRUCT_SDVR_CHANNELSTATE_EX, LPSTRUCT_SDVR_CHANNELSTATE_EX;
 
@@ -2085,8 +2085,8 @@ typedef struct
 	DWORD dwSize ; 										// 结构体大小
 	STRUCT_SDVR_DISKSTATE  struHardDiskState[16];		// 硬盘状态
 	STRUCT_SDVR_CHANNELSTATE_EX struChanState[128];		// 通道的状态
-	BYTE alarminStatusLocal[128];						// 本地报警输入端口的状态
-	BYTE alarmoutStatusLocal[128];						// 本地报警输出端口的状态
+	uint8_t alarminStatusLocal[128];						// 本地报警输入端口的状态
+	uint8_t alarmoutStatusLocal[128];						// 本地报警输出端口的状态
 	DWORD reserve[4];									// 保留
 }STRUCT_SDVR_WORKSTATE_EX_NVR, *LPSTRUCT_SDVR_WORKSTATE_EX_NVR;
 
@@ -2128,23 +2128,23 @@ typedef enum
 
 typedef struct
 {
-	BYTE	  Name[64];                  //型号
-	ULONGLONG dev_capabilty;             //容量                          
-//	BYTE      reserve[4];                //保留	                                                                                                                                     
+	uint8_t	  Name[64];                  //型号
+	uint64_t dev_capabilty;             //容量                          
+//	uint8_t      reserve[4];                //保留	                                                                                                                                     
 }STRUCT_SDVR_RAIDDEVINFO;
 
 typedef struct
 {
-	ULONGLONG serial_num;              //主板序列号
-	BYTE      rec_port;                //录像通道数4;8;16
-	BYTE      rec_format;              //录像分辨率
-	BYTE      rec_colorsystem;         //录像制式Ntsc;Pal
-	BYTE      rec_standard;            //录像压缩算法H264;MPG4
+	uint64_t serial_num;              //主板序列号
+	uint8_t      rec_port;                //录像通道数4;8;16
+	uint8_t      rec_format;              //录像分辨率
+	uint8_t      rec_colorsystem;         //录像制式Ntsc;Pal
+	uint8_t      rec_standard;            //录像压缩算法H264;MPG4
 	MFS_FIELD_TIME sys_time;           //系统最后访问磁盘时间
-	BYTE      log_size;                //32M;64M;128M;256M;512M
-	BYTE      esata_enable;            //esata设备位置使能
-	BYTE      sys_hd_num;              //当前系统支持的最大硬盘数
-	BYTE      reserve1[5];             //保留	  
+	uint8_t      log_size;                //32M;64M;128M;256M;512M
+	uint8_t      esata_enable;            //esata设备位置使能
+	uint8_t      sys_hd_num;              //当前系统支持的最大硬盘数
+	uint8_t      reserve1[5];             //保留	  
 }STRUCT_SDVR_RECORD_SYSINFO;
 
 typedef struct
@@ -2153,33 +2153,33 @@ typedef struct
 	NET_Raid_Level_E  raid_level;                //设备raid 模式的级别     
 	DWORD  raid_dev_table;                       //每个raid组上的设备存在位置情况
 	STRUCT_SDVR_RAIDDEVINFO raid_dev_info[10];   //每个磁盘的型号和容量    
-//	BYTE reserve[4];							 //保留	                                                                                                                     
+//	uint8_t reserve[4];							 //保留	                                                                                                                     
 }STRUCT_SDVR_RAIDINFO;
 
 typedef struct
 {
-	WORD dev_num;                    //存储设备挂载通道
-	WORD dev_type;                   //设备类型（默认硬盘）, NET _DEVTYPE_E
+	uint16_t dev_num;                    //存储设备挂载通道
+	uint16_t dev_type;                   //设备类型（默认硬盘）, NET _DEVTYPE_E
 	DWORD removable;                 //设备是否可移动设置（默认否） 0-否，1-是
 	DWORD backup;                    //设备是否备份设置（默认否）  0-否，1-是
 	DWORD dev_status;                //设备状态   0-正常，1-磁盘错误，2-文件系统出错
 	DWORD is_raid_dev;               //设备是否raid 装置(默认否)   0-否，1-是
 	STRUCT_SDVR_RAIDINFO raid_info;  //当前设备raid装置的详细信息
 	DWORD active;                    //设备工作状态（休眠或者活动）
-	ULONGLONG device_capabilty;      //设备容量(字节) 平台根据各自需要进行相应转换
+	uint64_t device_capabilty;      //设备容量(字节) 平台根据各自需要进行相应转换
 	DWORD mfs_fs_active;             /*设备文件系统是格式化*/
-	ULONGLONG mfs_capability;        //文件系统可用容量（格式化后的容量字节）平//台根据各自需//要进行相应转换
-	ULONGLONG mfs_free;              //当前可用容量(字节)平台根据各自需要进行相应转换
+	uint64_t mfs_capability;        //文件系统可用容量（格式化后的容量字节）平//台根据各自需//要进行相应转换
+	uint64_t mfs_free;              //当前可用容量(字节)平台根据各自需要进行相应转换
 	DWORD device_handle;             //设备操作句柄
 	STRUCT_SDVR_RECORD_SYSINFO device_sys_info;     //磁盘上录像相关的系统信息 
-	BYTE reserve[4];                                //保留	                                                                                                                
+	uint8_t reserve[4];                                //保留	                                                                                                                
 }STRUCT_SDVR_DEVICEINF;
 
 typedef struct
 {
 	DWORD cycle_overlay;                             //循环覆盖方式
 	STRUCT_SDVR_DEVICEINF device_info[MAX_DEV_NUM];  //存储设备信息    
-	BYTE reserve[4];                                 //保留	                                                                                                           
+	uint8_t reserve[4];                                 //保留	                                                                                                           
 }STRUCT_SDVR_STORDEVINFO, *LPSTRUCT_SDVR_STORDEVINFO;
 /******************************************************************/
 
@@ -2196,49 +2196,49 @@ typedef struct
 	DWORD format_num;				 //需要格式化设备的个数
 	DWORD format_log_flg;            //是否格式化日志标志，0-不格式化，1-格式化
 	STRUCT_SDVR_FORMAT_DEV dev_info[MAX_FORMAT_DEV];  //每个要格式化设备的信息                                                                                                                                                         
-	BYTE reserve[4];								  //保留	                                                                                 
+	uint8_t reserve[4];								  //保留	                                                                                 
 }STRUCT_SDVR_FORMATINFO;
 /****************************************************************************/
 //UPNP
 typedef struct
 {
-	BYTE  servicename[32];/*服务名称*/
-	int  iport;/*/DVR端口号*/
-	int  eport;/*路由器端口*/
-	int  proto;/*协议即TCP或者UDP*/
-	BYTE  leaseDuration[20];
+	uint8_t  servicename[32];/*服务名称*/
+	int32_t  iport;/*/DVR端口号*/
+	int32_t  eport;/*路由器端口*/
+	int32_t  proto;/*协议即TCP或者UDP*/
+	uint8_t  leaseDuration[20];
 }STRUCT_SDVR_UPNP_PROTINFO;
 typedef struct
 {
-	BYTE  upnp_en;                 // UPNP 使能
-	int   port_num;             // 转换端口信息个数
+	uint8_t  upnp_en;                 // UPNP 使能
+	int32_t   port_num;             // 转换端口信息个数
 	STRUCT_SDVR_UPNP_PROTINFO portinfo[MAX_PAT];   // 转换端口信息  MAX_PAT=15，即最多同时可增加15个端口信息
-	BYTE  reserve[10];   //保留
+	uint8_t  reserve[10];   //保留
 }STRUCT_SDVR_UPNPINFO;
 
 //前端通道字符叠加信息参数
 typedef   struct 
 { 
-	BYTE     id;					// 通道字符叠加信息号 [0, n－1] n: 叠加字符信息组数
-	BYTE     byLinkMode;			// 0-主码流  1-子码流  
-	BYTE     byChanOSDStrSize;		// 叠加字符信息里字符串数据的长度，包含字符串结束符'\0'
-	BYTE     byOSDAttrib;			// 通道字符叠加信息  1-不透明  2-透明(只针对 PC 端显示)
-	BYTE     byOSDType;				//格式及语言，最高位为 0 表示解码后叠加，为 1 表示前端叠加
+	uint8_t     id;					// 通道字符叠加信息号 [0, n－1] n: 叠加字符信息组数
+	uint8_t     byLinkMode;			// 0-主码流  1-子码流  
+	uint8_t     byChanOSDStrSize;		// 叠加字符信息里字符串数据的长度，包含字符串结束符'\0'
+	uint8_t     byOSDAttrib;			// 通道字符叠加信息  1-不透明  2-透明(只针对 PC 端显示)
+	uint8_t     byOSDType;				//格式及语言，最高位为 0 表示解码后叠加，为 1 表示前端叠加
 	//设为 0x80 时表示将 osd 设为前端叠加
 	char     reservedData[3];
 	DWORD	 dwShowChanOSDInfo;		// 是否显示通道字符叠加信息  0-显示  1-不显示 
-	WORD     wShowOSDInfoTopLeftX;	// 通道字符叠加信息显示位置的 x 坐标
+	uint16_t     wShowOSDInfoTopLeftX;	// 通道字符叠加信息显示位置的 x 坐标
 									// [0,  实际宽－叠加字符数据长度]
-	WORD     wShowOSDInfoTopLeftY;	// 通道字符叠加信息显示位置的 y 坐标 
+	uint16_t     wShowOSDInfoTopLeftY;	// 通道字符叠加信息显示位置的 y 坐标 
 									// [0,  实际高－字体高度] 
 	char     data[];				// 叠加字符信息里的字符串数据，包含字符串结束符'\0'
 } STRUCT_SDVR_OSDINFO, *LPSTRUCT_SDVR_OSDINFO; 
 
 typedef   struct 
 { 
-	BYTE    byChannel;				// 通道号 [0, n－1] n:通道数
-	BYTE    byOSDInfoNum;			//包含的叠加字符信息组数，每组结构为STRUCT_SDVR_OSDINFO
-	WORD	byChanOSDInfoSize;      // 叠加字符信息的数据包大小
+	uint8_t    byChannel;				// 通道号 [0, n－1] n:通道数
+	uint8_t    byOSDInfoNum;			//包含的叠加字符信息组数，每组结构为STRUCT_SDVR_OSDINFO
+	uint16_t	byChanOSDInfoSize;      // 叠加字符信息的数据包大小
 	char    data[];					// 紧跟着叠加字符信息数据内容
 } STRUCT_SDVR_OSDCFG, *LPSTRUCT_SDVR_OSDCFG; 
 
@@ -2257,17 +2257,17 @@ typedef   struct
 //远程查询标记某月的录像记录
 typedef struct  
 {
-	BYTE  byChannel;		//通道号[0, n－1]，n:通道数 
-	BYTE  byType;			//查询的录像类型，下表是值和录像类型对应关系 
-	BYTE  byYear;			//查询的年  [0-63] 2000 年为 0，2063 年为 63 
-	BYTE  byMonth;			//查询的月  [1-12] 
-	BYTE  Reserve[32];		//保留  
+	uint8_t  byChannel;		//通道号[0, n－1]，n:通道数 
+	uint8_t  byType;			//查询的录像类型，下表是值和录像类型对应关系 
+	uint8_t  byYear;			//查询的年  [0-63] 2000 年为 0，2063 年为 63 
+	uint8_t  byMonth;			//查询的月  [1-12] 
+	uint8_t  Reserve[32];		//保留  
 }STRUCT_SDVR_QUERY_MONTH, *LPSTRUCT_SDVR_QUERY_MONTH;
 
 typedef struct 
 { 
-	BYTE  byDate[31];  //返回有录像数据的日期,数组[n]代表某月的第(n+1)天，0-无录像  1-有录像 
-	BYTE  Reserve[9];  //保留 
+	uint8_t  byDate[31];  //返回有录像数据的日期,数组[n]代表某月的第(n+1)天，0-无录像  1-有录像 
+	uint8_t  Reserve[9];  //保留 
 }STRUCT_SDVR_MONTHINFO,  *LPSTRUCT_SDVR_MONTHINFO; 
 
 //获取主机温度
@@ -2278,7 +2278,7 @@ typedef struct
 	DWORD    harddisk_temperature[MAX_DISKNUM]; //硬盘温度 
 	DWORD    cpu_temperature;					//CPU 温度 
 	DWORD    humidity;								//湿度 
-	BYTE			reserve[4];								//保留 
+	uint8_t			reserve[4];								//保留 
 }STRUCT_SDVR_TEMPERATURE, *LPSTRUCT_SDVR_TEMPERATURE; 
 
 //获取录像统计
@@ -2290,34 +2290,34 @@ typedef struct
 	DWORD type_record;					//录像类型，0x01-手动录像,0x02-定时录像,0x04-移动录像,0x08-报警录像,0xff-所有录像
 	unsigned long long totalTime;		//总时间，硬盘上所有录像的时间总和，以秒为单位统计
 	unsigned long long totalFileLength;		//总文件长度，硬盘上所有录像文件的总长度，按字节表示
-	BYTE reserve[4];				//保留
+	uint8_t reserve[4];				//保留
 }STRUCT_SDVR_RECORDSTATISTICS, *LPSTRUCT_SDVR_RECORDSTATISTICS;   
 
 //设置覆盖录像天数的结构体
 typedef struct{
 	unsigned short notEnoughDate;	 //指定硬盘上覆盖录像时，录像不足天数报警的天数值
-	BYTE reserve[2];           				 //保留                            
+	uint8_t reserve[2];           				 //保留                            
 }STRUCT_SDVR_RECORDNOTENOUGHDATE_ALARM;
 
 typedef struct 
 { 
 	DWORD    dwAlarmDayNum;     //预设报警天数 
 	DWORD    dwCurDayNum;        // 当前天数 
-	BYTE  reserve[8];            //保留 
+	uint8_t  reserve[8];            //保留 
 }STRUCT_SDVR_RECORD_ALARM; 
 
 typedef struct 
 { 
-	BYTE  byChannel;			//报警通道号 
-	BYTE  reserve[11];			//保留 
+	uint8_t  byChannel;			//报警通道号 
+	uint8_t  reserve[11];			//保留 
 }STRUCT_SDVR_ALARM_STAT; 
 
 //报警主动上传
 //当报警类型dwAlarmType为0-6时，union等于STRUCT_SDVR_ALARM_STAT结构体，当dwAlarmType=7时，union等于STRUCT_SDVR_RECORD_ALARM结构体
 typedef struct 
 { 
-	BYTE byAlarmStat;			//报警状态，0—报警结束，1—报警开始 
-	BYTE reserve[3];				//保留 
+	uint8_t byAlarmStat;			//报警状态，0—报警结束，1—报警开始 
+	uint8_t reserve[3];				//保留 
 	DWORD dwAlarmType;        //报警类型：0-移动报警，1-探头报警，2-视频丢失报警，3-磁盘错误报警， 
 	//4-网络断开报警，5-温度过高，6-视频遮挡报警 7-录像天数不足报警 
 	UNMFS_TIME dwAlarmTime;     //报警时间 
@@ -2346,22 +2346,22 @@ typedef struct
 //远程录像备份(实现断点续传)
 typedef struct
 {
-	BYTE byChannel;			//通道号
-	BYTE type;						//备份类型：0-手动；1-定时；2-移动；3-探头报警；0x0f-所有录像
-	WORD file_index;			//客户端下载的文件列表的索引号，从0开始
+	uint8_t byChannel;			//通道号
+	uint8_t type;						//备份类型：0-手动；1-定时；2-移动；3-探头报警；0x0f-所有录像
+	uint16_t file_index;			//客户端下载的文件列表的索引号，从0开始
 	DWORD file_offset;			//文件偏移大小，刚开始为0
 	UNMFS_TIME starttime;  //开始时间
 	UNMFS_TIME endtime;   //结束时间
-	BYTE streamtype;			//码流类型，0-主码流，1-子码流
-	BYTE reserve[31];			//保留
+	uint8_t streamtype;			//码流类型，0-主码流，1-子码流
+	uint8_t reserve[31];			//保留
 }STRUCT_SDVR_BACKINFO_EX;
 /*
 //远程录像点播开始
 typedef struct TAG_VOD_PARAM 
 { 
-	BYTE   byChannel;					// 通道号[0, n-1],n:通道数 
-	BYTE   byType;						// 录像类型: 1-手动，-定时，-移动，-报警，xFF-全部 
-	WORD    wLoadMode;           // 回放下载模式 1-按时间，2-按名字 
+	uint8_t   byChannel;					// 通道号[0, n-1],n:通道数 
+	uint8_t   byType;						// 录像类型: 1-手动，-定时，-移动，-报警，xFF-全部 
+	uint16_t    wLoadMode;           // 回放下载模式 1-按时间，2-按名字 
 	union 
 	{ 
 		struct 
@@ -2372,18 +2372,18 @@ typedef struct TAG_VOD_PARAM
 			char cReserve[16]; 
 		}byTime; 
 
-		BYTE   byFile[64];            // 是否够长？ 
+		uint8_t   byFile[64];            // 是否够长？ 
 	}mode; 
 
-	BYTE   streamtype;                 //码流类型，0-主码流，1-子码流 
-	BYTE   byReserve[15];             //保留 
+	uint8_t   streamtype;                 //码流类型，0-主码流，1-子码流 
+	uint8_t   byReserve[15];             //保留 
 }VOD_PARAM, *LPVOD_PARAM; 
 
 typedef struct TAG_VOD_ANS 
 { 
 	DWORD    dwVodID;		//主机分配 
-	BYTE   streamtype;			//码流类型，0-主码流，1-子码流 
-	BYTE   byReserve[15];		//保留 
+	uint8_t   streamtype;			//码流类型，0-主码流，1-子码流 
+	uint8_t   byReserve[15];		//保留 
 }VOD_ANSWER, *LPVOD_ANSWER; 
 */
 
@@ -2396,24 +2396,24 @@ typedef struct
 	UNMFS_TIME  fileendtime; //本录像文件结束时间 
 	DWORD   totalFileLen; //总文件长度，表示NETCOM_BACKUP_RECFILE_REQ_EX 命令所给的 
 	//时间段内的总长度(注：该时间段内有可能有多个文件) ，以KB 为单位 
-	WORD   file_index;   //文件列表的索引号 
+	uint16_t   file_index;   //文件列表的索引号 
 	DWORD   file_offset; //文件偏移大小，发送本文件的起始偏移大小 
 }STRUCT_SDVR_FILEINFO_EX,*LPSTRUCT_SDVR_FILEINFO_EX; 
 
 //获取主机端支持的功能
 typedef struct 
 { 
-	BYTE funtions[256]; //请求的功能，数组的每个元素代表一种功能，元素的值为0-表示不支持该功能，为1-表示支持该功能，下标从0开始。
+	uint8_t funtions[256]; //请求的功能，数组的每个元素代表一种功能，元素的值为0-表示不支持该功能，为1-表示支持该功能，下标从0开始。
 	//元素1-断点续传功能,元素2-远程截图功能，如果支持则0xE0，0xE1，0xE2，0xE3，0xE4，0xE5命令有效，元素3-视频制式却换不重启功能，元素4-扩展OSD功能，元素5-剩余帧率计算
 	//（说明：有些机型性能有限，会限制总帧率，这样设置帧率时会考虑设置的帧率是否在剩余帧率范围内），元素6-双码流回放功能
-	BYTE reserve1[8];	//保留
+	uint8_t reserve1[8];	//保留
 } STRUCT_SDVR_SUPPORT_FUNC, *LPSTRUCT_SDVR_SUPPORT_FUNC;
 
 //通道卡号录像状态
 typedef struct 
 { 
-	BYTE   channel[128];	//通道卡号录像状态 1.进行卡号录像 0.停止卡号录像 
-	BYTE   reserve[4];		//保留 
+	uint8_t   channel[128];	//通道卡号录像状态 1.进行卡号录像 0.停止卡号录像 
+	uint8_t   reserve[4];		//保留 
 }STRUCT_SDVR_CHAN_CARDCOR, *LPSTRUCT_SDVR_CHAN_CARDCOR;
 
 //设置对讲接收数据格式
@@ -2436,12 +2436,12 @@ typedef enum
 
 typedef struct
 {
-	WORD year ;       //年 如2009
-	WORD month ;      //月 1-12
-	BYTE   day ;       //日 1-31
-	BYTE   hour ;      //小时 0-23
-	BYTE   minute ;    //分钟 0-59
-	BYTE   second ;    //秒 0-59
+	uint16_t year ;       //年 如2009
+	uint16_t month ;      //月 1-12
+	uint8_t   day ;       //日 1-31
+	uint8_t   hour ;      //小时 0-23
+	uint8_t   minute ;    //分钟 0-59
+	uint8_t   second ;    //秒 0-59
 	DWORD msec;        //毫秒
 } PT_TIME_S, *PPT_TIME_S;
 
@@ -2459,19 +2459,19 @@ typedef struct
 
 typedef struct
 {
-	BYTE           flag;                       //磁盘检测状态，0为未检测到磁盘，1为检测到磁盘
-	BYTE           dev_no;                     //设备号(和物理号对应，从0开始)
-	BYTE           devtype;                    //设备类型
-	BYTE           reserve[5];
-	BYTE           dev_model[HB_TEST_DEVNAME]; //设备型号
-	DWORDLONG          dev_capability;             //设备容量(字节)
+	uint8_t           flag;                       //磁盘检测状态，0为未检测到磁盘，1为检测到磁盘
+	uint8_t           dev_no;                     //设备号(和物理号对应，从0开始)
+	uint8_t           devtype;                    //设备类型
+	uint8_t           reserve[5];
+	uint8_t           dev_model[HB_TEST_DEVNAME]; //设备型号
+	uint64_t       dev_capability;             //设备容量(字节)
 } HB_DEVINFO_OUT_S;
 
 typedef struct
 {
-	BYTE           dev_no;                     //设备号(和物理号对应，从0开始)
-	BYTE           devtype;                    //设备类型
-	WORD          reserve;
+	uint8_t           dev_no;                     //设备号(和物理号对应，从0开始)
+	uint8_t           devtype;                    //设备类型
+	uint16_t          reserve;
 } HB_DEVINFO_IN_S;
 
 typedef struct
@@ -2483,9 +2483,9 @@ typedef struct
 
 typedef struct
 {
-	BYTE          test_flag;                   //输出参数，表示测试状态，0-没有执行测试(下面数据此时无效)，1-有执行测试(下面数据此时有效)
-	BYTE           dev_nun;                    //输出参数，0-未检测到磁盘，>0检测磁盘个数，具体信息存放在devinfo中
-	BYTE           reserve[2];
+	uint8_t          test_flag;                   //输出参数，表示测试状态，0-没有执行测试(下面数据此时无效)，1-有执行测试(下面数据此时有效)
+	uint8_t           dev_nun;                    //输出参数，0-未检测到磁盘，>0检测磁盘个数，具体信息存放在devinfo中
+	uint8_t           reserve[2];
 	HB_DEVINFO_OUT_S    devinfo[HB_TEST_MAX_HD];    //输出参数，存储具体每个磁盘的信息，当dev_nun非0时有效
 } HB_TEST_DISK_OUT_S;
 
@@ -2498,7 +2498,7 @@ typedef struct
 
 typedef struct
 {
-	BYTE           result;                     //输出参数，对应通道录像检测结果, 1为成功，0为失败, 2为未做测试 
+	uint8_t           result;                     //输出参数，对应通道录像检测结果, 1为成功，0为失败, 2为未做测试 
 	DWORD          delay_time;                 //输出参数，记录录像开启操作的延迟时间(主要是开启录像到实际写数据所间隔的时间)，只记录所有通道中最大时间    
 }HB_TEST_REC_CHINFO;
 
@@ -2509,31 +2509,31 @@ typedef struct
 
 typedef struct
 {
-	WORD          format_devno;               //格式化磁盘号
-	WORD          format_devtype;             //格式化磁盘类型(PT_DEVTYPE_E)
+	uint16_t          format_devno;               //格式化磁盘号
+	uint16_t          format_devtype;             //格式化磁盘类型(PT_DEVTYPE_E)
 } HB_FORMAT_ININFO_S;
 
 typedef struct
 {
-	WORD            format_devno;               //格式化磁盘号
-	WORD			format_devtype;             //格式化磁盘类型
-	WORD            format_time;                //格式化所需时间，单位为秒
+	uint16_t            format_devno;               //格式化磁盘号
+	uint16_t			format_devtype;             //格式化磁盘类型
+	uint16_t            format_time;                //格式化所需时间，单位为秒
 	DWORD          format_flag;                //格式化成功或失败，0-失败，1-成功，2-未检测到磁盘
 } HB_FORMATINFO_S;
 
 typedef struct
 {
-	WORD          enable;                     //是否执行此项测试使能，0-不执行，1-执行
-	WORD          format_num;                  //需要格式化磁盘个数
+	uint16_t          enable;                     //是否执行此项测试使能，0-不执行，1-执行
+	uint16_t          format_num;                  //需要格式化磁盘个数
 	HB_FORMAT_ININFO_S formatinfo[HB_TEST_MAX_HD];//需要格式化磁盘信息，format_num非0时有效
 	DWORD          format_times;               //执行格式化测试次数，没有选择重启测试时有效，否则默认只执行一次
 } HB_TEST_FORMAT_IN_S;
 
 typedef struct
 {
-	BYTE          test_flag;                   //输出参数，表示测试状态，0-没有执行测试(下面数据此时无效)，1-有执行测试(下面数据此时有效)
-	BYTE          format_num;                  //输出参数，已格式化硬盘个数
-	BYTE          reserve[2];
+	uint8_t          test_flag;                   //输出参数，表示测试状态，0-没有执行测试(下面数据此时无效)，1-有执行测试(下面数据此时有效)
+	uint8_t          format_num;                  //输出参数，已格式化硬盘个数
+	uint8_t          reserve[2];
 	HB_FORMATINFO_S formatinfo[HB_TEST_MAX_HD]; //输出参数，每个硬盘格式化信息，包括成功与失败及每个硬盘格式化时间
 } HB_TEST_FORMAT_OUT_S;
 
@@ -2592,11 +2592,11 @@ typedef struct
 
 typedef struct
 {
-	BYTE stop_flag;               //停止位 1停止 0运行
-	BYTE show_split_time;         //显示画面分割时间
-	BYTE show_page_time;          //显示页面时间
-	BYTE switch_screen_time;      //切屏时间
-	BYTE playback_channel[64];    //回放通道
+	uint8_t stop_flag;               //停止位 1停止 0运行
+	uint8_t show_split_time;         //显示画面分割时间
+	uint8_t show_page_time;          //显示页面时间
+	uint8_t switch_screen_time;      //切屏时间
+	uint8_t playback_channel[64];    //回放通道
 	DWORD playback_time;          //回放时间
 	DWORD alarm_out_time;         //报警输出时间
 	MFS_FIELD_TIME sys_time;         //系统时间
@@ -2609,8 +2609,8 @@ typedef struct
 
 typedef struct
 {
-	BYTE   test_type;                          //设置测试类型(HB_TEST_TYPE_E)，与union成员对应
-	BYTE   reserve[15];
+	uint8_t   test_type;                          //设置测试类型(HB_TEST_TYPE_E)，与union成员对应
+	uint8_t   reserve[15];
 
 	/*按测试类型分别取下面的结构，每次只能对应一个*/
 	union
@@ -2624,8 +2624,8 @@ typedef struct
 
 typedef struct
 {
-	BYTE   test_type;                          //上传测试类型(HB_TEST_TYPE_E)，与union成员对应
-	BYTE   reserve[15];
+	uint8_t   test_type;                          //上传测试类型(HB_TEST_TYPE_E)，与union成员对应
+	uint8_t   reserve[15];
 
 	/*按测试类型分别取下面的结构，每次只能对应一个*/
 	union
@@ -2640,31 +2640,31 @@ typedef struct
 //IPC无线参数
 typedef struct
 {
-	BYTE safeoption;		//安全选项设置，取值范围[0,2]  0:自动选择  1：开放系统   2：共享密钥
-	BYTE pswformat;		//密钥格式设置，取值范围[0,1]  0：16进制   1：ASCII码
-	BYTE pswtype;			//密 钥 类 型设置，取值范围[0,3]   0：禁用  1：64位  2:128位   3:152位
-	BYTE pswword[62];		//密码，以’\0’结尾，定义62byte是为了与STRUCT_SDVR_IPCWPAPSK等大小。
+	uint8_t safeoption;		//安全选项设置，取值范围[0,2]  0:自动选择  1：开放系统   2：共享密钥
+	uint8_t pswformat;		//密钥格式设置，取值范围[0,1]  0：16进制   1：ASCII码
+	uint8_t pswtype;			//密 钥 类 型设置，取值范围[0,3]   0：禁用  1：64位  2:128位   3:152位
+	uint8_t pswword[62];		//密码，以’\0’结尾，定义62byte是为了与STRUCT_SDVR_IPCWPAPSK等大小。
 	//备注：密码长度说明，选择64位密钥需输入16进制数字符10个，或者ASCII码字符
 	//5个。选择128位密钥需输入16进制数字符26个，或者ASCII码字符13个。
 	//选择152位密钥需输入16进制数字符32个，或者ASCII码字符16个。
-	BYTE reserve[3];		//保留
+	uint8_t reserve[3];		//保留
 }STRUCT_SDVR_IPCWEP,*LPSTRUCT_SDVR_IPCWEP;
 
 typedef struct
 {
-	BYTE safeoption;		//安全选项设置，取值范围[0,2] 0：自动选择   1：WPA-PSK    2:WPA2-PSK
-	BYTE pswmod;			//加密方法设置,取值范围[0,2]  0：自动选择   1：TKIP   2:AES
-	BYTE pawword[64];	//psk密码，8到63个字符，以’\0’结尾
-	BYTE reserve[2];			//保留
+	uint8_t safeoption;		//安全选项设置，取值范围[0,2] 0：自动选择   1：WPA-PSK    2:WPA2-PSK
+	uint8_t pswmod;			//加密方法设置,取值范围[0,2]  0：自动选择   1：TKIP   2:AES
+	uint8_t pawword[64];	//psk密码，8到63个字符，以’\0’结尾
+	uint8_t reserve[2];			//保留
 }STRUCT_SDVR_IPCWPAPSK,*LPSTRUCT_SDVR_IPCWPAPSK;
 
 typedef struct
 {
 	DWORD nSize;			//建议添加，结构体长度。
-	BYTE ssid[50];			//SSID号以’\0’结尾
-	BYTE wirelessIP[16];	//无线ip以’\0’结尾
-	BYTE safetype; 			//安全类型设置， 0：WEB、1：WPA-PSK/WPA2-PSK、2：无加密
-	BYTE reserve[3];			//保留  	
+	uint8_t ssid[50];			//SSID号以’\0’结尾
+	uint8_t wirelessIP[16];	//无线ip以’\0’结尾
+	uint8_t safetype; 			//安全类型设置， 0：WEB、1：WPA-PSK/WPA2-PSK、2：无加密
+	uint8_t reserve[3];			//保留  	
 	union{
 	//因为以下两个结构体不可能同时使用，建议用联合体。
 	STRUCT_SDVR_IPCWEP ipcwep;			//安全类型为WEP时参数结构体
@@ -2683,10 +2683,10 @@ typedef struct                           //key文件信息
 	char   external_ver8016t[16]; //外部版本号8016t
 	char   external_ver700xt[16]; //外部版本号700xt
 	char   external_ver800xt[16]; //外部版本号800xt
-	unsigned int lang_ver;     //语言版本  0：中文；1：英文
-	unsigned int logo_ver;     //logo版本 0：汉邦；1：中性
-	unsigned int lang_maskl;  //支持的语言掩码低32 位代表32种语言
-	unsigned int lang_maskh;  //支持的语言掩码高32 位代表另外32种语言
+	uint32_t lang_ver;     //语言版本  0：中文；1：英文
+	uint32_t logo_ver;     //logo版本 0：汉邦；1：中性
+	uint32_t lang_maskl;  //支持的语言掩码低32 位代表32种语言
+	uint32_t lang_maskh;  //支持的语言掩码高32 位代表另外32种语言
 	unsigned short oem_type;  //OEM 类型，用来区分不同的客户
 	char   full_pb_flag;      //是否支持全回放 0不支持,1支持
 	char   reserve[21];
@@ -2695,15 +2695,15 @@ typedef struct                           //key文件信息
 typedef  struct                             //logo信息
 {
 	char      file_path[256];             //带完整路径的图片名称
-	unsigned  int   logo_support;          //是否支持：1-支持, 0-不支持
-	unsigned  int   file_format;          //bit:0-支持的图片格式为jpg ,1-支持的图片格式为bmp , 2-支持的图片格式为YUV
-	unsigned  int   max_width;            //图片最大宽;
-	unsigned  int   max_height;           //图片最大高;   
-	unsigned  int   min_width;            //图片最大宽
-	unsigned  int   min_height;           //图片最小高
-	unsigned  int   logo_bitdepth;        //图片位深度，例：位深为8，第7位为1，位深为12，第11位为1，依次类推
-	unsigned  int   logo_size;            //图片大小;
-	unsigned  int   reserver;             //保留;  
+	uint32_t   logo_support;          //是否支持：1-支持, 0-不支持
+	uint32_t   file_format;          //bit:0-支持的图片格式为jpg ,1-支持的图片格式为bmp , 2-支持的图片格式为YUV
+	uint32_t   max_width;            //图片最大宽;
+	uint32_t   max_height;           //图片最大高;
+	uint32_t   min_width;            //图片最大宽
+	uint32_t   min_height;           //图片最小高
+	uint32_t   logo_bitdepth;        //图片位深度，例：位深为8，第7位为1，位深为12，第11位为1，依次类推
+	uint32_t   logo_size;            //图片大小;
+	uint32_t   reserver;             //保留;
 }LOGO;
 
 typedef struct
@@ -2713,29 +2713,29 @@ typedef struct
 	key_field  key_info;                    //key文件信息
 	char       key_path[256];               //包含key, devinfo.ini两个文件
 	LOGO       logo[10];                    //logo信息  0-uboot 1-状态 2-无视频信号 3-水印 4-osd右上角 5-IE  
-	unsigned int reserve;            //保留信息
+	uint32_t reserve;            //保留信息
 } LOGO_UPDATE_INFO, *LPLOGO_UPDATE_INFO;
 
 typedef struct 
 { 
-	int local_ch;     //所属本地通道号 
-	int dev_type;     //设备类型，0-IPC ，1-NVR 
-	int dev_chnum;    //设备通道数，目前大多数情况下为1，表示该IP 设备只有一个通道 
-	int dev_ch;       //设备通道，当dev_chnum 大于1 时，该值表示选择该IP 设备的哪个通道， 
+	int32_t local_ch;     //所属本地通道号
+	int32_t dev_type;     //设备类型，0-IPC ，1-NVR
+	int32_t dev_chnum;    //设备通道数，目前大多数情况下为1，表示该IP 设备只有一个通道
+	int32_t dev_ch;       //设备通道，当dev_chnum 大于1 时，该值表示选择该IP 设备的哪个通道，
 	//后续IP 设备通道的系列动作如实时流、通道参数等都是针对IP 设备的此通道而言的。 
-	int proto_type;   //设备协议类型选择，0-HB,1-ONVIF 
-	int port;         //端口号，HB 协议表示命令端口，ONVIF 表示HTTP 端口 
+	int32_t proto_type;   //设备协议类型选择，0-HB,1-ONVIF
+	int32_t port;         //端口号，HB 协议表示命令端口，ONVIF 表示HTTP 端口
 	char ip[128];     //设备IP 
 	char usr_name[32]; //用户名 
 	char pass_wd[32]; //密码 
-	int stream_statue; //IP 设备通道流状态，0-断开，1-连接。获取时有用，添加时该值不使用 
+	int32_t stream_statue; //IP 设备通道流状态，0-断开，1-连接。获取时有用，添加时该值不使用
 	char reserve[4];  //保留 
 }STRUCT_SDVR_IPDEV_INFO; 
 
 //添加IP设备
 typedef struct 
 { 
-	int add_num;              //添加IP 设备总数 
+	int32_t add_num;              //添加IP 设备总数
 	STRUCT_SDVR_IPDEV_INFO    add_info[64];  //添加的IP 设备信息，64 表示最大可添加的IP 设备数。 
 	//该数组值由add_num 决定，如add_num 为8，则该数组只有前8 个值有效， 
 	//后面的都是无效值，前8 个值每一个表示一个IP 设备 
@@ -2747,8 +2747,8 @@ typedef struct
 //删除IP设备
 typedef struct 
 { 
-	int del_num;      //要删除的IP 设备总数 
-	int local_ch[64]; //要删除的的IP 设备的本地通道号信息，64 表示最大可添加的IP 设备数。 
+	int32_t del_num;      //要删除的IP 设备总数
+	int32_t local_ch[64]; //要删除的的IP 设备的本地通道号信息，64 表示最大可添加的IP 设备数。
 	//该数组值由del_num 决定，如del_num 为8，则该数组只有前8 个值有效， 
 	//后面的都是无效值，前8 个值每一个表示一个IP 设备 
 	char reserve[4];  //保留 
@@ -2757,7 +2757,7 @@ typedef struct
 //所有添加的IP设备信息
 typedef struct 
 { 
-	int total_num; //添加的IP 通道总数 
+	int32_t total_num; //添加的IP 通道总数
 	STRUCT_SDVR_IPDEV_INFO   ipdev[64]; //IP 通道号信息，64 表示最大可添加的IP 通道数。 
 	//该数组值由total_num 决定，如total_num 为16，则该数组只有 
 	//前16 个值有效，后面的都是无效值， 
@@ -2775,7 +2775,7 @@ typedef struct
 //IP设备网络参数
 typedef struct 
 { 
-	int local_ch;                  //本地通道号 
+	int32_t local_ch;                  //本地通道号
 	STRUCT_SDVR_NETINFO   netinfo; //具体参数，STRUCT_SDVR_NETINFO 为协议已有结构体 
 	char reserve[4];                //保留 
 }STRUCT_SDVR_SET_IPDEV_NETPARAM, *LPSTRUCT_SDVR_SET_IPDEV_NETPARAM; 
@@ -2783,7 +2783,7 @@ typedef struct
 //IP设备系统时间
 typedef struct 
 { 
-	int local_ch;            //本地通道号 
+	int32_t local_ch;            //本地通道号
 	STRUCT_SDVR_TIME  time; //具体时间，STRUCT_SDVR_TIME 为协议中已有结构体 
 	char reserve[4];         //保留 
 }STRUCT_SDVR_SET_IPDEV_TIME, *LPSTRUCT_SDVR_SET_IPDEV_TIME; 
@@ -2813,17 +2813,17 @@ typedef struct
 
 typedef struct
 {
-	int port;     //端口，汉邦协议表示命令端口号，ONVIF协议表示HTTP端口号
+	int32_t port;     //端口，汉邦协议表示命令端口号，ONVIF协议表示HTTP端口号
 	char ip[128];    //IP地址
 	char mac_addr[8];     //MAC地址
 	char vendor_name[32];     //厂商名
-	int protocol_type;     //当前的协议类型，0-HB,1-ONVIF,2-HBGK_EXT,3-AVIPC,4-SAMSUNG,5-WAYULINK
+	int32_t protocol_type;     //当前的协议类型，0-HB,1-ONVIF,2-HBGK_EXT,3-AVIPC,4-SAMSUNG,5-WAYULINK
 	char reserve[16];   //保留
 }STRUCT_SDVR_DEVSEACHCONTENT;
 
 typedef struct
 {
-	int num;   //搜到的IP设备数量
+	int32_t num;   //搜到的IP设备数量
 	STRUCT_SDVR_DEVSEACHCONTENT ipc_devsearch_content[256];   //搜到的IP设备内容，256为支持的最大IP设备搜索数
 	char reserve[16];     //保留
 }STRUCT_SDVR_SEACH_IPDEV, *LPSTRUCT_SDVR_SEACH_IPDEV;
@@ -2859,33 +2859,33 @@ typedef enum
 typedef struct 
 {
 	char    platform_addr[128];
-	long    platform_port;
+	int32_t    platform_port;
 	char    dvr_register_id[64];        //注册序列号ID
 }WXYJ_platform_config, *PWXYJ_platform_config;
 
 //温湿度传感器参数
 typedef struct 
 {
-	long dev_id;             // 传感器设备编号 1-999
+	int32_t dev_id;             // 传感器设备编号 1-999
 
 	/* 传感器采集数据信息 */
-	long tmp;                 //温度
-	long hui;                 //湿度
-	long baty;                //电量
+	int32_t tmp;                 //温度
+	int32_t hui;                 //湿度
+	int32_t baty;                //电量
 	/* 获取或设置传感器配置信息 */
-	long tempr_up;           // 温度上限
-	long tempr_down;	       // 温度下限
-	long hunty_up;           // 湿度上限
-	long hunty_down;         // 湿度下限
-	long collect_time;       // 温湿度传感器采集间隔时间 秒
+	int32_t tempr_up;           // 温度上限
+	int32_t tempr_down;	       // 温度下限
+	int32_t hunty_up;           // 湿度上限
+	int32_t hunty_down;         // 湿度下限
+	int32_t collect_time;       // 温湿度传感器采集间隔时间 秒
 }WXYJ_LOCAL_PARAM, *PWXYJ_LOCAL_PARAM;
 
 //温湿度信息
 typedef struct 
 {
-	long first_search_id;    // 设备搜索起始ID    值1-999   默认955
-	long search_range;	   // 设备搜索范围      值1-50    默认20
-	long search_time;        // dvr搜索设备时间   值1-1800  默认300秒
+	int32_t first_search_id;    // 设备搜索起始ID    值1-999   默认955
+	int32_t search_range;	   // 设备搜索范围      值1-50    默认20
+	int32_t search_time;        // dvr搜索设备时间   值1-1800  默认300秒
 }WXYJ_GLOBAL_PARAM, *PWXYJ_GLOBAL_PARAM;
 
 //指纹模板
@@ -2900,14 +2900,14 @@ typedef struct
 //采集信息
 typedef struct
 {
-	long total_count;
+	int32_t total_count;
 	WXYJ_LOCAL_PARAM tmp_humi_dev[MAX_HUMTMP_DEV];
 }WXYJ_TMP_HUMI_DEV_INFO, *PWXYJ_TMP_HUMI_DEV_INFO;
 
 /* 未比对的指纹数据信息 */
 typedef struct
 {
-	unsigned long  size;  // 指纹数据长度
+	uint32_t  size;  // 指纹数据长度
 	char   outbuf[152 * 200 + 16];  // 指纹图像数据保存buffer
 } WXYJ_FINGER_UNCOMPARE_DATA, *PWXYJ_FINGER_UNCOMPARE_DATA;
 
@@ -2931,15 +2931,15 @@ typedef enum
 /* 传感器设备状态*/
 typedef struct 
 {
-	long dev_id;              //传感器设备编号 1-500
-	long work_state;          //在线状态,PT_PERIPHERA_WORKING_E
-	long baty;                //电池电量
+	int32_t dev_id;              //传感器设备编号 1-500
+	int32_t work_state;          //在线状态,PT_PERIPHERA_WORKING_E
+	int32_t baty;                //电池电量
 } PT_HUMTR_SENSOR_WORK_S, *PPT_HUMTR_SENSOR_WORK_S;
 
 /* 温湿度设备工作状态上报 */
 typedef struct 
 {
-	long                   work_state;       //温湿度接收器工作状态,PT_PERIPHERA_WORKING_E
+	int32_t                   work_state;       //温湿度接收器工作状态,PT_PERIPHERA_WORKING_E
 	PT_HUMTR_SENSOR_WORK_S   sensor_work[MAX_HUMTMP_DEV];  //传感器工作状态
 } PT_HUMTR_WORK_S, *PPT_HUMTR_WORK_S;
 
@@ -2958,32 +2958,32 @@ typedef struct
 	// 0x04-移动录像,0x08-报警录像,0xff-所有录像 
 	DWORD    prerecord_time; // 预录时间,5-30 秒 
 	DWORD    delayrecord_time; // 延录时间，0-180 秒 
-	BYTE   reserver[4];      // 保留 
+	uint8_t   reserver[4];      // 保留 
 }STRUCT_SDVR_RECTIME, *LPSTRUCT_SDVR_RECTIME;
 
 //远程图片查询
 typedef struct 
 { 
-	BYTE  byChannel;    //通道号[0, n－1]，n:通道数 
-	BYTE  dwType;       //查询的图片类型，下表是值和图片类型对应关系 
-	BYTE  pic_format;  // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式
-	BYTE  reverse;		//保留
+	uint8_t  byChannel;    //通道号[0, n－1]，n:通道数 
+	uint8_t  dwType;       //查询的图片类型，下表是值和图片类型对应关系 
+	uint8_t  pic_format;  // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式
+	uint8_t  reverse;		//保留
 	UNMFS_TIME  starttime; //查询的开始时间 
 	UNMFS_TIME  endtime;  //查询的结束时间 
 	DWORD   dwStart;     //从第几个文件开始查询，一般为0(用于由于时间段内文件数过多而分多 
 	//次查询的情况，第一次查询为0，以后递加成功查询出的文件数) 
-	WORD   dwNum;       //一次查询的个数，现在定义是100 
-	BYTE   reverse1[6]; //保留
+	uint16_t   dwNum;       //一次查询的个数，现在定义是100 
+	uint8_t   reverse1[6]; //保留
 }STRUCT_SDVR_SNAPSHOTFIND;
 
 typedef struct 
 { 
 	UNMFS_TIME  time;     // 图片的抓拍时间，结构同上，年份-2000 
-	unsigned int lengh; // 图片大小 
-	BYTE  ch;           //抓拍的通道号
-	BYTE   dwType;         // 图片类型，1--手动，2--定时，4--移动，8--探头，0xff--全部 
-	BYTE   pic_format;     // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式 
-	BYTE   cRes[5];          //保留 
+	uint32_t lengh; // 图片大小
+	uint8_t  ch;           //抓拍的通道号
+	uint8_t   dwType;         // 图片类型，1--手动，2--定时，4--移动，8--探头，0xff--全部 
+	uint8_t   pic_format;     // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式 
+	uint8_t   cRes[5];          //保留 
 }Mfs_SnapShotSeg_Info, *PMfs_SnapShotSeg_Info; 
 
 typedef struct 
@@ -2997,17 +2997,17 @@ typedef struct
 {
 	DWORD ip_mode;                        //用于表示网络模式，0表示IPV4模式，1表示IPV6模式
 	DWORD dwNetInterface;		     //网络接口 1-10MBase-T 2-10MBase-T全双工 3-100MBase-TX 4-100M全双工 5-10M/100M自适应
-	WORD wDVRPort;		            //端口号 
-	BYTE byMACAddr[MACADDR_LEN];          //网卡的物理地址
-	BYTE strDVRdefgatewayIP[64];          //DVR 默认网关IP地址，以'\0'结尾
-	BYTE  strDNSIP[64];	                   //DNS服务器地址 ，以'\0'结尾
-	BYTE  strSECDNSIP[64];	            //DNS服务器备选地址，以'\0'结尾
+	uint16_t wDVRPort;		            //端口号 
+	uint8_t byMACAddr[MACADDR_LEN];          //网卡的物理地址
+	uint8_t strDVRdefgatewayIP[64];          //DVR 默认网关IP地址，以'\0'结尾
+	uint8_t  strDNSIP[64];	                   //DNS服务器地址 ，以'\0'结尾
+	uint8_t  strSECDNSIP[64];	            //DNS服务器备选地址，以'\0'结尾
 	DWORD dhcp_enable;                    //用于DHCP是否启用，0表示未启用，1表示启用 
-	BYTE strDVRIP[64];	                   //DVR IP地址 ，以'\0'结尾  
-	BYTE strDVRMASKIP[64];		     //DVR 子网掩码地址，，以'\0'结尾，IPV6网络无需关注  
-	BYTE strDVRLOCALIP[64];	            //DVR 链路本地IP地址  ，以'\0'结尾
+	uint8_t strDVRIP[64];	                   //DVR IP地址 ，以'\0'结尾  
+	uint8_t strDVRMASKIP[64];		     //DVR 子网掩码地址，，以'\0'结尾，IPV6网络无需关注  
+	uint8_t strDVRLOCALIP[64];	            //DVR 链路本地IP地址  ，以'\0'结尾
 	DWORD dwDVRIPnetpre;	            //DVR IP子网前缀位数,IPV4网络无需关注
-	BYTE  reserved[64];                   //保留	 
+	uint8_t  reserved[64];                   //保留	 
 }STRUCT_SDVR_ETHERNET_6,*LPSTRUCT_SDVR_ETHERNET_6;
 
 typedef struct	 
@@ -3016,18 +3016,18 @@ typedef struct
 	DWORD default_network;                        //用于表示默认网卡序号，如：0表示eth0,1表示eth1,2表示eth2，依次类推
 	STRUCT_SDVR_ETHERNET_6 struEtherNet[MAX_ETHERNET]; //以太网口 
 
-	BYTE  strManageHostIP[64];				//远程管理主机地址，以'\0'结尾	 
-	WORD wManageHostPort;				//保存
+	uint8_t  strManageHostIP[64];				//远程管理主机地址，以'\0'结尾	 
+	uint16_t wManageHostPort;				//保存
 
-	BYTE  strMultiCastIP[64];				//多播组地址，以'\0'结尾
-	BYTE  strNFSIP[64];				//保存，以'\0'结尾
-	BYTE sNFSDirectory[PATHNAME_LEN];	                    //保存
+	uint8_t  strMultiCastIP[64];				//多播组地址，以'\0'结尾
+	uint8_t  strNFSIP[64];				//保存，以'\0'结尾
+	uint8_t sNFSDirectory[PATHNAME_LEN];	                    //保存
 	DWORD dwPPPOE;						//0-不启用,1-启用
-	BYTE sPPPoEUser[NAME_LEN];			//PPPoE用户名	 
+	uint8_t sPPPoEUser[NAME_LEN];			//PPPoE用户名	 
 	char sPPPoEPassword[PASSWD_LEN];	//PPPoE密码
-	BYTE  strPPPoEIP[64];					//PPPoE IP地址(只读)，以'\0'结尾
-	WORD wHttpPort;					//HTTP端口号
-	BYTE  reserve[128];                                    //保留
+	uint8_t  strPPPoEIP[64];					//PPPoE IP地址(只读)，以'\0'结尾
+	uint16_t wHttpPort;					//HTTP端口号
+	uint8_t  reserve[128];                                    //保留
 }STRUCT_SDVR_NETINFO_6,*LPSTRUCT_SDVR_NETINFO_6;
 
 //扩展OSD协议
@@ -3035,13 +3035,13 @@ typedef struct
 {
 	DWORD type;//0-主机名称，1-通道名称，2-扩展OSD1，3-扩展OSD2，4-扩展OSD3，5-扩展OSD4，6-扩展OSD5
 	DWORD  channel;//通道号，从0开始，当type=0时，该项无效
-	BYTE  reverser[16];//保留
+	uint8_t  reverser[16];//保留
 }STRUCT_SDVR_OSD_CONFIG_REQ;
 
 typedef struct
 {
-	WORD x, y; // xy坐标
-	WORD w, h; // 宽度和高度（该项目前未实现）
+	uint16_t x, y; // xy坐标
+	uint16_t w, h; // 宽度和高度（该项目前未实现）
 } SDVR_RECT;
 
 typedef struct
@@ -3049,14 +3049,14 @@ typedef struct
 	DWORD type;//0-主机名称，1-通道名称，2-扩展OSD1，3-扩展OSD2，4-扩展OSD3，5-扩展OSD4，6-扩展OSD5
 	DWORD  channel;//通道号，从0开始，当type=0时，该项无效     
 	SDVR_RECT coordinate;//OSD坐标，当type=0时，该项无效    
-	BYTE  show_enable;//是否显示，0-不显示，1-显示   
-	BYTE  style;//OSD样式，1-透明闪烁，2-透明不闪烁，3-闪烁不透明，4-不透明不闪烁 （该项目前未实现）   
-	BYTE  alpha;//OSD透明度  0-不透明，1-透明  
-	BYTE  reverser1; //保留    
+	uint8_t  show_enable;//是否显示，0-不显示，1-显示   
+	uint8_t  style;//OSD样式，1-透明闪烁，2-透明不闪烁，3-闪烁不透明，4-不透明不闪烁 （该项目前未实现）   
+	uint8_t  alpha;//OSD透明度  0-不透明，1-透明  
+	uint8_t  reverser1; //保留    
 	DWORD typemaxlen;//type类型支持的最大字节数，该值由主机确定，设置时字符串的长度不能大于这个值  
 	DWORD typelen;//type类型当前所占用的字节数
-	BYTE  reverser2[16];//保留
-	BYTE  data[0];//typelen长度的字符串，以'\0'结束
+	uint8_t  reverser2[16];//保留
+	uint8_t  data[0];//typelen长度的字符串，以'\0'结束
 }STRUCT_SDVR_OSD_CONFIG_RSP, *LPSTRUCT_SDVR_OSD_CONFIG_RSP;
 
 //总帧率和剩余帧率
@@ -3077,15 +3077,15 @@ typedef struct
 //远程图片备份
 typedef struct 
 { 
-	BYTE   byChannel;      //通道号 [0, n-1], n:通道数
-	BYTE  type;        // 图片类型：1-手动；2-定时；4-移动；8-探头报警；0xff-所有录像 
-	BYTE  pic_format;  // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式
-	BYTE reverse1;//保留
+	uint8_t   byChannel;      //通道号 [0, n-1], n:通道数
+	uint8_t  type;        // 图片类型：1-手动；2-定时；4-移动；8-探头报警；0xff-所有录像 
+	uint8_t  pic_format;  // 图片格式，0--jpg ，1-bmp ；目前只能是jpg 格式
+	uint8_t reverse1;//保留
 	DWORD   file_index; //客户端下载的文件列表的索引号，从0 开始 
 	DWORD   file_offset; //文件偏移大小，刚开始为0 
 	UNMFS_TIME  starttime; //开始时间，结构体同上，注意年份-2000 
 	UNMFS_TIME  endtime; //结束时间
-	BYTE reverse2[4];//保留
+	uint8_t reverse2[4];//保留
 }STRUCT_SDVR_BACK_SNAPSHOTINFO;
 
 //远程图片备份文件头标志
@@ -3098,31 +3098,31 @@ typedef struct
 	//时间段内的抓拍图片总长度，以KB 为单位 
 	DWORD   file_index; //文件列表的索引号，从0 开始
 	DWORD   file_offset; //文件偏移大小，刚开始为0
-	BYTE  reverse[4];//保留
+	uint8_t  reverse[4];//保留
 }STRUCT_SDVR_SNAPSHOT_FILEINFO, *LPSTRUCT_SDVR_SNAPSHOT_FILEINFO;
 
 //云台多预置点轮巡
 typedef struct 
 { 
 	DWORD    byChannel;  //设置通道 [0, n-1] n:通道数 
-	WORD   Preset[16];   //预置点[1，254]，255 是无效值，而有的球机0 有效，有的球机0 无效。 
+	uint16_t   Preset[16];   //预置点[1，254]，255 是无效值，而有的球机0 有效，有的球机0 无效。 
 	//如果预置点少于16 个，多余的填255 
-	WORD   PresetPoll;   //多预置点轮巡开启或关闭表示(0, 关闭；1，开启) 
-	WORD   presettime;   //多预置点轮巡间隔时间(单位秒) [1, 99] 
+	uint16_t   PresetPoll;   //多预置点轮巡开启或关闭表示(0, 关闭；1，开启) 
+	uint16_t   presettime;   //多预置点轮巡间隔时间(单位秒) [1, 99] 
 }HB_SDVR_PRESETPOLL,*LPHB_SDVR_PRESETPOLL; 
 
 //一点通 参数
 typedef struct 
 { 
 	char enable;            //启用一点通使能-1-不支持，0-off, 1-on 
-	BYTE   reserve[31];      //保留 
+	uint8_t   reserve[31];      //保留 
 }STRUCT_SDVR_DYT_STATUE,*LPSTRUCT_SDVR_DYT_STATUE; 
 
 //
 typedef struct 
 { 
-	long          support_alarmtype;      //主机对所有报警类型是否支持上传参数的情况，从低到高按位表示//STRUCT_SDVR_ALMUPLOADTYPE_E, // 位参数: 1-支持，  0-不支持 
-	BYTE           reserve[16];                  //保留位 
+	int32_t          support_alarmtype;      //主机对所有报警类型是否支持上传参数的情况，从低到高按位表示//STRUCT_SDVR_ALMUPLOADTYPE_E, // 位参数: 1-支持，  0-不支持
+	uint8_t           reserve[16];                  //保留位 
 } STRUCT_SDVR_ALMUPLOADSUPT_S, *PSTRUCT_SDVR_ALMUPLOADSUPT_S;     
 
 typedef enum 
@@ -3139,35 +3139,35 @@ typedef enum
 
 typedef struct 
 {     
-	WORD     alm_type;              //  报警类型，STRUCT_SDV_ALMUPLOADTYPE_E 
-	WORD     upload_enable;      //  报警上传使能，参数: 1-开启上传，  0-不上传 
+	uint16_t     alm_type;              //  报警类型，STRUCT_SDV_ALMUPLOADTYPE_E 
+	uint16_t     upload_enable;      //  报警上传使能，参数: 1-开启上传，  0-不上传 
 	STRUCT_SDVR_SCHEDTIME     upload_time[8][4];        //  上传报警时间段设置, [0][0]-[0][3]，每天，可设置4个时间段。[1～7][0]-[1～7][3],星期一到星期天，可设置 4个时间段 
-	BYTE          reserve[16];          //保留位 
+	uint8_t          reserve[16];          //保留位 
 } STRUCT_SDVR_ALMUPLOADPARAM_S, *PSTRUCT_SDVR_ALMUPLOADPARAM_S;  
 
 typedef struct
 {
-	long channel;    //通道号
-	long command;    //命令，CAMERA_PARAM_SET_CMD_E
-	BYTE reserve[16];   //保留
+	int32_t channel;    //通道号
+	int32_t command;    //命令，CAMERA_PARAM_SET_CMD_E
+	uint8_t reserve[16];   //保留
 }STRUCT_SDVR_CAMERA_PARAM_SET_CRTL,*LPSTRUCT_SDVR_CAMERA_PARAM_SET_CRTL;
 
 typedef struct 
 { 
-	BYTE enable;        //使能 
-	BYTE hour;            //时 
-	BYTE min;            //分 
-	BYTE sec;            //秒 
-	BYTE reserve[4];      //保留 
+	uint8_t enable;        //使能 
+	uint8_t hour;            //时 
+	uint8_t min;            //分 
+	uint8_t sec;            //秒 
+	uint8_t reserve[4];      //保留 
 }STRUCT_SDVR_REBOOT_TIME; 
 
 typedef struct 
 { 
-	BYTE en_time_reboot;                                          //定时重启使能，1-启用，0-不启用 
-	BYTE reserve1[3];                //保留 
+	uint8_t en_time_reboot;                                          //定时重启使能，1-启用，0-不启用 
+	uint8_t reserve1[3];                //保留 
 	STRUCT_SDVR_REBOOT_TIME week[8];      //重启时间([0]-每天，[1-7]对应周一到周日)。[0]如有被使能
 	//每天有效，则按每天处理，不关注星期几                             
-	BYTE reserve2[16];            //保留 
+	uint8_t reserve2[16];            //保留 
 } STRUCT_SDVR_TIMING_REBOOT_PARAM,*LPSTRUCT_SDVR_TIMING_REBOOT_PARAM; 
 
 
@@ -3176,9 +3176,9 @@ typedef struct
 //新回放协议
 typedef struct TAG_VOD_PARAM
 {
-	BYTE byChannel; // 通道号[0, n-1],n:通道数
-	BYTE byType; // 录像类型: 1-手动，-定时，-移动，-报警，xFF-全部
-	WORD wLoadMode; // 回放下载模式 1-按时间，2-按名字
+	uint8_t byChannel; // 通道号[0, n-1],n:通道数
+	uint8_t byType; // 录像类型: 1-手动，-定时，-移动，-报警，xFF-全部
+	uint16_t wLoadMode; // 回放下载模式 1-按时间，2-按名字
 	union
 	{
 		struct
@@ -3188,17 +3188,17 @@ typedef struct TAG_VOD_PARAM
 			// 即表示从开始时间开始一直播放
 			char cReserve[16];
 		}byTime;
-		BYTE byFile[64]; // 是否够长？
+		uint8_t byFile[64]; // 是否够长？
 	}mode;
-	BYTE streamtype; //码流类型，0-主码流，1-子码流
-	BYTE byReserve[15]; //保留
+	uint8_t streamtype; //码流类型，0-主码流，1-子码流
+	uint8_t byReserve[15]; //保留
 }VOD_PARAM, *LPVOD_PARAM;
 
 typedef struct TAG_VOD_ANS
 {
 	DWORD dwVodID; //主机分配
-	BYTE streamtype; //码流类型，0-主码流，1-子码流
-	BYTE byReserve[15]; //保留
+	uint8_t streamtype; //码流类型，0-主码流，1-子码流
+	uint8_t byReserve[15]; //保留
 }VOD_ANSWER, *LPVOD_ANSWER;
 
 typedef struct TAG_VOD_GETDATA
@@ -3233,10 +3233,10 @@ typedef struct TAG_VOD_END
 }VOD_END, *LPVOD_END;
 
 typedef struct	{
-	BYTE	byChannel;					//通道号
-	BYTE	byLinkMode;					// 0-主码流单socket  1-子码流 单socket  
-	BYTE	OSDCharEncodingScheme;		// OSD字符的编码格式 
-	BYTE	reserve[9];					//保留
+	uint8_t	byChannel;					//通道号
+	uint8_t	byLinkMode;					// 0-主码流单socket  1-子码流 单socket  
+	uint8_t	OSDCharEncodingScheme;		// OSD字符的编码格式 
+	uint8_t	reserve[9];					//保留
 }ST_SDVR_REALPLAY_MULTI,*LPST_SDVR_REALPLAY_MULTI;
 
 #ifdef _MSC_VER

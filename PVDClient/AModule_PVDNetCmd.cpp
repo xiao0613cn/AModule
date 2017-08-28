@@ -11,8 +11,8 @@ struct PVDClient {
 	AObject     object;
 	AObject    *io;
 	PVDStatus   status;
-	DWORD       userid;
-	BYTE        md5id;
+	uint32_t    userid;
+	uint8_t        md5id;
 	int         last_error;
 	STRUCT_SDVR_DEVICE_EX device2;
 
@@ -48,7 +48,7 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 	return 1;//result;
 }
 
-extern int PVDTryOutput(DWORD userid, ARefsBuf *&outbuf, AMessage &outmsg)
+extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
 {
 	outmsg.data = outbuf->ptr();
 	outmsg.size = outbuf->len();
@@ -113,7 +113,7 @@ static int PVDDoLogin(PVDClient *pvd, PVDStatus status)
 
 	STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(pvd->outmsg.data+sizeof(pvdnet_head));
 	strcpy_sz(login->szUserName, usr);
-	MD5_enc(pvd->md5id, (BYTE*)pwd, strlen(pwd), (BYTE*)login->szPassWord);
+	MD5_enc(pvd->md5id, (uint8_t*)pwd, strlen(pwd), (uint8_t*)login->szPassWord);
 
 	login->dwNamelen = strlen(usr);
 	login->dwPWlen = PASSWD_LEN;
@@ -162,7 +162,7 @@ int PVDOpenStatus(PVDClient *pvd, int result)
 				break;
 			}
 
-			pvd->md5id = *(BYTE*)(phead+1);
+			pvd->md5id = *(uint8_t*)(phead+1);
 			result = PVDDoClose(pvd, pvdnet_fin_md5id);
 			if (result == 0)
 				break;
@@ -256,7 +256,7 @@ static int PVDOpen(AObject *object, AMessage *msg)
 static int PVDSetOption(AObject *object, AOption *option)
 {
 	PVDClient *pvd = to_pvd(object);
-	if (_stricmp(option->name, "io") == 0) {
+	if (strcasecmp(option->name, "io") == 0) {
 		release_s(pvd->io, AObjectRelease, NULL);
 
 		pvd->io = (AObject*)option->extend;
@@ -272,15 +272,15 @@ static int PVDSetOption(AObject *object, AOption *option)
 static int PVDGetOption(AObject *object, AOption *option)
 {
 	PVDClient *pvd = to_pvd(object);
-	if (_stricmp(option->name, "version") == 0) {
+	if (strcasecmp(option->name, "version") == 0) {
 		sprintf(option->value, "%d", pvd->device2.byDVRType);
 		return 1;
 	}
-	if (_stricmp(option->name, "session_id") == 0) {
-		sprintf(option->value, "%ld", pvd->userid);
+	if (strcasecmp(option->name, "session_id") == 0) {
+		sprintf(option->value, "%d", pvd->userid);
 		return 1;
 	}
-	if (_stricmp(option->name, "login_data") == 0) {
+	if (strcasecmp(option->name, "login_data") == 0) {
 		if (option->extend != NULL)
 			memcpy(option->extend, &pvd->device2, sizeof(pvd->device2));
 		return 1;
@@ -436,3 +436,5 @@ AModule PVDClientModule = {
 	&PVDCancel,
 	&PVDClose,
 };
+
+static auto_reg_t<PVDClientModule> auto_reg;

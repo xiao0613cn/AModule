@@ -104,11 +104,13 @@ static inline struct page * rb_insert_page_cache(struct inode * inode,
 
 #ifdef _WIN32
 #if !defined(__cplusplus) && !defined(inline)
-#define inline __inline
+#define inline  __inline
 #endif
 #ifndef __attribute__
 #define __attribute__(x)
 #endif
+#pragma warning(disable: 4311) // “类型转换”: 从“rb_node *”到“unsigned long”的指针截断
+#pragma warning(disable: 4312) // “类型转换”: 从“unsigned long”转换到更大的“rb_node *”
 #endif //_WIN32
 
 //#include <linux/kernel.h>
@@ -271,5 +273,10 @@ type* rb_lower_##type(struct rb_root *root, keytype key) \
 	} \
 	return it; \
 }
+
+#ifdef _WIN32
+#pragma warning(default: 4311) // “类型转换”: 从“rb_node *”到“unsigned long”的指针截断
+#pragma warning(default: 4312) // “类型转换”: 从“unsigned long”转换到更大的“rb_node *”
+#endif
 
 #endif	/* _LINUX_RBTREE_H */

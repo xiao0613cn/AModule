@@ -32,9 +32,8 @@ AThreadDefault(int ix);
 
 
 //////////////////////////////////////////////////////////////////////////
-#pragma warning(disable: 4201)
 struct AOperator {
-	void  (*callback)(AOperator *asop, int result);
+	int  (*callback)(AOperator *asop, int result);
 
 	AThread         *ao_thread;
 	union {
@@ -53,13 +52,19 @@ struct AOperator {
 #endif
 	};
 };
-#pragma warning(default: 4201)
 
 AMODULE_API int
 AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup = TRUE);
 
 AMODULE_API int
 AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel);
+
+static inline void
+AOperatorTimeinit(AOperator *asop) {
+	memset(asop, 0, sizeof(*asop));
+	RB_CLEAR_NODE(&asop->ao_tree);
+	INIT_LIST_HEAD(&asop->ao_list);
+}
 
 static inline int
 AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout, BOOL wakeup = TRUE) {

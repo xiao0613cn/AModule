@@ -184,7 +184,7 @@ static int PVDProxyCloseStream(AMessage *msg, int result)
 	AObjectRelease(&p->object);
 	return result;
 }
-static void PVDProxySendStream(AOperator *asop, int result)
+static int PVDProxySendStream(AOperator *asop, int result)
 {
 	PVDProxy *p = container_of(asop, PVDProxy, timer);
 	if (result >= 0)
@@ -196,7 +196,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
 			AOperatorTimewait(&p->timer, NULL, 10);
-			return;
+			return result;
 		}
 
 		ARefsMsg &frame = p->frame_queue.front();
@@ -219,6 +219,7 @@ static void PVDProxySendStream(AOperator *asop, int result)
 		if (result != 0)
 			result = p->inmsg.done(&p->inmsg, result);
 	}
+	return result;
 }
 static int PVDProxyStreamDone(AMessage *msg, int result)
 {
@@ -314,7 +315,7 @@ static int PVDProactiveRTStream(PVDProxy *p)
 	return result;
 }
 
-extern int PVDTryOutput(DWORD userid, ARefsBuf *&outbuf, AMessage &outmsg);
+extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg);
 int PVDProxyDispatch(PVDProxy *p, int result)
 {
 	if (result < 0)
@@ -559,12 +560,12 @@ static int PVDProxyClose(AObject *object, AMessage *msg)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static void PVDDoSend(AOperator *asop, int result)
+static int PVDDoSend(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
 		HeartMsgFree(sm, result);
-		return;
+		return result;
 	}
 	DWORD tick = GetTickCount();
 	if (int(tick-rt_active) > 10*1000) {
@@ -604,7 +605,7 @@ static void PVDDoSend(AOperator *asop, int result)
 			}
 			sm->msg.type = 0;
 			AOperatorTimewait(&sm->timer, NULL, 3*1000);
-			return;
+			return result;
 		}
 		sm->msg.type = AMsgType_Private|result;
 		sm->msg.data = (char*)&sm->heart;
@@ -615,6 +616,7 @@ static void PVDDoSend(AOperator *asop, int result)
 		sm->msg.type = AMsgType_Option;
 		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
+	return result;
 }
 static int PVDSendDone(AMessage *msg, int result)
 {
@@ -625,7 +627,7 @@ static int PVDSendDone(AMessage *msg, int result)
 	AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	return result;
 }
-static void PVDDoOpen(AOperator *asop, int result);
+static int PVDDoOpen(AOperator *asop, int result);
 static int PVDCloseDone(AMessage *msg, int result)
 {
 	HeartMsg *sm = container_of(msg, HeartMsg, msg);
@@ -690,7 +692,7 @@ static int PVDRecvDone(AMessage *msg, int result)
 		if (sh->nFrameType == STREAM_FRAME_VIDEO_I)
 		{
 			int width, height;
-			h264_decode_sps((BYTE*)rt_msg.ptr()+sh->nHeaderSize+4, rt_msg.size-sh->nHeaderSize, width, height);
+			h264_decode_sps((uint8_t*)rt_msg.ptr()+sh->nHeaderSize+4, rt_msg.size-sh->nHeaderSize, width, height);
 			TRACE("h264_decode_sps(%d x %d).\n", width, height);
 		}
 	}
@@ -699,12 +701,12 @@ static int PVDRecvDone(AMessage *msg, int result)
 	AOperatorTimewait(&sm->timer, NULL, 0);
 	return result;
 }
-static void PVDDoRecv(AOperator *asop, int result)
+static int PVDDoRecv(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
 		HeartMsgFree(sm, result);
-		return;
+		return result;
 	}
 
 	if (sm->object == rt) {
@@ -715,8 +717,9 @@ static void PVDDoRecv(AOperator *asop, int result)
 	}
 	result = sm->object->request(sm->reqix, &sm->msg);
 	if (result != 0) {
-		sm->msg.done(&sm->msg, result);
+		result = sm->msg.done(&sm->msg, result);
 	}
+	return result;
 }
 
 static int PVDOpenDone(AMessage *msg, int result)
@@ -765,12 +768,12 @@ static int PVDOpenDone(AMessage *msg, int result)
 	return result;
 }
 
-static void PVDDoOpen(AOperator *asop, int result)
+static int PVDDoOpen(AOperator *asop, int result)
 {
 	HeartMsg *sm = container_of(asop, HeartMsg, timer);
 	if ((result < 0) || (pvd == NULL)) {
 		HeartMsgFree(sm, result);
-		return;
+		return result;
 	}
 
 	if (sm->object == rt) {
@@ -791,12 +794,13 @@ static void PVDDoOpen(AOperator *asop, int result)
 
 	result = sm->object->open(&sm->msg);
 	if (result != 0)
-		PVDOpenDone(&sm->msg, result);
+		result = PVDOpenDone(&sm->msg, result);
+	return result;
 }
 
-int PVDProxyInit(AOption *global_option, AOption *module_option)
+int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 {
-	if ((module_option == NULL) || (module_option->value[0] != '\0'))
+	if ((module_option == NULL) || (module_option->value[0] != '\0') || !first)
 		return 0;
 
 	proactive_option = AOptionFind(module_option, "proactive");
@@ -868,7 +872,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option)
 	return result;
 }
 
-static void PVDProxyExit(void)
+static void PVDProxyExit(int inited)
 {
 	if (pvd != NULL) {
 		//pvd->cancel(pvd, ARequest_MsgLoop|Aio_Output, NULL);
@@ -910,3 +914,5 @@ AModule PVDProxyModule = {
 	NULL,
 	&PVDProxyClose,
 };
+
+static auto_reg_t<PVDProxyModule> auto_reg;

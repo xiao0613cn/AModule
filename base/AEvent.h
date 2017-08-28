@@ -20,11 +20,12 @@ struct AReceiver {
 	AObject    *_self;
 	const char *_name;
 	long        _index;
-	struct rb_node _node;
 	AEventManager *_manager;
+	struct rb_node _node;
+	list_node<AReceiver> _list;
 
 	int         _oneshot : 1;
-	int         _async : 1;
+	//int         _async : 1;
 	void      (*on_event)(AReceiver *r, AEvent *v);
 
 	void    init(AObject *o);
@@ -44,7 +45,6 @@ rb_tree_declare(AReceiver2, long)
 struct AEventManager {
 	struct rb_root _receiver_map;
 	long           _receiver_count;
-
 	struct rb_root _receiver_map2;
 	long           _receiver_count2;
 
@@ -52,12 +52,13 @@ struct AEventManager {
 		INIT_RB_ROOT(&_receiver_map); _receiver_count = 0;
 		INIT_RB_ROOT(&_receiver_map2); _receiver_count2 = 0;
 	}
-	int  _subscribe(AReceiver *r) {
-		int valid = ((r->vm_manager == NULL) && RB_EMPTY_NODE(&r->vm_node) && r->r_node.empty());
+	bool _subscribe(AReceiver *r) {
+		bool valid = ((r->_manager == NULL) && RB_EMPTY_NODE(&r->_node) && r->_list.empty());
 		if (valid) {
-			AReceiver *first = rb_insert_AReceiver(&_receiver_map, r, r->r_name);
-			if (first != NULL) first->r_node.push_back(&r->r_node);
-			r->vm_manager = this;
+			AReceiver *first = rb_insert_AReceiver(&_receiver_map, r, r->_name);
+			if (first != NULL)
+				first->_list.push_back(&r->_list);
+			r->_manager = this;
 			//r->r_object->addref();
 		} else {
 			assert(0);
@@ -66,61 +67,62 @@ struct AEventManager {
 	}
 	void _erase(AReceiver *first, AReceiver *r) {
 		if (first != r) {
-			assert(!first->r_node.empty());
-			assert(!r->r_node.empty());
-			assert(RB_EMPTY_NODE(&r->vm_node));
-			r->r_node.leave();
+			assert(!first->_list.empty());
+			assert(!r->_list.empty());
+			assert(!RB_EMPTY_NODE(&first->_node));
+			assert(RB_EMPTY_NODE(&r->_node));
+			r->_list.leave();
 		}
-		else if (first->r_node.empty()) {
-			rb_erase(&first->vm_node, &_receiver_map);
-			RB_CLEAR_NODE(&first->vm_node);
+		else if (first->_list.empty()) {
+			rb_erase(&first->_node, &_receiver_map);
+			RB_CLEAR_NODE(&first->_node);
 		}
 		else {
-			r = list_entry(first->r_node.front(), AReceiver, r_node);
-			rb_replace_node(&first->vm_node, &r->vm_node, &_receiver_map);
-			first->r_node.leave();
+			r = list_entry(first->_list.front(), AReceiver, _list);
+			rb_replace_node(&first->_node, &r->_node, &_receiver_map);
+			first->_list.leave();
 		}
 	}
-	int  _unsubscribe(AReceiver *r) {
-		int valid = ((r->vm_manager == this) && (!RB_EMPTY_NODE(&r->vm_node) || !r->r_node.empty()));
+	bool _unsubscribe(AReceiver *r) {
+		bool valid = ((r->_manager == this) && (!RB_EMPTY_NODE(&r->_node) || !r->_list.empty()));
 		if (!valid) {
 			assert(0);
-			return 0;
+			return false;
 		}
 
-		AReceiver *first = rb_find_AReceiver(&_receiver_map, r->r_name);
+		AReceiver *first = rb_find_AReceiver(&_receiver_map, r->_name);
 		if (first == NULL) {
 			assert(0);
-			return 0;
+			return false;
 		}
 		_erase(first, r);
 		//r->r_object->release2();
 		return valid;
 	}
 	int  _emit(AEvent *v) {
-		AReceiver *first = rb_find_AReceiver(&_receiver_map, v->v_name);
+		AReceiver *first = rb_find_AReceiver(&_receiver_map, v->_name);
 		if (first == NULL)
 			return 0;
 
 		AReceiver *r = NULL;
-		if (!first->r_node.empty())
-			r = list_entry(first->r_node.front(), AReceiver, r_node);
+		if (!first->_list.empty())
+			r = list_entry(first->_list.front(), AReceiver, _list);
 
 		int count = 0;
 		while (r != NULL)
 		{
 			AReceiver *next = NULL;
-			if (!first->r_node.is_last(r))
-				r = list_entry(r->r_node.front(), AReceiver, r_node);
+			if (!first->_list.is_last(&r->_list))
+				next = list_entry(r->_list.front(), AReceiver, _list);
 
-			if (r->r_oneshot)
+			if (r->_oneshot)
 				_erase(first, r);
 			r->on_event(r, v);
 			count++;
 			r = next;
 		}
 
-		if (first->r_oneshot)
+		if (first->_oneshot)
 			_erase(first, first);
 		first->on_event(first, v);
 		count++;

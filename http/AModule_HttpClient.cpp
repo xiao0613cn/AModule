@@ -37,9 +37,9 @@ extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 		AObjectAddRef(parent);
 
 	INIT_LIST_HEAD(&p->send_headers);
-	p->method[0] = '\0';
-	p->url[0] = '\0';
-	p->version[0] = '\0';
+	strcpy_sz(p->method, "GET");
+	strcpy_sz(p->url, "/");
+	strcpy_sz(p->version, "HTTP/1.0");
 
 	p->recv_buffer = NULL;
 	p->recv_header_buffer = NULL;
@@ -160,8 +160,8 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 				if (pos->value[0] == '\0')
 					continue;
 
-				if ((_stricmp(pos->name+1, "Transfer-Encoding") == 0)
-				 && (_stricmp(pos->value, "chunked") == 0))
+				if ((strcasecmp(pos->name+1, "Transfer-Encoding") == 0)
+				 && (strcasecmp(pos->value, "chunked") == 0))
 					p->send_status = s_send_chunk_data;
 
 				append_data("%s: %s\r\n", pos->name+1, pos->value);
@@ -550,3 +550,4 @@ AModule HttpClientModule = {
 	&HttpClientClose,
 };
 
+static auto_reg_t<HttpClientModule> auto_reg;

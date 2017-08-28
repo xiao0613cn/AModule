@@ -23,19 +23,15 @@
 
 #else //_WIN32
 
-#ifndef _stricmp
-#define _stricmp     strcasecmp
-#endif
-#ifndef _strnicmp
-#define _strnicmp    strncasecmp
-#endif
 #ifndef _atoi64
 #define _atoi64  atoll
 #endif
 
 #endif //_WIN32
 
-#define _strnicmp_c(ptr, c_str)  _strnicmp(ptr, c_str, sizeof(c_str)-1)
+#define strncmp_sz(ptr, c_str)   strncmp(ptr, c_str, sizeof(c_str)-1)
+#define strncasecmp_sz(ptr, c_str)  strncasecmp(ptr, c_str, sizeof(c_str)-1)
+
 
 static inline char*
 strncpy_sz(char *dest, size_t size, const char *src, size_t len)
