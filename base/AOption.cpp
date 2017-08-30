@@ -347,21 +347,18 @@ AOptionLoad(AOption **option, const char *path)
 	if (fp == NULL)
 		return -ENOENT;
 
+	defer(FILE*, fclose(_value)) ac(fp);
 	fseek(fp, 0, SEEK_END);
 
 	long len = ftell(fp);
-	if (len <= 0) {
-		fclose(fp);
+	if (len <= 0)
 		return -EIO;
-	}
 
 	char *buf = (char*)malloc(len+8);
-	if (buf == NULL) {
-		fclose(fp);
+	if (buf == NULL)
 		return -ENOMEM;
-	}
-
 	fseek(fp, 0, SEEK_SET);
+
 	int result = fread(buf, len, 1, fp);
 	if (result <= 0) {
 		result = -EIO;
@@ -370,7 +367,6 @@ AOptionLoad(AOption **option, const char *path)
 	}
 
 	free(buf);
-	fclose(fp);
 	return result;
 }
 
@@ -388,28 +384,23 @@ static int write_buf(void *p, const char *str, int len)
 AMODULE_API int
 AOptionSave(const AOption *option, const char *path)
 {
-	ARefsBuf *buf = NULL;
+	IRefsBuf buf(NULL);
 	int result = ARefsBufCheck(buf, 512, 0, NULL, NULL);
 	if (result < 0)
 		return result;
 
 	result = AOptionEncode(option, &buf, write_buf);
-	if (result < 0) {
-		buf->release2();
+	if (result < 0)
 		return result;
-	}
 
 	FILE *fp = fopen(path, "wb");
-	if (fp == NULL) {
-		buf->release2();
+	if (fp == NULL)
 		return -errno;
-	}
 
 	result = buf->len();
 	fwrite(buf->ptr(), result, 1, fp);
-	fclose(fp);
 
-	buf->release2();
+	fclose(fp);
 	return result;
 }
 

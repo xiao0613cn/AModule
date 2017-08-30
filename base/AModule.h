@@ -58,6 +58,8 @@ struct AObject {
 	long cancel(int reqix, AMessage *msg) { return module->cancel(this, reqix, msg); }
 	long close(AMessage *msg) { return module->close(this, msg); }
 };
+
+defer2(IObject, AObject*, if (_value)_value->release2());
 #else
 };
 #endif

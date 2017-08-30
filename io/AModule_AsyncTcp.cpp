@@ -459,7 +459,7 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 	tcp->recv_ovlp.sysio.callback = &AsyncTcpCloseDone;
 	tcp->recv_ovlp.sysio.ao_thread = tcp->send_ovlp.sysio.ao_thread;
 
-	int result = AThreadPost(tcp->send_ovlp.sysio.ao_thread, &tcp->recv_ovlp.sysio, TRUE);
+	int result = AThreadPost(tcp->send_ovlp.sysio.ao_thread, &tcp->recv_ovlp.sysio);
 	return (result < 0 ? result : 0);
 #endif
 }

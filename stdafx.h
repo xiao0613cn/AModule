@@ -25,7 +25,6 @@
 #pragma comment(lib, "ws2_32.lib")
 #include <Windows.h>
 
-#pragma warning(disable: 4200) // 使用了非标准扩展 : 结构/联合中的零大小数组
 #endif //_WIN32
 
 // TODO: 在此处引用程序需要的其他头文件

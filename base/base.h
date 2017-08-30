@@ -90,6 +90,7 @@ typedef int            BOOL;
 #include <android/log.h>
 #endif
 
+#define tm_fmt      "04d-%02d-%02d %02d:%02d:%02d"
 #define tm_args(tm) \
 	1900+(tm)->tm_year, 1+(tm)->tm_mon, (tm)->tm_mday, \
 	(tm)->tm_hour, (tm)->tm_min, (tm)->tm_sec
@@ -103,8 +104,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	struct tm *tm = localtime(&t);
 
 	int outpos = snprintf(outbuf, sizeof(outbuf),
-		"%04d-%02d-%02d %02d:%02d:%02d %4d | %s():\t",
-		tm_args(tm), l, f);
+		tm_fmt"% %4d | %s():\t", tm_args(tm), l, f);
 
 	va_list ap;
 	va_start(ap, fmt);

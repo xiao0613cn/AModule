@@ -12,7 +12,7 @@ AMODULE_API int
 AThreadEnd(AThread *at);
 
 AMODULE_API int
-AThreadPost(AThread *at, AOperator *asop, BOOL wakeup);
+AThreadPost(AThread *at, AOperator *asop);
 
 AMODULE_API int
 AThreadAbort(AThread *at);

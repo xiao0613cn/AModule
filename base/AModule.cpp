@@ -59,7 +59,7 @@ AModuleRegister(AModule *module)
 		return 0;
 
 	AOption *option = AOptionFind(g_option, module->module_name);
-	if ((g_option != NULL) && (option == NULL))
+	if ((option == NULL) && (g_option != NULL))
 		option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
 
 	int result = module->init(g_option, option, TRUE);

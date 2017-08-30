@@ -79,7 +79,8 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 		RB_CLEAR_NODE(&asop->ao_tree);
 	}
 #ifndef _WIN32
-	list_splice_init(&pool->public_list, &working_list);
+	if (!list_empty(&pool->public_list))
+		list_move_tail(pool->public_list.next, &working_list);
 	list_splice_init(&at->private_list, &working_list);
 #endif
 	pthread_mutex_unlock(&pool->mutex);
@@ -108,8 +109,8 @@ static void* AThreadRun(void *p)
 	DWORD cur_timetick = GetTickCount();
 #ifdef _WIN32
 #else
-	struct epoll_event events[64];
-	char sigbuf[128];
+	struct epoll_event events[32];
+	uint64_t sigbuf;
 #endif
 	while (at->running)
 	{
@@ -141,10 +142,10 @@ static void* AThreadRun(void *p)
 		{
 			if ((events[ix].data.u64 == 0) || (events[ix].data.u64 == 1)) {
 				int fd = (events[ix].data.u64 ? pool->signal[1] : at->signal[0]);
+				int result = read(fd, &sigbuf, sizeof(sigbuf));
 
-				while (read(fd, sigbuf, sizeof(sigbuf)) == sizeof(sigbuf))
-					;
-				//TRACE2("%d: wakeup for event signal(%lld)...\n", gettid(), events[ix].data.u64);
+				TRACE2("%d: wakeup for %s event, signal = %lld, result = %d\n", (int)gettid(),
+					events[ix].data.u64 ? "public": "private", sigbuf, result);
 				max_timewait = 0;
 			} else {
 				AOperator *asop = (AOperator*)events[ix].data.ptr;
@@ -164,7 +165,7 @@ AThreadWakeup(AThread *at, BOOL is_pool)
 #elif defined _NO_EVENTFD_H_
 	send(at->signal[!is_pool], "a", 1, MSG_NOSIGNAL);
 #else
-	uint64_t us = is_pool ? 1 : 2;
+	uint64_t us = 1;
 	write(at->signal[is_pool], &us, sizeof(us));
 #endif
 }
@@ -222,10 +223,10 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 	at->max_timewait = max_timewait;
 
 #ifdef _WIN32
-	if (pool != NULL) {
-		at->iocp = pool->iocp;
-	} else {
+	if (pool == NULL) {
 		at->iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	} else {
+		at->iocp = pool->iocp;
 	}
 #else
 	at->epoll = epoll_create(32000);
@@ -236,7 +237,7 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 #ifndef _NO_EVENTFD_H_
 	at->signal[0] = eventfd(0, EFD_NONBLOCK);
 	if (pool == NULL)
-		at->signal[1] = eventfd(0, EFD_NONBLOCK);
+		at->signal[1] = eventfd(0, EFD_NONBLOCK|EFD_SEMAPHORE);
 	else
 		at->signal[1] = pool->signal[1];
 
@@ -267,11 +268,11 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 	//public_list signal
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
 	epev.data.u64 = 1;
-	if (pool != NULL) {
-		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
-	} else {
+	if (pool == NULL) {
 		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
 		INIT_LIST_HEAD(&at->public_list);
+	} else {
+		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
 	}
 
 	at->bind_count = 0;
@@ -359,7 +360,7 @@ AThreadEnd(AThread *at)
 }
 
 AMODULE_API int
-AThreadPost(AThread *at, AOperator *asop, BOOL wakeup)
+AThreadPost(AThread *at, AOperator *asop)
 {
 	if (at == NULL)
 		at = work_thread[0];
@@ -372,20 +373,20 @@ AThreadPost(AThread *at, AOperator *asop, BOOL wakeup)
 #ifdef _WIN32
 	PostQueuedCompletionStatus(at->iocp, 1, iocp_key_signal, &asop->ao_ovlp);
 #else
-	int first;
+	int is_pool;
 	pthread_mutex_lock(&pool->mutex);
 	if (asop->ao_thread == at) {
-		first = (list_empty(&at->private_list) ? 2 : 0);
+		is_pool = (list_empty(&at->private_list) ? 2 : 0);
 		list_add_tail(&asop->ao_list, &at->private_list);
 	} else {
-		first = (list_empty(&pool->public_list) ? 1 : 0);
+		is_pool = 1;
 		list_add_tail(&asop->ao_list, &pool->public_list);
 		at = pool;
 	}
 	pthread_mutex_unlock(&pool->mutex);
 
-	if ((first != 0) && wakeup)
-		AThreadWakeup(at, (first==1));
+	if (is_pool != 0)
+		AThreadWakeup(at, (is_pool==1));
 #endif
 	return 0;
 }
@@ -457,7 +458,7 @@ AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup)
 {
 	asop->ao_thread = NULL;
 	if (tick == 0) {
-		return AThreadPost(at, asop, wakeup);
+		return AThreadPost(at, asop);
 	}
 
 	if (at == NULL)
@@ -537,7 +538,7 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel)
 			signal = (list_empty(&at->private_list) ? 2 : 0);
 			list_add_tail(&asop->ao_list, &at->private_list);
 		} else {
-			signal = (list_empty(&pool->public_list) ? 1 : 0);
+			signal = 1;
 			list_add_tail(&asop->ao_list, &pool->public_list);
 			at = pool;
 		}

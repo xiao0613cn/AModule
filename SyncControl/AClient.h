@@ -23,10 +23,10 @@ struct AClient : public AObject
 	}
 
 	DWORD      active;
-	BOOL       last_opened : 1;
+	BOOL       last_opened  : 1;
 	BOOL       owner_thread : 1;
-	BOOL       auto_reopen : 1;
-	BOOL       auto_request   : 1;
+	BOOL       auto_reopen  : 1;
+	BOOL       auto_request : 1;
 	AMessage   work_msg;
 
 	inline void init(BOOL reopen, BOOL req_work) {

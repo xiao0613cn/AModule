@@ -2,18 +2,22 @@
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
-//struct EchoProxy {
-//	AObject   object;
-//};
+struct EchoProxy {
+	AObject   object;
+	AObject  *client;
+};
 
 static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AObject *echo = (AObject*)*object;
+	EchoProxy *echo = (EchoProxy*)*object;
+	echo->client = NULL;
 	return 1;
 }
 
-static void EchoRelease(AObject *echo)
+static void EchoRelease(AObject *object)
 {
+	EchoProxy *echo = (EchoProxy*)object;
+	release_s(echo->client, AObjectRelease, NULL);
 }
 
 static int EchoProbe(AObject *object, AMessage *msg)
@@ -23,38 +27,43 @@ static int EchoProbe(AObject *object, AMessage *msg)
 	return ((strncasecmp_sz(msg->data, "echo") == 0) ? 100 : 0);
 }
 
-static int EchoOpen(AObject *echo, AMessage *msg)
+static int EchoOpen(AObject *object, AMessage *msg)
 {
+	EchoProxy *echo = (EchoProxy*)object;
 	if ((msg->type != AMsgType_Object)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;
 
-	AObjectAddRef((AObject*)msg->data);
-	echo->extend = msg->data;
+	echo->client = (AObject*)msg->data;
+	echo->client->addref();
 	return 1;
 }
 
-static int EchoRequest(AObject *echo, int reqix, AMessage *msg)
+static int EchoRequest(AObject *object, int reqix, AMessage *msg)
 {
+	EchoProxy *echo = (EchoProxy*)object;
 	if (reqix != Aio_Input)
 		return -ENOSYS;
-	if (msg->data == NULL)
+	if (msg->size == 0)
 		return -ENOSYS;
-	return ((AObject*)echo->extend)->request((AObject*)echo->extend, reqix, msg);
+	return echo->client->request(reqix, msg);
 }
 
-static int EchoCancel(AObject *echo, int reqix, AMessage *msg)
+static int EchoCancel(AObject *object, int reqix, AMessage *msg)
 {
-	if (reqix != Aio_Input)
-		return -ENOSYS;
-	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
-	return 1;
+	EchoProxy *echo = (EchoProxy*)object;
+	int result = 1;
+
+	if (echo->client != NULL)
+		result = echo->client->cancel(reqix, msg);
+	return result;
 }
 
-static int EchoClose(AObject *echo, AMessage *msg)
+static int EchoClose(AObject *object, AMessage *msg)
 {
-	release_s(*((AObject**)&echo->extend), AObjectRelease, NULL);
+	EchoProxy *echo = (EchoProxy*)object;
+	release_s(echo->client, AObjectRelease, NULL);
 	return 1;
 }
 

@@ -2,7 +2,8 @@
 #define _AREFSBUF_H_
 
 
-typedef struct ARefsBuf
+typedef struct ARefsBuf ARefsBuf;
+struct ARefsBuf
 {
 	long    refs;
 	int     size;
@@ -38,8 +39,12 @@ typedef struct ARefsBuf
 		}
 		return len;
 	}
+};
+
+defer2(IRefsBuf, ARefsBuf*, if(_value)_value->release2());
+#else
+};
 #endif
-} ARefsBuf;
 
 static inline ARefsBuf*
 ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))

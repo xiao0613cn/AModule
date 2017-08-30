@@ -272,7 +272,7 @@ void* RecvCB2(void *p)
 		CloseDone(&rm->msg, result);
 	return NULL;
 }
-void RecvCB(AOperator *op, int result)
+int RecvCB(AOperator *op, int result)
 {
 	RecvMsg *rm = container_of(op, RecvMsg, op);
 	if (result >= 0) {
@@ -280,6 +280,7 @@ void RecvCB(AOperator *op, int result)
 	} else {
 		CloseDone(&rm->msg, result);
 	}
+	return result;
 }
 void* SendHeart(void *p)
 {
@@ -349,7 +350,7 @@ _retry:
 	AMsgInit(&sm, AMsgType_Option, option, 0);
 	sm.done = NULL;
 
-	if (_stricmp(option->value, "PVDClient") == 0) {
+	if (strcasecmp(option->value, "PVDClient") == 0) {
 		release_s(pvd, AObjectRelease, NULL);
 		result = AObjectCreate2(&pvd, NULL, option, &PVDClientModule);
 	} else {
@@ -464,7 +465,7 @@ static const char *proactive_path =
 	"	duration: 1000,"
 	"},";
 
-void proactive_wait(AOperator *asop, int result)
+int proactive_wait(AOperator *asop, int result)
 {
 	RecvMsg *rm = container_of(asop, RecvMsg, op);
 
@@ -474,6 +475,7 @@ void proactive_wait(AOperator *asop, int result)
 	result = rm->pvd->open(rm->pvd, &rm->msg);
 	if (result != 0)
 		result = rm->msg.done(&rm->msg, result);
+	return result;
 }
 
 int proactive_done(AMessage *msg, int result)
@@ -555,8 +557,8 @@ void test_proactive(AOption *option, bool reset_option)
 int http_cb_name(http_parser *parser, const char *name)
 {
 	TRACE("%s...\n", name);
-	if ((_stricmp(name, "chunk_complete") == 0)
-	 || (_stricmp(name, "message_complete") == 0))
+	if ((strcasecmp(name, "chunk_complete") == 0)
+	 || (strcasecmp(name, "message_complete") == 0))
 		http_parser_pause(parser, TRUE);
 	return 0;
 }
@@ -694,7 +696,7 @@ int test_run(AOption *option, bool reset_option)
 		AOption *child;
 		list_for_each_entry(child, &option->children_list, AOption, brother_entry)
 		{
-			if (_stricmp(child->name, "request") != 0)
+			if (strcasecmp(child->name, "request") != 0)
 				continue;
 
 			int reqix = AOptionGetInt(child, "reqix", 0);
@@ -795,19 +797,23 @@ int main(int argc, char* argv[])
 		for ( ; ; ) {
 			TRACE("input test module: pvd, tcp_server, proactive ...\n");
 			fgets(str, sizeof(str), stdin);
-			if (_strnicmp_c(str, "pvd") == 0)
+
+			if (strncasecmp_sz(str, "pvd") == 0)
 				path = pvd_path;
-			else if (/*str[0] == '\0' || */_strnicmp_c(str, "tcp_server") == 0)
+			else if (/*str[0] == '\0' || */strncasecmp_sz(str, "tcp_server") == 0)
 				path = proxy_path;
-			else if (_strnicmp_c(str, "proactive") == 0)
+			else if (strncasecmp_sz(str, "proactive") == 0)
 				path = proactive_path;
-			else if (_strnicmp_c(str, "test_run") == 0) {
+			else if (strncasecmp_sz(str, "test_run") == 0) {
 				test_run(NULL, reset_option);
 				continue;
 			}
-			else if (_strnicmp_c(str, "test_mqtt") == 0) {
+			else if (strncasecmp_sz(str, "test_mqtt") == 0) {
 				extern int test_mqtt();
 				test_mqtt();
+				continue;
+			}
+			else if (strncasecmp_sz(str, "device") == 0) {
 				continue;
 			}
 			else if (str[0] == 'q')
@@ -819,13 +825,13 @@ int main(int argc, char* argv[])
 		result = AOptionDecode(&option, path);
 	}
 	if (result == 0) {
-		if (_stricmp(option->name, "stream") == 0) {
+		if (strcasecmp(option->name, "stream") == 0) {
 			test_pvd(option, reset_option);
-		} else if (_stricmp(option->name, "server") == 0) {
+		} else if (strcasecmp(option->name, "server") == 0) {
 			test_proxy(option, reset_option);
-		} else if (_stricmp(option->name, "proactive") == 0) {
+		} else if (strcasecmp(option->name, "proactive") == 0) {
 			test_proactive(option, reset_option);
-		} else if (_stricmp(option->name, "test_run") == 0) {
+		} else if (strcasecmp(option->name, "test_run") == 0) {
 			test_run(option, reset_option);
 		} else {
 			TRACE("unknown test module [%s: %s]...\n", option->name, option->value);

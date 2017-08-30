@@ -16,8 +16,23 @@ int main()
 	AEntityManager em; em.init();
 	em._push(&e);
 
-	e._append(new AComponent(NULL));
-	e._append(new AComponent(NULL));
+	//e._append(new AComponent(NULL));
+	//e._append(new AComponent(NULL));
+	{
+		defer(int*, delete [] _value) ac(new int[5]);
+
+		for (int ix = 0; ix < 5; ++ix) {
+			ac._value[ix] = ix;
+			//ac->[5] = 1;
+		}
+	}
+	{
+		defer(int*, delete _value) ac(new int);
+		defer(AEntity*, if(_value)_value->_self->release2()) ac2(NULL);
+		*ac = 5;
+		ac2 = &e;
+		//ac2->_self->addref();
+	}
 
 	null_lock_helper l;
 	EMTmpl<null_lock_helper> emh; emh.init(&em, &l);

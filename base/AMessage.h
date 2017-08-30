@@ -17,7 +17,8 @@ enum AMsgTypes
 	AMsgType_Private = 0x40000000, /* module defined */
 };
 
-typedef struct AMessage
+typedef struct AMessage AMessage;
+struct AMessage
 {
 	int     type;
 	int     size;
@@ -34,7 +35,7 @@ typedef struct AMessage
 	void   init(AMessage *msg)   { init(msg->type, msg->data, msg->size); }
 	void   init(AMessage &msg)   { init(msg.type, msg.data, msg.size); }
 #endif
-} AMessage;
+};
 
 // util function
 static inline void
