@@ -28,7 +28,11 @@ int main()
 	}
 	{
 		defer(int*, delete _value) ac(new int);
-		defer(AEntity*, if(_value)_value->_self->release2()) ac2(NULL);
+		defer(AEntity*, {
+			if (_value != NULL)
+				_value->_self->release2();
+		}) ac2(NULL);
+
 		*ac = 5;
 		ac2 = &e;
 		//ac2->_self->addref();
