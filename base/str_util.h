@@ -81,4 +81,61 @@ strnchr(const char *str, int val, size_t len)
 	return NULL;
 }
 
+#define tm_fmt   "%04d-%02d-%02d %02d:%02d:%02d"
+#define tm_args(t)  \
+	(t)->tm_year+1900, (t)->tm_mon+1, (t)->tm_mday, \
+	(t)->tm_hour, (t)->tm_min, (t)->tm_sec
+
+static inline int
+strtotm(const char *str, struct tm *t)
+{
+	int result = sscanf(str, "%d-%d-%d %d:%d:%d",
+		&t->tm_year, &t->tm_mon, &t->tm_mday,
+		&t->tm_hour, &t->tm_min, &t->tm_sec);
+	t->tm_year -= 1900;
+	t->tm_mon -= 1;
+	return result;
+}
+
+static inline time_t
+strtotime(const char *str)
+{
+	struct tm t = { 0 };
+	strtotm(str, &t);
+	return mktime(&t);
+}
+
+
+
+
+#define begin_cmd(cmd) \
+	if ((strncasecmp(buf, cmd, sizeof(cmd)-1) == 0) \
+	 && (buf[sizeof(cmd)-1] == '\0' || buf[sizeof(cmd)-1] == ' ' || buf[sizeof(cmd)-1] == '\n')) { \
+		begin_param(buf)
+
+#define next_cmd(cmd) \
+	end_cmd() begin_cmd(cmd)
+
+#define end_cmd() \
+		continue; }
+
+
+#define begin_param(buf) \
+	char *prev_param = buf;
+
+#define next_param(name) \
+	char *name = strchr(prev_param, ' '); \
+	if (name == NULL) { \
+		TRACE("request param: " #name "\n"); \
+		continue; \
+	} \
+	*name++ = '\0'; \
+	prev_param = name;
+
+#define end_param() \
+	char *last_param = strchr(prev_param, '\n'); \
+	if (last_param != NULL) \
+		 *last_param++ = '\0'; \
+	prev_param = last_param;
+
 #endif

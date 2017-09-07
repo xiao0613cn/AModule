@@ -80,7 +80,8 @@ ARefsBufRelease(ARefsBuf *buf)
 }
 
 static inline int
-ARefsBufCheck(ARefsBuf *&buf, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
+ARefsBufCheck(ARefsBuf *&buf, int left, int size,
+              void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
 {
 	if (buf == NULL) {
 		buf = ARefsBufCreate(max(left,size), alloc_func, free_func);
@@ -120,7 +121,7 @@ typedef struct ARefsChain
 static inline int
 ARefsChainCheckBuf(ARefsChain *&chain, int left, int size, void*(*alloc_func)(size_t) = NULL, void(*free_func)(void*) = NULL)
 {
-
+	return 0;
 }
 
 

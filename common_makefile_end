@@ -1,0 +1,25 @@
+
+$(foreach src,$(SRC_CPP),$(eval $(call MAKE_OBJ_CPP,$(src))))
+
+$(foreach src,$(SRC_C),$(eval $(call MAKE_OBJ_C,$(src))))
+
+.PHONY: clean echo debug
+clean:
+	-rm -f ./$(BUILD_DIR)/*
+	-rm -f $(TARGET_BIN)
+	
+echo:   # debug util
+	@echo SRC_DIR = $(SRC_DIR)
+	@echo
+	@echo SRC_CPP = $(SRC_CPP)
+	@echo
+	@echo OBJ_CPP = $(OBJ_CPP)
+	@echo
+	@echo SRC_C = $(SRC_C)
+	@echo
+	@echo OBJ_C = $(OBJ_C)
+	@echo
+	@echo CXXFLAGS = $(CXXFLAGS)
+	@echo
+	@echo LIB_DEPEND = $(LIB_DEPEND)
+	

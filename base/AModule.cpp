@@ -102,7 +102,7 @@ AModuleExit(void)
 {
 	while (!list_empty(&g_module)) {
 		AModule *pos = list_pop_front(&g_module, AModule, global_entry);
-		pos->exit(TRUE);
+		pos->exit(g_inited);
 	}
 	g_inited = FALSE;
 	release_s(g_option, AOptionRelease, NULL);

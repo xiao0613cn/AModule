@@ -3,7 +3,40 @@
 
 
 AMODULE_API BOOL
-h264_decode_sps(BYTE * buf,unsigned int nLen,int &width,int &height);
+h264_decode_sps(unsigned char *buf, unsigned int nLen, int &width, int &height);
+
+#define is_es4_header(buf) ((buf[0] == 0) && (buf[1] == 0) && (buf[2] == 0) && (buf[3] == 1))
+#define is_es3_header(buf) ((buf[0] == 0) && (buf[1] == 0) && (buf[2] == 1))
+
+#define get_es_type(buf, pos) (buf[pos] & 0x1f)
+
+static inline int next_es_header(unsigned char *data, int size, int type)
+{
+	for (unsigned char *ptr = data+3, *end = data+size-3; ptr < end; ++ptr)
+	{
+		if (is_es4_header(ptr) && ((type == -1) || (get_es_type(ptr, 4) == type)))
+			return (int)(ptr - data);
+	}
+	return -1;
+}
+
+/* NAL unit types */
+enum H264_NAL_Types {
+	H264_NAL_SLICE           = 1,
+	H264_NAL_DPA             = 2,
+	H264_NAL_DPB             = 3,
+	H264_NAL_DPC             = 4,
+	H264_NAL_IDR_SLICE       = 5,
+	H264_NAL_SEI             = 6,
+	H264_NAL_SPS             = 7,
+	H264_NAL_PPS             = 8,
+	H264_NAL_AUD             = 9,
+	H264_NAL_END_SEQUENCE    = 10,
+	H264_NAL_END_STREAM      = 11,
+	H264_NAL_FILLER_DATA     = 12,
+	H264_NAL_SPS_EXT         = 13,
+	H264_NAL_AUXILIARY_SLICE = 19,
+};
 
 #if 0
 /**

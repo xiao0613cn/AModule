@@ -27,7 +27,7 @@
 
 #define AMODULE_API
 #include "rtmppkt.h"
-#include "flv.h"
+#include "../media/flv.h"
 //#include "url.h"
 
 void ff_amf_write_bool(uint8_t **dst, int val)
@@ -438,8 +438,8 @@ void ff_rtmp_packet_destroy(RTMPPacket *pkt)
 int ff_amf_tag_size(const uint8_t *data, const uint8_t *data_end)
 {
     const uint8_t *base = data;
-    AMFDataType type;
-    unsigned nb   = -1;
+    AMFDataTypes type;
+    int nb   = -1;
     int parse_key = 1;
 
     if (data >= data_end)
@@ -550,9 +550,10 @@ static const char* rtmp_packet_type(int type)
 static void amf_tag_contents(void *ctx, const uint8_t *data,
                              const uint8_t *data_end)
 {
-    unsigned int size, nb = -1;
+    unsigned int size;
+    int nb = -1;
     char buf[1024];
-    AMFDataType type;
+    AMFDataTypes type;
     int parse_key = 1;
 
     if (data >= data_end)

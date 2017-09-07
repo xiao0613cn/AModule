@@ -345,7 +345,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 
 	struct addrinfo *ai_valid = ai;
 	do {
-		if (ai_valid->ai_protocol == IPPROTO_TCP)
+		if (ai_valid->ai_protocol != IPPROTO_UDP)
 			break;
 	} while ((ai_valid = ai_valid->ai_next) != NULL);
 	if (ai_valid == NULL) {

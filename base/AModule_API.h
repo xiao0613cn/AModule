@@ -26,6 +26,7 @@
 #pragma warning(disable: 4200) // 使用了非标准扩展 : 结构/联合中的零大小数组
 #pragma warning(disable: 4201) // 使用了非标准扩展 : 无名称的结构/联合
 #pragma warning(disable: 4505) // 未引用的本地函数已移除
+#pragma warning(disable: 4512) // 未能生成赋值运算符
 #else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"

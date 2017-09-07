@@ -1,0 +1,67 @@
+############ common ############
+CXX = gcc # g++
+CXXFLAGS = -I./ -fPIC -Wall
+LIB_DEPEND = -lpthread # -lstdc++
+
+CC = gcc
+CFLAGS = $(CXXFLAGS)
+
+define gen_dep_cpp
+	set -e; rm -f $@; \
+	$(CXX) -MM $(CXXFLAGS) $< > $@.tmp $(LOG_PATH); \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.tmp > $@; \
+	rm -f $@.tmp
+endef
+define gen_dep_c
+	set -e; rm -f $@; \
+	$(CC) -MM $(CFLAGS) $< > $@.tmp $(LOG_PATH); \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.tmp > $@; \
+	rm -f $@.tmp
+endef
+############ common ############
+
+
+############ BUILD_DIR #########
+ifeq ($(BUILD_DIR), Debug)
+CXXFLAGS += -D_DEBUG -g
+else
+CXXFLAGS += -O2
+endif
+############ BUILD_DIR #########
+
+
+############ SRC_DIR ###########
+SRC_TO_OBJ = $(patsubst %.$2,$(BUILD_DIR)/%.o,$(notdir $1))
+
+SRC_CPP += $(foreach dir,$(SRC_DIR),$(wildcard $(dir)/*.cpp))
+SRC_CPP := $(filter-out $(OUT_CPP),$(SRC_CPP))
+OBJ_CPP += $(foreach src,$(SRC_CPP),$(call SRC_TO_OBJ,$(src),cpp))
+
+SRC_C   += $(foreach dir,$(SRC_DIR),$(wildcard $(dir)/*.c))
+SRC_C   := $(filter-out $(OUT_C),$(SRC_C))
+OBJ_C   += $(foreach src,$(SRC_C),$(call SRC_TO_OBJ,$(src),c))
+############ SRC_DIR ###########
+
+
+LOG_PATH = 2>>./$(BUILD_DIR)/build.log
+
+
+############ MAKE_SRC ##########
+define MAKE_SRC
+$(BUILD_DIR)/%.o: $(1)/%.cpp
+	$(CXX) -c $(CXXFLAGS) $$< -o $$@ $(LOG_PATH)
+
+$(BUILD_DIR)/%.o: $(1)/%.c
+	$(CC) -c $(CFLAGS) $$< -o $$@ $(LOG_PATH)
+endef
+
+define MAKE_OBJ_CPP
+$(call SRC_TO_OBJ,$1,cpp) : $1
+	$(CXX) -c $(CXXFLAGS) $$^ -o $$@ $(LOG_PATH)
+endef
+
+define MAKE_OBJ_C
+$(call SRC_TO_OBJ,$1,c) : $1
+	$(CC) -c $(CFLAGS) $$^ -o $$@ $(LOG_PATH)
+endef
+############ MAKE_SRC ##########

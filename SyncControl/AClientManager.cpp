@@ -32,7 +32,7 @@ AMODULE_API void CM_start(AClientManager *cm)
 	cm->check_running = TRUE;
 	cm->setCppAsopCB(AClientManager, check_asop, check_run);
 
-	AThreadPost(cm->check_thread, &cm->check_asop, TRUE);
+	AThreadPost(cm->check_thread, &cm->check_asop);
 }
 
 AMODULE_API void CM_stop(AClientManager *cm)
@@ -89,7 +89,7 @@ int AClientManager::check_run(int result)
 
 	if (check_running && (result >= 0)) {
 		if (check_last_client != NULL)
-			AThreadPost(check_thread, &check_asop, TRUE);
+			AThreadPost(check_thread, &check_asop);
 		else
 			AOperatorTimewait(&check_asop, check_thread, timer_check, TRUE);
 	} else {
@@ -229,7 +229,7 @@ AMODULE_API void CM_check_post(AClientManager *cm, struct AClient *c, BOOL addre
 		pthread_create(&thr, NULL, AClient_run, c);
 		pthread_detach(thr);
 	} else {
-		AThreadPost(cm->check_thread, &c->main_asop, TRUE);
+		AThreadPost(cm->check_thread, &c->main_asop);
 	}
 }
 

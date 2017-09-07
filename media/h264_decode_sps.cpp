@@ -5,10 +5,10 @@
 #endif
 #pragma warning(disable: 4189) //局部变量已初始化但不引用
 
-UINT Ue(BYTE *pBuff, UINT nLen, UINT &nStartBit)  
+unsigned int Ue(unsigned char *pBuff, unsigned int nLen, unsigned int &nStartBit)  
 {  
 	//计算0bit的个数  
-	UINT nZeroNum = 0;  
+	unsigned int nZeroNum = 0;  
 	while (nStartBit < nLen * 8)  
 	{  
 		if (pBuff[nStartBit / 8] & (0x80 >> (nStartBit % 8))) //&:按位与，%取余  
@@ -23,7 +23,7 @@ UINT Ue(BYTE *pBuff, UINT nLen, UINT &nStartBit)
 
 	//计算结果  
 	DWORD dwRet = 0;  
-	for (UINT i=0; i<nZeroNum; i++)  
+	for (unsigned int i=0; i<nZeroNum; i++)  
 	{  
 		dwRet <<= 1;  
 		if (pBuff[nStartBit / 8] & (0x80 >> (nStartBit % 8)))  
@@ -36,7 +36,7 @@ UINT Ue(BYTE *pBuff, UINT nLen, UINT &nStartBit)
 }  
 
 
-int Se(BYTE *pBuff, UINT nLen, UINT &nStartBit)  
+int Se(unsigned char *pBuff, unsigned int nLen, unsigned int &nStartBit)  
 {  
 	int UeVal=Ue(pBuff,nLen,nStartBit);  
 	double k=UeVal;  
@@ -47,10 +47,10 @@ int Se(BYTE *pBuff, UINT nLen, UINT &nStartBit)
 }  
 
 
-DWORD u(UINT BitCount,BYTE * buf,UINT &nStartBit)  
+DWORD u(unsigned int BitCount, unsigned char *buf, unsigned int &nStartBit)  
 {  
 	DWORD dwRet = 0;  
-	for (UINT i=0; i<BitCount; i++)  
+	for (unsigned int i=0; i<BitCount; i++)  
 	{  
 		dwRet <<= 1;  
 		if (buf[nStartBit / 8] & (0x80 >> (nStartBit % 8)))  
@@ -63,9 +63,9 @@ DWORD u(UINT BitCount,BYTE * buf,UINT &nStartBit)
 }  
 
 AMODULE_API BOOL
-h264_decode_sps(BYTE * buf,unsigned int nLen,int &width,int &height)  
+h264_decode_sps(unsigned char *buf, unsigned int nLen, int &width, int &height)  
 {  
-	UINT StartBit=0;   
+	unsigned int StartBit=0;   
 	int forbidden_zero_bit=u(1,buf,StartBit);  
 	int nal_ref_idc=u(2,buf,StartBit);  
 	int nal_unit_type=u(5,buf,StartBit);  
