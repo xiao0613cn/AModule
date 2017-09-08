@@ -4,6 +4,7 @@ enum iocp_key {
 	iocp_key_unknown = 0,
 	iocp_key_signal,
 	iocp_key_sysio,
+	iocp_key_quit,
 };
 #else
 #include <sys/time.h>
@@ -63,7 +64,8 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 				node = rb_next(node);
 				continue;
 			}
-			max_timewait = min(at->max_timewait, -diff);
+			if (-diff < max_timewait)
+				max_timewait = -diff;
 			break;
 		}
 
@@ -88,13 +90,13 @@ static int AThreadCheckTimewait(AThread *pool, AThread *at)
 	while (!list_empty(&timeout_list)) {
 		AOperator *asop = list_pop_front(&timeout_list, AOperator, ao_list);
 		assert(asop->ao_tick == 0);
-		asop->callback(asop, 0);
+		asop->done2(0);
 	}
 #ifndef _WIN32
 	while (!list_empty(&working_list)) {
 		AOperator *asop = list_pop_front(&working_list, AOperator, ao_list);
 		assert(asop->ao_tick == 0);
-		asop->callback(asop, 1);
+		asop->done2(1);
 	}
 #endif
 	return max_timewait;
@@ -119,7 +121,6 @@ static void* AThreadRun(void *p)
 
 		DWORD new_timetick = GetTickCount();
 		max_timewait -= (new_timetick - cur_timetick);
-
 		cur_timetick = new_timetick;
 		if (max_timewait < 0)
 			continue;
@@ -134,7 +135,7 @@ static void* AThreadRun(void *p)
 				max_timewait = 0;
 		} else {
 			AOperator *asop = container_of(ovlp, AOperator, ao_ovlp);
-			asop->callback(asop, tx);
+			asop->done2(tx);
 		}
 #else
 		int count = epoll_wait(at->epoll, events, _countof(events), max_timewait);
@@ -149,7 +150,7 @@ static void* AThreadRun(void *p)
 				max_timewait = 0;
 			} else {
 				AOperator *asop = (AOperator*)events[ix].data.ptr;
-				asop->callback(asop, events[ix].events);
+				asop->done2(events[ix].events);
 			}
 		}
 #endif
@@ -326,7 +327,7 @@ AThreadEnd(AThread *at)
 
 	while (!list_empty(&at->private_list)) {
 		AOperator *asop = list_pop_front(&at->private_list, AOperator, ao_list);
-		asop->callback(asop, -EINTR);
+		asop->done2(-EINTR);
 	}
 	if (at->pool != NULL) {
 		free(at);
@@ -342,17 +343,17 @@ AThreadEnd(AThread *at)
 
 		while (!list_empty(&asop->ao_list)) {
 			AOperator *asop2 = list_pop_front(&asop->ao_list, AOperator, ao_list);
-			asop2->callback(asop2, -EINTR);
+			asop2->done2(-EINTR);
 		}
 
 		node = rb_next(node);
 		rb_erase(&asop->ao_tree, &at->waiting_tree);
-		asop->callback(asop, -EINTR);
+		asop->done2(-EINTR);
 	}
 
 	while (!list_empty(&at->pending_list)) {
 		AOperator *asop = list_pop_front(&at->pending_list, AOperator, ao_list);
-		asop->callback(asop, -EINTR);
+		asop->done2(-EINTR);
 	}
 
 	free(at);

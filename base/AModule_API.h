@@ -58,18 +58,6 @@
 #include "AModule.h"
 
 
-#define impl_cpp0(ret, type, api) \
-	AMODULE_API ret type##_##api(type *p) { return p->api(); } \
-	ret type::api()
-
-#define impl_cpp1(ret, type, api, t1, a1) \
-	AMODULE_API ret type##_##api(type *p, t1 a1) { return p->api(a1); } \
-	ret type::api(t1 a1)
-
-#define impl_cpp2(ret, type, api, t1, a1, t2, a2) \
-	AMODULE_API ret type##_##api(type *p, t1 a1, t2 a2) { return p->api(a1, a2); } \
-	ret type::api(t1 a1, t2 a2)
-
 
 #ifdef __cplusplus
 template <typename TObject, size_t offset_msg, size_t offset_from, int OnMsgDone(TObject*,int)>

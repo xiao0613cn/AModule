@@ -120,7 +120,7 @@ SessionInit(SessionManager *sm, AModule *sess_module)
 	pthread_mutex_init(&sm->mutex, NULL);
 
 	sm->genid = 0;
-	sm->check_timer.callback = NULL;
+	sm->check_timer.done = NULL;
 	sm->conn_tick_offset = 0;
 
 	sm->max_sess_live = 30*60*1000;

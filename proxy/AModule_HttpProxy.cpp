@@ -144,7 +144,7 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 
 		case s_send_header:
 			if (media_file_get(mf, mf->media_sequence+1) == 0) {
-				ctx->asop.callback = &HttpProxySendTS_wait;
+				ctx->asop.done = &HttpProxySendTS_wait;
 				AOperatorTimewait(&ctx->asop, NULL, 20);
 				return 0;
 			}
@@ -299,7 +299,7 @@ static int HttpProxyCheck(AOperator *asop, int result)
 	if (result >= 0) {
 		SessionCheck(sm);
 
-		AOperatorTimewait(&sm->check_timer, NULL, 5000);
+		sm->check_timer.delay(NULL, 5000);
 	} else {
 		//shutdown
 	}
@@ -316,8 +316,9 @@ static int HttpProxyInit(AOption *global_option, AOption *module_option, BOOL fi
 	sm.conn_tick_offset = offsetof(HttpCtxExt, active) - offsetof(HttpCtxExt, sm_conn_entry);
 	sm.on_connect_timeout = &on_http_timeout;
 
-	sm.check_timer.callback = &HttpProxyCheck;
-	AOperatorTimewait(&sm.check_timer, NULL, 5000);
+	sm.check_timer.timer();
+	sm.check_timer.done = &HttpProxyCheck;
+	sm.check_timer.delay(NULL, 5000);
 	return 1;
 }
 

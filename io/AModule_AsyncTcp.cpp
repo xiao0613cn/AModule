@@ -9,11 +9,9 @@ enum op_status {
 	op_error,
 };
 
-struct AsyncTcp;
-struct AsyncOvlp {
-	AOperator sysio;
-	AsyncTcp *tcp;
-	AMessage *msg;
+struct AsyncOvlp : public AOperator {
+	struct AsyncTcp *tcp;
+	AMessage *from;
 #ifdef _WIN32
 	WSABUF    buf;
 #else
@@ -23,17 +21,16 @@ struct AsyncOvlp {
 	long volatile status;
 #endif
 };
-struct AsyncTcp {
-	AObject   object;
+
+struct AsyncTcp : public AObject {
 	SOCKET    sock;
 	AsyncOvlp send_ovlp;
 	AsyncOvlp recv_ovlp;
 };
-#define to_tcp(obj)  container_of(obj, AsyncTcp, object)
 
 static void AsyncTcpRelease(AObject *object)
 {
-	AsyncTcp *tcp = to_tcp(object);
+	AsyncTcp *tcp = (AsyncTcp*)object;
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 }
 
@@ -52,43 +49,43 @@ static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 #ifdef _WIN32
 static int AsyncTcpRequestDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = (AsyncOvlp*)asop;
 	if (result <= 0)
-		return ovlp->msg->done(ovlp->msg, -EIO);
+		return ovlp->from->done2(-EIO);
 
-	if (!ioMsgType_isBlock(ovlp->msg->type)) {
-		ovlp->msg->size = result;
-		return ovlp->msg->done(ovlp->msg, result);
+	if (!ioMsgType_isBlock(ovlp->from->type)) {
+		ovlp->from->size = result;
+		return ovlp->from->done2(result);
 	}
 
 	ovlp->buf.buf += result;
 	ovlp->buf.len -= result;
 
 	if (ovlp->buf.len == 0) {
-		result = ovlp->msg->size;
+		result = ovlp->from->size;
 	} else {
 		AsyncTcp *tcp = ovlp->tcp;
 		if (ovlp == &tcp->send_ovlp)
-			result = iocp_sendv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
+			result = iocp_sendv(tcp->sock, &ovlp->buf, 1, &ovlp->ao_ovlp);
 		else
-			result = iocp_recvv(tcp->sock, &ovlp->buf, 1, &ovlp->sysio.ao_ovlp);
+			result = iocp_recvv(tcp->sock, &ovlp->buf, 1, &ovlp->ao_ovlp);
 		if (result == 0)
 			return result;
 	}
-	return ovlp->msg->done(ovlp->msg, result);
+	return ovlp->from->done2(result);
 }
 
 static int AsyncTcpOpenDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = (AsyncOvlp*)asop;
 	AsyncTcp *tcp = ovlp->tcp;
 
 	if (result >= 0)
 		result = iocp_is_connected(tcp->sock);
 
-	tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
-	tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
-	return ovlp->msg->done(ovlp->msg, result);
+	tcp->send_ovlp.done = &AsyncTcpRequestDone;
+	tcp->recv_ovlp.done = &AsyncTcpRequestDone;
+	return ovlp->from->done2(result);
 }
 #else
 static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
@@ -101,21 +98,21 @@ _retry:
 
 	if ((result == op_signal) || (ovlp->perform_count != ovlp->signal_count)) {
 		if (ovlp == &tcp->send_ovlp) {
-			result = send(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, MSG_NOSIGNAL);
+			result = send(tcp->sock, ovlp->from->data+ovlp->pos, ovlp->from->size-ovlp->pos, MSG_NOSIGNAL);
 		} else {
-			result = recv(tcp->sock, ovlp->msg->data+ovlp->pos, ovlp->msg->size-ovlp->pos, 0);
+			result = recv(tcp->sock, ovlp->from->data+ovlp->pos, ovlp->from->size-ovlp->pos, 0);
 		}
 		if (result == 0)
 			return -EIO;
 
 		if (result > 0) {
 			ovlp->pos += result;
-			if (ovlp->pos == ovlp->msg->size)
+			if (ovlp->pos == ovlp->from->size)
 				return ovlp->pos;
 
 			ovlp->perform_count += 1;
-			if (!ioMsgType_isBlock(ovlp->msg->type)) {
-				ovlp->msg->size = ovlp->pos;
+			if (!ioMsgType_isBlock(ovlp->from->type)) {
+				ovlp->from->size = ovlp->pos;
 				return ovlp->pos;
 			}
 		} else {
@@ -126,7 +123,7 @@ _retry:
 				TRACE2("tcp(%d): %s(%d-%d), size(%d), pos(%d), result = %d, errno = %d.\n",
 					tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 					ovlp->perform_count, ovlp->signal_count,
-					ovlp->msg->size, ovlp->pos, result, errno);
+					ovlp->from->size, ovlp->pos, result, errno);
 				return -EIO;
 			}
 			//ovlp->perform_count += 1;
@@ -135,7 +132,7 @@ _retry:
 		TRACE2("tcp(%d): skip %s(%d-%d), size(%d), pos(%d), errno = %d.\n",
 			tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 			ovlp->perform_count, ovlp->signal_count,
-			ovlp->msg->size, ovlp->pos, errno);
+			ovlp->from->size, ovlp->pos, errno);
 	}
 
 	result = InterlockedCompareExchange(&ovlp->status, op_pending, op_none);
@@ -147,7 +144,7 @@ _retry:
 	TRACE2("tcp(%d): %s(%d-%d), size(%d), pos(%d), retry again, errno = %d.\n",
 		tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 		ovlp->perform_count, ovlp->signal_count,
-		ovlp->msg->size, ovlp->pos, errno);
+		ovlp->from->size, ovlp->pos, errno);
 	goto _retry;
 }
 
@@ -167,19 +164,19 @@ static void AsyncOvlpSignal(AsyncTcp *tcp, AsyncOvlp *ovlp)
 
 		result = AsyncOvlpProc(tcp, ovlp);
 		if (result != 0)
-			result = ovlp->msg->done(ovlp->msg, result);
+			result = ovlp->from->done2(result);
 	}
 }
 
 static int AsyncTcpCloseDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = (AsyncOvlp*)asop;
 	AsyncTcp *tcp = ovlp->tcp;
 	assert(ovlp == &tcp->recv_ovlp);
 
-	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
+	int unbind = AThreadUnbind(&tcp->send_ovlp);
 	if (unbind >= 0)
-		AObjectRelease(&tcp->object);
+		tcp->release2();
 
 	TRACE2("tcp(%d): close done, unbind = %d, send(%d-%d), recv(%d-%d).\n",
 		tcp->sock, unbind,
@@ -187,7 +184,7 @@ static int AsyncTcpCloseDone(AOperator *asop, int result)
 		tcp->recv_ovlp.perform_count, tcp->recv_ovlp.signal_count);
 
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
-	return tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, 1);
+	return ovlp->from->done2(1);
 }
 
 static void AsyncOvlpError(AsyncTcp *tcp, int events)
@@ -201,14 +198,14 @@ static void AsyncOvlpError(AsyncTcp *tcp, int events)
 
 	int result = InterlockedExchange(&tcp->recv_ovlp.status, op_error);
 	if (result == op_pending)
-		result = tcp->recv_ovlp.msg->done(tcp->recv_ovlp.msg, -EIO);
+		result = tcp->recv_ovlp.from->done2(-EIO);
 
 	result = InterlockedExchange(&tcp->send_ovlp.status, op_error);
 	if (result == op_pending)
-		result = tcp->send_ovlp.msg->done(tcp->send_ovlp.msg, -EIO);
+		result = tcp->send_ovlp.from->done2(-EIO);
 
 	if (unbind >= 0)
-		AObjectRelease(&tcp->object);
+		tcp->release2();
 	else
 		assert(0);
 }
@@ -234,7 +231,7 @@ static int AsyncTcpRequestDone(AOperator *asop, int result)
 
 static int AsyncTcpOpenDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = (AsyncOvlp*)asop;
 	AsyncTcp *tcp = ovlp->tcp;
 	assert(ovlp == &tcp->send_ovlp);
 
@@ -262,8 +259,8 @@ static int AsyncTcpOpenDone(AOperator *asop, int result)
 
 		result = InterlockedCompareExchange(&ovlp->status, op_none, op_pending);
 		if (result == op_pending) {
-			ovlp->sysio.callback = &AsyncTcpRequestDone;
-			result = ovlp->msg->done(ovlp->msg, error);
+			ovlp->done = &AsyncTcpRequestDone;
+			result = ovlp->from->done2(error);
 		}
 	}
 	return result;
@@ -272,31 +269,31 @@ static int AsyncTcpOpenDone(AOperator *asop, int result)
 
 static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 {
-	tcp->send_ovlp.msg = msg;
+	tcp->send_ovlp.from = msg;
 	if (msg != NULL)
-		tcp->send_ovlp.sysio.callback = &AsyncTcpOpenDone;
+		tcp->send_ovlp.done = &AsyncTcpOpenDone;
 	else
-		tcp->send_ovlp.sysio.callback = &AsyncTcpRequestDone;
+		tcp->send_ovlp.done = &AsyncTcpRequestDone;
 
 #ifdef _WIN32
-	tcp->recv_ovlp.sysio.callback = &AsyncTcpRequestDone;
+	tcp->recv_ovlp.done = &AsyncTcpRequestDone;
 	int result = AThreadBind(NULL, (HANDLE)tcp->sock);
 #else
 	tcp->send_ovlp.status = (msg ? op_pending : op_none);
-	tcp->send_ovlp.sysio.ao_fd = tcp->sock;
+	tcp->send_ovlp.ao_fd = tcp->sock;
 	tcp->send_ovlp.perform_count = 0;
 	tcp->send_ovlp.signal_count = 0;
 
 	tcp->recv_ovlp.status = op_none;
-	tcp->recv_ovlp.sysio.ao_fd = tcp->sock;
-	tcp->recv_ovlp.sysio.callback = &AsyncTcpCloseDone;
+	tcp->recv_ovlp.ao_fd = tcp->sock;
+	tcp->recv_ovlp.done = &AsyncTcpCloseDone;
 	tcp->recv_ovlp.perform_count = 0;
 	tcp->recv_ovlp.signal_count = 0;
 
-	AObjectAddRef(&tcp->object);
-	int result = AThreadBind(NULL, &tcp->send_ovlp.sysio, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
+	tcp->addref();
+	int result = AThreadBind(NULL, &tcp->send_ovlp, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
 	if (result < 0) {
-		AObjectRelease(&tcp->object);
+		tcp->release2();
 		result = -EIO;
 	}
 #endif
@@ -305,7 +302,7 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 
 static int AsyncTcpOpen(AObject *object, AMessage *msg)
 {
-	AsyncTcp *tcp = to_tcp(object);
+	AsyncTcp *tcp = (AsyncTcp*)object;
 	if (tcp->sock != INVALID_SOCKET)
 		return -EBUSY;
 
@@ -363,7 +360,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 #ifdef _WIN32
 	int result = AsyncTcpBind(tcp, msg);
 	if (result >= 0)
-		result = iocp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, &tcp->send_ovlp.sysio.ao_ovlp);
+		result = iocp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, &tcp->send_ovlp.ao_ovlp);
 	if (result > 0)
 		result = 0;
 #else
@@ -385,27 +382,27 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 
 static int AsyncTcpRequest(AObject *object, int reqix, AMessage *msg)
 {
-	AsyncTcp *tcp = to_tcp(object);
+	AsyncTcp *tcp = (AsyncTcp*)object;
 
 	assert(msg->size != 0);
 	switch (reqix)
 	{
 	case Aio_Input:
-		tcp->send_ovlp.msg = msg;
+		tcp->send_ovlp.from = msg;
 #ifdef _WIN32
 		tcp->send_ovlp.buf.buf = msg->data;
 		tcp->send_ovlp.buf.len = msg->size;
-		return iocp_sendv(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.sysio.ao_ovlp);
+		return iocp_sendv(tcp->sock, &tcp->send_ovlp.buf, 1, &tcp->send_ovlp.ao_ovlp);
 #else
 		tcp->send_ovlp.pos = 0;
 		return AsyncOvlpProc(tcp, &tcp->send_ovlp);
 #endif
 	case Aio_Output:
-		tcp->recv_ovlp.msg = msg;
+		tcp->recv_ovlp.from = msg;
 #ifdef _WIN32
 		tcp->recv_ovlp.buf.buf = msg->data;
 		tcp->recv_ovlp.buf.len = msg->size;
-		return iocp_recvv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.sysio.ao_ovlp);
+		return iocp_recvv(tcp->sock, &tcp->recv_ovlp.buf, 1, &tcp->recv_ovlp.ao_ovlp);
 #else
 		tcp->recv_ovlp.pos = 0;
 		return AsyncOvlpProc(tcp, &tcp->recv_ovlp);
@@ -418,7 +415,7 @@ static int AsyncTcpRequest(AObject *object, int reqix, AMessage *msg)
 
 static int AsyncTcpCancel(AObject *object, int reqix, AMessage *msg)
 {
-	AsyncTcp *tcp = to_tcp(object);
+	AsyncTcp *tcp = (AsyncTcp*)object;
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
@@ -435,7 +432,7 @@ static int AsyncTcpCancel(AObject *object, int reqix, AMessage *msg)
 
 static int AsyncTcpClose(AObject *object, AMessage *msg)
 {
-	AsyncTcp *tcp = to_tcp(object);
+	AsyncTcp *tcp = (AsyncTcp*)object;
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
@@ -450,16 +447,16 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 	assert(tcp->send_ovlp.status != op_pending);
 	assert(tcp->recv_ovlp.status != op_pending);
 
-	if (tcp->send_ovlp.sysio.ao_events == 0) {
+	if (tcp->send_ovlp.ao_events == 0) {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 		return 1;
 	}
 
-	tcp->recv_ovlp.msg = msg;
-	tcp->recv_ovlp.sysio.callback = &AsyncTcpCloseDone;
-	tcp->recv_ovlp.sysio.ao_thread = tcp->send_ovlp.sysio.ao_thread;
+	tcp->recv_ovlp.from = msg;
+	tcp->recv_ovlp.done = &AsyncTcpCloseDone;
+	tcp->recv_ovlp.ao_thread = tcp->send_ovlp.ao_thread;
 
-	int result = AThreadPost(tcp->send_ovlp.sysio.ao_thread, &tcp->recv_ovlp.sysio);
+	int result = tcp->recv_ovlp.post(tcp->send_ovlp.ao_thread);
 	return (result < 0 ? result : 0);
 #endif
 }

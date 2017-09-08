@@ -195,7 +195,7 @@ static int PVDProxySendStream(AOperator *asop, int result)
 		}
 		p->outtick = GetTickCount();
 		if (p->frame_queue.size() == 0) {
-			AOperatorTimewait(&p->timer, NULL, 10);
+			p->timer.delay(NULL, 10);
 			return result;
 		}
 
@@ -228,7 +228,7 @@ static int PVDProxyStreamDone(AMessage *msg, int result)
 		ARefsBufRelease(p->frame_queue.front().buf);
 		p->frame_queue.pop_front();
 
-		PVDProxySendStream(&p->timer, 1);
+		p->timer.done2(1);
 	} else {
 		p->reqcount = -1;
 		AObjectRelease(&p->object);
@@ -251,7 +251,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 			AObjectRelease(&p->object);
 		} else {
 			p->inmsg.done = &PVDProxyStreamDone;
-			p->timer.callback = &PVDProxySendStream;
+			p->timer.done = &PVDProxySendStream;
 			AObjectAddRef(&p->object);
 			AOperatorTimewait(&p->timer, NULL, 0);
 			result = -1;
@@ -634,7 +634,7 @@ static int PVDCloseDone(AMessage *msg, int result)
 	if (pvd == NULL) {
 		HeartMsgFree(sm, result);
 	} else {
-		sm->timer.callback = &PVDDoOpen;
+		sm->timer.done = &PVDDoOpen;
 		AOperatorTimewait(&sm->timer, NULL, 10*1000);
 	}
 	return result;
@@ -763,7 +763,7 @@ static int PVDOpenDone(AMessage *msg, int result)
 	}
 
 	sm->msg.done = &PVDRecvDone;
-	sm->timer.callback = &PVDDoRecv;
+	sm->timer.done = &PVDDoRecv;
 	AOperatorTimewait(&sm->timer, NULL, 0);
 	return result;
 }
@@ -837,7 +837,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->msg.type = AMsgType_Option;
 		sm->msg.done = &PVDSendDone;
 		sm->heart.uCmd = NET_SDVR_LOGIN;
-		sm->timer.callback = &PVDDoSend;
+		sm->timer.done = &PVDDoSend;
 		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
 	if (result >= 0) {
@@ -850,7 +850,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->option = AOptionClone(module_option, NULL);
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
-		sm->timer.callback = &PVDDoOpen;
+		sm->timer.done = &PVDDoOpen;
 		AOperatorTimewait(&sm->timer, NULL, 0);
 
 		strcpy_sz(opt.value, "PVDRTStream");
@@ -866,7 +866,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->option = AOptionClone(module_option, NULL);
 		sm->reqix = 0;
 		sm->threadix = 2;
-		sm->timer.callback = &PVDDoOpen;
+		sm->timer.done = &PVDDoOpen;
 		AOperatorTimewait(&sm->timer, NULL, 3*1000);
 	}
 	return result;

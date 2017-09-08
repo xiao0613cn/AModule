@@ -10,6 +10,7 @@ enum AOption_Types {
 	AOption_true,
 	AOption_NULL,
 	AOption_Number,
+	AOption_Double,
 	AOption_String,
 	AOption_StrExt, // has "\\ \/ \b \f \n \r \t \u..."
 	AOption_Array,

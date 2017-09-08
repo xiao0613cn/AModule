@@ -36,27 +36,27 @@ struct AObject {
 	AModule      *module;
 
 #ifdef __cplusplus
-	void init(AModule *m) {
+	void  init(AModule *m) {
 		refcount = 1;
-		release = m->release;
+		release = m ? m->release : NULL;
 		module = m;
 	}
-	long addref() {
+	long  addref() {
 		return InterlockedAdd(&refcount, 1);
 	}
-	long release2() {
+	long  release2() {
 		long result = InterlockedAdd(&refcount, -1);
 		if (result <= 0)
 			this->release(this);
 		return result;
 	}
 
-	long open(AMessage *msg) { return module->open(this, msg); }
-	long getopt(AOption *opt) { return module->getopt(this, opt); }
-	long setopt(AOption *opt) { return module->setopt(this, opt); }
-	long request(int reqix, AMessage *msg) { return module->request(this, reqix, msg); }
-	long cancel(int reqix, AMessage *msg) { return module->cancel(this, reqix, msg); }
-	long close(AMessage *msg) { return module->close(this, msg); }
+	long  open(AMessage *msg)               { return module->open(this, msg); }
+	long  getopt(AOption *opt)              { return module->getopt(this, opt); }
+	long  setopt(AOption *opt)              { return module->setopt(this, opt); }
+	long  request(int reqix, AMessage *msg) { return module->request(this, reqix, msg); }
+	long  cancel(int reqix, AMessage *msg)  { return module->cancel(this, reqix, msg); }
+	long  close(AMessage *msg)              { return module->close(this, msg); }
 };
 
 defer2(IObject, AObject*, if (_value)_value->release2());

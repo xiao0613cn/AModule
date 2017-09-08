@@ -810,7 +810,7 @@ static int RTCheck(AOperator *opt, int result)
 			rt_seq = 0;
 		}
 		release_s(tmp_avfx, avformat_close_output, NULL);
-		opt->callback = NULL;
+		opt->done = NULL;
 		return result;
 	}
 
@@ -843,7 +843,7 @@ static int RTCheck(AOperator *opt, int result)
 				mpegts_ofmt->name, h264_codec->name, ret);
 		}
 	}*/
-	AOperatorTimewait(opt, NULL, 5*1000);
+	opt->delay(NULL, 5*1000);
 }
 
 static int M3U8ProxyInit(AOption *global_option, AOption *module_option, int first)
@@ -851,7 +851,7 @@ static int M3U8ProxyInit(AOption *global_option, AOption *module_option, int fir
 	if ((module_option != NULL) && (module_option->value[0] == '0'))
 		return 0;
 
-	if (work_opt.callback != NULL)
+	if (work_opt.done != NULL)
 		return 0;
 
 	float a = 1.0f;
@@ -874,8 +874,9 @@ static int M3U8ProxyInit(AOption *global_option, AOption *module_option, int fir
 	tmp_avfx = NULL;
 	pts_offset = 0;
 
-	work_opt.callback = &RTCheck;
-	AOperatorTimewait(&work_opt, NULL, 5*1000);
+	work_opt.timer();
+	work_opt.done = &RTCheck;
+	work_opt.delay(NULL, 5*1000);
 	return 1;
 }
 

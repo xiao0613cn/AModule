@@ -78,7 +78,7 @@ static TCPClient* TCPClientCreate(TCPServer *server)
 {
 	TCPClient *client = (TCPClient*)malloc(sizeof(TCPClient));
 	if (client != NULL) {
-		client->sysop.callback = &TCPClientProcess;
+		client->sysop.done = &TCPClientProcess;
 		client->server = server; AObjectAddRef(&server->object);
 		client->status = tcp_accept;
 		client->sock = INVALID_SOCKET;
@@ -410,7 +410,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 
 	result = AThreadBind(NULL, (HANDLE)server->sock);
 	memset(&server->sysio.ao_ovlp, 0, sizeof(server->sysio.ao_ovlp));
-	server->sysio.callback = &TCPServerAcceptExDone;
+	server->sysio.done = &TCPServerAcceptExDone;
 
 	release_s(server->prepare, TCPClientRelease, NULL);
 	result = TCPServerDoAcceptEx(server);

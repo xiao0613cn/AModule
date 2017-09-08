@@ -32,8 +32,14 @@ AThreadDefault(int ix);
 
 
 //////////////////////////////////////////////////////////////////////////
+AMODULE_API int
+AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup = TRUE);
+
+AMODULE_API int
+AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel);
+
 struct AOperator {
-	int  (*callback)(AOperator *asop, int result);
+	int  (*done)(AOperator *asop, int result);
 
 	AThread         *ao_thread;
 	union {
@@ -51,13 +57,28 @@ struct AOperator {
 	};
 #endif
 	};
+#ifdef __cplusplus
+	void  timer() {
+		memset(this, 0, sizeof(*this));
+		RB_CLEAR_NODE(&ao_tree);
+		INIT_LIST_HEAD(&ao_list);
+	}
+	int   delay(AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
+		if ((timeout != 0) && (timeout != INFINITE)) {
+			timeout += GetTickCount();
+			if ((timeout == 0) || (timeout == INFINITE))
+				timeout += 2;
+		}
+		return AOperatorPost(this, at, timeout, wakeup);
+	}
+	int   post(AThread *at) {
+		return AThreadPost(at, this);
+	}
+	int   done2(int result) {
+		return done(this, result);
+	}
+#endif
 };
-
-AMODULE_API int
-AOperatorPost(AOperator *asop, AThread *at, DWORD tick, BOOL wakeup = TRUE);
-
-AMODULE_API int
-AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel);
 
 static inline void
 AOperatorTimeinit(AOperator *asop) {

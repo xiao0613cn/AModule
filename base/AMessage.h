@@ -27,13 +27,14 @@ struct AMessage
 	struct list_head entry;
 
 #ifdef __cplusplus
-	void   init(int t = 0, const void *p = 0, int n = 0) { type = t; size = n; data = (char*)p; }
-	void   init(HANDLE handle)   { init(AMsgType_Handle, handle, 0); }
-	void   init(struct AOption *option) { init(AMsgType_Option, option, 0); }
-	void   init(struct AObject *object) { init(AMsgType_Object, object, 0); }
-	void   init(struct AModule *module) { init(AMsgType_Module, module, 0); }
-	void   init(AMessage *msg)   { init(msg->type, msg->data, msg->size); }
-	void   init(AMessage &msg)   { init(msg.type, msg.data, msg.size); }
+	void  init(int t = 0, const void *p = 0, int n = 0) { type = t; size = n; data = (char*)p; }
+	void  init(HANDLE handle)          { init(AMsgType_Handle, handle, 0); }
+	void  init(struct AOption *option) { init(AMsgType_Option, option, 0); }
+	void  init(struct AObject *object) { init(AMsgType_Object, object, 0); }
+	void  init(struct AModule *module) { init(AMsgType_Module, module, 0); }
+	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
+	void  init(AMessage &msg)          { init(msg.type, msg.data, msg.size); }
+	int   done2(int result)            { return done(this, result); }
 #endif
 };
 

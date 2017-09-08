@@ -125,4 +125,55 @@ ARefsChainCheckBuf(ARefsChain *&chain, int left, int size, void*(*alloc_func)(si
 }
 
 
+template <typename Item>
+struct ASlice {
+	typedef ASlice<Item> this_type;
+
+	long    refs;
+	int     size;
+	void  (*free)(void*);
+	void   *user;
+	int     bgn;
+	int     end;
+	Item    data[1];
+
+	static this_type* create(int count) {
+		this_type *slice = (this_type*)malloc(sizeof(this_type) + sizeof(Item)*count);
+		slice->refs = 1;
+		slice->size = count;
+		slice->free = &::free;
+		slice->reset();
+		return slice;
+	}
+	long  addref() { return InterlockedAdd(&refs, 1); }
+	long  release2() {
+		long result = InterlockedAdd(&refs, -1);
+		if (result <= 0) (this->free)(this);
+		return result;
+	}
+	void  reset() { bgn = end = 0; }
+	int   len()   { return (end - bgn); }
+	Item* ptr()   { return (data + bgn); }
+
+	int   caps() { return (size - bgn); }
+	int   left() { return (size - end); }
+	Item* next() { return (data + end); }
+
+	void  pop(int len) { bgn += len; }
+	void  push(int len) { end += len; }
+	void  mempush(const void *p, int n) { memcpy(next(), p, n); push(n); }
+	/*int   strpush(const char *str) {
+		int len = 0;
+		while (str[len] != '\0' && end != size) {
+			data[end++] = str[len++];
+		}
+		return len;
+	}*/
+};
+
+template<typename Item>
+struct APlane {
+	typedef ASlice<ASlice<Item>* > type;
+};
+
 #endif
