@@ -189,7 +189,7 @@ static int AsyncTcpCloseDone(AOperator *asop, int result)
 
 static void AsyncOvlpError(AsyncTcp *tcp, int events)
 {
-	int unbind = AThreadUnbind(&tcp->send_ovlp.sysio);
+	int unbind = AThreadUnbind(&tcp->send_ovlp);
 
 	TRACE2("tcp(%d): epoll event = %d, unbind = %d, send(%d-%d), recv(%d-%d).\n",
 		tcp->sock, events, unbind,
@@ -212,7 +212,7 @@ static void AsyncOvlpError(AsyncTcp *tcp, int events)
 
 static int AsyncTcpRequestDone(AOperator *asop, int result)
 {
-	AsyncOvlp *ovlp = container_of(asop, AsyncOvlp, sysio);
+	AsyncOvlp *ovlp = (AsyncOvlp*)asop;
 	AsyncTcp *tcp = ovlp->tcp;
 	assert(ovlp == &tcp->send_ovlp);
 

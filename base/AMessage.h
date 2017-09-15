@@ -23,7 +23,7 @@ struct AMessage
 	int     type;
 	int     size;
 	char   *data;
-	int   (*done)(struct AMessage *msg, int result);
+	int   (*done)(AMessage *msg, int result);
 	struct list_head entry;
 
 #ifdef __cplusplus

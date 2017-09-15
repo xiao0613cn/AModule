@@ -10,7 +10,16 @@
 #include "base/spinlock.h"
 #include "base/AEvent.h"
 
-rb_tree_define(AEntity, _node, AEntity*, AEntityCmp)
+rb_tree_define(AEntity, _manager_node, AEntity*, AEntityCmp)
+rb_tree_define(AReceiver, _manager_node, const char*, AReceiverCmp)
+rb_tree_define(AReceiver2, _manager_node2, long, AReceiver2Cmp)
+
+static int
+on_event(AReceiver *r, AEvent *e) {
+	TRACE("r->name = %s, r->index = %d, e->name = %s, e->index = %d.\n",
+		r->_name, r->_index, e->_name, e->_index);
+	return 0;
+}
 
 int main()
 {
@@ -46,6 +55,18 @@ int main()
 
 	ASlice<char> *buf = ASlice<char>::create(32*1024);
 	APlane<char>::type *plane = APlane<char>::type::create(16);
+
+	AEvent ev; ev.init("test_event", 1);
+
+	AReceiver r; r.init(NULL);
+	r._name = "test_event";
+	r._index = 2;
+	r.receive = &on_event;
+
+	AEventManager evm; evm.init();
+	evm._subscribe(&r);
+
+	evm._emit(&ev);
 
 	_CrtDumpMemoryLeaks();
 	return 0;

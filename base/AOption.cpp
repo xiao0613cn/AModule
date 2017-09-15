@@ -277,7 +277,9 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 			write_sc(current->name, len-1, "\"");
 		}
 
-		if ((current->value[0] == '\0') && list_empty(&current->children_list)) {
+		if ((current->value[0] == '\0')
+		 && (current->type == AOption_Any)
+		 && list_empty(&current->children_list)) {
 			goto _next;
 		}
 		if (current->name[0] != '\0') {
@@ -307,7 +309,11 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 				write_str(current->value);
 			} else {
 				write_sc(current->value, 0, "\"");
-				write_str(current->value);
+				if (current->type == AOption_StrExt) {
+					write_str(current->extend);
+				} else {
+					write_str(current->value);
+				}
 				write_sc(current->value, len-1, "\"");
 			}
 			goto _next;
@@ -337,6 +343,9 @@ _next:
 		}
 		return result;
 	}
+#undef write_sn
+#undef write_sc
+#undef write_str
 }
 
 AMODULE_API int

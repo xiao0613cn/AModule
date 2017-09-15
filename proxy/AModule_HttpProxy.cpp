@@ -145,7 +145,7 @@ static int HttpProxyGetTS(AMessage *msg, int result)
 		case s_send_header:
 			if (media_file_get(mf, mf->media_sequence+1) == 0) {
 				ctx->asop.done = &HttpProxySendTS_wait;
-				AOperatorTimewait(&ctx->asop, NULL, 20);
+				ctx->asop.delay(NULL, 20);
 				return 0;
 			}
 

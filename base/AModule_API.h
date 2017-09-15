@@ -28,11 +28,12 @@
 #pragma warning(disable: 4505) // 未引用的本地函数已移除
 #pragma warning(disable: 4512) // 未能生成赋值运算符
 #else
-#pragma GCC diagnostic push
+//#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-value"
+#pragma GCC diagnostic ignored "-Wunused-result"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"

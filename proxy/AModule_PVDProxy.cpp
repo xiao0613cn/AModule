@@ -245,15 +245,15 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 		p->outmsg.init();
 		p->outmsg.done = &PVDProxyRecvStream;
 
-		AObjectAddRef(&p->object);
+		p->object.addref();
 		result = rt->request(Aiosync_NotifyBack|0, &p->outmsg);
 		if (result < 0) {
-			AObjectRelease(&p->object);
+			p->object.release2();
 		} else {
+			p->object.addref();
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.done = &PVDProxySendStream;
-			AObjectAddRef(&p->object);
-			AOperatorTimewait(&p->timer, NULL, 0);
+			p->timer.delay(NULL, 0);
 			result = -1;
 		}
 	}
@@ -267,7 +267,7 @@ static int PVDProactiveRTPlay(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	result = PVDProxyRTStream(msg, result);
-	AObjectRelease(&p->object);
+	p->object.release2();
 	return result;
 }
 
@@ -275,7 +275,7 @@ static int PVDProactiveRTConnect(AMessage *msg, int result)
 {
 	PVDProxy *p = from_outmsg(msg);
 	if (result < 0) {
-		AObjectRelease(&p->object);
+		p->object.release2();
 		return result;
 	}
 
@@ -604,7 +604,7 @@ static int PVDDoSend(AOperator *asop, int result)
 				break;
 			}
 			sm->msg.type = 0;
-			AOperatorTimewait(&sm->timer, NULL, 3*1000);
+			sm->timer.delay(NULL, 3*1000);
 			return result;
 		}
 		sm->msg.type = AMsgType_Private|result;
@@ -614,7 +614,7 @@ static int PVDDoSend(AOperator *asop, int result)
 	} while (result > 0);
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		sm->timer.delay(NULL, 3*1000);
 	}
 	return result;
 }
@@ -624,7 +624,7 @@ static int PVDSendDone(AMessage *msg, int result)
 	if (result < 0) {
 		sm->msg.type = AMsgType_Option;
 	}
-	AOperatorTimewait(&sm->timer, NULL, 3*1000);
+	sm->timer.delay(NULL, 3*1000);
 	return result;
 }
 static int PVDDoOpen(AOperator *asop, int result);
@@ -635,7 +635,7 @@ static int PVDCloseDone(AMessage *msg, int result)
 		HeartMsgFree(sm, result);
 	} else {
 		sm->timer.done = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 10*1000);
+		sm->timer.delay(NULL, 10*1000);
 	}
 	return result;
 }
@@ -698,7 +698,7 @@ static int PVDRecvDone(AMessage *msg, int result)
 	}
 	}
 
-	AOperatorTimewait(&sm->timer, NULL, 0);
+	sm->timer.delay(NULL, 0);
 	return result;
 }
 static int PVDDoRecv(AOperator *asop, int result)
@@ -736,7 +736,7 @@ static int PVDOpenDone(AMessage *msg, int result)
 		AOptionInit(&opt, NULL);
 
 		strcpy_sz(opt.name, "login_data");
-		opt.extend = &login_data;
+		opt.extend = (char*)&login_data;
 		sm->object->getopt(&opt);
 
 		strcpy_sz(opt.name, "session_id");
@@ -764,7 +764,7 @@ static int PVDOpenDone(AMessage *msg, int result)
 
 	sm->msg.done = &PVDRecvDone;
 	sm->timer.done = &PVDDoRecv;
-	AOperatorTimewait(&sm->timer, NULL, 0);
+	sm->timer.delay(NULL, 0);
 	return result;
 }
 
@@ -838,7 +838,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->msg.done = &PVDSendDone;
 		sm->heart.uCmd = NET_SDVR_LOGIN;
 		sm->timer.done = &PVDDoSend;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		sm->timer.delay(NULL, 3*1000);
 	}
 	if (result >= 0) {
 		sm = (HeartMsg*)malloc(sizeof(HeartMsg));
@@ -851,7 +851,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.done = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 0);
+		sm->timer.delay(NULL, 0);
 
 		strcpy_sz(opt.value, "PVDRTStream");
 		result = AObjectCreate2(&rt, NULL, &opt, syncControl);
@@ -867,7 +867,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->reqix = 0;
 		sm->threadix = 2;
 		sm->timer.done = &PVDDoOpen;
-		AOperatorTimewait(&sm->timer, NULL, 3*1000);
+		sm->timer.delay(NULL, 3*1000);
 	}
 	return result;
 }

@@ -71,6 +71,9 @@ struct AOperator {
 		}
 		return AOperatorPost(this, at, timeout, wakeup);
 	}
+	int   signal(AThread *at, BOOL wakeup_or_cancel) {
+		return AOperatorSignal(this, at, wakeup_or_cancel);
+	}
 	int   post(AThread *at) {
 		return AThreadPost(at, this);
 	}
@@ -79,6 +82,13 @@ struct AOperator {
 	}
 #endif
 };
+template <typename AType, size_t offset, int(AType::*run)(int)>
+int AsopDoneT(AOperator *asop, int result) {
+	AType *p = (AType*)((char*)asop - offset);
+	return (p->*run)(result);
+}
+#define AsopDone(type, member, run) \
+	AsopDoneT<type, offsetof(type,member), &type::run>
 
 static inline void
 AOperatorTimeinit(AOperator *asop) {

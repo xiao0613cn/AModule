@@ -25,8 +25,15 @@
 #define __attribute__(x) 
 #endif
 
-#define dlopen(filename, flag)  LoadLibraryExA(filename, NULL, 0)
-#define dlsym(handle, funcname) GetProcAddress((HMODULE)handle, funcname)
+#define RTLD_NOW  0
+static inline void*
+dlopen(const char *filename, int flag) {
+	return LoadLibraryExA(filename, NULL, flag);
+}
+static inline void*
+dlsym(void *handle, const char *symbol) {
+	return GetProcAddress((HMODULE)handle, symbol);
+}
 
 #else //_WIN32
 
@@ -41,10 +48,10 @@
 #include <netinet/in.h>
 
 #ifndef __stdcall
-#define __stdcall 
+#define __stdcall  
 #endif
 #ifndef __cdecl
-#define __cdecl 
+#define __cdecl  
 #endif
 #ifndef __fastcall
 #define __fastcall  

@@ -325,6 +325,10 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\SyncControl\AClientSystem.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\base\AMessage.cpp"
 				>
 			</File>
@@ -656,6 +660,10 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\SyncControl\AClientSystem.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\adler32.h"
 				>
 			</File>
@@ -728,6 +736,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\base\ASystem.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavutil\attributes.h"
 				>
 			</File>
@@ -773,6 +785,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\avutil.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SyncControl\AWaitQueueComponent.h"
 				>
 			</File>
 			<File
@@ -892,11 +908,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
@@ -920,11 +936,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
@@ -1052,11 +1068,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
@@ -1116,19 +1132,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\version.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\version.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ffmpeg\libavcodec\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../base/AModule_API.h"
 #include "AClientManager.h"
 #include "AClient.h"
 
@@ -20,7 +21,7 @@ AMODULE_API void CM_init(AClientManager *cm)
 	cm->timer_heart = 10*1000;
 	cm->timer_check = 1*1000;
 
-	AOperatorTimeinit(&cm->check_asop);
+	cm->check_asop.timer();
 	cm->check_thread = NULL;
 	cm->check_post_num = 8;
 	cm->check_last_client = NULL;
@@ -30,9 +31,8 @@ AMODULE_API void CM_init(AClientManager *cm)
 AMODULE_API void CM_start(AClientManager *cm)
 {
 	cm->check_running = TRUE;
-	cm->setCppAsopCB(AClientManager, check_asop, check_run);
-
-	AThreadPost(cm->check_thread, &cm->check_asop);
+	cm->setAsopDone(check_asop, AClientManager, check_run);
+	cm->check_asop.post(cm->check_thread);
 }
 
 AMODULE_API void CM_stop(AClientManager *cm)
@@ -40,7 +40,7 @@ AMODULE_API void CM_stop(AClientManager *cm)
 	cm->check_running = FALSE;
 	AOperatorSignal(&cm->check_asop, cm->check_thread, TRUE);
 
-	while (cm->check_asop.callback != NULL)
+	while (cm->check_asop.done != NULL)
 		Sleep(50);
 }
 
@@ -49,7 +49,7 @@ AMODULE_API void CM_exit(AClientManager *cm)
 	assert(RB_EMPTY_ROOT(&cm->client_map));
 	pthread_mutex_destroy(&cm->client_mutex);
 
-	assert(cm->check_asop.callback == NULL);
+	assert(cm->check_asop.done == NULL);
 }
 
 static void on_erase_null(AClient*) { }
@@ -89,9 +89,9 @@ int AClientManager::check_run(int result)
 
 	if (check_running && (result >= 0)) {
 		if (check_last_client != NULL)
-			AThreadPost(check_thread, &check_asop);
+			check_asop.post(check_thread);
 		else
-			AOperatorTimewait(&check_asop, check_thread, timer_check, TRUE);
+			check_asop.delay(check_thread, timer_check, TRUE);
 	} else {
 		check_abort();
 	}
@@ -111,7 +111,7 @@ void AClientManager::check_status()
 		if (c == NULL)
 			break;
 
-		int diff = tick - c->active;
+		int diff = tick - c->main_tick;
 		if (diff < 0)
 			diff = 0;
 
@@ -123,14 +123,14 @@ void AClientManager::check_status()
 			if (diff >= timer_offline)
 				do_shutdown = 1; // shutdown
 			else if ((c->status != AObject_Opened)
-			      || (c->main_asop.callback != NULL)
+			      || (c->main_asop.done != NULL)
 			      || (diff < timer_heart))
 				continue;
 			c->addref(); // check heart
 			break;
 
 		case AObject_Abort:
-			if ((c->main_asop.callback != NULL)
+			if ((c->main_asop.done != NULL)
 			 || (c->refcount > 1))
 				continue;
 			if (!c->auto_reopen) // close
@@ -146,11 +146,12 @@ void AClientManager::check_status()
 				break;
 			}
 			c->status = AObject_Invalid; // re-open
+			c->main_abort = FALSE;
 
 		case AObject_Invalid:
-			if ((c->main_asop.callback != NULL)
+			if ((c->main_asop.done != NULL)
 			 || (c->refcount > 1)
-			 || (c->active != 0 && diff < timer_reconnect))
+			 || (c->main_tick != 0 && diff < timer_reconnect))
 				continue;
 			c->addref(); // open
 			break;
@@ -206,7 +207,7 @@ void AClientManager::check_abort()
 		RB_CLEAR_NODE(&c->cm_node);
 		c->shutdown();
 	}
-	check_asop.callback = NULL;
+	check_asop.done = NULL;
 }
 
 static void* AClient_run(void *p)
@@ -218,8 +219,8 @@ static void* AClient_run(void *p)
 
 AMODULE_API void CM_check_post(AClientManager *cm, struct AClient *c, BOOL addref)
 {
-	if (c->main_asop.callback == NULL)
-		c->setCppAsopCB(AClient, main_asop, main_run);
+	if (c->main_asop.done == NULL)
+		c->setAsopDone(main_asop, AClient, main_run);
 
 	if (addref)
 		c->addref();
@@ -229,11 +230,16 @@ AMODULE_API void CM_check_post(AClientManager *cm, struct AClient *c, BOOL addre
 		pthread_create(&thr, NULL, AClient_run, c);
 		pthread_detach(thr);
 	} else {
-		AThreadPost(cm->check_thread, &c->main_asop);
+		c->main_asop.post(cm->check_thread);
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
+static int AClient_main_run(AMessage *msg, int result) {
+	AClient *c = container_of(msg, AClient, main_msg);
+	return c->main_run(result);
+}
+
 int AClient::main_run(int result)
 {
 	if (result == 0)
@@ -243,7 +249,7 @@ int AClient::main_run(int result)
 			status = AObject_Abort;
 
 		if (status != AObject_Opened) {
-			active = GetTickCount();
+			main_tick = GetTickCount();
 			TRACE("%s: status = %s, result = 0x%X.\n",
 				module->module_name, StatusName(status), result>0?result:-result);
 		}
@@ -251,10 +257,10 @@ int AClient::main_run(int result)
 		switch (status)
 		{
 		case AObject_Invalid:
-			setCppMsgDone(AClient, main_msg, main_run);
+			main_msg.done = &AClient_main_run;
 
 			status = AObject_Opening;
-			result = open(this, &main_msg);
+			result = open(&main_msg);
 			break;
 
 		case AObject_Opening:
@@ -265,7 +271,7 @@ int AClient::main_run(int result)
 
 			if (auto_request && (work_msg.done != NULL)) {
 				addref();
-				result = request(this, 1, &work_msg);
+				result = request(1, &work_msg);
 				if (result != 0)
 					work_msg.done(&work_msg, result);
 			}
@@ -274,12 +280,12 @@ int AClient::main_run(int result)
 
 		case AObject_Opened: // check heart
 			if (main_msg.done == NULL) {
-				setCppMsgDone(AClient, main_msg, main_run);
+				main_msg.done = &AClient_main_run;
 
-				result = request(this, 0, &main_msg);
+				result = request(0, &main_msg);
 				break;
 			} else {
-				active = GetTickCount();
+				main_tick = GetTickCount();
 				main_end(AObject_Invalid); // don't set status
 				return result;
 			}
@@ -296,10 +302,10 @@ int AClient::main_run(int result)
 				main_end(AObject_Invalid);
 				return result;
 			}
-			setCppMsgDone(AClient, main_msg, main_run);
+			main_msg.done = &AClient_main_run;
 
 			status = AObject_Closing;
-			result = close(this, &main_msg);
+			result = close(&main_msg);
 			break;
 
 		case AObject_Closing:

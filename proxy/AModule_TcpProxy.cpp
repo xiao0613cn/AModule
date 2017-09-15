@@ -182,7 +182,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			if (client->inmsg.data != NULL) {
 				client->inmsg.init();
 				if (!server->async_tcp) {
-					AOperatorTimewait(&client->sysop, NULL, 0);
+					client->sysop.delay(NULL, 0);
 					return 0;
 				}
 			}
@@ -274,7 +274,7 @@ static void* TCPServerProcess(void *p)
 		}
 
 		client->sock = sock;
-		AOperatorTimewait(&client->sysop, NULL, 0);
+		client->sysop.delay(NULL, 0);
 	}
 	TRACE("%p: quit.\n", &server->object);
 	AObjectRelease(&server->object);
@@ -335,7 +335,7 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
 	if (result >= 0) {
-		AOperatorTimewait(&server->prepare->sysop, NULL, 0);
+		server->prepare->sysop.delay(NULL, 0);
 		server->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();
