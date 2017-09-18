@@ -1,14 +1,11 @@
 #include "stdafx.h"
 //#include <Windows.h>
 //#include <crtdbg.h>
-#include "base/func_util.h"
-#include "base/thread_util.h"
-#include "base/list.h"
-#include "base/rbtree.h"
-#include "base/ARefsBuf.h"
-#include "base/AEntity.h"
+#include "base/AModule_API.h"
 #include "base/spinlock.h"
-#include "base/AEvent.h"
+#include "ecs/AEntity.h"
+#include "ecs/AEvent.h"
+#include "ecs/ASystem.h"
 
 rb_tree_define(AEntity, _manager_node, AEntity*, AEntityCmp)
 rb_tree_define(AReceiver, _manager_node, const char*, AReceiverCmp)
@@ -65,8 +62,10 @@ int main()
 
 	AEventManager evm; evm.init();
 	evm._subscribe(&r);
-
 	evm._emit(&ev);
+
+	ASystem *s = ASystem::create("AClientSystem");
+
 
 	_CrtDumpMemoryLeaks();
 	return 0;

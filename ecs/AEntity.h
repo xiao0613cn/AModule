@@ -12,13 +12,13 @@ struct AComponent {
 	long        _index;
 	AEntity    *_entity;
 	list_node<AComponent> _entity_node;
-	bool  valid() { return !_entity_node.empty(); }
+	bool valid() { return !_entity_node.empty(); }
 
-	void  init(AObject *o, const char *n, int i = 0) {
+	void init(AObject *o, const char *n, int i = 0) {
 		_self = o; _name = n; _index = i;
 		_entity = NULL; _entity_node.init(this);
 	}
-	void  exit(); //{ release_f(_entity, NULL, _entity->_self->release2()); }
+	void exit(); //{ release_f(_entity, NULL, _entity->_self->release2()); }
 };
 
 struct AEntity {
@@ -28,18 +28,18 @@ struct AEntity {
 	list_node<AComponent> _com_list;
 	int                   _com_count;
 
-	void  init(AObject *o) {
+	void init(AObject *o) {
 		_self = o; _manager = NULL;
 		RB_CLEAR_NODE(&_manager_node);
 		_com_list.init(NULL);
 		_com_count = 0;
 	}
-	void  exit() {
+	void exit() {
 		assert(_com_list.empty());
 		assert(RB_EMPTY_NODE(&_manager_node));
 	}
 
-	bool  _push(AComponent *c) {
+	bool _push(AComponent *c) {
 		bool valid = ((c->_entity == NULL) && c->_entity_node.empty());
 		if (valid) {
 			//c->_self->addref();
@@ -52,7 +52,7 @@ struct AEntity {
 		}
 		return valid;
 	}
-	bool  _pop(AComponent *c) {
+	bool _pop(AComponent *c) {
 		bool valid = ((c->_entity == this) && !c->_entity_node.empty());
 		if (valid) {
 			//c->_self->release2();
@@ -74,6 +74,10 @@ struct AEntity {
 		}
 		return NULL;
 	}
+	template <typename TComponent>
+	TComponent* _get(int com_index = -1) {
+		return (TComponent*)_get(TComponent::name(), com_index);
+	}
 };
 
 static inline int
@@ -87,11 +91,11 @@ struct AEntityManager {
 	struct rb_root _entity_map;
 	int     _entity_count;
 
-	void  init() {
+	void init() {
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;
 	}
-	bool  _push(AEntity *e) {
+	bool _push(AEntity *e) {
 		bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_manager_node));
 		if (valid)
 			valid = (rb_insert_AEntity(&_entity_map, e, e) == NULL);
@@ -104,10 +108,10 @@ struct AEntityManager {
 		}
 		return valid;
 	}
-	bool  _valid(AEntity *e) {
+	bool _valid(AEntity *e) {
 		return ((e->_manager == this) && !RB_EMPTY_NODE(&e->_manager_node));
 	}
-	bool  _pop(AEntity *e) {
+	bool _pop(AEntity *e) {
 		bool valid = _valid(e);
 		if (valid) {
 			rb_erase(&e->_manager_node, &_entity_map);
@@ -129,7 +133,7 @@ struct AEntityManager {
 		struct rb_node *node = rb_next(&cur->_manager_node);
 		return (node ? rb_entry(node, AEntity, _manager_node) : NULL);
 	}
-	int   _next_each(AEntity *cur, int(*func)(AEntity *e, void *p), void *p) {
+	int  _next_each(AEntity *cur, int(*func)(AEntity *e, void *p), void *p) {
 		int result = 0;
 		cur = _upper(cur);
 		while (cur != NULL) {
@@ -148,7 +152,7 @@ struct AEntityManager {
 		}
 		return NULL;
 	}
-	int   _next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent *c, void *p), void *p, int com_index = -1) {
+	int  _next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent *c, void *p), void *p, int com_index = -1) {
 		int result = 0;
 		cur = _upper(cur);
 		while (cur != NULL) {
@@ -170,6 +174,10 @@ inline void AComponent::exit() {
 inline void AComponent::exit() {
 	release_f(_entity, NULL, _entity->_self->release2());
 }
+
+struct AEntity2 : public AObject, public AEntity {
+	void  init() { AEntity::init(this); }
+};
 
 template <typename lock_t>
 struct EMTmpl {

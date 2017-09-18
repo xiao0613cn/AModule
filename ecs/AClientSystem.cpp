@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
-#include "../base/AEntity.h"
+#include "AEntity.h"
 #include "AClientSystem.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -106,9 +106,9 @@ enum ASystem::Result AClientSystem::_exec_check(AClientComponent *c, DWORD cur_t
 	{
 	case AClientComponent::Invalid:
 		if (c->_busy_count != 0)
-			return Invalid;
+			return Pending;
 		if ((c->_main_tick != 0) && (diff < c->_tick_reopen))
-			return Invalid;
+			return Pending;
 
 		c->_main_tick = cur_tick;
 		c->_main_abort = false;
@@ -121,44 +121,44 @@ enum ASystem::Result AClientSystem::_exec_check(AClientComponent *c, DWORD cur_t
 		if (diff > c->_tick_abort) {
 			c->_main_tick = cur_tick;
 			c->_main_abort = true;
-			return Abort;
+			return Aborting;
 		}
 
 		if (c->_main_abort || (c->_status == AClientComponent::Opening)) {
 			if (c->_busy_count != 0)
-				return Invalid;
+				return Pending;
 			c->_status = AClientComponent::Closing;
 			break;
 		}
 
 		if ((diff < c->_tick_heart)
 		 || (c->_check_heart != AClientComponent::HeartNone))
-			return Invalid;
+			return Pending;
 
 		c->_check_heart = AClientComponent::HeartChecking;
 		break;
 
 	case AClientComponent::Closing:
 		if (c->_busy_count != 0)
-			return Invalid;
+			return Pending;
 		break;
 
 	case AClientComponent::Closed:
 		if (c->_busy_count != 0)
-			return Invalid;
+			return Pending;
 		if (!c->_auto_reopen) {
 			c->_status = AClientComponent::Invalid;
 			c->_main_tick = cur_tick;
 			c->_main_abort = false;
-			return Invalid;
+			return EndExit;
 		}
 		//_pop(c);
 		break;
 
-	default: assert(0); return Invalid;
+	default: assert(0); return NotNeed;
 	}
 	c->use(1);
-	return Success;
+	return Executable;
 }
 
 int AClientSystem::_exec_one(AClientComponent *c, int result)
@@ -223,3 +223,23 @@ int AClientSystem::_exec_one(AClientComponent *c, int result)
 	default: assert(0); return result;
 	}
 }
+
+static int AClientSystemCreate(AObject **object, AObject *parent, AOption *option)
+{
+	AClientSystem *cs = (AClientSystem*)(AEntity*)(AEntity2*)*object;
+	cs->init(*object);
+	cs->_exec_thread = NULL;
+	cs->exec_check = &ExecCheck<AClientSystem, AClientComponent, -1>;
+	return 1;
+}
+
+AModule AClientSystemModule = {
+	"ASystem",
+	"AClientSystem",
+	sizeof(AClientSystem),
+	NULL, NULL,
+	&AClientSystemCreate,
+	NULL,
+};
+
+static auto_reg_t<AClientSystemModule> auto_reg;

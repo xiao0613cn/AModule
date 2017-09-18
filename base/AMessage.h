@@ -35,8 +35,17 @@ struct AMessage
 	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
 	void  init(AMessage &msg)          { init(msg.type, msg.data, msg.size); }
 	int   done2(int result)            { return done(this, result); }
-#endif
 };
+template <typename AType, size_t offset, int(AType::*run)(int)>
+int MsgDoneT(AMessage *msg, int result) {
+	AType *p = (AType*)((char*)msg - offset);
+	return (p->*run)(result);
+}
+#define MsgDone(type, member, run) \
+	MsgDoneT<type, offsetof(type,member), &type::run>
+#else
+};
+#endif
 
 // util function
 static inline void

@@ -56,6 +56,7 @@ struct AOperator {
 	uint32_t         ao_events;
 	};
 #endif
+	void            *ao_user[4];
 	};
 #ifdef __cplusplus
 	void  timer() {

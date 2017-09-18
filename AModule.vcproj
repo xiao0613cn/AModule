@@ -325,7 +325,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\SyncControl\AClientSystem.cpp"
+				RelativePath=".\ecs\AClientSystem.cpp"
 				>
 			</File>
 			<File
@@ -660,7 +660,7 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\SyncControl\AClientSystem.h"
+				RelativePath=".\ecs\AClientSystem.h"
 				>
 			</File>
 			<File
@@ -668,7 +668,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\base\AEntity.h"
+				RelativePath=".\ecs\AEntity.h"
 				>
 			</File>
 			<File
@@ -676,7 +676,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\base\AEvent.h"
+				RelativePath=".\ecs\AEvent.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ecs\AInputQueue.h"
 				>
 			</File>
 			<File
@@ -736,7 +740,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\base\ASystem.h"
+				RelativePath=".\ecs\ASystem.h"
 				>
 			</File>
 			<File
@@ -788,10 +792,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\SyncControl\AWaitQueueComponent.h"
-				>
-			</File>
-			<File
 				RelativePath=".\base\base.h"
 				>
 			</File>
@@ -808,11 +808,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
@@ -840,11 +840,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
@@ -920,11 +920,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -964,15 +964,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PVDClient\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\md5.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
@@ -1068,11 +1068,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
@@ -1132,7 +1132,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libswscale\version.h"
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File
@@ -1140,11 +1140,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
+				RelativePath=".\ffmpeg\libavformat\version.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavformat\version.h"
+				RelativePath=".\ffmpeg\libswscale\version.h"
 				>
 			</File>
 			<File

@@ -1,12 +1,14 @@
 #ifndef _ACLIENT_COMPONENT_H_
 #define _ACLIENT_COMPONENT_H_
 
-#include "../base/ASystem.h"
+#include "ASystem.h"
 
 typedef struct AClientComponent AClientComponent;
 typedef struct AClientSystem AClientSystem;
 
 struct AClientComponent : public AComponent {
+	static const char* name() { return "AClientComponent"; }
+
 	enum Status {
 		Invalid = 0,
 		Opening,
@@ -47,10 +49,6 @@ struct AClientComponent : public AComponent {
 	int (*heart)(AClientComponent *c);
 	int (*abort)(AClientComponent *c);
 	int (*close)(AClientComponent *c);
-
-	void init(AObject *o, int i = 0) {
-		AComponent::init(o, "AClientComponent", i);
-	}
 };
 
 rb_tree_declare(AClientComponent, AClientComponent*);
@@ -64,36 +62,16 @@ struct AClientSystem : public ASystem {
 	//bool      _exec_abort;
 	//AClientComponent *_exec_last;
 
-	void  init() {
-		exec_check = &ExecCheck;
-		exec_one = &ExecOne;
-		exec_post = &ExecPost;
-	}
+	//void  init() {
+		//exec_check = &ExecCheck<AClientSystem, AClientComponent, -1>;
+		//exec_one = &ExecOne;
+		//exec_post = &ExecPost;
+	//}
 	//bool  _push(AClientComponent *c);
 	//bool  _pop(AClientComponent *c);
 
 	enum Result _exec_check(AClientComponent *c, DWORD cur_tick);
 	int   _exec_one(AClientComponent *c, int result);
-
-	static enum Result ExecCheck(ASystem *s, AEntity *e, DWORD cur_tick) {
-		AClientSystem *cs = (AClientSystem*)s;
-		AClientComponent *cc = (AClientComponent*)e->_get("AClientComponent");
-		if (cc == NULL)
-			return Invalid;
-		return cs->_exec_check(cc, cur_tick);
-	};
-	static int ExecOne(ASystem *s, AEntity *e, int result) {
-		AClientSystem *cs = (AClientSystem*)s;
-		AClientComponent *cc = (AClientComponent*)e->_get("AClientComponent");
-		assert(cc != NULL);
-		cs->_exec_one(cc, result);
-	}
-	static void ExecPost(ASystem *s, AEntity *e, bool addref) {
-		AClientSystem *cs = (AClientSystem*)s;
-		AClientComponent *cc = (AClientComponent*)e->_get("AClientComponent");
-		assert(cc != NULL);
-		cc->_system_asop.post(cs->_exec_thread);
-	}
 };
 
 
