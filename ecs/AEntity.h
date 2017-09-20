@@ -12,13 +12,13 @@ struct AComponent {
 	long        _index;
 	AEntity    *_entity;
 	list_node<AComponent> _entity_node;
-	bool valid() { return !_entity_node.empty(); }
 
 	void init(AObject *o, const char *n, int i = 0) {
 		_self = o; _name = n; _index = i;
 		_entity = NULL; _entity_node.init(this);
 	}
 	void exit(); //{ release_f(_entity, NULL, _entity->_self->release2()); }
+	bool valid();
 };
 
 struct AEntity {
@@ -38,6 +38,7 @@ struct AEntity {
 		assert(_com_list.empty());
 		assert(RB_EMPTY_NODE(&_manager_node));
 	}
+	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }
 
 	bool _push(AComponent *c) {
 		bool valid = ((c->_entity == NULL) && c->_entity_node.empty());
@@ -89,7 +90,7 @@ rb_tree_declare(AEntity, AEntity*)
 
 struct AEntityManager {
 	struct rb_root _entity_map;
-	int     _entity_count;
+	int            _entity_count;
 
 	void init() {
 		INIT_RB_ROOT(&_entity_map);
@@ -108,11 +109,8 @@ struct AEntityManager {
 		}
 		return valid;
 	}
-	bool _valid(AEntity *e) {
-		return ((e->_manager == this) && !RB_EMPTY_NODE(&e->_manager_node));
-	}
 	bool _pop(AEntity *e) {
-		bool valid = _valid(e);
+		bool valid = e->valid();
 		if (valid) {
 			rb_erase(&e->_manager_node, &_entity_map);
 			RB_CLEAR_NODE(&e->_manager_node);
@@ -129,7 +127,7 @@ struct AEntityManager {
 		else                             return rb_upper_AEntity(&_entity_map, cur);
 	}
 	AEntity* _next(AEntity *cur) {
-		assert(_valid(cur));
+		assert(cur->valid());
 		struct rb_node *node = rb_next(&cur->_manager_node);
 		return (node ? rb_entry(node, AEntity, _manager_node) : NULL);
 	}
@@ -152,6 +150,10 @@ struct AEntityManager {
 		}
 		return NULL;
 	}
+	template <typename TComponent>
+	TComponent* _next_com(AEntity *cur, int com_index = -1 ) {
+		return _next_com(cur, TComponent::name(), com_index);
+	}
 	int  _next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent *c, void *p), void *p, int com_index = -1) {
 		int result = 0;
 		cur = _upper(cur);
@@ -165,8 +167,15 @@ struct AEntityManager {
 		}
 		return result;
 	}
+	template <typename TComponent>
+	int _next_each_com(AEntity *cur, int(*func)(TComponent*,void*), void *p, int com_index = -1) {
+		return _next_each_com(cur, TComponent::name(), (int(*)(AComponent*,void*))func, com_index);
+	}
 };
 
+inline bool AComponent::valid() {
+	return _entity->valid() && !_entity_node.empty();
+}
 #ifndef _AMODULE_H_
 inline void AComponent::exit() {
 }
@@ -175,83 +184,106 @@ inline void AComponent::exit() {
 	release_f(_entity, NULL, _entity->_self->release2());
 }
 
-struct AEntity2 : public AObject, public AEntity {
-	void  init() { AEntity::init(this); }
+// outside component of entity, has self refcount
+struct AComponent2 : public AObject, public AComponent {
+	void init(const char *n, int i = 0) {
+		_self = this; _name = n; _index = i;
+		_entity = NULL; _entity_node.init(this);
+	}
 };
 
-template <typename lock_t>
-struct EMTmpl {
-	EM     *manager;
-	lock_t *locker;
+struct AEntity2 : public AObject, public AEntity {
+	void  init() { AEntity::init(this); }
 
-	void init(EM *em, lock_t *l) {
-		manager = em; locker = l;
+	static AEntity2* create(const char *name, AObject *parent = NULL, AOption *option = NULL) {
+		AEntity2 *e = NULL;
+		AObjectCreate((AObject**)&e, parent, option, name);
+		return e;
 	}
+};
+
+struct AEntityManager2 : public AEntityManager {
+	pthread_mutex_t _mutex;
+
+	void init() {
+		AEntityManager::init();
+		pthread_mutex_init(&_mutex, NULL);
+	}
+	void exit() {
+		assert(RB_EMPTY_ROOT(&_entity_map));
+		assert(_entity_count == 0);
+		pthread_mutex_destroy(&_mutex);
+	}
+	void entity_lock() { pthread_mutex_lock(&_mutex); }
+	void entity_unlock() { pthread_mutex_unlock(&_mutex); }
 	// Enity
 	bool push(AEntity *e) {
-		locker->lock();
-		bool valid = manager->_push(e);
+		entity_lock();
+		bool valid = _push(e);
 		if (valid) e->_self->addref();
-		locker->unlock();
+		entity_unlock();
 		return valid;
 	}
 	bool pop(AEntity *e) {
-		locker->lock();
-		bool valid = manager->_pop(e);
-		locker->unlock();
+		entity_lock();
+		bool valid = _pop(e);
+		entity_unlock();
 		if (valid) e->_self->release2();
 		return valid;
 	}
 	AEntity* next(AEntity *cur) {
-		locker->lock();
-		AEntity *e = manager->_upper(cur);
+		entity_lock();
+		AEntity *e = _upper(cur);
 		if (e != NULL) e->_self->addref();
-		locker->unlock();
+		entity_unlock();
 		return e;
 	}
 	int  next_each(AEntity *cur, int(*func)(AEntity *e, void *p), void *p) {
-		locker->lock();
-		int result = manager->_next_each(cur, func, p);
-		locker->unlock();
+		entity_lock();
+		int result = _next_each(cur, func, p);
+		entity_unlock();
 		return result;
 	}
 	// Component
 	bool append(AEntity *e, AComponent *c) {
-		locker->lock();
-		bool valid = (manager->_valid(e) && e->_push(c));
+		entity_lock();
+		bool valid = (e->valid() && e->_push(c));
 		if (valid) {
 			e->_self->addref();
 			c->_self->addref();
 		}
-		locker->unlock();
+		entity_unlock();
 		return valid;
 	}
 	bool remove(AEntity *e, AComponent *c) {
-		locker->lock();
-		bool valid = (manager->_valid(e) && e->_pop(c));
-		locker->unlock();
+		entity_lock();
+		bool valid = (/*e->valid() && */e->_pop(c));
+		entity_unlock();
 		if (valid) c->_self->release2();
 		return valid;
 	}
-	AComponent* get_com(AEntity *e, const char *com_name, int com_index = -1) {
-		AComponent *c = NULL;
-		locker->lock();
-		if (manager->_valid(e)) c = e->_get(com_name, com_index);
+	template <typename TComponent>
+	TComponent* get_com(AEntity *e, int com_index = -1) {
+		TComponent *c = NULL;
+		entity_lock();
+		if (e->valid()) c = e->_get<TComponent>(com_index);
 		if (c != NULL) c->_self->addref();
-		locker->unlock();
+		entity_unlock();
 		return c;
 	}
-	AComponent* next_com(AEntity *cur, const char *com_name, int com_index = -1) {
-		locker->lock();
-		AComponent *c = manager->_next_com(cur, com_name, com_index);
+	template <typename TComponent>
+	TComponent* next_com(AEntity *cur, int com_index = -1) {
+		entity_lock();
+		TComponent *c = _next_com<TComponent>(cur, com_index);
 		if (c != NULL) c->_self->addref();
-		locker->unlock();
+		entity_unlock();
 		return c;
 	}
-	int  next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent *c, void *p), void *p, int com_index = -1) {
-		locker->lock();
-		int result = manager->_next_each_com(cur, com_name, func, p, com_index);
-		locker->unlock();
+	template <typename TComponent>
+	int  next_each_com(AEntity *cur, int(*func)(TComponent *c, void *p), void *p, int com_index = -1) {
+		entity_lock();
+		int result = _next_each_com<TComponent>(cur, func, p, com_index);
+		entity_unlock();
 		return result;
 	}
 };

@@ -51,14 +51,18 @@ AOptionCreate2(struct list_head *list)
 }
 
 static inline void
-AOptionSetKeyOrValue(AOption *option, char sep, char keysep)
+AOptionSetKeyOrValue(AOption *current, char sep, char keysep)
 {
 	if (keysep == 0) {
-		if (option->name_len < _countof(option->name)-1)
-			option->name[option->name_len++] = sep;
+		int max_size = _countof(current->name)-1;
+		if ((current->parent != NULL) && (current->parent->type == AOption_Array))
+			max_size += _countof(current->value);
+
+		if (current->name_len < max_size)
+			current->name[current->name_len++] = sep;
 	} else if (keysep == 1) {
-		if (option->value_len < _countof(option->value)-1)
-			option->value[option->value_len++] = sep;
+		if (current->value_len < _countof(current->value)-1)
+			current->value[current->value_len++] = sep;
 	}
 }
 
@@ -67,8 +71,21 @@ AOptionEndKeyOrValue(AOption *current, char keysep)
 {
 	if (keysep == 0) {
 		current->name[current->name_len] = '\0';
+
+		int max_size = _countof(current->name)-1;
+		if ((current->parent != NULL) && (current->parent->type == AOption_Array))
+			max_size += _countof(current->value);
+
+		if (current->name_len >= max_size) {
+			TRACE2("option(%s) maybe out of string, max size = %d!\n",
+				current->name, max_size);
+		}
 	} else if (keysep == 1) {
 		current->value[current->value_len] = '\0';
+		if (current->value_len >= _countof(current->value)-1) {
+			TRACE2("option(%s:%s) maybe out of string, max size = %d!\n",
+				current->name, current->value, _countof(current->value));
+		}
 	}
 }
 
@@ -173,7 +190,9 @@ AOptionDecode(AOption **option, const char *name, int len)
 				goto _return;
 			}
 
-			if ((current->name[0] == '\0') && list_empty(&current->children_list)) {
+			if ((current->name[0] == '\0')
+			 && (current->type == AOption_Any)
+			 && list_empty(&current->children_list)) {
 				AOption *empty_option = current;
 				current = current->parent;
 				AOptionRelease(empty_option);
@@ -217,9 +236,6 @@ AOptionDecode(AOption **option, const char *name, int len)
 			} else {
 				assert(ident == *sep);
 				ident = '\0';
-				if ((keysep == 1) && (current->type == AOption_String)
-				 && (current->value_len != sep-name))
-					current->type = AOption_StrExt;
 			}
 		case ' ':
 		case '\t':
@@ -256,7 +272,7 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 	ret = write_cb(p, s, n); \
 	if (ret < 0) \
 		return ret; \
-	result += n;
+	write_size += n;
 
 #define write_str(s) \
 	len = strlen(s); \
@@ -267,7 +283,7 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 		write_sn(c, 1) \
 	}
 
-	int result = 0;
+	int write_size = 0;
 	int ret, len;
 	const AOption *current = option;
 	for (;;) {
@@ -277,8 +293,8 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 			write_sc(current->name, len-1, "\"");
 		}
 
-		if ((current->value[0] == '\0')
-		 && (current->type == AOption_Any)
+		if (((current->value[0] == '\0' && current->type == AOption_Any)
+		  || (current->name_len >= _countof(current->name)))
 		 && list_empty(&current->children_list)) {
 			goto _next;
 		}
@@ -299,10 +315,14 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 		}
 
 		// value
-		if (list_empty(&current->children_list)) {
+		if ((current->type != AOption_Object) && list_empty(&current->children_list)) {
 			if ((current->type != AOption_String)
 			 && (current->type != AOption_StrExt)
-			 && ((current->value[0] == '+')
+			 && ((current->type == AOption_false)
+			  || (current->type == AOption_true)
+			  || (current->type == AOption_null)
+			  || (current->type == AOption_Number)
+			  || (current->value[0] == '+')
 			  || (current->value[0] == '-')
 			  || isdigit(current->value[0])))
 			{
@@ -321,8 +341,11 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 
 		// object
 		write_sn("{", 1);
-		current = list_first_entry(&current->children_list, AOption, brother_entry);
-		continue;
+		if (!list_empty(&current->children_list)) {
+			current = list_first_entry(&current->children_list, AOption, brother_entry);
+			continue;
+		}
+		write_sn("}", 1);
 _next:
 		if ((current != option)
 		 && list_is_last(&current->brother_entry, &current->parent->children_list))
@@ -341,7 +364,7 @@ _next:
 			write_sn(",", 1);
 			continue;
 		}
-		return result;
+		return write_size;
 	}
 #undef write_sn
 #undef write_sc

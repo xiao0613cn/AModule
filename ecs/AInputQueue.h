@@ -9,6 +9,7 @@ typedef struct AInputQueueComponent AInputQueueComponent;
 struct AInputQueueComponent : public AComponent {
 	static const char* name() { return "AInputQueueComponent"; }
 
+	void  (*on_empty)(AInputQueueComponent *c);
 	struct list_head _queue;
 	pthread_mutex_t *_mutex;
 	AMessage _msg;
@@ -25,18 +26,22 @@ struct AInputQueueComponent : public AComponent {
 		bool first = list_empty(&_queue);
 		list_add_tail(&msg->entry, &_queue);
 		pthread_mutex_unlock(_mutex);
-		if (!first)
-			return;
+
+		if (first)
+			_input(msg);
+	}
+	void _input(AMessage *msg) {
+		assert(&msg->entry == _queue.next);
 
 		_msg.init(msg);
-		_msg.done = &MsgDone(AInputQueueComponent, _msg, done);
+		_msg.done = &MsgDone(AInputQueueComponent, _msg, _done);
 
 		_self->addref();
 		int result = _io->request(Aio_Input, &_msg);
 		if (result != 0)
 			_msg.done2(result);
 	}
-	int  done(int result) {
+	int  _done(int result) {
 		for (;;) {
 			AMessage *next = NULL;
 
@@ -44,6 +49,8 @@ struct AInputQueueComponent : public AComponent {
 			AMessage *msg = list_pop_front(&_queue, AMessage, entry);
 			if (!list_empty(&_queue))
 				next = list_first_entry(&_queue, AMessage, entry);
+			else if (on_empty != NULL)
+				on_empty(this);
 			pthread_mutex_unlock(_mutex);
 
 			msg->done2(result);

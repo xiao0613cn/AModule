@@ -59,12 +59,12 @@ struct AOperator {
 	void            *ao_user[4];
 	};
 #ifdef __cplusplus
-	void  timer() {
+	void timer() {
 		memset(this, 0, sizeof(*this));
 		RB_CLEAR_NODE(&ao_tree);
 		INIT_LIST_HEAD(&ao_list);
 	}
-	int   delay(AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
+	int delay(AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
 		if ((timeout != 0) && (timeout != INFINITE)) {
 			timeout += GetTickCount();
 			if ((timeout == 0) || (timeout == INFINITE))
@@ -72,13 +72,13 @@ struct AOperator {
 		}
 		return AOperatorPost(this, at, timeout, wakeup);
 	}
-	int   signal(AThread *at, BOOL wakeup_or_cancel) {
+	int signal(AThread *at, BOOL wakeup_or_cancel) {
 		return AOperatorSignal(this, at, wakeup_or_cancel);
 	}
-	int   post(AThread *at) {
+	int post(AThread *at) {
 		return AThreadPost(at, this);
 	}
-	int   done2(int result) {
+	int done2(int result) {
 		return done(this, result);
 	}
 #endif

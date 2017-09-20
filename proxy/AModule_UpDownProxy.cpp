@@ -49,7 +49,7 @@ static int PostClose(AMessage *msg, int result)
 
 	case down_closing:
 		post_status = post_none;
-		AOperatorTimewait(&up_timer, NULL, 10*1000);
+		up_timer.delay(NULL, 10*1000);
 		return result;
 
 	default:
@@ -117,7 +117,7 @@ static int UpMsg(AMessage *msg, int result)
 		case down_opening:
 			down_msg.data = down_buf; // MARK down_io output
 			down_timer.done = &DownTimer;
-			AOperatorTimewait(&down_timer, NULL, 0);
+			down_timer.post(NULL);
 
 		case down_input:
 			AMsgInit(&up_msg.msg, AMsgType_RefsMsg, &up_msg, 0);
@@ -154,7 +154,7 @@ static int UpTimer(AOperator *asop, int result)
 
 	if (post_status == post_closing) {
 		if (down_msg.data != NULL) { //TEST down_io is output
-			AOperatorTimewait(&up_timer, NULL, 1000);
+			up_timer.delay(NULL, 1000);
 		} else {
 			up_msg.msg.done = &PostClose;
 			PostClose(&up_msg.msg, result);
@@ -186,7 +186,7 @@ static int PostInit(AOption *global_option, AOption *module_option, int first)
 
 	post_status = post_none;
 	up_timer.done = &UpTimer;
-	AOperatorTimewait(&up_timer, NULL, 10*1000);
+	up_timer.delay(NULL, 10*1000);
 	return 1;
 }
 

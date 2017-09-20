@@ -253,7 +253,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 			p->object.addref();
 			p->inmsg.done = &PVDProxyStreamDone;
 			p->timer.done = &PVDProxySendStream;
-			p->timer.delay(NULL, 0);
+			p->timer.post(NULL);
 			result = -1;
 		}
 	}
@@ -698,7 +698,7 @@ static int PVDRecvDone(AMessage *msg, int result)
 	}
 	}
 
-	sm->timer.delay(NULL, 0);
+	sm->timer.post(NULL);
 	return result;
 }
 static int PVDDoRecv(AOperator *asop, int result)
@@ -764,7 +764,7 @@ static int PVDOpenDone(AMessage *msg, int result)
 
 	sm->msg.done = &PVDRecvDone;
 	sm->timer.done = &PVDDoRecv;
-	sm->timer.delay(NULL, 0);
+	sm->timer.post(NULL);
 	return result;
 }
 
@@ -851,7 +851,7 @@ int PVDProxyInit(AOption *global_option, AOption *module_option, BOOL first)
 		sm->reqix = Aio_Output;
 		sm->threadix = 1;
 		sm->timer.done = &PVDDoOpen;
-		sm->timer.delay(NULL, 0);
+		sm->timer.post(NULL);
 
 		strcpy_sz(opt.value, "PVDRTStream");
 		result = AObjectCreate2(&rt, NULL, &opt, syncControl);

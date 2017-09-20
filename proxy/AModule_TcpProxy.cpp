@@ -182,7 +182,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			if (client->inmsg.data != NULL) {
 				client->inmsg.init();
 				if (!server->async_tcp) {
-					client->sysop.delay(NULL, 0);
+					client->sysop.post(NULL);
 					return 0;
 				}
 			}
@@ -208,7 +208,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			bridge->status = tcp_bridge_input;
 			bridge->client = client->proxy; AObjectAddRef(client->proxy);
 			bridge->proxy = client->client; AObjectAddRef(client->client);
-			AOperatorTimewait(&bridge->sysop, NULL, 0);
+			bridge->sysop.post(NULL);
 
 			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
 			msg->data[msg->size] = '\0';
@@ -274,7 +274,7 @@ static void* TCPServerProcess(void *p)
 		}
 
 		client->sock = sock;
-		client->sysop.delay(NULL, 0);
+		client->sysop.post(NULL);
 	}
 	TRACE("%p: quit.\n", &server->object);
 	AObjectRelease(&server->object);
@@ -335,7 +335,7 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
 	if (result >= 0) {
-		server->prepare->sysop.delay(NULL, 0);
+		server->prepare->sysop.post(NULL);
 		server->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();

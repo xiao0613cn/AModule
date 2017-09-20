@@ -20,6 +20,9 @@
 #ifndef atoll
 #define atoll  _atoi64
 #endif
+#ifndef strtof
+#define strtof(str, end)  (float)strtod(str, end)
+#endif
 
 #else //_WIN32
 

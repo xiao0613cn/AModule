@@ -26,6 +26,21 @@
 
 struct list_head {
 	struct list_head *next, *prev;
+#ifdef __cplusplus
+	void  init();
+	bool  empty();
+	bool  is_last(list_head *entry);
+	void       push_front(list_head *entry);
+	void       push_back(list_head *entry);
+	list_head* pop_front();
+	list_head* pop_back();
+	list_head* front();
+	list_head* back();
+
+	void  leave();
+	void  move_back(list_head *other);
+	void  move_front(list_head *other);
+#endif
 };
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
@@ -195,29 +210,31 @@ static inline int list_empty(const struct list_head *head)
 }
 
 #ifdef __cplusplus
+inline void  list_head::init() { INIT_LIST_HEAD(this); }
+inline bool  list_head::empty() { return !!list_empty(this); }
+inline bool  list_head::is_last(list_node *entry) { return !!list_is_last(entry, this); }
+inline void       list_head::push_front(list_node *entry) { list_add(entry, this); }
+inline void       list_head::push_back(list_node *entry) { list_add_tail(entry, this); }
+inline list_node* list_head::pop_front() { list_node *entry = front(); entry->leave(); return entry; }
+inline list_node* list_head::pop_back() { list_node *entry = back(); entry->leave(); return entry; }
+inline list_node* list_head::front() { return (list_node*)next; }
+inline list_node* list_head::back() { return (list_node*)prev; }
+
+inline void  list_head::leave() { list_del_init(this); }
+inline void  list_head::move_back(list_node *other) { list_move_tail(this, other); }
+inline void  list_head::move_front(list_node *other) { list_move(this, other); }
+
 template <typename type_t>
 struct list_node : public list_head {
 #ifdef _DEBUG
 	type_t *self;
 #endif
 	void  init(type_t *p) {
-		INIT_LIST_HEAD(this);
+		list_head::init();
 #ifdef _DEBUG
 		self = p;
 #endif
 	}
-	bool  empty() { return !!list_empty(this); }
-	bool  is_last(list_node *entry) { return !!list_is_last(entry, this); }
-	void       push_front(list_node *entry) { list_add(entry, this); }
-	void       push_back(list_node *entry) { list_add_tail(entry, this); }
-	list_node* pop_front() { list_node *entry = front(); entry->leave(); return entry; }
-	list_node* pop_back() { list_node *entry = back(); entry->leave(); return entry; }
-	list_node* front() { return (list_node*)next; }
-	list_node* back() { return (list_node*)prev; }
-
-	void  leave() { list_del_init(this); }
-	void  move_back(list_node *other) { list_move_tail(this, other); }
-	void  move_front(list_node *other) { list_move(this, other); }
 };
 #endif
 

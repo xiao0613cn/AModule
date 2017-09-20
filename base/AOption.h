@@ -8,7 +8,7 @@ enum AOption_Types {
 	AOption_Any = 0,
 	AOption_false,
 	AOption_true,
-	AOption_NULL,
+	AOption_null,
 	AOption_Number,
 	AOption_Double,
 	AOption_String,
@@ -164,7 +164,10 @@ AOptionSet2(struct list_head *list, const char *name, const char *value)
 			return NULL;
 		strcpy_sz(child->name, name);
 	}
-	strcpy_sz(child->value, value);
+	if (value != NULL) {
+		strcpy_sz(child->value, value);
+		child->type = AOption_String;
+	}
 	return child;
 }
 
