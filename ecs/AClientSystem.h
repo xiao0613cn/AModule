@@ -27,8 +27,8 @@ struct AClientComponent : public AComponent {
 	int     _tick_heart;   // 10*1000
 	int     _tick_abort;   // 20*1000
 	bool    _owner_thread; // false
-	bool    _auto_reopen;  // true
 	bool    _open_heart;   // true
+	bool    _auto_reopen;  // true
 
 	// data
 	enum Status   _status;

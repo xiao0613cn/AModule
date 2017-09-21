@@ -21,29 +21,35 @@ struct ASystem : public AModule {
 		ASystem *system;
 		Status status;
 	};
+	ASystemManager *_manager;
 	AThread  *_exec_thread;
 
 	Result* (*exec_check)(ASystem *s, AEntity *e, DWORD cur_tick);
-	int    (*exec_abort)(ASystem *s, Result *r);
-	int    (*exec_run)(ASystem *s, Result *r, int result);
-	int    (*exec_exit)(ASystem *s, Result *r);
+	int    (*exec_abort)(ASystem *s, AEntity *e, Result *r);
+	int    (*exec_run)(ASystem *s, AEntity *e, Result *r, int result);
+	int    (*exec_exit)(ASystem *s, AEntity *e, Result *r);
 
 #ifdef _AMODULE_H_
 	static ASystem* create(const char *name) {
-		AObject *o = NULL;
-		int result = AObjectCreate(&o, NULL, NULL, name);
-		if ((result < 0) || (o == NULL))
-			return NULL;
-		return (ASystem*)(AEntity*)(AEntity2*)o;
+		AModule *m = AModuleFind("ASystem", name);
+		return m ? (ASystem*)m : NULL;
 	}
 #endif
 };
 
 struct ASystemManager {
 	list_head       *_system_list;
+
 	AEntityManager  *_entity_manager;
 	pthread_mutex_t *_entity_mutex;
 	AEntity         *_last_check;
+	void entity_lock() { pthread_mutex_lock(_entity_mutex); }
+	void entity_unlock() { pthread_mutex_unlock(_entity_mutex); }
+
+	AEventManager   *_event_manager;
+	pthread_mutex_t *_event_mutex;
+	void event_lock() { pthread_mutex_lock(_event_mutex); }
+	void event_unlock() { pthread_mutex_unlock(_event_mutex); }
 
 	struct check_item {
 		AEntity *entity;
@@ -67,7 +73,7 @@ struct ASystemManager {
 		int check_count = 0;
 		DWORD cur_tick = GetTickCount();
 
-		pthread_mutex_lock(_entity_mutex);
+		entity_lock();
 		_last_check = _entity_manager->_upper(_last_check);
 		while (_last_check != NULL)
 		{
@@ -79,18 +85,18 @@ struct ASystemManager {
 			}
 			_last_check = _entity_manager->_next(_last_check);
 		}
-		pthread_mutex_unlock(_entity_mutex);
+		entity_unlock();
 
 		while (check_count > 0) {
 			check_item &c = check_list[--check_count];
 
 			while (!list_empty(&c.results)) {
 				ASystem::Result *r = list_pop_front(&c.results, ASystem::Result, node);
-				switch (r->result)
+				switch (r->status)
 				{
-				case ASystem::Aborting: r->system->exec_abort(r->system, r); break;
-				case ASystem::Runnable: r->system->exec_run(r->system, r, 0); break;
-				case ASystem::EndExit:  r->system->exec_exit(r->system, r); break;
+				case ASystem::Aborting: r->system->exec_abort(r->system, c.entity, r); break;
+				case ASystem::Runnable: r->system->exec_run(r->system, c.entity, r, 0); break;
+				case ASystem::EndExit:  r->system->exec_exit(r->system, c.entity, r); break;
 				}
 			}
 			c.entity->_self->release2();

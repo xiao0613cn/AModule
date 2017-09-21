@@ -45,4 +45,5 @@ ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown)
 #define httpMsgType_RawData       (AMsgType_Private|1)
 #define httpMsgType_RawBlock      (AMsgType_Private|2)
 
+
 #endif
