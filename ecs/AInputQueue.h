@@ -12,9 +12,9 @@ struct AInputQueueComponent : public AComponent {
 	void  (*on_empty)(AInputQueueComponent *c);
 	struct list_head _queue;
 	pthread_mutex_t *_mutex;
-	AMessage _msg;
-	AObject *_io;
-	bool     _abort;
+	AMessage  _msg;
+	IOObject *_io;
+	bool      _abort;
 
 	void post(AMessage *msg) {
 		if (_abort) {
@@ -55,7 +55,7 @@ struct AInputQueueComponent : public AComponent {
 
 			msg->done2(result);
 			if (next == NULL) {
-				_self->release2();
+				_self->release();
 				return result;
 			}
 			if (_abort) {

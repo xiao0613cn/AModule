@@ -2,31 +2,30 @@
 #include "../base/AModule_API.h"
 #include "AModule_io.h"
 
-struct DumpObject;
+
 struct DumpReq {
 	int         reqix;
-	DumpObject *dump;
+	struct DumpObject *dump;
 	FILE       *file;
 	AMessage    msg;
 	AMessage   *from;
 	struct list_head entry;
 };
-struct DumpObject {
-	AObject  object;
+
+struct DumpObject : public IOObject {
 	FILE    *file;
 	char     file_name[BUFSIZ];
 	BOOL     single_file;
-	AObject *io;
+	IOObject *io;
 
 	pthread_mutex_t  req_mutex;
 	struct list_head req_list;
 	DumpReq         *req_cache[4];
 };
-#define to_dump(obj)   container_of(obj, DumpObject, object)
 
 static void DumpRelease(AObject *object)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 
 	while (!list_empty(&dump->req_list)) {
 		DumpReq *req = list_pop_front(&dump->req_list, DumpReq, entry);
@@ -40,13 +39,6 @@ static void DumpRelease(AObject *object)
 	release_s(dump->file, fclose, NULL);
 	release_s(dump->io, AObjectRelease, NULL);
 }
-
-static struct ObjKV kv_map[] = {
-	ObjKV_S(DumpObject, file_name, "io_dump")
-	ObjKV_N(DumpObject, single_file, FALSE)
-	ObjKV_O(DumpObject, io, NULL)
-	{ NULL }
-};
 
 static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 {
@@ -129,15 +121,10 @@ static int DumpOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *msg_opt = (AOption*)msg->data;
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 
-	AOption *opt = AOptionFind(msg_opt, "file_name");
-	if ((opt != NULL) && (opt->value[0] != '\0') && (opt->value[1] != '\0'))
-		strcpy_sz(dump->file_name, opt->value);
-
-	opt = AOptionFind(msg_opt, "single_file");
-	if (opt != NULL)
-		dump->single_file = atol(opt->value);
+	strcpy_sz(dump->file_name, msg_opt->getStr("file_name", "io_dump"));
+	dump->single_file = msg_opt->getInt("single_file", FALSE);
 
 	if (dump->single_file && (dump->file_name[0] != '\0')) {
 		release_s(dump->file, fclose, NULL);
@@ -148,18 +135,18 @@ static int DumpOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	opt = AOptionFind(msg_opt, "io");
+	AOption *io_opt = AOptionFind(msg_opt, "io");
 	if (dump->io == NULL) {
-		AObjectCreate(&dump->io, &dump->object, opt, NULL);
+		int result = AObjectCreate((AObject**)&dump->io, dump, io_opt, NULL);
 		if (dump->io == NULL)
-			return -ENXIO;
+			return result;
 	}
 
 	DumpReq *req = DumpReqGet(dump, 0);
 	if (req == NULL)
 		return -ENOMEM;
 
-	req->msg.init(opt);
+	req->msg.init(io_opt);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
@@ -172,25 +159,23 @@ static int DumpOpen(AObject *object, AMessage *msg)
 
 static int DumpSetOption(AObject *object, AOption *option)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 	if (dump->io == NULL)
 		return -ENOENT;
-
 	return dump->io->setopt(option);
 }
 
 static int DumpGetOption(AObject *object, AOption *option)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 	if (dump->io == NULL)
 		return -ENOENT;
-
 	return dump->io->getopt(option);
 }
 
 static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 	DumpReq *req = DumpReqGet(dump, reqix);
 	if (req == NULL)
 		return dump->io->request(reqix, msg);
@@ -208,35 +193,35 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 
 static int DumpCancel(AObject *object, int reqix, AMessage *msg)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
+	if (dump->io == NULL)
+		return -ENOENT;
 	return dump->io->cancel(reqix, msg);
 }
 
 static int DumpClose(AObject *object, AMessage *msg)
 {
-	DumpObject *dump = to_dump(object);
+	DumpObject *dump = (DumpObject*)object;
 	if (msg != NULL) {
 		release_s(dump->file, fclose, NULL);
 	}
 	return dump->io->close(msg);
 }
 
-AModule DumpModule = {
+IOModule DumpModule = { {
 	"io",
 	"io_dump",
 	sizeof(DumpObject),
 	NULL, NULL,
 	&DumpCreate,
 	&DumpRelease,
-	NULL,
-	0,
+	NULL, },
 	&DumpOpen,
 	&DumpSetOption,
 	&DumpGetOption,
 	&DumpRequest,
 	&DumpCancel,
 	&DumpClose,
-	kv_map,
 };
 
-static auto_reg_t<DumpModule> auto_reg;
+static auto_reg_t reg(DumpModule.module);

@@ -17,7 +17,7 @@ struct AComponent {
 		_self = o; _name = n; _index = i;
 		_entity = NULL; _entity_node.init(this);
 	}
-	void exit(); //{ release_f(_entity, NULL, _entity->_self->release2()); }
+	void exit(); //{ release_f(_entity, NULL, _entity->_self->release()); }
 	bool valid();
 };
 
@@ -56,7 +56,7 @@ struct AEntity {
 	bool _pop(AComponent *c) {
 		bool valid = ((c->_entity == this) && !c->_entity_node.empty());
 		if (valid) {
-			//c->_self->release2();
+			//c->_self->release();
 			c->_entity_node.leave();
 			--_com_count;
 		} else {
@@ -118,7 +118,7 @@ struct AEntityManager {
 		} else {
 			assert(0);
 		}
-		//if (valid) e->_self->release2();
+		//if (valid) e->_self->release();
 		return valid;
 	}
 	AEntity* _upper(AEntity *cur) {
@@ -181,7 +181,7 @@ inline void AComponent::exit() {
 }
 #else
 inline void AComponent::exit() {
-	release_f(_entity, NULL, _entity->_self->release2());
+	release_f(_entity, NULL, _entity->_self->release());
 }
 
 // outside component of entity, has self refcount
@@ -228,7 +228,7 @@ struct AEntityManager2 : public AEntityManager {
 		entity_lock();
 		bool valid = _pop(e);
 		entity_unlock();
-		if (valid) e->_self->release2();
+		if (valid) e->_self->release();
 		return valid;
 	}
 	AEntity* next(AEntity *cur) {
@@ -259,7 +259,7 @@ struct AEntityManager2 : public AEntityManager {
 		entity_lock();
 		bool valid = (/*e->valid() && */e->_pop(c));
 		entity_unlock();
-		if (valid) c->_self->release2();
+		if (valid) c->_self->release();
 		return valid;
 	}
 	template <typename TComponent>

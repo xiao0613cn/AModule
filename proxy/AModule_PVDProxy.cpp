@@ -248,7 +248,7 @@ static int PVDProxyRTStream(AMessage *msg, int result)
 		p->object.addref();
 		result = rt->request(Aiosync_NotifyBack|0, &p->outmsg);
 		if (result < 0) {
-			p->object.release2();
+			p->object.release();
 		} else {
 			p->object.addref();
 			p->inmsg.done = &PVDProxyStreamDone;
@@ -267,7 +267,7 @@ static int PVDProactiveRTPlay(AMessage *msg, int result)
 {
 	PVDProxy *p = from_inmsg(msg);
 	result = PVDProxyRTStream(msg, result);
-	p->object.release2();
+	p->object.release();
 	return result;
 }
 
@@ -275,7 +275,7 @@ static int PVDProactiveRTConnect(AMessage *msg, int result)
 {
 	PVDProxy *p = from_outmsg(msg);
 	if (result < 0) {
-		p->object.release2();
+		p->object.release();
 		return result;
 	}
 

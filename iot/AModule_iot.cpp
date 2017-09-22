@@ -95,6 +95,6 @@ int test_mqtt()
 	ARefsBufRelease(buf);
 	mqtt_codec_destroy(mqtt);
 	pthread_join(tid, NULL);
-	tcp->release2();
+	tcp->release();
 	return ret;
 }

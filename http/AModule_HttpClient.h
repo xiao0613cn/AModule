@@ -2,6 +2,7 @@
 #define _AMODULE_HTTPCLIENT_H_
 
 #include "http_parser.h"
+#include "../io/AModule_io.h"
 
 enum status {
 	s_invalid = 0,
@@ -20,9 +21,8 @@ enum status {
 #define max_body_size   16*1024*1024
 #define max_head_count  50
 
-struct HttpClient {
-	AObject   object;
-	AObject  *io;
+struct HttpClient : public IOObject {
+	IOObject  *io;
 
 	// send
 	struct list_head send_headers;
@@ -64,7 +64,6 @@ struct HttpClient {
 	AMessage  recv_msg;
 	AMessage *recv_from;
 };
-#define to_http(obj)   container_of(obj, HttpClient, object)
 
 #define append_data(fmt, ...) \
 	p->send_msg.size += snprintf(p->send_buffer+p->send_msg.size, send_bufsiz-p->send_msg.size, fmt, ##__VA_ARGS__)

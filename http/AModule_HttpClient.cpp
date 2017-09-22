@@ -6,7 +6,7 @@
 
 extern void HttpClientRelease(AObject *object)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 	release_s(p->io, AObjectRelease, NULL);
 
 	AOptionClear(&p->send_headers);
@@ -32,7 +32,7 @@ static void HttpClientResetStatus(HttpClient *p)
 extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 {
 	HttpClient *p = (HttpClient*)*object;
-	p->io = parent;
+	p->io = (IOObject*)parent;
 	if (parent != NULL)
 		AObjectAddRef(parent);
 
@@ -47,7 +47,8 @@ extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 
 	AOption *io_opt = AOptionFind(option, "io");
 	if ((p->io == NULL) && (io_opt != NULL))
-		AObjectCreate(&p->io, &p->object, io_opt, NULL);
+		p->create(&p->io, p, io_opt, NULL);
+		//AObjectCreate((AObject**)&p->io, p, io_opt, NULL);
 	return 1;
 }
 
@@ -82,7 +83,7 @@ int HttpClientOnOpen(HttpClient *p, int result)
 	AOption *option = (AOption*)p->send_from->data;
 
 	// method
-	AObjectSetKVMap(&p->object, kv_map, option, TRUE);
+	AObjectSetKVMap(p, kv_map, option, TRUE);
 
 	// send_headers
 	AOption *pos;
@@ -95,13 +96,12 @@ int HttpClientOnOpen(HttpClient *p, int result)
 
 static int HttpClientOpen(AObject *object, AMessage *msg)
 {
-	HttpClient *p = to_http(object);
-
+	HttpClient *p = (HttpClient*)object;
 	if ((msg->type == AMsgType_Object)
 	 && (msg->size == 0)) {
 		release_s(p->io, AObjectRelease, NULL);
 
-		p->io = (AObject*)msg->data;
+		p->io = (IOObject*)msg->data;
 		if (p->io != NULL)
 			AObjectAddRef(p->io);
 
@@ -118,7 +118,8 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 	AOption *io_opt = AOptionFind(option, "io");
 
 	if (p->io == NULL) {
-		int result = AObjectCreate(&p->io, &p->object, io_opt, "tcp");
+		//AObjectCreate((AObject**)&p->io, p, io_opt, "tcp");
+		int result = p->create(&p->io, p, io_opt, "tcp");
 		if (result < 0)
 			return result;
 	}
@@ -135,7 +136,7 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 
 static int HttpClientSetOption(AObject *object, AOption *option)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 	if ((option->name[0] == ':') || (option->name[0] == '+'))
 		return HttpClientSetHeader(p, option);
 	return AObjectSetOpt(object, option, kv_map);
@@ -183,7 +184,7 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 					p->send_status = s_send_content_data;
 				}
 			}
-			result = ioInput(p->io, &p->send_msg);
+			result = p->io->input(&p->send_msg);
 			break;
 
 		case s_send_chunk_size:
@@ -200,14 +201,14 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 			} else {
 				p->send_status = s_send_chunk_data;
 			}
-			result = ioInput(p->io, &p->send_msg);
+			result = p->io->input(&p->send_msg);
 			break;
 
 		case s_send_chunk_data:
 			p->send_msg.init(ioMsgType_Block, msg->data, msg->size);
 
 			p->send_status = s_send_chunk_tail;
-			result = ioInput(p->io, &p->send_msg);
+			result = p->io->input(&p->send_msg);
 			break;
 
 		case s_send_chunk_tail:
@@ -215,14 +216,14 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 			append_crlf();
 
 			p->send_status = s_send_chunk_next;
-			result = ioInput(p->io, &p->send_msg);
+			result = p->io->input(&p->send_msg);
 			break;
 
 		case s_send_content_data:
 			p->send_msg.init(ioMsgType_Block, msg->data, msg->size);
 
 			p->send_status = s_send_done;
-			result = ioInput(p->io, &p->send_msg);
+			result = p->io->input(&p->send_msg);
 			break;
 
 		case s_send_done:
@@ -392,7 +393,7 @@ _continue:
 			return -EACCES;
 		}
 
-		result = ioOutput(p->io, &p->recv_msg, p->recv_buffer);
+		result = p->io->output(&p->recv_msg, p->recv_buffer);
 		if (result <= 0)
 			return result;
 		p->recv_buffer->push(p->recv_msg.size);
@@ -488,16 +489,16 @@ extern int HttpClientAppendOutput(HttpClient *p, AMessage *msg)
 
 static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 
 	if (msg->type == httpMsgType_RawData) {
 		msg->type = AMsgType_Unknown;
-		return p->io->request(reqix, msg);
+		return (*p->io)->request(p->io, reqix, msg);
 	}
 
 	if (msg->type == httpMsgType_RawBlock) {
 		msg->type = ioMsgType_Block;
-		return p->io->request(reqix, msg);
+		return (*p->io)->request(p->io, reqix, msg);
 	}
 
 	if (reqix == Aio_Input) {
@@ -516,38 +517,34 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 
 static int HttpClientCancel(AObject *object, int reqix, AMessage *msg)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 	if (p->io == NULL)
 		return -ENOENT;
-
-	return p->io->cancel(reqix, msg);
+	return (*p->io)->cancel(p->io, reqix, msg);
 }
 
 static int HttpClientClose(AObject *object, AMessage *msg)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 	if (p->io == NULL)
 		return -ENOENT;
-
 	return p->io->close(msg);
 }
 
-AModule HttpClientModule = {
+IOModule HttpClientModule = { {
 	"io",
 	"http_client",
 	sizeof(HttpClient),
 	NULL, NULL,
 	&HttpClientCreate,
-	&HttpClientRelease,
-	NULL,
-	2,
+	&HttpClientRelease, },
 
 	&HttpClientOpen,
 	&HttpClientSetOption,
-	NULL,
+	&IOModule::OptNull,
 	&HttpClientRequest,
 	&HttpClientCancel,
 	&HttpClientClose,
 };
 
-static auto_reg_t<HttpClientModule> auto_reg;
+static auto_reg_t reg(HttpClientModule.module);

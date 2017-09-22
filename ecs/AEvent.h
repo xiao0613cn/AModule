@@ -103,7 +103,7 @@ struct AEventManager {
 			return false;
 		}
 		_erase(first, r);
-		//r->r_object->release2();
+		//r->_object->release();
 		return valid;
 	}
 	int  _emit(AEvent *v) {

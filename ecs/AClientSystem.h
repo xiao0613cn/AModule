@@ -3,8 +3,6 @@
 
 #include "ASystem.h"
 
-typedef struct AClientComponent AClientComponent;
-typedef struct AClientSystem AClientSystem;
 
 struct AClientComponent : public AComponent {
 	static const char* name() { return "AClientComponent"; }
@@ -41,43 +39,14 @@ struct AClientComponent : public AComponent {
 	long volatile _busy_count;
 	long  use(int count) { return InterlockedAdd(&_busy_count, count); }
 
-	AClientSystem *_system;
-	AOperator      _system_asop;
-	//rb_node        _system_node;
+	ASystem::Result _run_result;
+	ASystem::Result _abort_result;
 
 	int (*open)(AClientComponent *c);
 	int (*heart)(AClientComponent *c);
 	int (*abort)(AClientComponent *c);
 	int (*close)(AClientComponent *c);
 };
-
-rb_tree_declare(AClientComponent, AClientComponent*);
-
-struct AClientSystem : public ASystem {
-	//rb_root   _client_map;
-	//int       _client_count;
-
-	//DWORD     _exec_tick;
-	//AOperator _exec_asop;
-	//bool      _exec_abort;
-	//AClientComponent *_exec_last;
-
-	//void  init() {
-		//exec_check = &ExecCheck<AClientSystem, AClientComponent, -1>;
-		//exec_one = &ExecOne;
-		//exec_post = &ExecPost;
-	//}
-	//bool  _push(AClientComponent *c);
-	//bool  _pop(AClientComponent *c);
-
-	enum Result _exec_check(AClientComponent *c, DWORD cur_tick);
-	int   _exec_one(AClientComponent *c, int result);
-};
-
-
-
-
-
 
 
 

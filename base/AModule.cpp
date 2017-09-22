@@ -18,9 +18,6 @@ static void AModuleExitNull(int inited) { }
 static int  AModuleCreateNull(AObject **object, AObject *parent, AOption *option) { return -ENOSYS; }
 static void AModuleReleaseNull(AObject *object) { }
 static int  AObjectProbeNull(AObject *other, AMessage *msg) { return -ENOSYS; }
-static int  AObjectOptNull(AObject *object, AOption *option) { return -ENOSYS; }
-static int  AObjectMsgNull(AObject *other, AMessage *msg) { return -ENOSYS; }
-static int  AObjectReqNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
 
 AMODULE_API int
 AModuleRegister(AModule *module)
@@ -31,13 +28,6 @@ AModuleRegister(AModule *module)
 	if (module->release == NULL) module->release = &AModuleReleaseNull;
 	if (module->probe == NULL) module->probe = &AObjectProbeNull;
 
-	if (module->open == NULL) module->open = &AObjectMsgNull;
-	if (module->setopt == NULL) module->setopt = &AObjectOptNull;
-	if (module->getopt == NULL) module->getopt = &AObjectOptNull;
-	if (module->request == NULL) module->request = &AObjectReqNull;
-	if (module->cancel == NULL) module->cancel = &AObjectReqNull;
-	if (module->close == NULL) module->close = &AObjectMsgNull;
-
 	list_add_tail(&module->global_entry, &g_module);
 	module->global_index = InterlockedAdd(&g_index, 1);
 
@@ -45,8 +35,7 @@ AModuleRegister(AModule *module)
 	module->class_index = 0;
 	module->class_count = 0;
 
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
+	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if (strcasecmp(pos->class_name, module->class_name) == 0) {
 			list_add_tail(&module->class_entry, &pos->class_entry);
@@ -82,8 +71,7 @@ AModuleInit(AOption *option)
 	if (!g_inited)
 		g_inited = TRUE;
 
-	AModule *module;
-	list_for_each_entry(module, &g_module, AModule, global_entry)
+	list_for_each2(module, &g_module, AModule, global_entry)
 	{
 		option = AOptionFind(g_option, module->module_name);
 		if ((option == NULL) && (g_option != NULL))
@@ -112,8 +100,7 @@ AModuleExit(void)
 AMODULE_API AModule*
 AModuleFind(const char *class_name, const char *module_name)
 {
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
+	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
@@ -122,9 +109,7 @@ AModuleFind(const char *class_name, const char *module_name)
 		if (class_name == NULL)
 			continue;
 
-		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
-		{
+		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry) {
 			if (strcasecmp(module_name, class_pos->module_name) == 0)
 				return class_pos;
 		}
@@ -136,8 +121,7 @@ AModuleFind(const char *class_name, const char *module_name)
 AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 {
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
+	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
@@ -146,9 +130,7 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 		if (class_name == NULL)
 			continue;
 
-		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
-		{
+		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry) {
 			if (comp(param, class_pos) == 0)
 				return class_pos;
 		}
@@ -164,8 +146,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 	int score = 0;
 	int ret;
 
-	AModule *pos;
-	list_for_each_entry(pos, &g_module, AModule, global_entry)
+	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
@@ -179,8 +160,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg)
 		if (class_name == NULL)
 			continue;
 
-		AModule *class_pos;
-		list_for_each_entry(class_pos, &pos->class_entry, AModule, class_entry)
+		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry)
 		{
 			ret = class_pos->probe(other, msg);
 			if (ret > score) {
@@ -199,15 +179,13 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 {
 	const char *class_name = NULL;
 	const char *module_name = NULL;
-	if (option != NULL) {
-		if (option->value[0] != '\0') {
-			class_name = option->name;
-			module_name = option->value;
-		} else {
-			class_name = NULL;
-			module_name = option->name;
-		}
+	if (option == NULL) {
+		module_name = default_module;
+	} else if (option->value[0] != '\0') {
+		class_name = option->name;
+		module_name = option->value;
 	} else {
+		class_name = option->name;
 		module_name = default_module;
 	}
 	if ((class_name == NULL) && (module_name == NULL))
@@ -229,10 +207,7 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 			return -ENOMEM;
 
 		(*object)->init(module);
-		(*object)->release = &AObjectFree;
-
-		if ((*object)->module->kv_map != NULL)
-			AObjectSetKVMap(*object, (*object)->module->kv_map, option, FALSE);
+		(*object)->_release = &AObjectFree;
 	} else {
 		*object = NULL;
 	}
@@ -246,7 +221,7 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 AMODULE_API void
 AObjectFree(AObject *object)
 {
-	object->module->release(object);
+	object->_module->release(object);
 	free(object);
 }
 
@@ -278,12 +253,12 @@ AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 		}
 
 		int count = 0;
-		AOption *child_opt;
+		/*AOption *child_opt;
 		list_for_each_entry(child_opt, &opt->children_list, AOption, brother_entry)
 		{
 			if (AObjectSetOpt(child, child_opt, child->module->kv_map) > 0)
 				++count;
-		}
+		}*/
 		return count;
 	}
 
@@ -322,3 +297,4 @@ AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map)
 	}
 	return 0;
 }
+

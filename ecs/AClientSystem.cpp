@@ -3,112 +3,25 @@
 #include "AEntity.h"
 #include "AClientSystem.h"
 
-//////////////////////////////////////////////////////////////////////////
-static inline int AClientComponentCmp(AClientComponent *key, AClientComponent *data) {
-	if (key == data) return 0;
-	return (key < data) ? -1 : 1;
-}
-//rb_tree_define(AClientComponent, _system_node, AClientComponent*, AClientComponentCmp)
-#if 0
-void AClientSystem::init()
-{
-	//INIT_RB_ROOT(&_client_map);
-	//_client_count = 0;
 
-	_exec_tick = 200;
-	_exec_asop.timer();
-	_exec_asop.done = &AsopDone(AClientSystem, _exec_asop, _execute);
-	_exec_abort = false;
-	_exec_thread = NULL;
-	_exec_last = NULL;
-}
+static ASystem::Result* AClientSystem_exec_check(AEntity *e, DWORD cur_tick)
+{
+	AClientComponent *c = e->_get<AClientComponent>();
+	if (c == NULL)
+		return NULL; //NotNeed;
 
-static int AClientSystemExecuteOne(AOperator *asop, int result)
-{
-	AClientComponent *c = container_of(asop, AClientComponent, _system_asop);
-	result = c->_system->_exec_one(c, result);
-	if (result != 0)
-		c->_self->release2();
-	return result;
-}
-
-static void* AClientComponentExecuteThread(void *p)
-{
-	AClientComponent *c = (AClientComponent*)p;
-	c->_system_asop.done2(1);
-	return NULL;
-}
-
-void AClientSystem::_exec_post(AClientComponent *c, bool addref)
-{
-	if (addref)
-		c->_self->addref();
-	c->_system_asop.ao_thread = NULL;
-	c->_system_asop.done = &AClientSystemExecuteOne;
-
-	if (c->_owner_thread) {
-		pthread_t tid = pthread_null;
-		pthread_create(&tid, NULL, &AClientComponentExecuteThread, c);
-		pthread_detach(tid);
-	} else {
-		c->_system_asop.post(_exec_thread);
-	}
-}
-#endif
-/*
-bool AClientSystem::_push(AClientComponent *c)
-{
-	bool valid = ((c->_system == NULL) && RB_EMPTY_NODE(&c->_system_node));
-	if (valid)
-		valid = (rb_insert_AClientComponent(&_client_map, c, c) == NULL);
-	if (valid) {
-		++_client_count;
-		//c->_self->addref();
-		c->_system = this;
-		c->_system_asop.ao_thread = NULL;
-		c->_system_asop.done = &AClientSystemExecuteOne;
-	} else {
-		assert(0);
-	}
-	return valid;
-}
-
-bool AClientSystem::_pop(AClientComponent *c)
-{
-	bool valid = ((c->_system == this) && !RB_EMPTY_NODE(&c->_system_node));
-	if (valid) {
-		rb_erase(&c->_system_node, &_client_map);
-		RB_CLEAR_NODE(&c->_system_node);
-		--_client_count;
-	} else {
-		assert(0);
-	}
-	//if (valid) c->_self->release2();
-	return valid;
-}
-
-int AClientSystem::_execute(int result)
-{
-	if (_exec_abort)
-		_exec_asop.done = NULL;
-	else
-		_exec_asop.delay(_exec_thread, _exec_tick, TRUE);
-	return result;
-}
-*/
-enum ASystem::Result AClientSystem::_exec_check(AClientComponent *c, DWORD cur_tick)
-{
 	int diff = int(cur_tick - c->_main_tick);
 	if (diff < 0)
 		diff = 0;
 
+	ASystem::Status status = ASystem::Runnable;
 	switch (c->_status)
 	{
 	case AClientComponent::Invalid:
 		if (c->_busy_count != 0)
-			return Pending;
+			return NULL;
 		if ((c->_main_tick != 0) && (diff < c->_tick_reopen))
-			return Pending;
+			return NULL;
 
 		c->_main_tick = cur_tick;
 		c->_main_abort = false;
@@ -121,48 +34,62 @@ enum ASystem::Result AClientSystem::_exec_check(AClientComponent *c, DWORD cur_t
 		if (diff > c->_tick_abort) {
 			c->_main_tick = cur_tick;
 			c->_main_abort = true;
-			return Aborting;
+			if (c->abort == NULL)
+				return NULL;
+			status = ASystem::Aborting;
+			break;
 		}
 
 		if (c->_main_abort || (c->_status == AClientComponent::Opening)) {
 			if (c->_busy_count != 0)
-				return Pending;
+				return NULL;
 			c->_status = AClientComponent::Closing;
 			break;
 		}
 
 		if ((diff < c->_tick_heart)
 		 || (c->_check_heart != AClientComponent::HeartNone))
-			return Pending;
-
+			return NULL;
 		c->_check_heart = AClientComponent::HeartChecking;
 		break;
 
 	case AClientComponent::Closing:
 		if (c->_busy_count != 0)
-			return Pending;
+			return NULL;
 		break;
 
 	case AClientComponent::Closed:
 		if (c->_busy_count != 0)
-			return Pending;
-		if (!c->_auto_reopen) {
+			return NULL;
+		if (c->_auto_reopen) {
 			c->_status = AClientComponent::Invalid;
 			c->_main_tick = cur_tick;
 			c->_main_abort = false;
-			return EndExit;
+			return NULL;
 		}
-		//_pop(c);
+		c->_entity->_pop(c);
 		break;
 
-	default: assert(0); return NotNeed;
+	default: assert(0); return NULL;
 	}
+
+	if (status == ASystem::Aborting) {
+		c->_self->addref();
+		c->use(1);
+		c->_abort_result.status = ASystem::Aborting;
+		return &c->_abort_result;
+	}
+
+	if (c->_status != AClientComponent::Closed)
+		c->_self->addref();
 	c->use(1);
-	return Executable;
+	c->_run_result.status= ASystem::Runnable;
+	return &c->_run_result;
 }
 
-int AClientSystem::_exec_one(AClientComponent *c, int result)
+static int AClientSystem_exec_run(AEntity *e, ASystem::Result *r, int result)
 {
+	AClientComponent *c = container_of(r, AClientComponent, _run_result);
 	if (result == 0)
 		result = 1;
 
@@ -185,8 +112,7 @@ int AClientSystem::_exec_one(AClientComponent *c, int result)
 				c->_check_heart = AClientComponent::HeartChecking;
 			} else {
 				c->_check_heart = AClientComponent::HeartNone;
-				c->use(-1);
-				return 1;
+				break;
 			}
 		}
 
@@ -204,11 +130,10 @@ int AClientSystem::_exec_one(AClientComponent *c, int result)
 			assert(c->_check_heart == AClientComponent::HeartCheckDone);
 			c->_check_heart = AClientComponent::HeartNone;
 		} else {
-			c->abort(c);
+			if (c->abort) c->abort(c);
 			c->_status = AClientComponent::Closing;
 		}
-		c->use(-1);
-		return result;
+		break;
 
 	case AClientComponent::Closing:
 		c->_status = AClientComponent::Closed;
@@ -217,29 +142,31 @@ int AClientSystem::_exec_one(AClientComponent *c, int result)
 			return 0;
 
 	case AClientComponent::Closed:
-		c->use(-1);
-		return result;
+		break;
 
 	default: assert(0); return result;
 	}
+
+	c->use(-1);
+	c->_self->release();
+	return result;
 }
 
-static int AClientSystemCreate(AObject **object, AObject *parent, AOption *option)
+static int AClientSystem_exec_abort(AEntity *e, ASystem::Result *r)
 {
-	AClientSystem *cs = (AClientSystem*)(AEntity*)(AEntity2*)*object;
-	cs->init(*object);
-	cs->_exec_thread = NULL;
-	cs->exec_check = &ExecCheck<AClientSystem, AClientComponent, -1>;
-	return 1;
+	AClientComponent *c = container_of(r, AClientComponent, _abort_result);
+	int result = c->abort(c);
+	c->use(-1);
+	c->_self->release();
+	return result;
 }
 
-AModule AClientSystemModule = {
+ASystem AClientSystem = { {
 	"ASystem",
-	"AClientSystem",
-	sizeof(AClientSystem),
-	NULL, NULL,
-	&AClientSystemCreate,
-	NULL,
+	"AClientSystem", },
+	&AClientSystem_exec_check,
+	&AClientSystem_exec_run,
+	&AClientSystem_exec_abort,
 };
 
-static auto_reg_t<AClientSystemModule> auto_reg;
+static auto_reg_t reg(AClientSystem.module);

@@ -413,6 +413,10 @@ static inline void list_splice_tail_init(struct list_head *list,
 	for (pos = (head)->next; prefetch(pos->next), pos != (head); \
         	pos = pos->next)
 
+#define list_for_each2(pos, head, type, member)			\
+	for (type *pos = list_first_entry(head, type, member);	\
+	     &pos->member != (head);				\
+	     pos = list_entry((pos)->member.next, type, member))
 /**
  * __list_for_each	-	iterate over a list
  * @pos:	the &struct list_head to use as a loop cursor.

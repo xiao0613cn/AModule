@@ -3,15 +3,13 @@
 #include "AModule_io.h"
 
 
-struct FileObject {
-	AObject object;
+struct FileObject : public IOObject {
 	FILE   *fp;
 };
-#define to_file(obj)  container_of(obj, FileObject, object)
 
 static void FileRelease(AObject *object)
 {
-	FileObject *fo = to_file(object);
+	FileObject *fo = (FileObject*)object;
 	release_s(fo->fp, fclose, NULL);
 }
 
@@ -24,7 +22,7 @@ static int FileCreate(AObject **object, AObject *parent, AOption *option)
 
 static int FileOpen(AObject *object, AMessage *msg)
 {
-	FileObject *fo = to_file(object);
+	FileObject *fo = (FileObject*)object;
 	if ((msg->type != AMsgType_Option)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
@@ -45,7 +43,7 @@ static int FileOpen(AObject *object, AMessage *msg)
 
 static int FileRequest(AObject *object, int reqix, AMessage *msg)
 {
-	FileObject *fo = to_file(object);
+	FileObject *fo = (FileObject*)object;
 	int result = 0;
 
 	if (reqix == Aio_Input) {
@@ -77,7 +75,9 @@ static int FileRequest(AObject *object, int reqix, AMessage *msg)
 
 static int FileClose(AObject *object, AMessage *msg)
 {
-	FileObject *fo = to_file(object);
+	FileObject *fo = (FileObject*)object;
+	if (msg == NULL)
+		return -ENOSYS;
 	if (fo->fp == NULL)
 		return -ENOENT;
 
@@ -86,21 +86,20 @@ static int FileClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-AModule FileModule = {
+IOModule FileModule = { {
 	"io",
 	"file",
 	sizeof(FileObject),
 	NULL, NULL,
 	&FileCreate,
 	&FileRelease,
-	NULL,
-	2,
-
+	NULL, },
 	&FileOpen,
-	NULL, NULL,
+	&IOModule::OptNull,
+	&IOModule::OptNull,
 	&FileRequest,
-	NULL,
+	&IOModule::ReqNull,
 	&FileClose,
 };
 
-static auto_reg_t<FileModule> auto_reg;
+static auto_reg_t reg(FileModule.module);

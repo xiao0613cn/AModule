@@ -3,8 +3,7 @@
 
 
 typedef struct ARefsBuf ARefsBuf;
-struct ARefsBuf
-{
+struct ARefsBuf {
 	long    refs;
 	int     size;
 	void  (*free)(void*p);
@@ -15,22 +14,23 @@ struct ARefsBuf
 
 #ifdef __cplusplus
 	long  addref() { return InterlockedAdd(&refs, 1); }
-	long  release2() {
+	long  release() {
 		long result = InterlockedAdd(&refs, -1);
 		if (result <= 0)
 			(this->free)(this);
 		return result;
 	}
 	void  reset() { bgn = end = 0; }
+	int   caps() { return (size - bgn); }
+
 	int   len() { return (end - bgn); }
 	char* ptr() { return (data + bgn); }
+	void  pop(int len) { bgn += len; }
 
-	int   caps() { return (size - bgn); }
 	int   left() { return (size - end); }
 	char* next() { return (data + end); }
-
-	void  pop(int len) { bgn += len; }
 	void  push(int len) { end += len; }
+
 	void  mempush(const void *p, int n) { memcpy(next(), p, n); push(n); }
 	int   strpush(const char *str) {
 		int len = 0;
@@ -39,12 +39,8 @@ struct ARefsBuf
 		}
 		return len;
 	}
-};
-
-defer2(IRefsBuf, ARefsBuf*, if(_value)_value->release2());
-#else
-};
 #endif
+};
 
 static inline ARefsBuf*
 ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
@@ -65,14 +61,12 @@ ARefsBufCreate(int size, void*(*alloc_func)(size_t), void(*free_func)(void*))
 }
 
 static inline long
-ARefsBufAddRef(ARefsBuf *buf)
-{
+ARefsBufAddRef(ARefsBuf *buf) {
 	return InterlockedAdd(&buf->refs, 1);
 }
 
 static inline long
-ARefsBufRelease(ARefsBuf *buf)
-{
+ARefsBufRelease(ARefsBuf *buf) {
 	long result = InterlockedAdd(&buf->refs, -1);
 	if (result <= 0)
 		(buf->free)(buf);
@@ -146,7 +140,7 @@ struct ASlice {
 		return slice;
 	}
 	long  addref() { return InterlockedAdd(&refs, 1); }
-	long  release2() {
+	long  release() {
 		long result = InterlockedAdd(&refs, -1);
 		if (result <= 0) (this->free)(this);
 		return result;

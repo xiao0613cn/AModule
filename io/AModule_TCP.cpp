@@ -3,15 +3,13 @@
 #include "AModule_io.h"
 
 
-struct TCPObject {
-	AObject object;
+struct TCPObject : public IOObject {
 	SOCKET  sock;
 };
-#define to_tcp(obj) container_of(obj, TCPObject, object);
 
 static void TCPRelease(AObject *object)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	release_s(tcp->sock, closesocket, INVALID_SOCKET);
 }
 
@@ -24,7 +22,7 @@ static int TCPCreate(AObject **object, AObject *parent, AOption *option)
 
 static int TCPOpen(AObject *object, AMessage *msg)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	if (msg->type == AMsgType_Handle) {
 		if (msg->size != 0)
 			return -EINVAL;
@@ -94,7 +92,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 
 static int TCPSetOption(AObject *object, AOption *option)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	if (strcasecmp(option->name, "socket") == 0) {
 		release_s(tcp->sock, closesocket, INVALID_SOCKET);
 		tcp->sock = (SOCKET)(long)option->extend;
@@ -105,7 +103,7 @@ static int TCPSetOption(AObject *object, AOption *option)
 
 static int TCPRequest(AObject *object, int reqix, AMessage *msg)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	int result;
 
 	assert(msg->size != 0);
@@ -139,7 +137,7 @@ static int TCPRequest(AObject *object, int reqix, AMessage *msg)
 
 static int TcpCancel(AObject *object, int reqix, AMessage *msg)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
@@ -156,7 +154,7 @@ static int TcpCancel(AObject *object, int reqix, AMessage *msg)
 
 static int TCPClose(AObject *object, AMessage *msg)
 {
-	TCPObject *tcp = to_tcp(object);
+	TCPObject *tcp = (TCPObject*)object;
 	if (tcp->sock == INVALID_SOCKET)
 		return -ENOENT;
 
@@ -179,24 +177,19 @@ static int TCPInit(AOption *global_option, AOption *module_option, BOOL first)
 	return 1;
 }
 
-AModule TCPModule = {
+IOModule TCPModule = { {
 	"io",
 	"tcp",
 	sizeof(TCPObject),
 	&TCPInit, NULL,
 	&TCPCreate,
-	&TCPRelease,
-	NULL,
-	2,
-
+	&TCPRelease, },
 	&TCPOpen,
 	&TCPSetOption,
-	NULL,
+	&IOModule::OptNull,
 	&TCPRequest,
 	&TcpCancel,
 	&TCPClose,
 };
 
-static auto_reg_t<TCPModule> auto_reg;
-
-//////////////////////////////////////////////////////////////////////////
+static auto_reg_t reg(TCPModule.module);

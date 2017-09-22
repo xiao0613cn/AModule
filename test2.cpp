@@ -38,7 +38,7 @@ int main()
 		defer(int*, delete _value) ac(new int);
 		//defer(AEntity*, {
 		//	if (_value != NULL)
-		//		_value->_self->release2();
+		//		_value->_self->release();
 		//}) ac2(NULL);
 
 		*ac = 5;

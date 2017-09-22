@@ -252,7 +252,7 @@ static void on_http_timeout(struct list_head *conn)
 	HttpClient *p = ctx->p();
 	ctx->active = 0;
 	p->io->close(NULL);
-	p->object.release2();
+	p->object.release();
 }
 
 static int HttpProxyOpen(AObject *object, AMessage *msg)

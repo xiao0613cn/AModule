@@ -22,7 +22,7 @@ struct AsyncOvlp : public AOperator {
 #endif
 };
 
-struct AsyncTcp : public AObject {
+struct AsyncTcp : public IOObject {
 	SOCKET    sock;
 	AsyncOvlp send_ovlp;
 	AsyncOvlp recv_ovlp;
@@ -176,7 +176,7 @@ static int AsyncTcpCloseDone(AOperator *asop, int result)
 
 	int unbind = AThreadUnbind(&tcp->send_ovlp);
 	if (unbind >= 0)
-		tcp->release2();
+		tcp->release();
 
 	TRACE2("tcp(%d): close done, unbind = %d, send(%d-%d), recv(%d-%d).\n",
 		tcp->sock, unbind,
@@ -205,7 +205,7 @@ static void AsyncOvlpError(AsyncTcp *tcp, int events)
 		result = tcp->send_ovlp.from->done2(-EIO);
 
 	if (unbind >= 0)
-		tcp->release2();
+		tcp->release();
 	else
 		assert(0);
 }
@@ -293,7 +293,7 @@ static int AsyncTcpBind(AsyncTcp *tcp, AMessage *msg)
 	tcp->addref();
 	int result = AThreadBind(NULL, &tcp->send_ovlp, EPOLLIN|EPOLLOUT|EPOLLET|EPOLLHUP|EPOLLERR);
 	if (result < 0) {
-		tcp->release2();
+		tcp->release();
 		result = -EIO;
 	}
 #endif
@@ -472,22 +472,19 @@ static int AsyncTcpInit(AOption *global_option, AOption *module_option, BOOL fir
 	return 1;
 }
 
-AModule AsyncTcpModule = {
+IOModule AsyncTcpModule = { {
 	"io",
 	"async_tcp",
 	sizeof(AsyncTcp),
 	&AsyncTcpInit, NULL,
 	&AsyncTcpCreate,
-	&AsyncTcpRelease,
-	NULL,
-	2,
-
+	&AsyncTcpRelease, },
 	&AsyncTcpOpen,
-	NULL,
-	NULL,
+	&IOModule::OptNull,
+	&IOModule::OptNull,
 	&AsyncTcpRequest,
 	&AsyncTcpCancel,
 	&AsyncTcpClose,
 };
 
-static auto_reg_t<AsyncTcpModule> auto_reg;
+static auto_reg_t reg(AsyncTcpModule.module);
