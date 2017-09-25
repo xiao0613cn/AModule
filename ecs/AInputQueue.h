@@ -9,13 +9,22 @@ typedef struct AInputQueueComponent AInputQueueComponent;
 struct AInputQueueComponent : public AComponent {
 	static const char* name() { return "AInputQueueComponent"; }
 
-	void  (*on_empty)(AInputQueueComponent *c);
+	bool    _abort;
 	struct list_head _queue;
 	pthread_mutex_t *_mutex;
+	void  (*on_empty)(AInputQueueComponent *c);
+	void  (*on_error)(AInputQueueComponent *c, AMessage *msg, int result);
+
 	AMessage  _msg;
 	IOObject *_io;
-	bool      _abort;
+	void  (*do_input)(AInputQueueComponent *c, AMessage *msg); // => _input()
 
+	void init(AObject *o) {
+		AComponent::init(o, name());
+		_abort = false; _queue.init(); //_mutex,
+		on_empty = NULL; on_error = NULL;
+		_io = NULL; do_input = &_do_input;
+	}
 	void post(AMessage *msg) {
 		if (_abort) {
 			msg->done2(-EINTR);
@@ -28,43 +37,47 @@ struct AInputQueueComponent : public AComponent {
 		pthread_mutex_unlock(_mutex);
 
 		if (first)
-			_input(msg);
+			do_input(this, msg);
 	}
-	void _input(AMessage *msg) {
-		assert(&msg->entry == _queue.next);
+	static void _do_input(AInputQueueComponent *c, AMessage *msg) {
+		assert(&msg->entry == c->_queue.next);
 
-		_msg.init(msg);
-		_msg.done = &MsgDone(AInputQueueComponent, _msg, _done);
+		c->_msg.init(msg);
+		c->_msg.done = _msg_done;
+		c->_self->addref();
 
-		_self->addref();
-		int result = _io->request(Aio_Input, &_msg);
+		int result = c->_io->input(&c->_msg);
 		if (result != 0)
-			_msg.done2(result);
+			c->_msg.done2(result);
 	}
-	int  _done(int result) {
+	static int _msg_done(AMessage *msg, int result) {
+		AInputQueueComponent *c = container_of(msg, AInputQueueComponent, _msg);
 		for (;;) {
 			AMessage *next = NULL;
 
-			pthread_mutex_lock(_mutex);
-			AMessage *msg = list_pop_front(&_queue, AMessage, entry);
-			if (!list_empty(&_queue))
-				next = list_first_entry(&_queue, AMessage, entry);
-			else if (on_empty != NULL)
-				on_empty(this);
-			pthread_mutex_unlock(_mutex);
+			pthread_mutex_lock(c->_mutex);
+			msg = list_pop_front(&c->_queue, AMessage, entry);
+			if (!list_empty(&c->_queue))
+				next = list_first_entry(&c->_queue, AMessage, entry);
+			else if (c->on_empty != NULL)
+				c->on_empty(c);
+			pthread_mutex_unlock(c->_mutex);
 
+			if ((result < 0) && (c->on_error != NULL))
+				c->on_error(c, msg, result);
 			msg->done2(result);
+
 			if (next == NULL) {
-				_self->release();
+				c->_self->release();
 				return result;
 			}
-			if (_abort) {
+			if (c->_abort) {
 				result = -EINTR;
 				continue;
 			}
 
-			_msg.init(next);
-			result = _io->request(Aio_Input, &_msg);
+			c->_msg.init(next);
+			result = c->_io->input(&c->_msg);
 			if (result == 0)
 				return 0;
 		}

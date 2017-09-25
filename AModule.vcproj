@@ -357,39 +357,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\proxy\AModule_HttpProxy.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_HttpSession.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_m3u8.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\AModule_PVDNetCmd.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_PVDProxy.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\AModule_PVDRTStream.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\rtmp\AModule_rtmp.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_Session.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\SyncControl\AModule_Stream.cpp"
 				>
 			</File>
 			<File
@@ -398,10 +366,6 @@
 			</File>
 			<File
 				RelativePath=".\proxy\AModule_TcpProxy.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_UpDownProxy.cpp"
 				>
 			</File>
 			<File
@@ -515,10 +479,6 @@
 			</File>
 			<File
 				RelativePath=".\media\libPSutil.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\md5.cpp"
 				>
 			</File>
 			<File
@@ -704,10 +664,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\proxy\AModule_HttpSession.h"
-				>
-			</File>
-			<File
 				RelativePath=".\io\AModule_io.h"
 				>
 			</File>
@@ -721,10 +677,6 @@
 			</File>
 			<File
 				RelativePath=".\rtmp\AModule_rtmpconn.h"
-				>
-			</File>
-			<File
-				RelativePath=".\proxy\AModule_Session.h"
 				>
 			</File>
 			<File
@@ -764,11 +716,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
@@ -888,10 +840,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\HBStreamHeaderV30.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\hmac.h"
 				>
 			</File>
@@ -908,11 +856,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
@@ -920,11 +868,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -964,10 +912,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\md5.h"
-				>
-			</File>
-			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
@@ -989,22 +933,6 @@
 			</File>
 			<File
 				RelativePath=".\iot\mqttconst.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\mshead.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\NetCmdDef.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\NetCmdIntelligentStruct.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PVDClient\NetCmdStruct.h"
 				>
 			</File>
 			<File
@@ -1036,10 +964,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\PVDClient\PvdNetCmd.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\random_seed.h"
 				>
 			</File>
@@ -1068,11 +992,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File

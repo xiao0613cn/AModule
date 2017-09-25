@@ -52,7 +52,7 @@ struct AObject {
 		return AObjectCreate((AObject**)&p, parent, option, default_module);
 	}
 	template <typename object_t>
-	static object_t* create2(object_t **p, AObject *parent, AOption *option, AModule *module) {
+	static int create2(object_t **p, AObject *parent, AOption *option, AModule *module) {
 		return AObjectCreate2((AObject**)&p, parent, option, module);
 	}
 #endif

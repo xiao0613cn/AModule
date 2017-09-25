@@ -4,12 +4,8 @@
 #include "AClientSystem.h"
 
 
-static ASystem::Result* AClientSystem_exec_check(AEntity *e, DWORD cur_tick)
+static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 {
-	AClientComponent *c = e->_get<AClientComponent>();
-	if (c == NULL)
-		return NULL; //NotNeed;
-
 	int diff = int(cur_tick - c->_main_tick);
 	if (diff < 0)
 		diff = 0;
@@ -68,6 +64,8 @@ static ASystem::Result* AClientSystem_exec_check(AEntity *e, DWORD cur_tick)
 			return NULL;
 		}
 		c->_entity->_pop(c);
+		if (!c->_sys_node.empty())
+			c->_sys_node.leave();
 		break;
 
 	default: assert(0); return NULL;
@@ -87,7 +85,15 @@ static ASystem::Result* AClientSystem_exec_check(AEntity *e, DWORD cur_tick)
 	return &c->_run_result;
 }
 
-static int AClientSystem_exec_run(AEntity *e, ASystem::Result *r, int result)
+static ASystem::Result* exec_check(AEntity *e, DWORD cur_tick)
+{
+	AClientComponent *c = e->_get<AClientComponent>();
+	if (c == NULL)
+		return NULL; //NotNeed;
+	return check_one(c, cur_tick);
+}
+
+static int exec_run(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
 	if (result == 0)
@@ -152,7 +158,7 @@ static int AClientSystem_exec_run(AEntity *e, ASystem::Result *r, int result)
 	return result;
 }
 
-static int AClientSystem_exec_abort(AEntity *e, ASystem::Result *r)
+static int exec_abort(ASystem::Result *r)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _abort_result);
 	int result = c->abort(c);
@@ -161,12 +167,46 @@ static int AClientSystem_exec_abort(AEntity *e, ASystem::Result *r)
 	return result;
 }
 
+//////////////////////////////////////////////////////////////////////////
+static LIST_HEAD(g_com_list);
+
+static int reg_entity(AEntity *e)
+{
+	AClientComponent *c = e->_get<AClientComponent>();
+	if (c == NULL)
+		return 0;
+	g_com_list.push_back(&c->_sys_node);
+	return 1;
+}
+
+static int unreg_entity(AEntity *e)
+{
+	AClientComponent *c = e->_get<AClientComponent>();
+	if ((c == NULL) || c->_sys_node.empty())
+		return 0;
+	c->_sys_node.leave();
+	return 1;
+}
+
+static int check_all(list_head *results, DWORD cur_tick)
+{
+	list_for_each2(c, &g_com_list, AClientComponent, _sys_node) {
+		ASystem::Result *r = check_one(c, cur_tick);
+		if (r != NULL)
+			results->push_back(&r->node);
+	}
+	return 0;
+}
+
 ASystem AClientSystem = { {
 	"ASystem",
 	"AClientSystem", },
-	&AClientSystem_exec_check,
-	&AClientSystem_exec_run,
-	&AClientSystem_exec_abort,
+	&reg_entity,
+	&unreg_entity,
+	&check_all,
+	&exec_check,
+	&exec_run,
+	&exec_abort,
 };
 
 static auto_reg_t reg(AClientSystem.module);

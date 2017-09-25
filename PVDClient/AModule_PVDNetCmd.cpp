@@ -9,7 +9,7 @@ typedef struct PVDNetCmd PVDNetCmd;
 
 struct PVDClient {
 	AObject     object;
-	AObject    *io;
+	IOObject    *io;
 	PVDStatus   status;
 	uint32_t    userid;
 	uint8_t        md5id;
@@ -44,7 +44,7 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 	pvd->outbuf = NULL;
 
 	AOption *io_opt = AOptionFind(option, "io");
-	AObjectCreate(&pvd->io, &pvd->object, io_opt, NULL);
+	AObject::create(&pvd->io, pvd, io_opt, NULL);
 	return 1;//result;
 }
 
@@ -118,7 +118,7 @@ static int PVDDoLogin(PVDClient *pvd, PVDStatus status)
 	login->dwNamelen = strlen(usr);
 	login->dwPWlen = PASSWD_LEN;
 
-	return ioInput(pvd->io, &pvd->outmsg);
+	return pvd->io->input(&pvd->outmsg);
 }
 
 int PVDOpenStatus(PVDClient *pvd, int result)
@@ -135,13 +135,13 @@ int PVDOpenStatus(PVDClient *pvd, int result)
 				result = -ENOMEM;
 			} else {
 				PVDInitInput(pvd, pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
-				result = ioInput(pvd->io, &pvd->outmsg);
+				result = pvd->io->input(&pvd->outmsg);
 			}
 			break;
 
 		case pvdnet_syn_md5id:
 			pvd->status = pvdnet_ack_md5id;
-			result = ioOutput(pvd->io, &pvd->outmsg, pvd->outbuf);
+			result = pvd->io->output(&pvd->outmsg, pvd->outbuf);
 			break;
 
 		case pvdnet_ack_md5id:
@@ -152,7 +152,7 @@ int PVDOpenStatus(PVDClient *pvd, int result)
 				break;
 
 			if (result == 0) {
-				result = ioOutput(pvd->io, &pvd->outmsg, pvd->outbuf);
+				result = pvd->io->output(&pvd->outmsg, pvd->outbuf);
 				break;
 			}
 
@@ -177,7 +177,7 @@ int PVDOpenStatus(PVDClient *pvd, int result)
 
 		case pvdnet_syn_login:
 			pvd->status = pvdnet_ack_login;
-			result = ioOutput(pvd->io, &pvd->outmsg, pvd->outbuf);
+			result = pvd->io->output(&pvd->outmsg, pvd->outbuf);
 			break;
 
 		case pvdnet_ack_login:
@@ -188,7 +188,7 @@ int PVDOpenStatus(PVDClient *pvd, int result)
 				break;
 
 			if (result == 0) {
-				result = ioOutput(pvd->io, &pvd->outmsg, pvd->outbuf);
+				result = pvd->io->output(&pvd->outmsg, pvd->outbuf);
 				break;
 			}
 
@@ -306,7 +306,7 @@ int PVDOutputStatus(PVDClient *pvd, int result)
 			break;
 		}
 
-		result = ioOutput(pvd->io, &pvd->outmsg, pvd->outbuf);
+		result = pvd->io->output(&pvd->outmsg, pvd->outbuf);
 	} while (result > 0);
 	return result;
 }

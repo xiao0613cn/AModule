@@ -2,9 +2,8 @@
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 
-struct EchoProxy {
-	AObject   object;
-	AObject  *client;
+struct EchoProxy : public IOObject {
+	IOObject  *client;
 };
 
 static int EchoCreate(AObject **object, AObject *parent, AOption *option)
@@ -35,7 +34,7 @@ static int EchoOpen(AObject *object, AMessage *msg)
 	 || (msg->size != 0))
 		return -EINVAL;
 
-	echo->client = (AObject*)msg->data;
+	echo->client = (IOObject*)msg->data;
 	echo->client->addref();
 	return 1;
 }
@@ -47,7 +46,7 @@ static int EchoRequest(AObject *object, int reqix, AMessage *msg)
 		return -ENOSYS;
 	if (msg->size == 0)
 		return -ENOSYS;
-	return echo->client->request(reqix, msg);
+	return (*echo->client)->request(echo->client, reqix, msg);
 }
 
 static int EchoCancel(AObject *object, int reqix, AMessage *msg)
@@ -56,7 +55,7 @@ static int EchoCancel(AObject *object, int reqix, AMessage *msg)
 	int result = 1;
 
 	if (echo->client != NULL)
-		result = echo->client->cancel(reqix, msg);
+		result = (*echo->client)->cancel(echo->client, reqix, msg);
 	return result;
 }
 
@@ -67,15 +66,14 @@ static int EchoClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-AModule EchoModule = {
+IOModule EchoModule = { {
 	"proxy",
 	"EchoProxy",
 	sizeof(AObject),
 	NULL, NULL,
 	&EchoCreate,
 	&EchoRelease,
-	&EchoProbe,
-	0,
+	&EchoProbe, },
 	&EchoOpen,
 	NULL, NULL,
 	&EchoRequest,
@@ -83,4 +81,4 @@ AModule EchoModule = {
 	&EchoClose,
 };
 
-static auto_reg_t<EchoModule> auto_reg;
+static auto_reg_t reg(EchoModule.module);

@@ -23,19 +23,20 @@ struct ASystem {
 		Status status;
 	};
 
-	Result* (*exec_check)(AEntity *e, DWORD cur_tick);
-	int    (*exec_run)(AEntity *e, Result *r, int result);
-	int    (*exec_abort)(AEntity *e, Result *r);
+	int    (*regist)(AEntity *e);
+	int    (*unregist)(AEntity *e);
+	int    (*check_all)(list_head *results, DWORD cur_tick);
+	Result* (*check_one)(AEntity *e, DWORD cur_tick);
+	int    (*exec_run)(Result *r, int result);
+	int    (*exec_abort)(Result *r);
 
 	ASystemManager *_manager;
 	AThread  *_exec_thread;
 
-#ifdef _AMODULE_H_
 	static ASystem* find(const char *name) {
 		AModule *m = AModuleFind("ASystem", name);
 		return m ? container_of(m, ASystem, module) : NULL;
 	}
-#endif
 };
 
 struct ASystemManager {
@@ -61,7 +62,7 @@ struct ASystemManager {
 		INIT_LIST_HEAD(&c.results);
 
 		list_for_each2(s, _system_list, ASystem, module.class_entry) {
-			ASystem::Result *r = s->exec_check(c.entity, cur_tick);
+			ASystem::Result *r = s->check_one(c.entity, cur_tick);
 			if (r != NULL) {
 				r->system = s;
 				list_add_tail(&r->node, &c.results);
@@ -69,7 +70,17 @@ struct ASystemManager {
 		}
 		return !list_empty(&c.results);
 	}
-	void exec_check(check_item *check_list, int max_count) {
+	void _exec_one(check_item &c) {
+		while (!list_empty(&c.results)) {
+			ASystem::Result *r = list_pop_front(&c.results, ASystem::Result, node);
+			switch (r->status)
+			{
+			case ASystem::Runnable: r->system->exec_run(r, 0); break;
+			case ASystem::Aborting: r->system->exec_abort(r); break;
+			}
+		}
+	}
+	void check_entity(check_item *check_list, int max_count) {
 		int check_count = 0;
 		DWORD cur_tick = GetTickCount();
 
@@ -89,15 +100,7 @@ struct ASystemManager {
 
 		while (check_count > 0) {
 			check_item &c = check_list[--check_count];
-
-			while (!list_empty(&c.results)) {
-				ASystem::Result *r = list_pop_front(&c.results, ASystem::Result, node);
-				switch (r->status)
-				{
-				case ASystem::Aborting: r->system->exec_abort(c.entity, r); break;
-				case ASystem::Runnable: r->system->exec_run(c.entity, r, 0); break;
-				}
-			}
+			_exec_one(c);
 			c.entity->_self->release();
 		}
 	}

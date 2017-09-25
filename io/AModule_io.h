@@ -45,7 +45,7 @@ ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown)
 #define httpMsgType_RawData       (AMsgType_Private|1)
 #define httpMsgType_RawBlock      (AMsgType_Private|2)
 
-
+//<<<<<<<<<< C style <<<<<<<<<
 struct IOModule {
 	AModule module;
 	int (*open)(AObject *object, AMessage *msg);
@@ -61,23 +61,38 @@ struct IOModule {
 };
 
 struct IOObject : public AObject {
+	static const char* name() { return "io"; }
 	IOModule* operator->() { return container_of(&_module, IOModule, module); }
 
 	int open(AMessage *msg)   { return (*this)->open(this, msg); }
 	int getopt(AOption *opt)  { return (*this)->getopt(this, opt); }
 	int setopt(AOption *opt)  { return (*this)->setopt(this, opt); }
-	int input(AMessage *msg)  { return (*this)->request(this, Aio_Input, msg); }
+	int request(int reqix, AMessage *msg) { return (*this)->request(this, reqix, msg); }
+	int cancel(int reqix, AMessage *msg) { return (*this)->cancel(this, reqix, msg); }
+	int close(AMessage *msg)  { return (*this)->close(this, msg); }
+
+	int input(AMessage *msg)  { return request(Aio_Input, msg); }
 	int input(AMessage *msg, ARefsBuf *buf, int type = ioMsgType_Block) {
 		msg->init(type, buf->ptr(), buf->len());
 		return input(msg);
 	}
-	int output(AMessage *msg) { return (*this)->request(this, Aio_Output, msg); }
+	int output(AMessage *msg) { return request(Aio_Output, msg); }
 	int output(AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown) {
 		msg->init(type, buf->next(), buf->left());
 		return output(msg);
 	}
 	int shutdown()            { return (*this)->close(this, NULL); }
-	int close(AMessage *msg)  { return (*this)->close(this, msg); }
 };
+//>>>>>>>>>> C Style >>>>>>>>>>
+//<<<<<<<<<< C++ Style <<<<<<<<<<
+struct IOObject2 : public AObject {
+	static const char* name() { return "io"; }
+
+	virtual int open(AMessage *msg) = NULL;
+	virtual int input(AMessage *msg) = NULL;
+	virtual int output(AMessage *msg) = NULL;
+	virtual int close(AMessage *msg) = NULL;
+};
+//>>>>>>>>>> C++ Style >>>>>>>>>>
 
 #endif

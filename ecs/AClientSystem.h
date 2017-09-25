@@ -39,6 +39,7 @@ struct AClientComponent : public AComponent {
 	long volatile _busy_count;
 	long  use(int count) { return InterlockedAdd(&_busy_count, count); }
 
+	list_head       _sys_node;
 	ASystem::Result _run_result;
 	ASystem::Result _abort_result;
 

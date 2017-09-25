@@ -21,7 +21,7 @@ static void HttpProxyClose(HttpClient *p)
 	}
 	ctx->active = 0;
 	release_s(ctx->proc_buf, ARefsBufRelease, NULL);
-	AObjectRelease(&p->object);
+	AObjectRelease(p);
 }
 
 static int HttpProxyDispatch(AMessage *msg, int result);
@@ -252,17 +252,17 @@ static void on_http_timeout(struct list_head *conn)
 	HttpClient *p = ctx->p();
 	ctx->active = 0;
 	p->io->close(NULL);
-	p->object.release();
+	p->release();
 }
 
 static int HttpProxyOpen(AObject *object, AMessage *msg)
 {
-	HttpClient *p = to_http(object);
+	HttpClient *p = (HttpClient*)object;
 	int result = HttpClientAppendOutput(p, msg);
 	if (result < 0)
 		return result;
 
-	AObjectAddRef(&p->object);
+	p->addref();
 	HttpCtxExt *ctx = (HttpCtxExt*)p->url;
 	ctx->active = GetTickCount();
 	ctx->session = NULL;
@@ -270,7 +270,7 @@ static int HttpProxyOpen(AObject *object, AMessage *msg)
 	ctx->recv_param_count = 0;
 
 	ctx->sm = &sm;
-	p->object.addref();
+	p->addref();
 	sm.push(&ctx->sm_conn_entry);
 
 	p->send_msg.init();
@@ -322,19 +322,18 @@ static int HttpProxyInit(AOption *global_option, AOption *module_option, BOOL fi
 	return 1;
 }
 
-AModule HTTPProxyModule = {
+IOModule HTTPProxyModule = { {
 	"proxy",
 	"HttpProxy",
 	sizeof(HttpClient),
 	&HttpProxyInit, NULL,
 	&HttpClientCreate,
 	&HttpClientRelease,
-	&HttpProxyProbe,
-	0,
+	&HttpProxyProbe, },
 	&HttpProxyOpen,
 	NULL, NULL,
 	NULL, NULL,
 	NULL,
 };
 
-static auto_reg_t<HTTPProxyModule> auto_reg;
+static auto_reg_t reg(HTTPProxyModule.module);

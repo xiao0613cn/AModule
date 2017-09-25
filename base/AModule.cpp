@@ -185,8 +185,7 @@ AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *de
 		class_name = option->name;
 		module_name = option->value;
 	} else {
-		class_name = option->name;
-		module_name = default_module;
+		module_name = default_module ? default_module : option->name;
 	}
 	if ((class_name == NULL) && (module_name == NULL))
 		return -EINVAL;

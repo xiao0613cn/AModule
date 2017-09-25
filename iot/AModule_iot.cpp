@@ -15,7 +15,7 @@ void mqtt_packet_done(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFF
 
 void* send_mqtt(void *p)
 {
-	AObject *tcp = (AObject*)p;
+	IOObject *tcp = (IOObject*)p;
 	AMessage msg;
 
 	SUBSCRIBE_PAYLOAD subList = {
@@ -25,7 +25,7 @@ void* send_mqtt(void *p)
 	BUFFER_HANDLE sub = mqtt_codec_subscribe(10, &subList, 1, NULL);
 
 	msg.init(ioMsgType_Block, sub->buffer, sub->size);
-	ioInput(tcp, &msg);
+	tcp->input(&msg);
 	BUFFER_delete(sub);
 
 	BUFFER_HANDLE heart = mqtt_codec_ping();
@@ -33,7 +33,7 @@ void* send_mqtt(void *p)
 		::Sleep(10*1000);
 
 		msg.init(ioMsgType_Block, heart->buffer, heart->size);
-		int ret = ioInput(tcp, &msg);
+		int ret = tcp->input(&msg);
 		if (ret < 0)
 			break;
 	}
@@ -43,8 +43,8 @@ void* send_mqtt(void *p)
 
 int test_mqtt()
 {
-	AObject *tcp = NULL;
-	int ret = AObjectCreate(&tcp, NULL, NULL, "tcp");
+	IOObject *tcp = NULL;
+	int ret = AObject::create(&tcp, NULL, NULL, "tcp");
 	if (ret < 0)
 		return ret;
 
@@ -75,7 +75,7 @@ int test_mqtt()
 		BUFFER_HANDLE buf = mqtt_codec_connect(&client, NULL);
 
 		msg.init(ioMsgType_Block, buf->buffer, buf->size);
-		ret = ioInput(tcp, &msg);
+		ret = tcp->input(&msg);
 		BUFFER_delete(buf);
 	}
 
@@ -86,8 +86,7 @@ int test_mqtt()
 	MQTTCODEC_HANDLE mqtt = mqtt_codec_create(&mqtt_packet_done, NULL);
 
 	while (ret > 0) {
-		msg.init(0, buf->next(), buf->left());
-		ret = ioOutput(tcp, &msg);
+		ret = tcp->output(&msg, buf);
 		if (ret > 0) {
 			mqtt_codec_bytesReceived(mqtt, (const uint8_t*)msg.data, msg.size);
 		}

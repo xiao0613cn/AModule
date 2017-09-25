@@ -27,23 +27,11 @@ int main()
 	//e._append(new AComponent(NULL));
 	//e._append(new AComponent(NULL));
 	{
-		defer(int*, delete [] _value) ac(new int[5]);
+		defer2(int*, p, delete [] p)(new int[5]);
 
 		for (int ix = 0; ix < 5; ++ix) {
-			ac._value[ix] = ix;
-			//ac->[5] = 1;
+			p[ix] = ix;
 		}
-	}
-	{
-		defer(int*, delete _value) ac(new int);
-		//defer(AEntity*, {
-		//	if (_value != NULL)
-		//		_value->_self->release();
-		//}) ac2(NULL);
-
-		*ac = 5;
-		//ac2 = &e;
-		//ac2->_self->addref();
 	}
 
 	null_lock_helper l;
@@ -64,7 +52,7 @@ int main()
 	evm._subscribe(&r);
 	evm._emit(&ev);
 
-	ASystem *s = ASystem::create("AClientSystem");
+	ASystem *s = ASystem::find("AClientSystem");
 
 
 	_CrtDumpMemoryLeaks();

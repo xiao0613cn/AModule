@@ -1,8 +1,9 @@
 #ifndef _AMODULE_HTTPCLIENT_H_
 #define _AMODULE_HTTPCLIENT_H_
 
-#include "http_parser.h"
+#include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
+#include "http_parser.h"
 
 enum status {
 	s_invalid = 0,

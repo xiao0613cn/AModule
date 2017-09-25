@@ -47,8 +47,8 @@ struct TCPClient {
 	TCPServer *server;
 	TCPStatus  status;
 	SOCKET     sock;
-	AObject   *client;
-	AObject   *proxy;
+	IOObject  *client;
+	IOObject  *proxy;
 	int        probe_type;
 	int        probe_size;
 	AMessage   inmsg;
@@ -101,7 +101,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		switch (client->status)
 		{
 		case tcp_accept:
-			result = AObjectCreate2(&client->client, NULL, NULL, server->io_module);
+			result = AObject::create2(&client->client, NULL, NULL, server->io_module);
 			if (result < 0)
 				break;
 
@@ -118,29 +118,30 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				break;
 			}
 
-			result = ioOutput(client->client, &client->inmsg, client->indata, sizeof(client->indata)-1);
+			client->inmsg.init(0, client->indata, sizeof(client->indata)-1);
+			result = client->client->output(&client->inmsg);
 			break;
 
 		case tcp_recv_probe:
 			client->probe_type = client->inmsg.type;
 			client->probe_size += client->inmsg.size;
 			client->indata[client->probe_size] = '\0';
-			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			client->inmsg.init(client->probe_type, client->indata, client->probe_size);
 
 			AModule *module;
 			module = AModuleProbe("proxy", client->client, &client->inmsg);
 			if ((module == NULL) && (client->inmsg.size < 8))
 			{
 				TRACE("retry probe: %s\n", client->indata);
-				result = ioOutput(client->client, &client->inmsg,
-					client->indata+client->probe_size,
+				client->inmsg.init(0, client->indata+client->probe_size,
 					sizeof(client->indata)-1-client->probe_size);
+				result = client->client->output(&client->inmsg);
 				break;
 			}
 
 			AOption *proxy_opt;
 			if (module != NULL)
-				proxy_opt = AOptionFind(server->option, module->module_name);
+				proxy_opt = server->option->find(module->module_name);
 			else
 				proxy_opt = NULL;
 			if ((module == NULL) || (proxy_opt != NULL && strcasecmp(proxy_opt->value, "bridge") == 0))
@@ -150,14 +151,14 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				if (proxy_opt == NULL) {
 					result = -EFAULT;
 				} else {
-					result = AObjectCreate2(&client->proxy, client->client, proxy_opt, server->io_module);
+					result = AObject::create2(&client->proxy, client->client, proxy_opt, server->io_module);
 				}
 				client->inmsg.init(proxy_opt);
 				client->status = tcp_bridge_open;
 			}
 			else
 			{
-				result = AObjectCreate2(&client->proxy, client->client, proxy_opt, module);
+				result = AObject::create2(&client->proxy, client->client, proxy_opt, module);
 				//AMsgInit(&client->inmsg, AMsgType_Object, client->client, 0);
 				client->status = tcp_proxy_input; //tcp_proxy_open;
 			}
@@ -174,7 +175,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 				result = -EINTR;
 			} else {
 				client->status = tcp_proxy_input;
-				result = ioInput(client->proxy, &client->inmsg);
+				result = client->proxy->input(&client->inmsg);
 			}
 			break;
 
@@ -186,14 +187,14 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 					return 0;
 				}
 			}
-			result = ioInput(client->proxy, &client->inmsg);
+			result = client->proxy->input(&client->inmsg);
 			if (result < 0) {
-				AMsgInit(&client->inmsg, AMsgType_Unknown, client->indata, sizeof(client->indata)-1);
+				client->inmsg.init(0, client->indata, sizeof(client->indata)-1);
 				result = 1;
 			}
 			if (result > 0) {
 				client->status = tcp_client_output;
-				result = ioOutput(client->client, &client->inmsg);
+				result = client->client->output(&client->inmsg);
 			}
 			break;
 
@@ -206,28 +207,29 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			}
 
 			bridge->status = tcp_bridge_input;
-			bridge->client = client->proxy; AObjectAddRef(client->proxy);
-			bridge->proxy = client->client; AObjectAddRef(client->client);
+			bridge->client = client->proxy; client->proxy->addref();
+			bridge->proxy = client->client; client->client->addref();
 			bridge->sysop.post(NULL);
 
-			AMsgInit(&client->inmsg, client->probe_type, client->indata, client->probe_size);
+			client->inmsg.init(ioMsgType_Block, client->indata, client->probe_size);
+#ifdef _DEBUG
 			msg->data[msg->size] = '\0';
-			//OutputDebugStringA(msg->data);
+			OutputDebugStringA(msg->data);
 			fputs(msg->data, stdout);
-
+#endif
 		case tcp_bridge_output:
 			if (server->sock == INVALID_SOCKET) {
 				result = -EINTR;
 			} else {
-				client->inmsg.type = ioMsgType_Block;
 				client->status = tcp_bridge_input;
-				result = ioInput(client->proxy, &client->inmsg);
+				result = client->proxy->input(&client->inmsg);
 			}
 			break;
 
 		case tcp_bridge_input:
 			client->status = tcp_bridge_output;
-			result = ioOutput(client->client, &client->inmsg, client->indata, sizeof(client->indata)-1);
+			client->inmsg.init(0, client->indata, sizeof(client->indata)-1);
+			result = client->client->output(&client->inmsg);
 			break;
 
 		default:
@@ -456,15 +458,14 @@ static int TCPServerClose(AObject *object, AMessage *msg)
 	return 1;
 }
 
-AModule TCPServerModule = {
+IOModule TCPServerModule = { {
 	"server",
 	"tcp_server",
 	sizeof(TCPServer),
 	NULL, NULL,
 	&TCPServerCreate,
 	&TCPServerRelease,
-	NULL,
-	0,
+	NULL, },
 
 	&TCPServerOpen,
 	NULL,
@@ -474,4 +475,4 @@ AModule TCPServerModule = {
 	&TCPServerClose,
 };
 
-static auto_reg_t<TCPServerModule> auto_reg;
+static auto_reg_t reg(TCPServerModule.module);

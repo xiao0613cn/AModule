@@ -379,7 +379,7 @@ AOptionLoad(AOption **option, const char *path)
 	if (fp == NULL)
 		return -ENOENT;
 
-	defer(FILE*, fclose(_value)) ac(fp);
+	defer(FILE*, fp, fclose(fp));
 	fseek(fp, 0, SEEK_END);
 
 	long len = ftell(fp);
@@ -416,10 +416,11 @@ static int write_buf(void *p, const char *str, int len)
 AMODULE_API int
 AOptionSave(const AOption *option, const char *path)
 {
-	IRefsBuf buf(NULL);
+	ARefsBuf *buf = NULL;
 	int result = ARefsBufCheck(buf, 512, 0, NULL, NULL);
 	if (result < 0)
 		return result;
+	defer(ARefsBuf*, buf, buf->release());
 
 	result = AOptionEncode(option, &buf, write_buf);
 	if (result < 0)
