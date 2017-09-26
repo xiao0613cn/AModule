@@ -21,12 +21,12 @@ struct AClientComponent : public AComponent {
 	};
 
 	// option
-	int     _tick_reopen;  // 30*1000
-	int     _tick_heart;   // 10*1000
-	int     _tick_abort;   // 20*1000
-	bool    _owner_thread; // false
-	bool    _open_heart;   // true
-	bool    _auto_reopen;  // true
+	int     _tick_reopen;
+	int     _tick_heart;
+	int     _tick_abort;
+	bool    _owner_thread;
+	bool    _open_heart;
+	bool    _auto_reopen;
 
 	// data
 	enum Status   _status;
@@ -47,6 +47,15 @@ struct AClientComponent : public AComponent {
 	int (*heart)(AClientComponent *c);
 	int (*abort)(AClientComponent *c);
 	int (*close)(AClientComponent *c);
+
+	void init(AObject *o) {
+		AComponent::init(o, name());
+		_tick_reopen = 30*1000; _tick_heart = 10*1000; _tick_abort = 20*1000;
+		_owner_thread = false;  _open_heart = true;    _auto_reopen = true;
+		_status = Invalid;      _main_tick = 0;        _main_abort = false;
+		_last_opened = false; _check_heart = HeartNone; _busy_count = 0;
+		_sys_node.init();
+	}
 };
 
 

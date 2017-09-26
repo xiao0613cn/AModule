@@ -194,12 +194,6 @@ struct AComponent2 : public AObject, public AComponent {
 
 struct AEntity2 : public AObject, public AEntity {
 	void  init() { AEntity::init(this); }
-
-	static AEntity2* create(const char *name, AObject *parent = NULL, AOption *option = NULL) {
-		AEntity2 *e = NULL;
-		AObjectCreate((AObject**)&e, parent, option, name);
-		return e;
-	}
 };
 
 struct AEntityManager2 : public AEntityManager {

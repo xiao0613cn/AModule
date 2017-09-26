@@ -9,7 +9,7 @@ typedef struct AInputQueueComponent AInputQueueComponent;
 struct AInputQueueComponent : public AComponent {
 	static const char* name() { return "AInputQueueComponent"; }
 
-	bool    _abort;
+	bool volatile    _abort;
 	struct list_head _queue;
 	pthread_mutex_t *_mutex;
 	void  (*on_empty)(AInputQueueComponent *c);
@@ -17,30 +17,31 @@ struct AInputQueueComponent : public AComponent {
 
 	AMessage  _msg;
 	IOObject *_io;
-	void  (*do_input)(AInputQueueComponent *c, AMessage *msg); // => _input()
+	void  (*do_post)(AInputQueueComponent *c, AMessage *msg); // => _do_post()
 
 	void init(AObject *o) {
 		AComponent::init(o, name());
-		_abort = false; _queue.init(); //_mutex,
+		_abort = true; _queue.init(); //_mutex,
+
 		on_empty = NULL; on_error = NULL;
-		_io = NULL; do_input = &_do_input;
+		_io = NULL; do_post = &_do_post;
 	}
+
 	void post(AMessage *msg) {
-		if (_abort) {
+		do_post(this, msg);
+	}
+	static void _do_post(AInputQueueComponent *c, AMessage *msg) {
+		if (c->_abort) {
 			msg->done2(-EINTR);
 			return;
 		}
 
-		pthread_mutex_lock(_mutex);
-		bool first = list_empty(&_queue);
-		list_add_tail(&msg->entry, &_queue);
-		pthread_mutex_unlock(_mutex);
-
-		if (first)
-			do_input(this, msg);
-	}
-	static void _do_input(AInputQueueComponent *c, AMessage *msg) {
-		assert(&msg->entry == c->_queue.next);
+		pthread_mutex_lock(c->_mutex);
+		bool first = list_empty(&c->_queue);
+		list_add_tail(&msg->entry, &c->_queue);
+		pthread_mutex_unlock(c->_mutex);
+		if (!first)
+			return;
 
 		c->_msg.init(msg);
 		c->_msg.done = _msg_done;
@@ -48,7 +49,7 @@ struct AInputQueueComponent : public AComponent {
 
 		int result = c->_io->input(&c->_msg);
 		if (result != 0)
-			c->_msg.done2(result);
+			_msg_done(&_msg, result);
 	}
 	static int _msg_done(AMessage *msg, int result) {
 		AInputQueueComponent *c = container_of(msg, AInputQueueComponent, _msg);
