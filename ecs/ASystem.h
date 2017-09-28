@@ -4,9 +4,9 @@
 #include "../base/AModule_API.h"
 #include "AEntity.h"
 
-
 typedef struct ASystem ASystem;
 typedef struct ASystemManager ASystemManager;
+typedef struct AEventManager AEventManager;
 
 struct ASystem {
 	AModule module;
@@ -20,28 +20,37 @@ struct ASystem {
 	};
 	struct Result {
 		list_head node;
-		ASystem *system;
 		Status status;
+		ASystem *system;
+		ASystemManager *manager;
 	};
 
 	int    (*regist)(AEntity *e);
 	int    (*unregist)(AEntity *e);
+
 	int    (*check_all)(list_head *results, DWORD cur_tick);
 	Result* (*check_one)(AEntity *e, DWORD cur_tick);
+
 	int    (*exec_run)(Result *r, int result);
 	int    (*exec_abort)(Result *r);
-
-	ASystemManager *_manager;
-	AThread  *_exec_thread;
 
 	static ASystem* find(const char *sys_name) {
 		AModule *m = AModuleFind(name(), sys_name);
 		return m ? container_of(m, ASystem, module) : NULL;
 	}
+	void _exec(Result *r) {
+		switch (r->status)
+		{
+		case Runnable: exec_run(r, 0); break;
+		case Aborting: exec_abort(r); break;
+		default: assert(0); break;
+		}
+	}
 };
 
 struct ASystemManager {
-	list_head       *_system_list; // AModuleFind("ASystem", NULL);
+	ASystem  *_systems;
+	AThread  *_exec_thread;
 
 	AEntityManager  *_entity_manager;
 	pthread_mutex_t *_entity_mutex;
@@ -49,53 +58,54 @@ struct ASystemManager {
 	void entity_lock() { _entity_mutex ? pthread_mutex_lock(_entity_mutex) : 0; }
 	void entity_unlock() { _entity_mutex ? pthread_mutex_unlock(_entity_mutex) : 0; }
 
-	struct AEventManager *_event_manager;
+	AEventManager *_event_manager;
 	pthread_mutex_t *_event_mutex;
-	void event_lock() { pthread_mutex_lock(_event_mutex); }
-	void event_unlock() { pthread_mutex_unlock(_event_mutex); }
+	void event_lock() { _event_mutex ? pthread_mutex_lock(_event_mutex) : 0; }
+	void event_unlock() { _event_mutex ? pthread_mutex_unlock(_event_mutex) : 0; }
 
 	void init() {
-		ASystem *sys = ASystem::find(NULL);
-		_system_list  = sys ? &sys->module.class_entry : NULL;
+		_systems = ASystem::find(NULL);
+		_exec_thread = NULL;
 		_entity_mutex = NULL;
+		_event_mutex = NULL;
 	}
-	struct check_item {
-		AEntity *entity;
-		list_head results;
-	};
-	bool _check_one(check_item &c, AEntity *e, DWORD cur_tick) {
-		c.entity = e;
-		INIT_LIST_HEAD(&c.results);
+	int _check_one(list_head &results, AEntity *e, DWORD cur_tick) {
+		int count = 0;
 
-		list_for_each2(s, _system_list, ASystem, module.class_entry) {
-			ASystem::Result *r = s->check_one(c.entity, cur_tick);
+		ASystem::Result *r = _systems->check_one(e, cur_tick);
+		if (r != NULL) {
+			r->system = _systems;
+			results.push_back(&r->node);
+			count ++;
+		}
+
+		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry) {
+			r = s->check_one(e, cur_tick);
 			if (r != NULL) {
 				r->system = s;
-				list_add_tail(&r->node, &c.results);
+				results.push_back(&r->node);
+				count ++;
 			}
 		}
-		return !list_empty(&c.results);
+		return count;
 	}
-	void _exec_one(check_item &c) {
-		while (!list_empty(&c.results)) {
-			ASystem::Result *r = list_pop_front(&c.results, ASystem::Result, node);
-			switch (r->status)
-			{
-			case ASystem::Runnable: r->system->exec_run(r, 0); break;
-			case ASystem::Aborting: r->system->exec_abort(r); break;
-			}
+	void _exec(list_head &results) {
+		while (!results.empty()) {
+			ASystem::Result *r = list_pop_front(&results, ASystem::Result, node);
+			r->manager = this;
+			r->system->_exec(r);
 		}
 	}
-	void check_entity(check_item *check_list, int max_count, DWORD cur_tick) {
+	void check_entity(list_head *results_list, int max_count, DWORD cur_tick) {
 		int check_count = 0;
 
 		entity_lock();
 		_last_check = _entity_manager->_upper(_last_check);
 		while (_last_check != NULL)
 		{
-			check_item &c = check_list[check_count];
-			if (_check_one(c, _last_check, cur_tick)) {
-				c.entity->_self->addref();
+			list_head &results = results_list[check_count];
+			results.init();
+			if (_check_one(results, _last_check, cur_tick) > 0) {
 				if (++check_count >= max_count)
 					break;
 			}
@@ -104,42 +114,30 @@ struct ASystemManager {
 		entity_unlock();
 
 		while (check_count > 0) {
-			check_item &c = check_list[--check_count];
-			_exec_one(c);
-			c.entity->_self->release();
+			_exec(results_list[--check_count]);
 		}
 	}
 	void _regist(AEntity *e) {
-		container_of(_system_list, ASystem, module.class_entry)->regist(e);
-		list_for_each2(s, _system_list, ASystem, module.class_entry) {
+		_systems->regist(e);
+		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
 			s->regist(e);
-		}
 	}
 	void _unregist(AEntity *e) {
-		container_of(_system_list, ASystem, module.class_entry)->unregist(e);
-		list_for_each2(s, _system_list, ASystem, module.class_entry) {
+		_systems->unregist(e);
+		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
 			s->unregist(e);
-		}
 	}
-	void check_allsys(DWORD cur_tick) {
-		int check_count = 0;
+	int check_allsys(DWORD cur_tick) {
 		list_head results; results.init();
 
 		entity_lock();
-		container_of(_system_list, ASystem, module.class_entry)->check_all(&results, cur_tick);
-		list_for_each2(s, _system_list, ASystem, module.class_entry) {
-			s->check_all(&results, cur_tick);
-		}
+		int count = _systems->check_all(&results, cur_tick);
+		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
+			count += s->check_all(&results, cur_tick);
 		entity_unlock();
 
-		while (!results.empty()) {
-			ASystem::Result *r = list_pop_front(&results, ASystem::Result, node);
-			switch (r->status)
-			{
-			case ASystem::Runnable: r->system->exec_run(r, 0); break;
-			case ASystem::Aborting: r->system->exec_abort(r); break;
-			}
-		}
+		_exec(results);
+		return count;
 	}
 };
 

@@ -17,7 +17,6 @@ struct AComponent {
 		_self = o; _name = n; _index = i;
 		_entity = NULL; _entity_node.init(this);
 	}
-	void exit(); //{ release_f(_entity, NULL, _entity->_self->release()); }
 	bool valid();
 };
 
@@ -177,18 +176,15 @@ inline bool AComponent::valid() {
 	return _entity->valid() && !_entity_node.empty();
 }
 #ifndef _AMODULE_H_
-inline void AComponent::exit() {
-}
 #else
-inline void AComponent::exit() {
-	release_f(_entity, NULL, _entity->_self->release());
-}
-
 // outside component of entity, has self refcount
 struct AComponent2 : public AObject, public AComponent {
 	void init(const char *n, int i = 0) {
-		_self = this; _name = n; _index = i;
-		_entity = NULL; _entity_node.init(this);
+		AComponent::init(this, n, i);
+	}
+	void exit() {
+		assert(_entity_node.empty());
+		release_f(_entity, NULL, _entity->_self->release());
 	}
 };
 
@@ -196,6 +192,7 @@ struct AEntity2 : public AObject, public AEntity {
 	void  init() { AEntity::init(this); }
 };
 
+#if 0
 struct AEntityManager2 : public AEntityManager {
 	pthread_mutex_t _mutex;
 
@@ -240,6 +237,7 @@ struct AEntityManager2 : public AEntityManager {
 	}
 	// Component
 	bool append(AEntity *e, AComponent *c) {
+		assert(e->_self != c->_self);
 		entity_lock();
 		bool valid = (e->valid() && e->_push(c));
 		if (valid) {
@@ -250,6 +248,7 @@ struct AEntityManager2 : public AEntityManager {
 		return valid;
 	}
 	bool remove(AEntity *e, AComponent *c) {
+		assert(e->_self != c->_self);
 		entity_lock();
 		bool valid = (/*e->valid() && */e->_pop(c));
 		entity_unlock();
@@ -281,6 +280,7 @@ struct AEntityManager2 : public AEntityManager {
 		return result;
 	}
 };
+#endif
 #endif
 
 #endif

@@ -29,7 +29,7 @@ struct AReceiver {
 	long        _index;
 	int         _oneshot : 1;
 	//int         _async : 1;
-	int   (*receive)(AReceiver *r, AEvent *v);
+	int   (*receive)(AReceiver *r, void *p);
 
 	void  init(AObject *o) {
 		_self = o; _manager = NULL;
@@ -106,8 +106,8 @@ struct AEventManager {
 		//r->_object->release();
 		return valid;
 	}
-	int  _emit(AEvent *v) {
-		AReceiver *first = rb_find_AReceiver(&_receiver_map, v->_name);
+	int  _emit(const char *name, void *p) {
+		AReceiver *first = rb_find_AReceiver(&_receiver_map, name);
 		if (first == NULL)
 			return 0;
 
@@ -124,18 +124,27 @@ struct AEventManager {
 
 			if (r->_oneshot)
 				_erase(first, r);
-			r->receive(r, v);
+			r->receive(r, p);
 			count++;
 			r = next;
 		}
 
 		if (first->_oneshot)
 			_erase(first, first);
-		first->receive(first, v);
+		first->receive(first, p);
 		count++;
 		return count;
 	}
 };
+
+#ifdef _AMODULE_H_
+struct AReceiver2 : public AObject, public AReceiver {
+	void init(AModule *m = NULL) {
+		AObject::init(m);
+		AReceiver::init(this);
+	}
+};
+#endif
 
 
 #endif

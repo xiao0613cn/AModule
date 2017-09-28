@@ -74,9 +74,16 @@ int main()
 
 	ASystemManager sm; sm.init();
 	sm._regist(e);
+	for (int ix = 0; ix < 400; ++ix) {
+		sm.check_allsys(GetTickCount());
+		::Sleep(100);
+	}
+
+	sm._unregist(e);
+	e->release();
 	for (;;) {
 		sm.check_allsys(GetTickCount());
-		::Sleep(1000);
+		::Sleep(100);
 	}
 
 	_CrtDumpMemoryLeaks();

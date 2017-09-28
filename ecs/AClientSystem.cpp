@@ -57,16 +57,17 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 	case AClientComponent::Closed:
 		if (c->_busy_count != 0)
 			return NULL;
-		if (c->_auto_reopen) {
-			c->_status = AClientComponent::Invalid;
-			c->_main_tick = cur_tick;
-			c->_main_abort = false;
+		if (!c->_auto_reopen) {
 			return NULL;
 		}
-		c->_entity->_pop(c);
-		if (!c->_sys_node.empty())
-			c->_sys_node.leave();
-		break;
+		c->_status = AClientComponent::Invalid;
+		c->_main_tick = cur_tick;
+		c->_main_abort = false;
+		return NULL;
+		//c->_entity->_pop(c);
+		//if (!c->_sys_node.empty())
+		//	c->_sys_node.leave();
+		//break;
 
 	default: assert(0); return NULL;
 	}
@@ -151,6 +152,7 @@ static int exec_run(ASystem::Result *r, int result)
 			return 0;
 
 	case AClientComponent::Closed:
+		//r->system->_manager->_event_manager._emit("", c);
 		c->_last_opened = false;
 		break;
 
@@ -181,8 +183,9 @@ static LIST_HEAD(g_com_list);
 static int reg_entity(AEntity *e)
 {
 	AClientComponent *c = e->_get<AClientComponent>();
-	if (c == NULL)
+	if ((c == NULL) || !c->_sys_node.empty())
 		return 0;
+	c->_self->addref();
 	g_com_list.push_back(&c->_sys_node);
 	return 1;
 }
@@ -193,20 +196,23 @@ static int unreg_entity(AEntity *e)
 	if ((c == NULL) || c->_sys_node.empty())
 		return 0;
 	c->_sys_node.leave();
+	c->_self->release();
 	return 1;
 }
 
 static int check_all(list_head *results, DWORD cur_tick)
 {
+	int count = 0;
 	list_for_each2(c, &g_com_list, AClientComponent, _sys_node) {
 		ASystem::Result *r = check_one(c, cur_tick);
 		if (r != NULL) {
 			extern ASystem AClientSystem;
 			r->system = &AClientSystem;
 			results->push_back(&r->node);
+			count ++;
 		}
 	}
-	return 0;
+	return count;
 }
 
 ASystem AClientSystem = { {
