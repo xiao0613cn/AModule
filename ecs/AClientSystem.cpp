@@ -21,7 +21,6 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 
 		c->_main_tick = cur_tick;
 		c->_main_abort = false;
-		c->_last_opened = false;
 		c->_check_heart = AClientComponent::HeartChecking;
 		break;
 
@@ -44,6 +43,7 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		}
 
 		if ((diff < c->_tick_heart)
+		 || (c->heart == NULL)
 		 || (c->_check_heart != AClientComponent::HeartNone))
 			return NULL;
 		c->_check_heart = AClientComponent::HeartChecking;
@@ -96,6 +96,9 @@ static ASystem::Result* exec_check(AEntity *e, DWORD cur_tick)
 static int exec_run(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
+	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
+		c->_self->_module->module_name, c->_self, c->_self->_refcount,
+		c->_status, c->_busy_count, result);
 	if (result == 0)
 		result = 1;
 
@@ -148,6 +151,7 @@ static int exec_run(ASystem::Result *r, int result)
 			return 0;
 
 	case AClientComponent::Closed:
+		c->_last_opened = false;
 		break;
 
 	default: assert(0); return result;
@@ -163,6 +167,10 @@ static int exec_abort(ASystem::Result *r)
 	AClientComponent *c = container_of(r, AClientComponent, _abort_result);
 	int result = c->abort(c);
 	c->use(-1);
+
+	TRACE("%s(%p, %d): status = %d, busy_count = %d.\n",
+		c->_self->_module->module_name, c->_self, c->_self->_refcount,
+		c->_status, c->_busy_count);
 	c->_self->release();
 	return result;
 }
@@ -192,8 +200,11 @@ static int check_all(list_head *results, DWORD cur_tick)
 {
 	list_for_each2(c, &g_com_list, AClientComponent, _sys_node) {
 		ASystem::Result *r = check_one(c, cur_tick);
-		if (r != NULL)
+		if (r != NULL) {
+			extern ASystem AClientSystem;
+			r->system = &AClientSystem;
 			results->push_back(&r->node);
+		}
 	}
 	return 0;
 }

@@ -42,6 +42,7 @@ struct AClientComponent : public AComponent {
 	list_head       _sys_node;
 	ASystem::Result _run_result;
 	ASystem::Result _abort_result;
+	void exec_done(int result) { _run_result.system->exec_run(&_run_result, result); }
 
 	int (*open)(AClientComponent *c);
 	int (*heart)(AClientComponent *c);
@@ -55,6 +56,7 @@ struct AClientComponent : public AComponent {
 		_status = Invalid;      _main_tick = 0;        _main_abort = false;
 		_last_opened = false; _check_heart = HeartNone; _busy_count = 0;
 		_sys_node.init();
+		//open, heart, abort, close
 	}
 };
 

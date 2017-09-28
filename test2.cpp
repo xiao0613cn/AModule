@@ -20,6 +20,7 @@ on_event(AReceiver *r, AEvent *e) {
 
 int main()
 {
+#if 0
 	AEntity e; e.init(NULL);
 	AEntityManager em; em.init();
 	em._push(&e);
@@ -51,9 +52,32 @@ int main()
 	AEventManager evm; evm.init();
 	evm._subscribe(&r);
 	evm._emit(&ev);
+#endif
+	AModuleInit(NULL);
+	AThreadBegin(NULL, NULL, 1000);
 
-	ASystem *s = ASystem::find("AClientSystem");
+	const char *opt_str =
+	"PVDClient: {"
+		"io: async_tcp {"
+			"address: 192.168.40.86,"
+			"port: 8101,"
+			"timeout: 5,"
+		"},"
+		"username: admin,"
+		"password: 888888,"
+	"}";
+	AOption *opt = NULL;
+	int result = AOptionDecode(&opt, opt_str, -1);
 
+	AEntity2 *e = NULL;
+	result = AObject::create(&e, NULL, opt, NULL);
+
+	ASystemManager sm; sm.init();
+	sm._regist(e);
+	for (;;) {
+		sm.check_allsys(GetTickCount());
+		::Sleep(1000);
+	}
 
 	_CrtDumpMemoryLeaks();
 	return 0;

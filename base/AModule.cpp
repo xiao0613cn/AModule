@@ -178,14 +178,14 @@ AMODULE_API int
 AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
 {
 	const char *class_name = NULL;
-	const char *module_name = NULL;
+	const char *module_name = default_module;
 	if (option == NULL) {
-		module_name = default_module;
-	} else if (option->value[0] != '\0') {
+		;
+	} else if ((option->value[0] != '\0') && (option->value[0] != '[')) {
 		class_name = option->name;
 		module_name = option->value;
-	} else {
-		module_name = default_module ? default_module : option->name;
+	} else if (option->name[0] != '\0') {
+		module_name = option->name;
 	}
 	if ((class_name == NULL) && (module_name == NULL))
 		return -EINVAL;
