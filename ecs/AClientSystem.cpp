@@ -86,7 +86,7 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 	return &c->_run_result;
 }
 
-static ASystem::Result* exec_check(AEntity *e, DWORD cur_tick)
+static ASystem::Result* client_check(AEntity *e, DWORD cur_tick)
 {
 	AClientComponent *c = e->_get<AClientComponent>();
 	if (c == NULL)
@@ -94,7 +94,7 @@ static ASystem::Result* exec_check(AEntity *e, DWORD cur_tick)
 	return check_one(c, cur_tick);
 }
 
-static int exec_run(ASystem::Result *r, int result)
+static int client_run(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
 	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
@@ -117,6 +117,8 @@ static int exec_run(ASystem::Result *r, int result)
 		if (result > 0) {
 			c->_main_tick = GetTickCount();
 			c->_status = AClientComponent::Opened;
+			r->manager->emit(r->manager, "on_client_opened", c);
+
 			c->_last_opened = true;
 			if (c->_open_heart) {
 				c->_check_heart = AClientComponent::HeartChecking;
@@ -152,7 +154,7 @@ static int exec_run(ASystem::Result *r, int result)
 			return 0;
 
 	case AClientComponent::Closed:
-		//r->system->_manager->_event_manager._emit("", c);
+		r->manager->emit(r->manager, "on_client_closed", c);
 		c->_last_opened = false;
 		break;
 
@@ -164,7 +166,7 @@ static int exec_run(ASystem::Result *r, int result)
 	return result;
 }
 
-static int exec_abort(ASystem::Result *r)
+static int client_abort(ASystem::Result *r)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _abort_result);
 	int result = c->abort(c);
@@ -180,7 +182,7 @@ static int exec_abort(ASystem::Result *r)
 //////////////////////////////////////////////////////////////////////////
 static LIST_HEAD(g_com_list);
 
-static int reg_entity(AEntity *e)
+static int reg_client(AEntity *e)
 {
 	AClientComponent *c = e->_get<AClientComponent>();
 	if ((c == NULL) || !c->_sys_node.empty())
@@ -190,7 +192,7 @@ static int reg_entity(AEntity *e)
 	return 1;
 }
 
-static int unreg_entity(AEntity *e)
+static int unreg_client(AEntity *e)
 {
 	AClientComponent *c = e->_get<AClientComponent>();
 	if ((c == NULL) || c->_sys_node.empty())
@@ -218,12 +220,12 @@ static int check_all(list_head *results, DWORD cur_tick)
 ASystem AClientSystem = { {
 	"ASystem",
 	"AClientSystem", },
-	&reg_entity,
-	&unreg_entity,
+	&reg_client,
+	&unreg_client,
 	&check_all,
-	&exec_check,
-	&exec_run,
-	&exec_abort,
+	&client_check,
+	&client_run,
+	&client_abort,
 };
 
 static auto_reg_t reg(AClientSystem.module);

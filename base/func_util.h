@@ -1,7 +1,7 @@
 #ifndef _AMODULE_UTIL_TOOLS_H_
 #define _AMODULE_UTIL_TOOLS_H_
 
-#ifndef release_s
+
 #define release_s(ptr, release, null) \
 	do { \
 		if ((ptr) != null) { \
@@ -9,9 +9,7 @@
 			(ptr) = null; \
 		} \
 	} while (0)
-#endif
 
-#ifndef release_f
 #define release_f(ptr, null, func) \
 	do { \
 		if (ptr != null) { \
@@ -19,7 +17,11 @@
 			ptr = null; \
 		} \
 	} while (0)
-#endif
+
+
+#define make2(type, size)  (type*)malloc(size)
+#define make(type)         (type*)malloc(sizeof(type))
+
 
 #define defer_struct(name, type, member, close) \
 struct name { \
@@ -41,6 +43,7 @@ struct name { \
 
 #define defer(type, member, close) \
 	defer_inline(auto_close_, __LINE__, type, member, close) ac##__LINE__(member)
+
 
 template <typename type_t>
 static inline int find_ix(type_t *array, type_t end, type_t test)

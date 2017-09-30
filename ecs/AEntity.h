@@ -11,11 +11,11 @@ struct AComponent {
 	const char *_name;
 	long        _index;
 	AEntity    *_entity;
-	list_node<AComponent> _entity_node;
+	list_head   _entity_node;
 
 	void init(AObject *o, const char *n, int i = 0) {
 		_self = o; _name = n; _index = i;
-		_entity = NULL; _entity_node.init(this);
+		_entity = NULL; _entity_node.init();
 	}
 	bool valid();
 };
@@ -24,13 +24,13 @@ struct AEntity {
 	AObject        *_self;
 	AEntityManager *_manager;
 	struct rb_node  _manager_node;
-	list_node<AComponent> _com_list;
-	int                   _com_count;
+	list_head _com_list;
+	int       _com_count;
 
 	void init(AObject *o) {
 		_self = o; _manager = NULL;
 		RB_CLEAR_NODE(&_manager_node);
-		_com_list.init(NULL);
+		_com_list.init();
 		_com_count = 0;
 	}
 	void exit() {

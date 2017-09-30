@@ -2,41 +2,25 @@
 #define _AEVENT_H_
 
 struct AObject;
-typedef struct AEvent AEvent;
-typedef struct AReceiver AReceiver, AReceiver2;
+typedef struct AReceiver AReceiver;
 typedef struct AEventManager AEventManager;
-
-struct AEvent {
-	//AObject    *_self;
-	const char *_name;
-	long        _index;
-
-	void  init(const char *n, long i) {
-		_name = n; _index = i;
-	}
-	//void  exit();
-};
 
 struct AReceiver {
 	AObject    *_self;
 	AEventManager *_manager;
 	struct rb_node _manager_node;
-	list_node<AReceiver> _receiver_list;
-	struct rb_node _manager_node2;
-	list_node<AReceiver2> _receiver_list2;
+	list_head      _receiver_list;
 
 	const char *_name;
-	long        _index;
 	int         _oneshot : 1;
-	//int         _async : 1;
-	int   (*receive)(AReceiver *r, void *p);
+	int         _async : 1;
+	void (*on_event)(AReceiver *r, void *p);
 
-	void  init(AObject *o) {
+	void init(AObject *o) {
 		_self = o; _manager = NULL;
-		RB_CLEAR_NODE(&_manager_node); _receiver_list.init(this);
-		RB_CLEAR_NODE(&_manager_node2); _receiver_list2.init(this);
+		RB_CLEAR_NODE(&_manager_node);
+		_receiver_list.init();
 	}
-	void  exit();
 };
 
 static inline int AReceiverCmp(const char *name, AReceiver *r) {
@@ -44,23 +28,18 @@ static inline int AReceiverCmp(const char *name, AReceiver *r) {
 }
 rb_tree_declare(AReceiver, const char*)
 
-static inline int AReceiver2Cmp(long index, AReceiver2 *r) {
-	return int(index - r->_index);
-}
-rb_tree_declare(AReceiver2, long)
-
 struct AEventManager {
 	struct rb_root _receiver_map;
 	long           _receiver_count;
-	struct rb_root _receiver_map2;
-	long           _receiver_count2;
 
-	void  init() {
-		INIT_RB_ROOT(&_receiver_map); _receiver_count = 0;
-		INIT_RB_ROOT(&_receiver_map2); _receiver_count2 = 0;
+	void init() {
+		INIT_RB_ROOT(&_receiver_map);
+		_receiver_count = 0;
 	}
-	bool  _subscribe(AReceiver *r) {
-		bool valid = ((r->_manager == NULL) && RB_EMPTY_NODE(&r->_manager_node) && r->_receiver_list.empty());
+	bool _subscribe(AReceiver *r) {
+		bool valid = ((r->_manager == NULL)
+		           && RB_EMPTY_NODE(&r->_manager_node)
+		           && r->_receiver_list.empty());
 		if (valid) {
 			AReceiver *first = rb_insert_AReceiver(&_receiver_map, r, r->_name);
 			if (first != NULL)
@@ -72,7 +51,9 @@ struct AEventManager {
 		}
 		return valid;
 	}
-	void  _erase(AReceiver *first, AReceiver *r) {
+	void _sub_const(const char *name, bool async, void *user,
+	                void (*f)(void *user, const char *name, void *p));
+	void _erase(AReceiver *first, AReceiver *r) {
 		if (first != r) {
 			assert(!first->_receiver_list.empty());
 			assert(!r->_receiver_list.empty());
@@ -85,12 +66,12 @@ struct AEventManager {
 			RB_CLEAR_NODE(&first->_manager_node);
 		}
 		else {
-			r = list_entry(first->_receiver_list.front(), AReceiver, _receiver_list);
+			r = list_entry(first->_receiver_list.next, AReceiver, _receiver_list);
 			rb_replace_node(&first->_manager_node, &r->_manager_node, &_receiver_map);
 			first->_receiver_list.leave();
 		}
 	}
-	bool  _unsubscribe(AReceiver *r) {
+	bool _unsubscribe(AReceiver *r) {
 		bool valid = ((r->_manager == this) && (!RB_EMPTY_NODE(&r->_manager_node) || !r->_receiver_list.empty()));
 		if (!valid) {
 			assert(0);
@@ -106,44 +87,64 @@ struct AEventManager {
 		//r->_object->release();
 		return valid;
 	}
-	int  _emit(const char *name, void *p) {
+	int _emit(const char *name, void *p) {
 		AReceiver *first = rb_find_AReceiver(&_receiver_map, name);
 		if (first == NULL)
 			return 0;
 
 		AReceiver *r = NULL;
 		if (!first->_receiver_list.empty())
-			r = list_entry(first->_receiver_list.front(), AReceiver, _receiver_list);
+			r = list_entry(first->_receiver_list.next, AReceiver, _receiver_list);
 
 		int count = 0;
 		while (r != NULL)
 		{
 			AReceiver *next = NULL;
 			if (!first->_receiver_list.is_last(&r->_receiver_list))
-				next = list_entry(r->_receiver_list.front(), AReceiver, _receiver_list);
+				next = list_entry(r->_receiver_list.next, AReceiver, _receiver_list);
 
 			if (r->_oneshot)
 				_erase(first, r);
-			r->receive(r, p);
-			count++;
+			r->on_event(r, p);
+			count ++;
 			r = next;
 		}
 
 		if (first->_oneshot)
 			_erase(first, first);
-		first->receive(first, p);
-		count++;
+		first->on_event(first, p);
+		count ++;
 		return count;
 	}
 };
 
 #ifdef _AMODULE_H_
 struct AReceiver2 : public AObject, public AReceiver {
-	void init(AModule *m = NULL) {
-		AObject::init(m);
-		AReceiver::init(this);
+	void  *_user;
+	void (*_func)(void *user, const char *name, void *p);
+
+	static AReceiver2* create() {
+		AReceiver2 *r2 = make(AReceiver2);
+		r2->AObject::init(NULL);
+		r2->_release = (void(*)(AObject*))&free;
+
+		r2->AReceiver::init(r2);
+		r2->on_event = &AReceiver2::on_user_event;
+		return r2;
+	}
+	static void on_user_event(AReceiver *r, void *p) {
+		AReceiver2 *r2 = (AReceiver2*)r;
+		r2->_func(r2->_user, r2->_name, p);
 	}
 };
+
+inline void AEventManager::_sub_const(const char *name, bool async, void *user,
+                                      void (*f)(void *user, const char *name, void *p)) {
+	AReceiver2 *r2 = AReceiver2::create();
+	r2->_name = name; r2->_oneshot = false; r2->_async = async;
+	r2->_user = user; r2->_func = f;
+	_subscribe(r2);
+}
 #endif
 
 

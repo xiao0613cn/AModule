@@ -218,14 +218,12 @@ inline bool       list_head::empty() { return !!list_empty(this); }
 inline bool       list_head::is_last(list_head *entry) { return !!list_is_last(entry, this); }
 inline void       list_head::push_front(list_head *entry) { list_add(entry, this); }
 inline void       list_head::push_back(list_head *entry) { list_add_tail(entry, this); }
-inline list_head* list_head::pop_front() { list_head *entry = front(); entry->leave(); return entry; }
-inline list_head* list_head::pop_back() { list_head *entry = back(); entry->leave(); return entry; }
-inline list_head* list_head::front() { return next; }
-inline list_head* list_head::back() { return prev; }
+inline list_head* list_head::pop_front() { list_head *entry = next; entry->leave(); return entry; }
+inline list_head* list_head::pop_back() { list_head *entry = prev; entry->leave(); return entry; }
+inline void       list_head::move_front(list_head *entry) { list_move(entry, this); }
+inline void       list_head::move_back(list_head *entry) { list_move_tail(entry, this); }
 // item function
 inline void       list_head::leave() { list_del_init(this); }
-inline void       list_head::move_back(list_head *other) { list_move_tail(this, other); }
-inline void       list_head::move_front(list_head *other) { list_move(this, other); }
 
 template <typename type_t>
 struct list_node : public list_head {
@@ -414,7 +412,7 @@ static inline void list_splice_tail_init(struct list_head *list,
         	pos = pos->next)
 
 #define list_for_each2(pos, head, type, member)			\
-	for (type *pos = list_first_entry(head, type, member);	\
+	for (type *pos = list_entry((head)->next, type, member);\
 	     &pos->member != (head);				\
 	     pos = list_entry((pos)->member.next, type, member))
 /**
@@ -473,7 +471,7 @@ static inline void list_splice_tail_init(struct list_head *list,
 	     pos = list_entry(pos->member.next, typeof(*pos), member))
 #else
 #define list_for_each_entry(pos, head, type, member)			\
-	for (pos = list_first_entry(head, type, member);		\
+	for (pos = list_entry((head)->next, type, member);		\
 	     &pos->member != (head);					\
 	     pos = list_entry((pos)->member.next, type, member))
 #endif

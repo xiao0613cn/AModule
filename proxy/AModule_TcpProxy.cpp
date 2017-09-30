@@ -76,7 +76,7 @@ static int TCPClientProcess(AOperator *asop, int result)
 
 static TCPClient* TCPClientCreate(TCPServer *server)
 {
-	TCPClient *client = (TCPClient*)malloc(sizeof(TCPClient));
+	TCPClient *client = make(TCPClient);
 	if (client != NULL) {
 		client->sysop.done = &TCPClientProcess;
 		client->server = server; AObjectAddRef(&server->object);

@@ -41,8 +41,6 @@ struct PVDClient : public AEntity2 {
 		_io_com._outmsg.data = _io_com._outbuf->next();
 		_io_com._outmsg.size = PVDCmdEncode(_userid, _io_com._outmsg.data, type, body);
 	}
-	void do_input(AMessage *msg);
-
 };
 
 extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
@@ -73,6 +71,8 @@ extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
 		outmsg.size = result;
 	}
 	outbuf->pop(result);
+	if (ARefsBufCheck(outbuf, 1024, outbuf->size) < 0)
+		return -ENOMEM;
 	return result;
 }
 
@@ -343,6 +343,7 @@ static void PVDRelease(AObject *object)
 
 	pthread_mutex_destroy(&pvd->_mutex);
 	release_s(pvd->_io_opt, AOptionRelease, NULL);
+	pvd->exit();
 }
 
 AModule PVDClientModule = {

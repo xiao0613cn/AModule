@@ -30,10 +30,10 @@ struct AInOutComponent : public AComponent {
 		_io = NULL;      do_input = &_do_input;
 		_outbuf = NULL;  //on_output = NULL;
 	}
-
 	void post(AMessage *msg) {
 		do_input(this, msg);
 	}
+
 	static void _do_input(AInOutComponent *c, AMessage *msg) {
 		c->lock();
 		if (c->_abort) {
@@ -67,7 +67,7 @@ struct AInOutComponent : public AComponent {
 			msg = list_pop_front(&c->_queue, AMessage, entry);
 
 			if (!c->_queue.empty())
-				next = list_first_entry(&c->_queue, AMessage, entry);
+				next = list_entry(c->_queue.next, AMessage, entry);
 			else if (c->_abort)
 				c->on_endqu(c, result);
 			c->unlock();

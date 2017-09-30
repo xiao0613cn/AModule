@@ -237,7 +237,7 @@ CreateEvent(const void *attr, int manual, int state, const char *name) {
 	if (name != NULL) // not support!!
 		return NULL;
 
-	struct WinEvent *ev = (struct WinEvent*)malloc(sizeof(struct WinEvent));
+	WinEvent *ev = make(WinEvent);
 	if (ev != NULL)
 		WinEvent_Init(ev, manual, state);
 	return ev;
@@ -249,7 +249,7 @@ CreateEvent(const void *attr, int manual, int state, const char *name) {
 
 static inline int
 WaitEvent(HANDLE h, DWORD msec) {
-	struct WinEvent *ev = (struct WinEvent*)h;
+	WinEvent *ev = (WinEvent*)h;
 
 	pthread_mutex_lock(&ev->mutex);
 	if (msec == INFINITE) {
@@ -269,7 +269,7 @@ WaitEvent(HANDLE h, DWORD msec) {
 
 static inline BOOL
 SetEvent(HANDLE h) {
-	struct WinEvent *ev = (struct WinEvent*)h;
+	WinEvent *ev = (WinEvent*)h;
 
 	pthread_mutex_lock(&ev->mutex);
 	int set = ev->signal_state;
@@ -287,7 +287,7 @@ SetEvent(HANDLE h) {
 
 static inline BOOL
 ResetEvent(HANDLE h) {
-	struct WinEvent *ev = (struct WinEvent*)h;
+	WinEvent *ev = (WinEvent*)h;
 
 	pthread_mutex_lock(&ev->mutex);
 	int set = ev->signal_state;
@@ -304,7 +304,7 @@ WinEvent_Uninit(WinEvent *ev) {
 
 static inline void
 CloseEvent(HANDLE h) {
-	struct WinEvent *ev = (struct WinEvent*)h;
+	WinEvent *ev = (WinEvent*)h;
 	WinEvent_Uninit(ev);
 	free(ev);
 }

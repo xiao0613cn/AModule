@@ -44,7 +44,7 @@ AOptionInit(AOption *option, struct list_head *list)
 AMODULE_API AOption*
 AOptionCreate2(struct list_head *list)
 {
-	AOption *option = (AOption*)malloc(sizeof(AOption));
+	AOption *option = make(AOption);
 	if (option != NULL)
 		AOptionInit(option, list);
 	return option;
@@ -386,7 +386,7 @@ AOptionLoad(AOption **option, const char *path)
 	if (len <= 0)
 		return -EIO;
 
-	char *buf = (char*)malloc(len+8);
+	char *buf = make2(char, len+8);
 	if (buf == NULL)
 		return -ENOMEM;
 	fseek(fp, 0, SEEK_SET);

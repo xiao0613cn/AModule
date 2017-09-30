@@ -68,7 +68,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 		}
 	}
 
-	req = (DumpReq*)malloc(sizeof(DumpReq));
+	req = make(DumpReq);
 	if (req != NULL) {
 		req->reqix = reqix;
 		req->dump = dump;

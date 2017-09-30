@@ -2,11 +2,12 @@
 #define _ASYSTEM_H_
 
 #include "../base/AModule_API.h"
-#include "AEntity.h"
 
-typedef struct ASystem ASystem;
-typedef struct ASystemManager ASystemManager;
-typedef struct AEventManager AEventManager;
+struct ASystem;
+struct ASystemManager;
+struct AEntity;
+struct AEntityManager;
+struct AEventManager;
 
 struct ASystem {
 	AModule module;
@@ -60,15 +61,29 @@ struct ASystemManager {
 
 	AEventManager *_event_manager;
 	pthread_mutex_t *_event_mutex;
+	list_head _free_recvers;
 	void event_lock() { _event_mutex ? pthread_mutex_lock(_event_mutex) : 0; }
 	void event_unlock() { _event_mutex ? pthread_mutex_unlock(_event_mutex) : 0; }
+
+	void (*check_entity)(ASystemManager *sm, list_head *results_list, int max_count, DWORD cur_tick);
+	int  (*check_allsys)(ASystemManager *sm, DWORD cur_tick);
+	int  (*emit)(ASystemManager *sm, const char *name, void *p);
 
 	void init() {
 		_systems = ASystem::find(NULL);
 		_exec_thread = NULL;
 		_entity_mutex = NULL;
 		_event_mutex = NULL;
+		_free_recvers.init();
+
+		check_entity = &_do_check_entity;
+		check_allsys = &_do_check_allsys;
+		emit = &_do_emit;
 	}
+	static void _do_check_entity(ASystemManager *sm, list_head *results_list, int max_count, DWORD cur_tick);
+	static int  _do_check_allsys(ASystemManager *sm, DWORD cur_tick);
+	static int  _do_emit(ASystemManager *sm, const char *name, void *p);
+
 	int _check_one(list_head &results, AEntity *e, DWORD cur_tick) {
 		int count = 0;
 
@@ -96,27 +111,6 @@ struct ASystemManager {
 			r->system->_exec(r);
 		}
 	}
-	void check_entity(list_head *results_list, int max_count, DWORD cur_tick) {
-		int check_count = 0;
-
-		entity_lock();
-		_last_check = _entity_manager->_upper(_last_check);
-		while (_last_check != NULL)
-		{
-			list_head &results = results_list[check_count];
-			results.init();
-			if (_check_one(results, _last_check, cur_tick) > 0) {
-				if (++check_count >= max_count)
-					break;
-			}
-			_last_check = _entity_manager->_next(_last_check);
-		}
-		entity_unlock();
-
-		while (check_count > 0) {
-			_exec(results_list[--check_count]);
-		}
-	}
 	void _regist(AEntity *e) {
 		_systems->regist(e);
 		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
@@ -126,18 +120,6 @@ struct ASystemManager {
 		_systems->unregist(e);
 		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
 			s->unregist(e);
-	}
-	int check_allsys(DWORD cur_tick) {
-		list_head results; results.init();
-
-		entity_lock();
-		int count = _systems->check_all(&results, cur_tick);
-		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
-			count += s->check_all(&results, cur_tick);
-		entity_unlock();
-
-		_exec(results);
-		return count;
 	}
 };
 

@@ -1,6 +1,7 @@
 #ifndef _ACLIENT_COMPONENT_H_
 #define _ACLIENT_COMPONENT_H_
 
+#include "AEntity.h"
 #include "ASystem.h"
 
 

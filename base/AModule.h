@@ -10,6 +10,7 @@ struct AModule {
 	int         object_size;
 	int   (*init)(AOption *global_option, AOption *module_option, BOOL first);
 	void  (*exit)(int inited);
+
 	int   (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
 	int   (*probe)(AObject *other, AMessage *msg);

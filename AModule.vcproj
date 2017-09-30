@@ -377,6 +377,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ecs\ASystem.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\crypto\av_md5.c"
 				>
 				<FileConfiguration
@@ -724,11 +728,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
@@ -768,11 +772,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
@@ -800,11 +804,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
@@ -880,11 +884,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -896,11 +900,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
@@ -924,15 +928,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
-				>
-			</File>
-			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\PVDClient\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
