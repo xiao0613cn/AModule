@@ -44,7 +44,7 @@ AOptionInit(AOption *option, struct list_head *list)
 AMODULE_API AOption*
 AOptionCreate2(struct list_head *list)
 {
-	AOption *option = make(AOption);
+	AOption *option = gomake(AOption);
 	if (option != NULL)
 		AOptionInit(option, list);
 	return option;
@@ -378,27 +378,25 @@ AOptionLoad(AOption **option, const char *path)
 	FILE *fp = fopen(path, "rb");
 	if (fp == NULL)
 		return -ENOENT;
+	godefer(FILE*, fp, fclose(fp));
 
-	defer(FILE*, fp, fclose(fp));
 	fseek(fp, 0, SEEK_END);
-
 	long len = ftell(fp);
 	if (len <= 0)
 		return -EIO;
 
-	char *buf = make2(char, len+8);
+	char *buf = (char*)malloc(len+8);
 	if (buf == NULL)
 		return -ENOMEM;
-	fseek(fp, 0, SEEK_SET);
+	godefer(char*, buf, free(buf));
 
+	fseek(fp, 0, SEEK_SET);
 	int result = fread(buf, len, 1, fp);
 	if (result <= 0) {
 		result = -EIO;
 	} else {
 		result = AOptionDecode(option, buf, len);
 	}
-
-	free(buf);
 	return result;
 }
 
@@ -420,7 +418,7 @@ AOptionSave(const AOption *option, const char *path)
 	int result = ARefsBufCheck(buf, 512, 0, NULL, NULL);
 	if (result < 0)
 		return result;
-	defer(ARefsBuf*, buf, buf->release());
+	godefer(ARefsBuf*, buf, buf->release());
 
 	result = AOptionEncode(option, &buf, write_buf);
 	if (result < 0)
@@ -429,11 +427,11 @@ AOptionSave(const AOption *option, const char *path)
 	FILE *fp = fopen(path, "wb");
 	if (fp == NULL)
 		return -errno;
+	godefer(FILE*, fp, fclose(fp));
 
 	result = buf->len();
 	fwrite(buf->ptr(), result, 1, fp);
 
-	fclose(fp);
 	return result;
 }
 

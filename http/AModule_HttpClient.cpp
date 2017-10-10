@@ -332,7 +332,7 @@ static int on_h_done(http_parser *parser)
 	}
 
 	p->recv_header_buffer = p->recv_buffer;
-	ARefsBufAddRef(p->recv_header_buffer);
+	p->recv_header_buffer->addref();
 	p->recv_header_pos = p->recv_buffer->bgn;
 	return 0;
 }

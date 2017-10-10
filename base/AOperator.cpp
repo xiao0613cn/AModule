@@ -219,7 +219,7 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 	if (p == NULL)
 		return work_thread_begin(max_timewait);
 
-	AThread *at = make(AThread);
+	AThread *at = gomake(AThread);
 	at->pool = pool;
 	at->max_timewait = max_timewait;
 

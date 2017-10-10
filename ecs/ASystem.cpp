@@ -43,7 +43,7 @@ int ASystemManager::_do_check_allsys(ASystemManager *sm, DWORD cur_tick)
 
 int ASystemManager::_do_emit(ASystemManager *sm, const char *name, void *p)
 {
-	APool<AReceiver*> recvers; recvers.init();
+	APool<AReceiver*> recvers; recvers.init(128);
 
 	sm->event_lock();
 	AReceiver *first = rb_find_AReceiver(&sm->_event_manager->_receiver_map, name);
@@ -53,56 +53,46 @@ int ASystemManager::_do_emit(ASystemManager *sm, const char *name, void *p)
 	}
 
 	if (!sm->_free_recvers.empty()) {
-		ASlice<AReceiver*> *slice = list_entry(sm->_free_recvers.next, ASlice<AReceiver*>, node);
+		ASlice<AReceiver*> *slice = list_first_entry(&sm->_free_recvers, ASlice<AReceiver*>, node);
 		recvers._join(slice);
 	}
 
 	AReceiver *r = NULL;
 	if (!first->_receiver_list.empty())
-		r = list_entry(first->_receiver_list.next, AReceiver, _receiver_list);
-
-	int count = 0;
+		r = list_first_entry(&first->_receiver_list, AReceiver, _receiver_list);
 	while (r != NULL)
 	{
 		AReceiver *next = NULL;
 		if (!first->_receiver_list.is_last(&r->_receiver_list))
 			next = list_entry(r->_receiver_list.next, AReceiver, _receiver_list);
 
-		if (r->_oneshot) {
-			sm->_event_manager->_erase(first, r);
+		if (!r->_preproc || (r->on_event(r, p, true) >= 0)) {
+			if (r->_oneshot)
+				sm->_event_manager->_erase(first, r);
+			else
+				r->_self->addref();
 			recvers.push_back(r);
 		}
-		if (!r->_async) {
-			r->on_event(r, p);
-		} else if (!r->_oneshot) {
-			r->_self->addref();
-			recvers.push_back(r);
-		}
-		count ++;
 		r = next;
 	}
 
-	if (first->_oneshot) {
-		sm->_event_manager->_erase(first, first);
+	if (!first->_preproc || (first->on_event(first, p, true) >= 0)) {
+		if (first->_oneshot)
+			sm->_event_manager->_erase(first, first);
+		else
+			first->_self->addref();
 		recvers.push_back(first);
 	}
-	if (!first->_async) {
-		first->on_event(first, p);
-	} else if (!first->_oneshot) {
-		first->_self->addref();
-		recvers.push_back(first);
-	}
-	count ++;
 	sm->event_unlock();
 
-	if (recvers.total_len() == 0)
-		return count;
+	int count = recvers.total_len();
+	if (count == 0)
+		return 0;
 
 	list_head free_list; free_list.init();
 	do {
 		AReceiver *r = *recvers.ptr();
-		if (r->_async)
-			r->on_event(r, p);
+		r->on_event(r, p, false);
 		r->_self->release();
 
 		recvers.pop(1, &free_list);

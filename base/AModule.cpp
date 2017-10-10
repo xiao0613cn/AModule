@@ -201,7 +201,7 @@ AMODULE_API int
 AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module)
 {
 	if (module->object_size > 0) {
-		*object = make2(AObject, module->object_size);
+		*object = gomake2(AObject, module->object_size);
 		if (*object == NULL)
 			return -ENOMEM;
 

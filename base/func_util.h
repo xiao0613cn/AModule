@@ -1,5 +1,5 @@
-#ifndef _AMODULE_UTIL_TOOLS_H_
-#define _AMODULE_UTIL_TOOLS_H_
+#ifndef _FUNC_UTIL_H_
+#define _FUNC_UTIL_H_
 
 
 #define release_s(ptr, release, null) \
@@ -19,8 +19,8 @@
 	} while (0)
 
 
-#define make2(type, size)  (type*)malloc(size)
-#define make(type)         (type*)malloc(sizeof(type))
+#define gomake2(type, count) (type*)malloc(sizeof(type)*(count))
+#define gomake(type)         (type*)malloc(sizeof(type))
 
 
 #define defer_struct(name, type, member, close) \
@@ -41,8 +41,14 @@ struct name { \
 #define defer2(type, member, close) \
 	defer_inline(auto_close_, __LINE__, type, member, close) member
 
-#define defer(type, member, close) \
-	defer_inline(auto_close_, __LINE__, type, member, close) ac##__LINE__(member)
+#define defer_close2(line, type, member, close) \
+	defer_struct(ac_##line##_t, type, member, close) ac_##line(member)
+
+#define defer_close(line, type, member, close) \
+	defer_close2(line, type, member, close)
+
+#define godefer(type, member, close) \
+	defer_close(__LINE__, type, member, close)
 
 
 template <typename type_t>

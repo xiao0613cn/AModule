@@ -123,9 +123,6 @@ AInOutMsgInit(AInOutMsg *iom, int type, char *indata, int insize)
 }
 
 //////////////////////////////////////////////////////////////////////////
-#ifndef _AREFSBUF_H_
-#include "ARefsBuf.h"
-#endif
 // ARefsMsg::msg.type = AMsgType_RefsMsg
 typedef struct ARefsMsg
 {

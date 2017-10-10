@@ -8,7 +8,7 @@
 
 struct PVDClient : public AEntity2 {
 	AClientComponent _client;
-	AInOutComponent _io_com;
+	AInOutComponent _iocom;
 	pthread_mutex_t _mutex;
 	AOption    *_io_opt;
 
@@ -25,21 +25,20 @@ struct PVDClient : public AEntity2 {
 	void init() {
 		AEntity2::init();
 		_client.init(this); _push(&_client);
-		_io_com.init(this); _push(&_io_com);
+		_iocom.init(this); _push(&_iocom);
 		pthread_mutex_init(&_mutex, NULL);
-		_io_com._mutex = &_mutex;
+		_iocom._mutex = &_mutex;
 		_io_opt = NULL;
 
 		_status = pvdnet_invalid;
 		_userid = _md5id = _last_error = 0;
-		_heart_msg.done = NULL;
 	}
 	int  open(int result);
 	void open_prepare(PVDStatus status, int type, int body) {
 		_status = status;
-		_io_com._outmsg.type = AMsgType_Private|ioMsgType_Block|type;
-		_io_com._outmsg.data = _io_com._outbuf->next();
-		_io_com._outmsg.size = PVDCmdEncode(_userid, _io_com._outmsg.data, type, body);
+		_iocom._outmsg.type = AMsgType_Private|ioMsgType_Block|type;
+		_iocom._outmsg.data = _iocom._outbuf->next();
+		_iocom._outmsg.size = PVDCmdEncode(_userid, _iocom._outmsg.data, type, body);
 	}
 };
 
@@ -76,9 +75,15 @@ extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
 	return result;
 }
 
+static void PVDEndInput(AInOutComponent *c, int result)
+{
+	PVDClient *pvd = container_of(c, PVDClient, _iocom);
+	pvd->_client.use(-1);
+}
+
 static int PVDOpenMsgDone(AMessage *msg, int result)
 {
-	PVDClient *pvd = container_of(msg, PVDClient, _io_com._outmsg);
+	PVDClient *pvd = container_of(msg, PVDClient, _iocom._outmsg);
 	result = pvd->open(result);
 	if (result != 0)
 		pvd->_client.exec_done(result);
@@ -87,12 +92,12 @@ static int PVDOpenMsgDone(AMessage *msg, int result)
 static int PVDOpen(AClientComponent *c)
 {
 	PVDClient *pvd = container_of(c, PVDClient, _client);
-	if (!pvd->_io_com._queue.empty()) {
+	if (!pvd->_iocom._queue.empty()) {
 		assert(0);
 		return -EBUSY;
 	}
 	assert(pvd->_status == pvdnet_invalid);
-	pvd->_io_com._outmsg.done = &PVDOpenMsgDone;
+	pvd->_iocom._outmsg.done = &PVDOpenMsgDone;
 	return pvd->open(0);
 }
 int PVDClient::open(int result)
@@ -102,42 +107,42 @@ int PVDClient::open(int result)
 	switch (_status)
 	{
 	case pvdnet_invalid:
-		if (_io_com._io == NULL) {
-			result = AObject::create(&_io_com._io, this, _io_opt, NULL);
+		if (_iocom._io == NULL) {
+			result = AObject::create(&_iocom._io, this, _io_opt, NULL);
 			if (result < 0)
 				return result;
 		}
 		_status = pvdnet_connecting;
-		_io_com._outmsg.init(_io_opt);
-		result = _io_com._io->open(&_io_com._outmsg);
+		_iocom._outmsg.init(_io_opt);
+		result = _iocom._io->open(&_iocom._outmsg);
 		break;
 
 	case pvdnet_connecting:
 		_userid = 0;
-		if (ARefsBufCheck(_io_com._outbuf, 2048, 4096) < 0)
+		if (ARefsBufCheck(_iocom._outbuf, 2048, 4096) < 0)
 			return -ENOMEM;
 
 		open_prepare(pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
-		result = _io_com._io->input(&_io_com._outmsg);
+		result = _iocom._io->input(&_iocom._outmsg);
 		break;
 
 	case pvdnet_syn_md5id:
 		_status = pvdnet_ack_md5id;
-		result = _io_com._io->output(&_io_com._outmsg, _io_com._outbuf);
+		result = _iocom._io->output(&_iocom._outmsg, _iocom._outbuf);
 		break;
 
 	case pvdnet_ack_md5id:
-		_io_com._outbuf->push(_io_com._outmsg.size);
+		_iocom._outbuf->push(_iocom._outmsg.size);
 
-		result = PVDTryOutput(_userid, _io_com._outbuf, _io_com._outmsg);
+		result = PVDTryOutput(_userid, _iocom._outbuf, _iocom._outmsg);
 		if (result < 0)
-			return result;
+			break;
 		if (result == 0) {
-			result = _io_com._io->output(&_io_com._outmsg, _io_com._outbuf);
+			result = _iocom._io->output(&_iocom._outmsg, _iocom._outbuf);
 			break;
 		}
 
-		phead = (pvdnet_head*)_io_com._outmsg.data;
+		phead = (pvdnet_head*)_iocom._outmsg.data;
 		if ((phead->uCmd != NET_SDVR_MD5ID_GET) || (phead->uResult == 0)) {
 			result = -EFAULT;
 			break;
@@ -145,21 +150,21 @@ int PVDClient::open(int result)
 		_md5id = *(uint8_t*)(phead+1);
 
 		_status = pvdnet_fin_md5id;
-		result = _io_com._io->close(&_io_com._outmsg);
+		result = _iocom._io->close(&_iocom._outmsg);
 		if (result == 0)
 			return 0;
 
 	case pvdnet_fin_md5id:
 		_status = pvdnet_reconnecting;
-		_io_com._outmsg.init(_io_opt);
-		result = _io_com._io->open(&_io_com._outmsg);
+		_iocom._outmsg.init(_io_opt);
+		result = _iocom._io->open(&_iocom._outmsg);
 		break;
 
 	case pvdnet_reconnecting:
-		_io_com._outbuf->reset();
+		_iocom._outbuf->reset();
 		open_prepare(pvdnet_syn_login, NET_SDVR_LOGIN, sizeof(STRUCT_SDVR_LOGUSER));
 	{
-		STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(_io_com._outmsg.data+sizeof(pvdnet_head));
+		STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(_iocom._outmsg.data+sizeof(pvdnet_head));
 		memset(login, 0, sizeof(*login));
 
 		strcpy_sz(login->szUserName, _user);
@@ -169,27 +174,26 @@ int PVDClient::open(int result)
 		login->dwPWlen = PASSWD_LEN;
 
 		_status = pvdnet_syn_login;
-		result = _io_com._io->input(&_io_com._outmsg);
+		result = _iocom._io->input(&_iocom._outmsg);
 		break;
 	}
 	case pvdnet_syn_login:
 		_status = pvdnet_ack_login;
-		result = _io_com._io->output(&_io_com._outmsg, _io_com._outbuf);
+		result = _iocom._io->output(&_iocom._outmsg, _iocom._outbuf);
 		break;
 
 	case pvdnet_ack_login:
-		_io_com._outbuf->push(_io_com._outmsg.size);
+		_iocom._outbuf->push(_iocom._outmsg.size);
 
-		result = PVDTryOutput(_userid, _io_com._outbuf, _io_com._outmsg);
+		result = PVDTryOutput(_userid, _iocom._outbuf, _iocom._outmsg);
 		if (result < 0)
 			break;
-
 		if (result == 0) {
-			result = _io_com._io->output(&_io_com._outmsg, _io_com._outbuf);
+			result = _iocom._io->output(&_iocom._outmsg, _iocom._outbuf);
 			break;
 		}
 
-		phead = (pvdnet_head*)_io_com._outmsg.data;
+		phead = (pvdnet_head*)_iocom._outmsg.data;
 		if ((phead->uCmd != NET_SDVR_LOGIN) || (phead->uResult == 0)) {
 			result = -EFAULT;
 			break;
@@ -209,8 +213,9 @@ int PVDClient::open(int result)
 
 		addref();
 		_client.use(2);
-		_io_com._abort = false;
-		_io_com._outmsg_cycle(2048, 4096);
+		_iocom._abort = false;
+		_iocom.on_end = &PVDEndInput;
+		_iocom._outmsg_cycle(2048, 4096);
 		return result;
 
 	default: return -EACCES;
@@ -233,52 +238,40 @@ static int PVDHeart(AClientComponent *c)
 	pvd->_heart_msg.size = PVDCmdEncode(pvd->_userid, &pvd->_heart_head, NET_SDVR_SHAKEHAND, 0);
 	pvd->_heart_msg.done = &PVDHeartMsgDone;
 
-	pvd->_io_com.post(&pvd->_heart_msg);
+	pvd->_iocom.post(&pvd->_heart_msg);
 	return 0;
 }
 
-static void PVDInput(AInOutComponent *c, AMessage *msg)
+static int PVDInput(AInOutComponent *c, AMessage *msg)
 {
-	PVDClient *pvd = container_of(c, PVDClient, _io_com);
+	PVDClient *pvd = container_of(c, PVDClient, _iocom);
 	if (msg->type & AMsgType_Private) {
 		pvdnet_head *phead = (pvdnet_head*)msg->data;
 		phead->uFlag = NET_CMD_HEAD_FLAG;
 		phead->uUserId = pvd->_userid;
 	}
-	AInOutComponent::_do_input(c, msg);
-}
-
-static void PVDEndQueue(AInOutComponent *c, int result)
-{
-	PVDClient *pvd = container_of(c, PVDClient, _io_com);
-	pvd->_client.use(-1);
+	c->_inmsg.init(msg);
+	return c->_io->input(&c->_inmsg);
 }
 
 static int PVDOutput(AInOutComponent *c, int result)
 {
-	PVDClient *pvd = container_of(c, PVDClient, _io_com);
+	PVDClient *pvd = container_of(c, PVDClient, _iocom);
 	if (result >= 0)
-		result = PVDTryOutput(pvd->_userid, pvd->_io_com._outbuf, pvd->_io_com._outmsg);
+		result = PVDTryOutput(pvd->_userid, pvd->_iocom._outbuf, pvd->_iocom._outmsg);
 	if (result == 0) // need more data
 		return 0;
 
 	if (result < 0) {
 		pvd->_client._main_abort = true;
 		pvd->_client.use(-1);
-
-		// abort input
-		c->lock();
-		c->_abort = true;
-		if (c->_queue.empty())
-			PVDEndQueue(c, result);
-		c->unlock();
-
+		pvd->_iocom._abort_input(result);
 		pvd->release();
 		return result;
 	}
 
 	// TODO: dispatch outmsg
-	pvdnet_head *phead = (pvdnet_head*)pvd->_io_com._outmsg.data;
+	pvdnet_head *phead = (pvdnet_head*)pvd->_iocom._outmsg.data;
 	TRACE("pvd(%p): recv msg = 0x%02X, size = %d.\n",
 		pvd, phead->uCmd, result);
 	return 0;
@@ -287,27 +280,28 @@ static int PVDOutput(AInOutComponent *c, int result)
 static int PVDAbort(AClientComponent *c)
 {
 	PVDClient *pvd = container_of(c, PVDClient, _client);
-	if (pvd->_io_com._io != NULL)
-		pvd->_io_com._io->shutdown();
+	pvd->_iocom._abort = true;
+	if (pvd->_iocom._io != NULL)
+		pvd->_iocom._io->shutdown();
 	return 1;
 }
 
 static int PVDCloseMsgDone(AMessage *msg, int result)
 {
-	PVDClient *pvd = container_of(msg, PVDClient, _io_com._outmsg);
+	PVDClient *pvd = container_of(msg, PVDClient, _iocom._outmsg);
 	pvd->_client.exec_done(result);
 	return result;
 }
 static int PVDClose(AClientComponent *c)
 {
 	PVDClient *pvd = container_of(c, PVDClient, _client);
-	if (pvd->_io_com._io == NULL)
+	if (pvd->_iocom._io == NULL)
 		return 1;
 
 	pvd->_status = pvdnet_invalid;
-	pvd->_io_com._outmsg.init();
-	pvd->_io_com._outmsg.done = &PVDCloseMsgDone;
-	return pvd->_io_com._io->close(&pvd->_io_com._outmsg);
+	pvd->_iocom._outmsg.init();
+	pvd->_iocom._outmsg.done = &PVDCloseMsgDone;
+	return pvd->_iocom._io->close(&pvd->_iocom._outmsg);
 }
 
 static int PVDCreate(AObject **object, AObject *parent, AOption *option)
@@ -327,9 +321,8 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 	pvd->_client.heart = &PVDHeart;
 	pvd->_client.abort = &PVDAbort;
 	pvd->_client.close = &PVDClose;
-	pvd->_io_com.do_input = &PVDInput;
-	pvd->_io_com.on_endqu = &PVDEndQueue;
-	pvd->_io_com.on_output = &PVDOutput;
+	pvd->_iocom.do_input = &PVDInput;
+	pvd->_iocom.on_output = &PVDOutput;
 	return 1;
 }
 
@@ -337,9 +330,9 @@ static void PVDRelease(AObject *object)
 {
 	PVDClient *pvd = (PVDClient*)object;
 	pvd->_pop(&pvd->_client);
-	pvd->_pop(&pvd->_io_com);
-	release_s(pvd->_io_com._io, AObjectRelease, NULL);
-	release_s(pvd->_io_com._outbuf, ARefsBufRelease, NULL);
+	pvd->_pop(&pvd->_iocom);
+	release_s(pvd->_iocom._io, AObjectRelease, NULL);
+	release_s(pvd->_iocom._outbuf, ARefsBufRelease, NULL);
 
 	pthread_mutex_destroy(&pvd->_mutex);
 	release_s(pvd->_io_opt, AOptionRelease, NULL);

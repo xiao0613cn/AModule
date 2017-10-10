@@ -11,7 +11,7 @@ struct AEventManager;
 
 struct ASystem {
 	AModule module;
-	static const char* name() { return "ASystem"; }
+	static const char* class_name() { return "ASystem"; }
 
 	enum Status {
 		NotNeed = 0,
@@ -36,7 +36,7 @@ struct ASystem {
 	int    (*exec_abort)(Result *r);
 
 	static ASystem* find(const char *sys_name) {
-		AModule *m = AModuleFind(name(), sys_name);
+		AModule *m = AModuleFind(class_name(), sys_name);
 		return m ? container_of(m, ASystem, module) : NULL;
 	}
 	void _exec(Result *r) {

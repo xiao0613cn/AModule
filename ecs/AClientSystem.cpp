@@ -161,6 +161,7 @@ static int client_run(ASystem::Result *r, int result)
 	default: assert(0); return result;
 	}
 
+	r->status = ASystem::NotNeed;
 	c->use(-1);
 	c->_self->release();
 	return result;
@@ -218,7 +219,7 @@ static int check_all(list_head *results, DWORD cur_tick)
 }
 
 ASystem AClientSystem = { {
-	"ASystem",
+	ASystem::class_name(),
 	"AClientSystem", },
 	&reg_client,
 	&unreg_client,

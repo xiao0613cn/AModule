@@ -807,9 +807,8 @@ void mqtt_codec_destroy(MQTTCODEC_HANDLE handle)
     }
 }
 
-BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_HANDLE trace_log)
+BUFFER_HANDLE mqtt_codec_connect(BUFFER_HANDLE result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_HANDLE trace_log)
 {
-    BUFFER_HANDLE result;
     /* Codes_SRS_MQTT_CODEC_07_008: [If the parameters mqttOptions is NULL then mqtt_codec_connect shall return a null value.] */
     if (mqttOptions == NULL)
     {
@@ -818,7 +817,6 @@ BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_
     else
     {
         /* Codes_SRS_MQTT_CODEC_07_009: [mqtt_codec_connect shall construct a BUFFER_HANDLE that represents a MQTT CONNECT packet.] */
-        result = BUFFER_new();
         if (result != NULL)
         {
             STRING_HANDLE varible_header_log = NULL;
@@ -830,7 +828,7 @@ BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_
             if (constructConnectVariableHeader(result, mqttOptions, varible_header_log) != 0)
             {
                 /* Codes_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
-                BUFFER_delete(result);
+                BUFFER_unbuild(result);
                 result = NULL;
             }
             else
@@ -838,7 +836,7 @@ BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_
                 if (constructConnPayload(result, mqttOptions, varible_header_log) != 0)
                 {
                     /* Codes_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
-                    BUFFER_delete(result);
+                    BUFFER_unbuild(result);
                     result = NULL;
                 }
                 else
@@ -850,7 +848,7 @@ BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_
                     if (constructFixedHeader(result, CONNECT_TYPE, 0) != 0)
                     {
                         /* Codes_SRS_MQTT_CODEC_07_010: [If any error is encountered then mqtt_codec_connect shall return NULL.] */
-                        BUFFER_delete(result);
+                        BUFFER_unbuild(result);
                         result = NULL;
                     }
                     else
@@ -871,10 +869,11 @@ BUFFER_HANDLE mqtt_codec_connect(const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_
     return result;
 }
 
-BUFFER_HANDLE mqtt_codec_disconnect()
+BUFFER_HANDLE mqtt_codec_disconnect(BUFFER_HANDLE result/*!=NULL*/)
 {
     /* Codes_SRS_MQTT_CODEC_07_011: [On success mqtt_codec_disconnect shall construct a BUFFER_HANDLE that represents a MQTT DISCONNECT packet.] */
-    BUFFER_HANDLE result = BUFFER_new();
+    if (result == NULL)
+	result = BUFFER_new();
     if (result != NULL)
     {
         if (BUFFER_enlarge(result, 2) != 0)
@@ -1051,10 +1050,11 @@ BUFFER_HANDLE mqtt_codec_publishComplete(uint16_t packetId)
     return result;
 }
 
-BUFFER_HANDLE mqtt_codec_ping()
+BUFFER_HANDLE mqtt_codec_ping(BUFFER_HANDLE result/*!=NULL*/)
 {
     /* Codes_SRS_MQTT_CODEC_07_021: [On success mqtt_codec_ping shall construct a BUFFER_HANDLE that represents a MQTT PINGREQ packet.] */
-    BUFFER_HANDLE result = BUFFER_new();
+    if (result == NULL)
+	    result = BUFFER_new();
     if (result != NULL)
     {
         if (BUFFER_enlarge(result, 2) != 0)

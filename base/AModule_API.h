@@ -47,11 +47,13 @@
 // < 0: call failed, return error code
 
 #include "base.h"
+#include "str_util.h"
+#include "func_util.h"
 #include "thread_util.h"
 #include "list.h"
 #include "rbtree.h"
 #include "iocp_util.h"
-#include "func_util.h"
+#include "buf_util.h"
 
 #include "AOperator.h"
 #include "AOption.h"

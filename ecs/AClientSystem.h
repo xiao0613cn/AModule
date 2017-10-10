@@ -43,7 +43,10 @@ struct AClientComponent : public AComponent {
 	list_head       _sys_node;
 	ASystem::Result _run_result;
 	ASystem::Result _abort_result;
-	void exec_done(int result) { _run_result.system->exec_run(&_run_result, result); }
+	void exec_done(int result) {
+		assert(_run_result.status == ASystem::Runnable);
+		_run_result.system->exec_run(&_run_result, result);
+	}
 
 	int (*open)(AClientComponent *c);
 	int (*heart)(AClientComponent *c);

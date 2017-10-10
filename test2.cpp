@@ -10,8 +10,9 @@
 rb_tree_define(AEntity, _manager_node, AEntity*, AEntityCmp)
 rb_tree_define(AReceiver, _manager_node, const char*, AReceiverCmp)
 
-static void on_event(void *user, const char *name, void *p) {
-	TRACE("user = %p, name = %s, p = %p.\n", user, name, p);
+static int on_event(void *user, const char *name, void *p, bool preproc) {
+	TRACE("user = %p, name = %s, p = %p, preproc = %d.\n", user, name, p, preproc);
+	return 1;
 }
 
 int main()

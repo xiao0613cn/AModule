@@ -237,7 +237,7 @@ CreateEvent(const void *attr, int manual, int state, const char *name) {
 	if (name != NULL) // not support!!
 		return NULL;
 
-	WinEvent *ev = make(WinEvent);
+	WinEvent *ev = gomake(WinEvent);
 	if (ev != NULL)
 		WinEvent_Init(ev, manual, state);
 	return ev;

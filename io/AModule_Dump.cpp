@@ -68,7 +68,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 		}
 	}
 
-	req = make(DumpReq);
+	req = gomake(DumpReq);
 	if (req != NULL) {
 		req->reqix = reqix;
 		req->dump = dump;
