@@ -30,14 +30,14 @@ static void DumpRelease(AObject *object)
 	while (!list_empty(&dump->req_list)) {
 		DumpReq *req = list_pop_front(&dump->req_list, DumpReq, entry);
 		if (!dump->single_file) {
-			release_s(req->file, fclose, NULL);
+			if_not(req->file, NULL, fclose);
 		}
 		free(req);
 	}
 	pthread_mutex_destroy(&dump->req_mutex);
 
-	release_s(dump->file, fclose, NULL);
-	release_s(dump->io, AObjectRelease, NULL);
+	if_not(dump->file, NULL, fclose);
+	release_s(dump->io);
 }
 
 static int DumpCreate(AObject **object, AObject *parent, AOption *option)
@@ -103,7 +103,7 @@ int OnDumpRequest(DumpReq *req, int result)
 	//if (dump->object.reqix_count == 0) // open done
 	//	dump->object.reqix_count = dump->io->reqix_count;
 
-	req->from->init(req->msg);
+	req->from->init(&req->msg);
 	if (req->file != NULL) {
 		fwrite(req->msg.data, req->msg.size, 1, req->file);
 	} else {
@@ -127,7 +127,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 	dump->single_file = msg_opt->getInt("single_file", FALSE);
 
 	if (dump->single_file && (dump->file_name[0] != '\0')) {
-		release_s(dump->file, fclose, NULL);
+		if_not(dump->file, NULL, fclose);
 
 		dump->file = fopen(dump->file_name, "ba+");
 		if (dump->file == NULL) {
@@ -203,7 +203,7 @@ static int DumpClose(AObject *object, AMessage *msg)
 {
 	DumpObject *dump = (DumpObject*)object;
 	if (msg != NULL) {
-		release_s(dump->file, fclose, NULL);
+		if_not(dump->file, NULL, fclose);
 	}
 	return dump->io->close(msg);
 }

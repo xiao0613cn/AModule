@@ -102,10 +102,10 @@ void BUFFER_delete(BUFFER_HANDLE handle)
 /*return 0 if the buffer was copied*/
 /*else return different than zero*/
 /* Codes_SRS_BUFFER_07_008: [BUFFER_build allocates size_t bytes, copies the unsigned char* into the buffer and returns zero on success.] */
-int BUFFER_build(BUFFER_HANDLE handle, const unsigned char* source, size_t size)
+int BUFFER_build(BUFFER_HANDLE b, const unsigned char* source, size_t size)
 {
     int result;
-    if (handle == NULL)
+    if (b == NULL)
     {
         /* Codes_SRS_BUFFER_07_009: [BUFFER_build shall return nonzero if handle is NULL ] */
         result = __FAILURE__;
@@ -114,8 +114,7 @@ int BUFFER_build(BUFFER_HANDLE handle, const unsigned char* source, size_t size)
     else if (size == 0)
     {
         /* Codes_SRS_BUFFER_01_003: [If size is zero, source can be NULL.] */
-        BUFFER* b = (BUFFER*)handle;
-        free(b->buffer);
+        if (b->buffer != NULL) free(b->buffer);
         b->buffer = NULL;
         b->size = 0;
 
@@ -123,30 +122,21 @@ int BUFFER_build(BUFFER_HANDLE handle, const unsigned char* source, size_t size)
     }
     else
     {
-        if (source == NULL)
+        /* Codes_SRS_BUFFER_07_011: [BUFFER_build shall overwrite previous contents if the buffer has been previously allocated.] */
+        unsigned char* newBuffer = (unsigned char*)realloc(b->buffer, size);
+        if (newBuffer == NULL)
         {
-            /* Codes_SRS_BUFFER_01_001: [If size is positive and source is NULL, BUFFER_build shall return nonzero] */
+            /* Codes_SRS_BUFFER_07_010: [BUFFER_build shall return nonzero if any error is encountered.] */
             result = __FAILURE__;
         }
         else
         {
-            BUFFER* b = (BUFFER*)handle;
-            /* Codes_SRS_BUFFER_07_011: [BUFFER_build shall overwrite previous contents if the buffer has been previously allocated.] */
-            unsigned char* newBuffer = (unsigned char*)realloc(b->buffer, size);
-            if (newBuffer == NULL)
-            {
-                /* Codes_SRS_BUFFER_07_010: [BUFFER_build shall return nonzero if any error is encountered.] */
-                result = __FAILURE__;
-            }
-            else
-            {
-                b->buffer = newBuffer;
-                b->size = size;
-                /* Codes_SRS_BUFFER_01_002: [The size argument can be zero, in which case nothing shall be copied from source.] */
-                (void)memcpy(b->buffer, source, size);
+            b->buffer = newBuffer;
+            b->size = size;
+            /* Codes_SRS_BUFFER_01_002: [The size argument can be zero, in which case nothing shall be copied from source.] */
+            memcpy(b->buffer, source, size);
 
-                result = 0;
-            }
+            result = 0;
         }
     }
 
@@ -293,110 +283,84 @@ int BUFFER_size(BUFFER_HANDLE handle, size_t* size)
 }
 
 /* Codes_SRS_BUFFER_07_024: [BUFFER_append concatenates b2 onto b1 without modifying b2 and shall return zero on success.] */
-int BUFFER_append(BUFFER_HANDLE handle1, BUFFER_HANDLE handle2)
+int BUFFER_append(BUFFER_HANDLE b1, const void *buffer, size_t size)
 {
     int result;
-    if ( (handle1 == NULL) || (handle2 == NULL) || (handle1 == handle2) )
+    if ((b1 == NULL) || (b1->buffer == buffer))
     {
         /* Codes_SRS_BUFFER_07_023: [BUFFER_append shall return a nonzero upon any error that is encountered.] */
         result = __FAILURE__;
     }
     else
     {
-        BUFFER* b1 = (BUFFER*)handle1;
-        BUFFER* b2 = (BUFFER*)handle2;
-        if (b1->buffer == NULL) 
+        if (size ==0)
         {
-            /* Codes_SRS_BUFFER_07_023: [BUFFER_append shall return a nonzero upon any error that is encountered.] */
-            result = __FAILURE__;
-        }
-        else if (b2->buffer == NULL)
-        {
-            /* Codes_SRS_BUFFER_07_023: [BUFFER_append shall return a nonzero upon any error that is encountered.] */
-            result = __FAILURE__;
+            // b2->size = 0, whatever b1->size is, do nothing
+            result = 0;
         }
         else
         {
-            if (b2->size ==0)
+            // b2->size != 0, whatever b1->size is
+            unsigned char* temp = (unsigned char*)malloc(b1->size + size);
+            if (temp == NULL)
             {
-                // b2->size = 0, whatever b1->size is, do nothing
-                result = 0;
+                /* Codes_SRS_BUFFER_07_023: [BUFFER_append shall return a nonzero upon any error that is encountered.] */
+                result = __FAILURE__;
             }
             else
-            {
-                // b2->size != 0, whatever b1->size is
-                unsigned char* temp = (unsigned char*)realloc(b1->buffer, b1->size + b2->size);
-                if (temp == NULL)
-                {
-                    /* Codes_SRS_BUFFER_07_023: [BUFFER_append shall return a nonzero upon any error that is encountered.] */
-                    result = __FAILURE__;
-                }
-                else
-                {
-                    /* Codes_SRS_BUFFER_07_024: [BUFFER_append concatenates b2 onto b1 without modifying b2 and shall return zero on success.]*/
-                    b1->buffer = temp;
-                    // Append the BUFFER
-                    (void)memcpy(&b1->buffer[b1->size], b2->buffer, b2->size);
-                    b1->size += b2->size;
-                    result = 0;
-                }
+			{
+				/* Codes_SRS_BUFFER_07_024: [BUFFER_append concatenates b2 onto b1 without modifying b2 and shall return zero on success.]*/
+				memcpy(temp, b1->buffer, b1->size);
+                // Append the BUFFER
+				memcpy(&temp[b1->size], buffer, size);
+
+				if (b1->buffer != NULL) free(b1->buffer);
+				b1->buffer = temp;
+                b1->size += size;
+                result = 0;
             }
         }
     }
     return result;
 }
 
-int BUFFER_prepend(BUFFER_HANDLE handle1, BUFFER_HANDLE handle2)
+int BUFFER_prepend(BUFFER_HANDLE b1, const void *buffer, size_t size)
 {
     int result;
-    if ((handle1 == NULL) || (handle2 == NULL) || (handle1 == handle2))
+    if ((b1 == NULL) || (b1->buffer == buffer))
     {
         /* Codes_SRS_BUFFER_01_005: [ BUFFER_prepend shall return a non-zero upon value any error that is encountered. ]*/
         result = __FAILURE__;
     }
     else
     {
-        BUFFER* b1 = (BUFFER*)handle1;
-        BUFFER* b2 = (BUFFER*)handle2;
-        if (b1->buffer == NULL)
+        //put b2 ahead of b1: [b2][b1], return b1
+        if (size == 0)
         {
-            /* Codes_SRS_BUFFER_01_005: [ BUFFER_prepend shall return a non-zero upon value any error that is encountered. ]*/
-            result = __FAILURE__;
-        }
-        else if (b2->buffer == NULL)
-        {
-            /* Codes_SRS_BUFFER_01_005: [ BUFFER_prepend shall return a non-zero upon value any error that is encountered. ]*/
-            result = __FAILURE__;
+            // do nothing
+            result = 0;
         }
         else
         {
-            //put b2 ahead of b1: [b2][b1], return b1
-            if (b2->size ==0)
+            // b2->size != 0
+            unsigned char* temp = (unsigned char*)malloc(b1->size + size);
+            if (temp == NULL)
             {
-                // do nothing
-                result = 0;
+                /* Codes_SRS_BUFFER_01_005: [ BUFFER_prepend shall return a non-zero upon value any error that is encountered. ]*/
+                result = __FAILURE__;
             }
             else
             {
-                // b2->size != 0
-                unsigned char* temp = (unsigned char*)malloc(b1->size + b2->size);
-                if (temp == NULL)
-                {
-                    /* Codes_SRS_BUFFER_01_005: [ BUFFER_prepend shall return a non-zero upon value any error that is encountered. ]*/
-                    result = __FAILURE__;
-                }
-                else
-                {
-                    /* Codes_SRS_BUFFER_01_004: [ BUFFER_prepend concatenates handle1 onto handle2 without modifying handle1 and shall return zero on success. ]*/
-                    // Append the BUFFER
-                    (void)memcpy(temp, b2->buffer, b2->size);
-                    // start from b1->size to append b1
-                    (void)memcpy(&temp[b2->size], b1->buffer, b1->size);
-                    free(b1->buffer);
-                    b1->buffer = temp;
-                    b1->size += b2->size;
-                    result = 0;
-                }
+                /* Codes_SRS_BUFFER_01_004: [ BUFFER_prepend concatenates handle1 onto handle2 without modifying handle1 and shall return zero on success. ]*/
+                // Append the BUFFER
+                memcpy(temp, buffer, size);
+                // start from b1->size to append b1
+                memcpy(&temp[size], b1->buffer, b1->size);
+
+				if (b1->buffer != NULL) free(b1->buffer);
+                b1->buffer = temp;
+                b1->size += size;
+                result = 0;
             }
         }
     }

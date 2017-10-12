@@ -403,7 +403,7 @@ AOptionLoad(AOption **option, const char *path)
 static int write_buf(void *p, const char *str, int len)
 {
 	ARefsBuf **buf = (ARefsBuf**)p;
-	int result = ARefsBufCheck(*buf, len, 0, NULL, NULL);
+	int result = ARefsBuf::reserve(*buf, len, 0);
 	if (result < 0)
 		return result;
 
@@ -415,7 +415,7 @@ AMODULE_API int
 AOptionSave(const AOption *option, const char *path)
 {
 	ARefsBuf *buf = NULL;
-	int result = ARefsBufCheck(buf, 512, 0, NULL, NULL);
+	int result = ARefsBuf::reserve(buf, 512, 0);
 	if (result < 0)
 		return result;
 	godefer(ARefsBuf*, buf, buf->release());

@@ -6,19 +6,22 @@
 #include "../ecs/AInOutComponent.h"
 
 struct MQTTClient : public AEntity2 {
-	enum ConnStatus {
+	enum Status {
 		Invalid = 0,
 		Opening,
-		SendLogin,
-		RecvLogin,
+		LoginSend,
+		LoginRecv,
+		LoginFailed,
 		Opened,
 	};
 
 	AClientComponent _client;
-	AInOutComponent _iocom;
-	pthread_mutex_t _mutex;
+	AInOutComponent  _iocom;
+	pthread_mutex_t  _mutex;
+
+	MQTTCODEC_HANDLE _codec;
 	AOption   *_options;
-	ConnStatus _status;
+	Status     _status;
 	AMessage   _heart_msg;
 
 	void init() {
@@ -27,10 +30,13 @@ struct MQTTClient : public AEntity2 {
 		_iocom.init(this); _push(&_iocom);
 		pthread_mutex_init(&_mutex, NULL);
 		_iocom._mutex = &_mutex;
+
+		_codec = NULL;
 		_options = NULL;
 		_status = Invalid;
 	}
 	int open(int result);
+	void on_packet(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag);
 };
 
 static int MQTTOpenMsgDone(AMessage *msg, int result)
@@ -73,6 +79,9 @@ int MQTTClient::open(int result)
 	}
 	case Opening:
 	{
+		if (result < 0)
+			return result;
+
 		AOption *client_opt = _options->find("mqtt_client_options");
 		MQTT_CLIENT_OPTIONS login_opt = { 0 };
 		login_opt.clientId = client_opt->getStr("clientId", NULL);
@@ -86,25 +95,51 @@ int MQTTClient::open(int result)
 		login_opt.qualityOfServiceValue = (QOS_VALUE)client_opt->getInt("qos", DELIVER_AT_MOST_ONCE);
 
 		MQTT_BUFFER buf = { 0 };
-		if (mqtt_codec_connect(&buf, &login_opt, NULL) == NULL)
+		if (mqtt_codec_connect(&buf, &login_opt) == NULL)
 			return -EINVAL;
 
 		_client._tick_heart = login_opt.keepAliveInterval*1000;
-		_status = SendLogin;
-		_iocom._outmsg.init(ioMsgType_Block, buf->buffer, buf->size);
+		_status = LoginSend;
+		_iocom._outmsg.init(ioMsgType_Block, buf.buffer, buf.size);
 		result = _iocom._io->input(&_iocom._outmsg);
 		break;
 	}
-	case SendLogin:
+	case LoginSend:
+	{
+		MQTT_BUFFER buf = { (unsigned char*)_iocom._outmsg.data, _iocom._outmsg.size };
+		BUFFER_unbuild(&buf);
+		if (result >= 0)
+			result = ARefsBuf::reserve(_iocom._outbuf, 1024, 0);
+		if (result < 0)
+			return result;
+
+		_codec = mqtt_codec_create(&mqtt_packet_callback<MQTTClient, &MQTTClient::on_packet>, this);
+		if (_codec == NULL)
+			return -ENOMEM;
+
+		_status = LoginRecv;
+		_iocom._outbuf->reset();
+		result = _iocom._io->output(&_iocom._outmsg, _iocom._outbuf);
 		break;
-	case RecvLogin:
+	}
+	case LoginRecv:
+		if (result < 0)
+			return result;
+
+		_iocom._outbuf->push(_iocom._outmsg.size);
+		result = mqtt_codec_bytesReceived(_codec, (unsigned char*)_iocom._outbuf->ptr(), _iocom._outbuf->len());
+		if (result != 0)
+			return -EFAULT;
+		result = 1;
 		break;
+	case LoginFailed:
+		return -EFAULT;
 	case Opened:
-		break;
+		return 1;
 	default: assert(0); return -EACCES;
 	}
-	} while (result > 0);
-	return result;
+	} while (result != 0);
+	return 0;
 }
 
 static int MQTTHeartMsgDone(AMessage *msg, int result)
@@ -137,7 +172,7 @@ static int MQTTAbort(AClientComponent *c)
 	MQTTClient *mqtt = container_of(c, MQTTClient, _client);
 	mqtt->_iocom._abort = true;
 	if (mqtt->_iocom._io != NULL)
-		mqtt->_iocom._io.shutdown();
+		mqtt->_iocom._io->shutdown();
 	return 1;
 }
 
@@ -149,7 +184,7 @@ static int MQTTCloseMsgDone(AMessage *msg, int result)
 		BUFFER_unbuild(&buf);
 
 		msg->init();
-		result = mqtt->_iocom._io.close(msg);
+		result = mqtt->_iocom._io->close(msg);
 		if (result == 0)
 			return 0;
 	}
@@ -163,15 +198,17 @@ static int MQTTClose(AClientComponent *c)
 	if (mqtt->_iocom._io == NULL)
 		return 1;
 
+	mqtt->_status = MQTTClient::Invalid;
+	if_not(mqtt->_codec, NULL, mqtt_codec_destroy);
+
 	MQTT_BUFFER buf = { 0 };
 	mqtt_codec_disconnect(&buf);
-
-	mqtt->_status = MQTTClient::Invalid;
 	mqtt->_iocom._outmsg.init(ioMsgType_Block, buf.buffer, buf.size);
 	mqtt->_iocom._outmsg.done = &MQTTCloseMsgDone;
-	int result = mqtt->_iocom._io.input(&mqtt->_iocom._outmsg);
+
+	int result = mqtt->_iocom._io->input(&mqtt->_iocom._outmsg);
 	if (result != 0)
-		MQTTCloseMsgDone(result);
+		mqtt->_iocom._outmsg.done2(result);
 	return 0;
 }
 
@@ -209,11 +246,11 @@ static void MQTTRelease(AObject *object)
 	MQTTClient *mqtt = (MQTTClient*)object;
 	mqtt->_pop(&mqtt->_client);
 	mqtt->_pop(&mqtt->_iocom);
-	release_s(mqtt->_iocom._io, AObjectRelease, NULL);
-	release_s(mqtt->_iocom._outbuf, ARefsBufRelease, NULL);
+	release_s(mqtt->_iocom._io);
+	release_s(mqtt->_iocom._outbuf);
 
 	pthread_mutex_destroy(&mqtt->_mutex);
-	release_s(mqtt->_options, AOptionRelease, NULL);
+	release_s(mqtt->_options);
 	mqtt->exit();
 }
 

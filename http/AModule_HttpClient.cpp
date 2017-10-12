@@ -5,11 +5,11 @@
 extern void HttpClientRelease(AObject *object)
 {
 	HttpClient *p = (HttpClient*)object;
-	release_s(p->io, AObjectRelease, NULL);
+	release_s(p->io);
 
 	AOptionClear(&p->send_headers);
-	release_s(p->recv_buffer, ARefsBufRelease, NULL);
-	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	release_s(p->recv_buffer);
+	release_s(p->recv_header_buffer);
 }
 
 static void HttpClientResetStatus(HttpClient *p)
@@ -20,8 +20,8 @@ static void HttpClientResetStatus(HttpClient *p)
 	p->recv_parser_pos = 0;
 	p->recv_header_count = 0;
 
-	release_s(p->recv_buffer, ARefsBufRelease, NULL);
-	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	release_s(p->recv_buffer);
+	release_s(p->recv_header_buffer);
 	p->recv_header_pos = 0;
 	p->recv_body_pos = 0;
 	p->recv_body_len = 0;
@@ -97,7 +97,7 @@ static int HttpClientOpen(AObject *object, AMessage *msg)
 	HttpClient *p = (HttpClient*)object;
 	if ((msg->type == AMsgType_Object)
 	 && (msg->size == 0)) {
-		release_s(p->io, AObjectRelease, NULL);
+		release_s(p->io);
 
 		p->io = (IOObject*)msg->data;
 		if (p->io != NULL)
@@ -274,7 +274,7 @@ static int on_m_begin(http_parser *parser)
 	p->h_v_pos() = 0;
 	p->h_v_len() = 0;
 
-	release_s(p->recv_header_buffer, ARefsBufRelease, NULL);
+	release_s(p->recv_header_buffer);
 	p->recv_header_pos = 0;
 	return 0;
 }
@@ -333,7 +333,7 @@ static int on_h_done(http_parser *parser)
 
 	p->recv_header_buffer = p->recv_buffer;
 	p->recv_header_buffer->addref();
-	p->recv_header_pos = p->recv_buffer->bgn;
+	p->recv_header_pos = p->recv_buffer->_bgn;
 	return 0;
 }
 
@@ -427,7 +427,7 @@ _continue:
 			reserve = min(p->recv_parser.content_length, max_body_size-p->recv_body_len);
 		}
 		if (reserve != 0) {
-			result = ARefsBufCheck(p->recv_buffer, reserve, recv_bufsiz);
+			result = ARefsBuf::reserve(p->recv_buffer, reserve, recv_bufsiz);
 			TRACE2("resize buffer size = %d, left = %d, reserve = %d, result = %d.\n",
 				p->recv_buffer->len(), p->recv_buffer->left(), reserve, result);
 			if (result < 0)
@@ -436,7 +436,7 @@ _continue:
 		}
 	}
 
-	p->recv_body_pos += p->recv_buffer->bgn;
+	p->recv_body_pos += p->recv_buffer->_bgn;
 	p->recv_buffer->pop(p->recv_parser_pos);
 	p->recv_parser_pos = 0;
 
@@ -447,7 +447,7 @@ _continue:
 			p->recv_buffer, p->recv_body_pos, p->recv_body_len);
 	} else {
 		AMsgInit(p->recv_from, (result==1?ioMsgType_Block:AMsgType_Unknown),
-			p->recv_buffer->data+p->recv_body_pos, p->recv_body_len);
+			p->recv_buffer->_data+p->recv_body_pos, p->recv_body_len);
 	}
 
 	TRACE("status code = %d, header count = %d, body = %d.\n",
@@ -463,7 +463,7 @@ _continue:
 
 extern int HttpClientDoRecv(HttpClient *p, AMessage *msg)
 {
-	if (ARefsBufCheck(p->recv_buffer, send_bufsiz, recv_bufsiz) < 0)
+	if (ARefsBuf::reserve(p->recv_buffer, send_bufsiz, recv_bufsiz) < 0)
 		return -ENOMEM;
 
 	p->recv_body_pos = 0;
@@ -478,7 +478,7 @@ extern int HttpClientDoRecv(HttpClient *p, AMessage *msg)
 
 extern int HttpClientAppendOutput(HttpClient *p, AMessage *msg)
 {
-	if (ARefsBufCheck(p->recv_buffer, msg->size, recv_bufsiz) < 0)
+	if (ARefsBuf::reserve(p->recv_buffer, msg->size, recv_bufsiz) < 0)
 		return -ENOMEM;
 
 	p->recv_buffer->mempush(msg->data, msg->size);

@@ -65,11 +65,8 @@ AModuleRegister(AModule *module)
 AMODULE_API int
 AModuleInit(AOption *option)
 {
-	release_s(g_option, AOptionRelease, NULL);
-	g_option = option;
-	BOOL first = !g_inited;
-	if (!g_inited)
-		g_inited = TRUE;
+	release_s(g_option);    g_option = option;
+	BOOL first = !g_inited; g_inited = TRUE;
 
 	list_for_each2(module, &g_module, AModule, global_entry)
 	{
@@ -93,7 +90,7 @@ AModuleExit(void)
 		pos->exit(g_inited);
 	}
 	g_inited = FALSE;
-	release_s(g_option, AOptionRelease, NULL);
+	release_s(g_option);
 	return 1;
 }
 
@@ -213,7 +210,7 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 
 	int result = module->create(object, parent, option);
 	if (result < 0)
-		release_s(*object, AObjectRelease, NULL);
+		release_s(*object);
 	return result;
 }
 

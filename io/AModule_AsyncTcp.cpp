@@ -31,7 +31,7 @@ struct AsyncTcp : public IOObject {
 static void AsyncTcpRelease(AObject *object)
 {
 	AsyncTcp *tcp = (AsyncTcp*)object;
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
+	closesocket_s(tcp->sock);
 }
 
 static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
@@ -183,7 +183,7 @@ static int AsyncTcpCloseDone(AOperator *asop, int result)
 		tcp->send_ovlp.perform_count, tcp->send_ovlp.signal_count,
 		tcp->recv_ovlp.perform_count, tcp->recv_ovlp.signal_count);
 
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
+	closesocket_s(tcp->sock);
 	return ovlp->from->done2(1);
 }
 
@@ -339,6 +339,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", errno);
 		return -EFAULT;
 	}
+	godefer(addrinfo*, ai, freeaddrinfo(ai));
 
 	struct addrinfo *ai_valid = ai;
 	do {
@@ -347,13 +348,11 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 	} while ((ai_valid = ai_valid->ai_next) != NULL);
 	if (ai_valid == NULL) {
 		TRACE("invalid address: %s, ai_protocol = %d.\n", addr->value, ai->ai_protocol);
-		release_s(ai, freeaddrinfo, NULL);
 		return -EINVAL;
 	}
 
 	tcp->sock = socket(ai_valid->ai_family, SOCK_STREAM, ai_valid->ai_protocol);
 	if (tcp->sock == INVALID_SOCKET) {
-		release_s(ai, freeaddrinfo, NULL);
 		return -EFAULT;
 	}
 
@@ -376,7 +375,6 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 			result = 0;
 	}
 #endif
-	release_s(ai, freeaddrinfo, NULL);
 	return result;
 }
 
@@ -441,14 +439,14 @@ static int AsyncTcpClose(AObject *object, AMessage *msg)
 		return 1;
 	}
 #ifdef _WIN32
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
+	closesocket_s(tcp->sock);
 	return 1;
 #else
 	assert(tcp->send_ovlp.status != op_pending);
 	assert(tcp->recv_ovlp.status != op_pending);
 
 	if (tcp->send_ovlp.ao_events == 0) {
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
+		closesocket_s(tcp->sock);
 		return 1;
 	}
 

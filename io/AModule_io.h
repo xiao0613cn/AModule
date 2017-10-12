@@ -61,7 +61,7 @@ struct IOModule {
 };
 
 struct IOObject : public AObject {
-	static const char* name() { return "io"; }
+	static const char* class_name() { return "io"; }
 	IOModule* operator->() { return container_of(_module, IOModule, module); }
 
 	int open(AMessage *msg)   { return (*this)->open(this, msg); }

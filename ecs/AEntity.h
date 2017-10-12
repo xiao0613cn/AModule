@@ -80,21 +80,21 @@ struct AEntity {
 	}
 };
 
-static inline int
-AEntityCmp(AEntity *key, AEntity *data) {
-	if (key == data) return 0;
-	return (key < data) ? -1 : 1;
-}
 rb_tree_declare(AEntity, AEntity*)
 
 struct AEntityManager {
 	struct rb_root _entity_map;
 	int            _entity_count;
+	pthread_mutex_t *_mutex;
 
 	void init() {
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;
+		_mutex = NULL;
 	}
+	void lock() { _mutex ? pthread_mutex_lock(_mutex) : 0; }
+	void unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
+
 	bool _push(AEntity *e) {
 		bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_manager_node));
 		if (valid)
@@ -184,7 +184,7 @@ struct AComponent2 : public AObject, public AComponent {
 	}
 	void exit() {
 		assert(_entity_node.empty());
-		release_f(_entity, NULL, _entity->_self->release());
+		if_not2(_entity, NULL, _entity->_self->release());
 	}
 };
 

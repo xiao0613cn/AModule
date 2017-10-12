@@ -16,7 +16,7 @@ static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 static void EchoRelease(AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	release_s(echo->client, AObjectRelease, NULL);
+	release_s(echo->client);
 }
 
 static int EchoProbe(AObject *object, AMessage *msg)
@@ -62,7 +62,7 @@ static int EchoCancel(AObject *object, int reqix, AMessage *msg)
 static int EchoClose(AObject *object, AMessage *msg)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	release_s(echo->client, AObjectRelease, NULL);
+	release_s(echo->client);
 	return 1;
 }
 

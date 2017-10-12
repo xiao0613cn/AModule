@@ -3,106 +3,88 @@
 #include "AEntity.h"
 #include "AEvent.h"
 
+static inline int
+AEntityCmp(AEntity *key, AEntity *data) {
+	if (key == data) return 0;
+	return (key < data) ? -1 : 1;
+}
+rb_tree_define(AEntity, _manager_node, AEntity*, AEntityCmp)
 
-void ASystemManager::_do_check_entity(ASystemManager *sm, list_head *results_list, int max_count, DWORD cur_tick)
+static int _do_check_one(ASystemManager *sm, list_head &results, AEntity *e, DWORD cur_tick)
+{
+	int count = 0;
+
+	ASystem::Result *r = sm->_systems->check_one ? sm->_systems->check_one(e, cur_tick) : 0;
+	if (r != NULL) {
+		r->system = sm->_systems;
+		results.push_back(&r->node);
+		count ++;
+	}
+
+	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry) {
+		r = s->check_one ? s->check_one(e, cur_tick) : 0;
+		if (r != NULL) {
+			r->system = s;
+			results.push_back(&r->node);
+			count ++;
+		}
+	}
+	return count;
+}
+
+static void _do_check_entity(ASystemManager *sm, list_head *results_list, int max_count, DWORD cur_tick)
 {
 	int check_count = 0;
 
-	sm->entity_lock();
+	sm->_entity_manager->lock();
 	sm->_last_check = sm->_entity_manager->_upper(sm->_last_check);
 	while (sm->_last_check != NULL)
 	{
 		list_head &results = results_list[check_count];
 		results.init();
-		if (sm->_check_one(results, sm->_last_check, cur_tick) > 0) {
+		if (_do_check_one(sm, results, sm->_last_check, cur_tick) > 0) {
 			if (++check_count >= max_count)
 				break;
 		}
 		sm->_last_check = sm->_entity_manager->_next(sm->_last_check);
 	}
-	sm->entity_unlock();
+	sm->_entity_manager->unlock();
 
 	while (check_count > 0) {
-		sm->_exec(results_list[--check_count]);
+		sm->_exec_results(results_list[--check_count]);
 	}
 }
 
-int ASystemManager::_do_check_allsys(ASystemManager *sm, DWORD cur_tick)
+static int _do_check_allsys(ASystemManager *sm, DWORD cur_tick)
 {
 	list_head results; results.init();
 
-	sm->entity_lock();
-	int count = sm->_systems->check_all(&results, cur_tick);
-	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry)
-		count += s->check_all(&results, cur_tick);
-	sm->entity_unlock();
+	sm->_entity_manager->lock();
+	int count = sm->_systems->check_all ? sm->_systems->check_all(&results, cur_tick) : 0;
 
-	sm->_exec(results);
+	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry)
+		count += s->check_all ? s->check_all(&results, cur_tick) : 0;
+	sm->_entity_manager->unlock();
+
+	sm->_exec_results(results);
 	return count;
 }
 
-int ASystemManager::_do_emit(ASystemManager *sm, const char *name, void *p)
+static int _do_emit(ASystemManager *sm, const char *name, void *p)
 {
-	APool<AReceiver*> recvers; recvers.init(128);
+	return sm->_event_manager->emit(sm->_event_manager, name, p);
+}
 
-	sm->event_lock();
-	AReceiver *first = rb_find_AReceiver(&sm->_event_manager->_receiver_map, name);
-	if (first == NULL) {
-		sm->event_unlock();
-		return 0;
-	}
+void ASystemManager::init()
+{
+	_systems = ASystem::find(NULL);
+	_exec_thread = NULL;
+	check_allsys = &_do_check_allsys;
 
-	if (!sm->_free_recvers.empty()) {
-		ASlice<AReceiver*> *slice = list_first_entry(&sm->_free_recvers, ASlice<AReceiver*>, node);
-		recvers._join(slice);
-	}
+	_entity_manager = NULL;
+	_last_check = NULL;
+	check_entity = &_do_check_entity;
 
-	AReceiver *r = NULL;
-	if (!first->_receiver_list.empty())
-		r = list_first_entry(&first->_receiver_list, AReceiver, _receiver_list);
-	while (r != NULL)
-	{
-		AReceiver *next = NULL;
-		if (!first->_receiver_list.is_last(&r->_receiver_list))
-			next = list_entry(r->_receiver_list.next, AReceiver, _receiver_list);
-
-		if (!r->_preproc || (r->on_event(r, p, true) >= 0)) {
-			if (r->_oneshot)
-				sm->_event_manager->_erase(first, r);
-			else
-				r->_self->addref();
-			recvers.push_back(r);
-		}
-		r = next;
-	}
-
-	if (!first->_preproc || (first->on_event(first, p, true) >= 0)) {
-		if (first->_oneshot)
-			sm->_event_manager->_erase(first, first);
-		else
-			first->_self->addref();
-		recvers.push_back(first);
-	}
-	sm->event_unlock();
-
-	int count = recvers.total_len();
-	if (count == 0)
-		return 0;
-
-	list_head free_list; free_list.init();
-	do {
-		AReceiver *r = *recvers.ptr();
-		r->on_event(r, p, false);
-		r->_self->release();
-
-		recvers.pop(1, &free_list);
-	} while (recvers.total_len() != 0);
-
-	recvers.quick_reset();
-
-	sm->event_lock();
-	list_splice_init(&recvers.slice_list, &sm->_free_recvers);
-	list_splice_init(&free_list, &sm->_free_recvers);
-	sm->event_unlock();
-	return count;
+	_event_manager = NULL;
+	emit = &_do_emit;
 }

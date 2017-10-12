@@ -18,6 +18,10 @@ enum AOption_Types {
 };
 
 typedef struct AOption AOption;
+
+AMODULE_API void
+AOptionRelease(AOption *option);
+
 struct AOption {
 	char        name[32];
 	char        value[144];
@@ -48,6 +52,8 @@ struct AOption {
 
 	// self
 	int      sfmt(const char *fmt, ...);
+	long     addref() { assert(0); return 0; }
+	long     release() { AOptionRelease(this); return 0; }
 #endif
 };
 
@@ -112,9 +118,6 @@ AOptionClone(AOption *option, AOption *parent)
 		child->parent = parent;
 	return child;
 }
-
-AMODULE_API void
-AOptionRelease(AOption *option);
 
 static inline char*
 AOptionGet(AOption *option, const char *name, char *def_value = NULL)

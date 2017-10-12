@@ -51,10 +51,10 @@ struct HttpClient : public IOObject {
 
 	ARefsBuf *recv_header_buffer;
 	int       recv_header_pos;
-	char*     h_f_ptr(int ix) { return recv_header_list[ix][0] + recv_header_buffer->data + recv_header_pos; }
+	char*     h_f_ptr(int ix) { return recv_header_list[ix][0] + recv_header_buffer->_data + recv_header_pos; }
 	int&      h_f_pos(int ix) { return recv_header_list[ix][0]; }
 	int&      h_f_len(int ix) { return recv_header_list[ix][1]; }
-	char*     h_v_ptr(int ix) { return recv_header_list[ix][2] + recv_header_buffer->data + recv_header_pos; }
+	char*     h_v_ptr(int ix) { return recv_header_list[ix][2] + recv_header_buffer->_data + recv_header_pos; }
 	int&      h_v_pos(int ix) { return recv_header_list[ix][2]; }
 	int&      h_v_len(int ix) { return recv_header_list[ix][3]; }
 

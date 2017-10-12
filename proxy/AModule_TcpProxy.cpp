@@ -60,10 +60,10 @@ static void TCPClientRelease(TCPClient *client)
 	if (client->proxy != NULL)
 		client->proxy->cancel(Aio_Input, NULL);
 	//TRACE("%p: result = %d.\n", client, result);
-	release_s(client->proxy, AObjectRelease, NULL);
-	release_s(client->client, AObjectRelease, NULL);
-	release_s(client->sock, closesocket, INVALID_SOCKET);
-	AObjectRelease(&client->server->object);
+	release_s(client->proxy);
+	release_s(client->client);
+	closesocket_s(client->sock);
+	client->server->object.release();
 	free(client);
 }
 
@@ -286,10 +286,10 @@ static void* TCPServerProcess(void *p)
 static void TCPServerRelease(AObject *object)
 {
 	TCPServer *server = to_server(object);
-	release_s(server->sock, closesocket, INVALID_SOCKET);
-	release_s(server->thread, pthread_detach, pthread_null);
-	release_s(server->option, AOptionRelease, NULL);
-	release_s(server->prepare, TCPClientRelease, NULL);
+	closesocket_s(server->sock);
+	if_not(server->thread, pthread_null, pthread_detach);
+	release_s(server->option);
+	if_not(server->prepare, NULL, TCPClientRelease);
 }
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
@@ -341,13 +341,13 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 		server->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();
-		release_s(server->prepare, TCPClientRelease, NULL);
+		if_not(server->prepare, NULL, TCPClientRelease);
 	}
 
 	result = TCPServerDoAcceptEx(server);
 	if (result < 0) {
-		release_s(server->prepare, TCPClientRelease, NULL);
-		AObjectRelease(&server->object);
+		if_not(server->prepare, NULL, TCPClientRelease);
+		server->object.release();
 	}
 	return result;
 }
@@ -361,7 +361,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	TCPServer *server = to_server(object);
-	release_s(server->option, AOptionRelease, NULL);
+	release_s(server->option);
 
 	server->option = AOptionClone((AOption*)msg->data, NULL);
 	if (server->option == NULL)
@@ -414,7 +414,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	memset(&server->sysio.ao_ovlp, 0, sizeof(server->sysio.ao_ovlp));
 	server->sysio.done = &TCPServerAcceptExDone;
 
-	release_s(server->prepare, TCPClientRelease, NULL);
+	if_not(server->prepare, NULL, TCPClientRelease);
 	result = TCPServerDoAcceptEx(server);
 	return (result >= 0) ? 1 : result;
 #endif
@@ -450,11 +450,8 @@ static int TCPServerCancel(AObject *object, int reqix, AMessage *msg)
 static int TCPServerClose(AObject *object, AMessage *msg)
 {
 	TCPServer *server = to_server(object);
-	release_s(server->sock, closesocket, INVALID_SOCKET);
-	if (server->thread != pthread_null) {
-		pthread_join(server->thread, NULL);
-		server->thread = pthread_null;
-	}
+	closesocket_s(server->sock);
+	if_not2(server->thread, pthread_null, pthread_join(server->thread, NULL));
 	return 1;
 }
 

@@ -10,7 +10,7 @@ struct FileObject : public IOObject {
 static void FileRelease(AObject *object)
 {
 	FileObject *fo = (FileObject*)object;
-	release_s(fo->fp, fclose, NULL);
+	if_not(fo->fp, NULL, fclose);
 }
 
 static int FileCreate(AObject **object, AObject *parent, AOption *option)

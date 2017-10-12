@@ -99,7 +99,7 @@ struct AInOutComponent : public AComponent {
 		}
 	}
 	void _outmsg_cycle(int ressiz, int bufsiz) {
-		int result = ARefsBufCheck(_outbuf, ressiz, bufsiz);
+		int result = ARefsBuf::reserve(_outbuf, ressiz, bufsiz);
 		_outmsg.init();
 		_outmsg.done = &_outmsg_done;
 		_outmsg_done(&_outmsg, result);
@@ -115,7 +115,7 @@ struct AInOutComponent : public AComponent {
 
 			if (result > 0) {
 				c->_outbuf->pop(result);
-				result = ARefsBufCheck(c->_outbuf, 2048, c->_outbuf->size);
+				result = ARefsBuf::reserve(c->_outbuf, 2048, c->_outbuf->_size);
 				if (result < 0)
 					continue;
 			}

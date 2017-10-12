@@ -33,7 +33,6 @@ struct AMessage
 	void  init(struct AObject *object) { init(AMsgType_Object, object, 0); }
 	void  init(struct AModule *module) { init(AMsgType_Module, module, 0); }
 	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
-	void  init(AMessage &msg)          { init(msg.type, msg.data, msg.size); }
 	int   done2(int result)            { return done(this, result); }
 };
 template <typename AType, size_t offset, int(AType::*run)(int)>
@@ -132,7 +131,7 @@ typedef struct ARefsMsg
 	int     type;
 	int     size;
 #ifdef __cplusplus
-	char*   ptr() { return (buf->data + pos); }
+	char*   ptr() { return (buf->_data + pos); }
 #endif
 } ARefsMsg;
 
@@ -140,12 +139,9 @@ static inline void
 ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 {
 	AMsgInit(&rm->msg, AMsgType_RefsMsg, rm, 0);
-	if (rm->buf != NULL)
-		ARefsBufRelease(rm->buf);
-
+	release_s(rm->buf);
 	rm->buf = buf;
-	if (buf != NULL)
-		ARefsBufAddRef(buf);
+	if (buf != NULL) buf->addref();
 
 	rm->pos = offset;
 	rm->type = type;
@@ -180,7 +176,7 @@ _retry:
 		assert(size == 0);
 		type = ((ARefsMsg*)data)->type;
 		size = ((ARefsMsg*)data)->size;
-		data = ((ARefsMsg*)data)->buf->data + ((ARefsMsg*)data)->pos;
+		data = ((ARefsMsg*)data)->buf->_data + ((ARefsMsg*)data)->pos;
 		goto _retry;
 
 	default:

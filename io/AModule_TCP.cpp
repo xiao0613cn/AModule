@@ -10,7 +10,7 @@ struct TCPObject : public IOObject {
 static void TCPRelease(AObject *object)
 {
 	TCPObject *tcp = (TCPObject*)object;
-	release_s(tcp->sock, closesocket, INVALID_SOCKET);
+	closesocket_s(tcp->sock);
 }
 
 static int TCPCreate(AObject **object, AObject *parent, AOption *option)
@@ -27,8 +27,8 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		if (msg->size != 0)
 			return -EINVAL;
 
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-		tcp->sock = (SOCKET)(long)msg->data;
+		closesocket_s(tcp->sock);
+		tcp->sock = (SOCKET)msg->data;
 		return 1;
 	}
 
@@ -51,6 +51,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", errno);
 		return -EIO;
 	}
+	godefer(addrinfo*, ai, freeaddrinfo(ai));
 
 	struct addrinfo *ai_valid = ai;
 	do {
@@ -59,24 +60,21 @@ static int TCPOpen(AObject *object, AMessage *msg)
 	} while ((ai_valid = ai_valid->ai_next) != NULL);
 	if (ai_valid == NULL) {
 		TRACE("invalid address: %s, ai_protocol = %d.\n", addr->value, ai->ai_protocol);
-		release_s(ai, freeaddrinfo, NULL);
 		return -EINVAL;
 	}
 
 	if (tcp->sock == INVALID_SOCKET) {
 		tcp->sock = socket(ai_valid->ai_family, SOCK_STREAM, ai_valid->ai_protocol);
 		if (tcp->sock == INVALID_SOCKET) {
-			release_s(ai, freeaddrinfo, NULL);
 			return -EIO;
 		}
 	}
 
 	int timeout = AOptionGetInt(option, "timeout", 20);
 	int result = tcp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, timeout);
-	release_s(ai, freeaddrinfo, NULL);
 
 	if (result < 0) {
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
+		closesocket_s(tcp->sock);
 	} else {
 #ifdef _WIN32
 		int tv = timeout*1000;
@@ -94,8 +92,8 @@ static int TCPSetOption(AObject *object, AOption *option)
 {
 	TCPObject *tcp = (TCPObject*)object;
 	if (strcasecmp(option->name, "socket") == 0) {
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
-		tcp->sock = (SOCKET)(long)option->extend;
+		closesocket_s(tcp->sock);
+		tcp->sock = (SOCKET)option->extend;
 		return 1;
 	}
 	return -ENOSYS;
@@ -161,7 +159,7 @@ static int TCPClose(AObject *object, AMessage *msg)
 	if (msg == NULL) {
 		shutdown(tcp->sock, SD_BOTH);
 	} else {
-		release_s(tcp->sock, closesocket, INVALID_SOCKET);
+		closesocket_s(tcp->sock);
 	}
 	return 1;
 }

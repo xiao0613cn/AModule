@@ -48,9 +48,9 @@ extern "C" {
 MQTTCODEC_HANDLE mqtt_codec_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx);
 void mqtt_codec_destroy(MQTTCODEC_HANDLE handle);
 
-BUFFER_HANDLE mqtt_codec_connect(BUFFER_HANDLE result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions, STRING_HANDLE trace_log);
+BUFFER_HANDLE mqtt_codec_connect(BUFFER_HANDLE result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions/*!=NULL*/);
 BUFFER_HANDLE mqtt_codec_disconnect(BUFFER_HANDLE result/*!=NULL*/);
-BUFFER_HANDLE mqtt_codec_publish(QOS_VALUE qosValue, bool duplicateMsg, bool serverRetain, uint16_t packetId, const char* topicName, const uint8_t* msgBuffer, size_t buffLen, STRING_HANDLE trace_log);
+BUFFER_HANDLE mqtt_codec_publish(BUFFER_HANDLE result/*!=NULL*/, const struct MQTT_MESSAGE *msg/*!=NULL*/);
 BUFFER_HANDLE mqtt_codec_publishAck(uint16_t packetId);
 BUFFER_HANDLE mqtt_codec_publishReceived(uint16_t packetId);
 BUFFER_HANDLE mqtt_codec_publishRelease(uint16_t packetId);

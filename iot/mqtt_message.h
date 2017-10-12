@@ -25,7 +25,7 @@ typedef struct APP_PAYLOAD_TAG
 	size_t length;
 } APP_PAYLOAD;
 
-typedef struct MQTT_MESSAGE_TAG
+typedef struct MQTT_MESSAGE
 {
 	uint16_t packetId;
 	char* topicName;

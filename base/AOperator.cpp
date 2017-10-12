@@ -244,9 +244,9 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 
 	if ((at->signal[0] == -1) || (at->signal[1] == -1)) {
 		close(at->epoll);
-		release_s(at->signal[0], close, -1);
+		if_not(at->signal[0], -1, close);
 		if (pool == NULL)
-			release_s(at->signal[1], close, -1);
+			if_not(at->signal[1], -1, close);
 		free(at);
 		return -EFAULT;
 	}

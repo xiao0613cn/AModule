@@ -52,7 +52,7 @@ extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
 		return result;
 
 	if ((result == 0) || (result > outmsg.size)) {
-		if (ARefsBufCheck(outbuf, max(result,1024), outbuf->size) < 0)
+		if (ARefsBuf::reserve(outbuf, max(result,1024), outbuf->_size) < 0)
 			return -ENOMEM;
 
 		outmsg.data = outbuf->ptr();
@@ -70,7 +70,7 @@ extern int PVDTryOutput(uint32_t userid, ARefsBuf *&outbuf, AMessage &outmsg)
 		outmsg.size = result;
 	}
 	outbuf->pop(result);
-	if (ARefsBufCheck(outbuf, 1024, outbuf->size) < 0)
+	if (ARefsBuf::reserve(outbuf, 1024, outbuf->_size) < 0)
 		return -ENOMEM;
 	return result;
 }
@@ -119,7 +119,7 @@ int PVDClient::open(int result)
 
 	case pvdnet_connecting:
 		_userid = 0;
-		if (ARefsBufCheck(_iocom._outbuf, 2048, 4096) < 0)
+		if (ARefsBuf::reserve(_iocom._outbuf, 2048, 4096) < 0)
 			return -ENOMEM;
 
 		open_prepare(pvdnet_syn_md5id, NET_SDVR_MD5ID_GET, 0);
@@ -331,11 +331,11 @@ static void PVDRelease(AObject *object)
 	PVDClient *pvd = (PVDClient*)object;
 	pvd->_pop(&pvd->_client);
 	pvd->_pop(&pvd->_iocom);
-	release_s(pvd->_iocom._io, AObjectRelease, NULL);
-	release_s(pvd->_iocom._outbuf, ARefsBufRelease, NULL);
+	release_s(pvd->_iocom._io);
+	release_s(pvd->_iocom._outbuf);
 
 	pthread_mutex_destroy(&pvd->_mutex);
-	release_s(pvd->_io_opt, AOptionRelease, NULL);
+	release_s(pvd->_io_opt);
 	pvd->exit();
 }
 
