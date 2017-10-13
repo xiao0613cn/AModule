@@ -59,12 +59,12 @@ static int _do_check_allsys(ASystemManager *sm, DWORD cur_tick)
 {
 	list_head results; results.init();
 
-	sm->_entity_manager->lock();
+	sm->lock();
 	int count = sm->_systems->check_all ? sm->_systems->check_all(&results, cur_tick) : 0;
 
 	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry)
 		count += s->check_all ? s->check_all(&results, cur_tick) : 0;
-	sm->_entity_manager->unlock();
+	sm->unlock();
 
 	sm->_exec_results(results);
 	return count;
@@ -79,6 +79,7 @@ void ASystemManager::init()
 {
 	_systems = ASystem::find(NULL);
 	_exec_thread = NULL;
+	_mutex = NULL;
 	check_allsys = &_do_check_allsys;
 
 	_entity_manager = NULL;

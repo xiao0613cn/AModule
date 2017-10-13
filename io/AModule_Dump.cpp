@@ -137,7 +137,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 
 	AOption *io_opt = AOptionFind(msg_opt, "io");
 	if (dump->io == NULL) {
-		int result = AObjectCreate((AObject**)&dump->io, dump, io_opt, NULL);
+		int result = dump->create(&dump->io, dump, io_opt, NULL);
 		if (dump->io == NULL)
 			return result;
 	}
@@ -214,8 +214,7 @@ IOModule DumpModule = { {
 	sizeof(DumpObject),
 	NULL, NULL,
 	&DumpCreate,
-	&DumpRelease,
-	NULL, },
+	&DumpRelease, },
 	&DumpOpen,
 	&DumpSetOption,
 	&DumpGetOption,

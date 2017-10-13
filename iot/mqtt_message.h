@@ -27,12 +27,13 @@ typedef struct APP_PAYLOAD_TAG
 
 typedef struct MQTT_MESSAGE
 {
-	uint16_t packetId;
-	char* topicName;
-	QOS_VALUE qosInfo;
+	uint16_t    packetId;
+	uint16_t    topicLen;
+	char*       topicName;
+	QOS_VALUE   qosInfo;
 	APP_PAYLOAD appPayload;
-	bool isDuplicateMsg;
-	bool isMessageRetained;
+	bool        isDuplicate;
+	bool        isRetained;
 } MQTT_MESSAGE, * MQTT_MESSAGE_HANDLE;
 
 

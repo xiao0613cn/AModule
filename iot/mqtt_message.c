@@ -31,8 +31,8 @@ MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName,
             else
             {
                 result->packetId = packetId;
-                result->isDuplicateMsg = false;
-                result->isMessageRetained = false;
+                result->isDuplicate = false;
+                result->isRetained = false;
                 result->qosInfo = qosValue;
 
                 /* Codes_SRS_MQTTMESSAGE_07_002: [mqttmessage_create shall allocate and copy the topicName and appMsg parameters.] */
@@ -94,8 +94,8 @@ MQTT_MESSAGE_HANDLE mqttmessage_clone(MQTT_MESSAGE_HANDLE handle)
         result = mqttmessage_create(mqtt_message->packetId, mqtt_message->topicName, mqtt_message->qosInfo, mqtt_message->appPayload.message, mqtt_message->appPayload.length);
         if (result != NULL)
         {
-            (void)mqttmessage_setIsDuplicateMsg(result, mqtt_message->isDuplicateMsg);
-            (void)mqttmessage_setIsRetained(result, mqtt_message->isMessageRetained);
+            (void)mqttmessage_setIsDuplicateMsg(result, mqtt_message->isDuplicate);
+            (void)mqttmessage_setIsRetained(result, mqtt_message->isRetained);
         }
     }
     return result;
@@ -162,9 +162,9 @@ bool mqttmessage_getIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle)
     }
     else
     {
-        /* Codes_SRS_MQTTMESSAGE_07_017: [mqttmessage_getIsDuplicateMsg shall return the isDuplicateMsg value contained in MQTT_MESSAGE_HANDLE handle.] */
+        /* Codes_SRS_MQTTMESSAGE_07_017: [mqttmessage_getIsDuplicateMsg shall return the isDuplicate value contained in MQTT_MESSAGE_HANDLE handle.] */
         MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
-        result = msgInfo->isDuplicateMsg;
+        result = msgInfo->isDuplicate;
     }
     return result;
 }
@@ -181,7 +181,7 @@ bool mqttmessage_getIsRetained(MQTT_MESSAGE_HANDLE handle)
     {
         /* Codes_SRS_MQTTMESSAGE_07_019: [mqttmessage_getIsRetained shall return the isRetained value contained in MQTT_MESSAGE_HANDLE handle.] */
         MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
-        result = msgInfo->isMessageRetained;
+        result = msgInfo->isRetained;
     }
     return result;
 }
@@ -198,7 +198,7 @@ int mqttmessage_setIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle, bool duplicateMsg)
     {
         /* Codes_SRS_MQTTMESSAGE_07_023: [mqttmessage_setIsDuplicateMsg shall store the duplicateMsg value in the MQTT_MESSAGE_HANDLE handle.] */
         MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
-        msgInfo->isDuplicateMsg = duplicateMsg;
+        msgInfo->isDuplicate = duplicateMsg;
         result = 0;
     }
     return result;
@@ -216,7 +216,7 @@ int mqttmessage_setIsRetained(MQTT_MESSAGE_HANDLE handle, bool retainMsg)
     {
         /* Codes_SRS_MQTTMESSAGE_07_025: [mqttmessage_setIsRetained shall store the retainMsg value in the MQTT_MESSAGE_HANDLE handle.] */
         MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
-        msgInfo->isMessageRetained = retainMsg;
+        msgInfo->isRetained = retainMsg;
         result = 0;
     }
     return result;

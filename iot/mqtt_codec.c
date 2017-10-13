@@ -569,8 +569,8 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 	{
 		uint8_t* initialPos = iterator;
 		MQTT_MESSAGE msg;
-		msg.isDuplicateMsg = (codecData->headerFlags & PUBLISH_DUP_FLAG) ? true : false;
-		msg.isMessageRetained = (codecData->headerFlags & PUBLISH_QOS_RETAIN) ? true : false;
+		msg.isDuplicate = (codecData->headerFlags & PUBLISH_DUP_FLAG) ? true : false;
+		msg.isRetained = (codecData->headerFlags & PUBLISH_QOS_RETAIN) ? true : false;
 		msg.qosInfo = (codecData->headerFlags == 0) ? DELIVER_AT_MOST_ONCE : (codecData->headerFlags & PUBLISH_QOS_AT_LEAST_ONCE) ? DELIVER_AT_LEAST_ONCE : DELIVER_EXACTLY_ONCE;
 
 		msg.topicName = byteutil_readUTF(&iterator, NULL);
@@ -785,8 +785,8 @@ BUFFER_HANDLE mqtt_codec_publish(BUFFER_HANDLE result/*!=NULL*/, const MQTT_MESS
         return NULL;
 
     headerFlags = 0;
-    if (msg->isDuplicateMsg) headerFlags |= PUBLISH_DUP_FLAG;
-    if (msg->isMessageRetained) headerFlags |= PUBLISH_QOS_RETAIN;
+    if (msg->isDuplicate) headerFlags |= PUBLISH_DUP_FLAG;
+    if (msg->isRetained) headerFlags |= PUBLISH_QOS_RETAIN;
     if (msg->qosInfo != DELIVER_AT_MOST_ONCE)
     {
         if (msg->qosInfo == DELIVER_AT_LEAST_ONCE)

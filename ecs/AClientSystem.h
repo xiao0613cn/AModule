@@ -60,6 +60,8 @@ struct AClientComponent : public AComponent {
 		_status = Invalid;      _main_tick = 0;        _main_abort = false;
 		_last_opened = false; _check_heart = HeartNone; _busy_count = 0;
 		_sys_node.init();
+
+		// set by implement module
 		//open, heart, abort, close
 	}
 };

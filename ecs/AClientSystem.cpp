@@ -100,18 +100,14 @@ static int client_run(ASystem::Result *r, int result)
 	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
 		c->_self->_module->module_name, c->_self, c->_self->_refcount,
 		c->_status, c->_busy_count, result);
-	if (result == 0)
-		result = 1;
 
 	switch (c->_status)
 	{
 	case AClientComponent::Invalid:
-		if (result > 0) {
-			c->_status = AClientComponent::Opening;
-			result = c->open(c);
-			if (result == 0)
-				return 0;
-		}
+		c->_status = AClientComponent::Opening;
+		result = c->open(c);
+		if (result == 0)
+			return 0;
 
 	case AClientComponent::Opening:
 		if (result > 0) {
@@ -129,7 +125,7 @@ static int client_run(ASystem::Result *r, int result)
 		}
 
 	case AClientComponent::Opened:
-		if (result > 0) {
+		if (result >= 0) {
 			if (c->_check_heart == AClientComponent::HeartChecking) {
 				c->_check_heart = AClientComponent::HeartCheckDone;
 				result = c->heart(c);
@@ -137,7 +133,7 @@ static int client_run(ASystem::Result *r, int result)
 					return 0;
 			}
 		}
-		if (result > 0) {
+		if (result >= 0) {
 			c->_main_tick = GetTickCount();
 			assert(c->_check_heart == AClientComponent::HeartCheckDone);
 			c->_check_heart = AClientComponent::HeartNone;

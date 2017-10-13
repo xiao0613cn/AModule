@@ -108,18 +108,16 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 	}
 	em->unlock();
 
-	int count = recvers.total_count();
-	if (count == 0)
-		return 0;
-
 	list_head free_list; free_list.init();
-	do {
+	int count = recvers.total_count();
+
+	while (recvers.total_count() != 0) {
 		AReceiver *r = recvers.front();
 		r->on_event(r, p, false);
 		r->_self->release();
 
 		recvers.pop_front(1, em->_recycle_recvers ? &free_list : NULL);
-	} while (recvers.total_count() != 0);
+	}
 
 	if (em->_recycle_recvers) {
 		recvers.reset();
@@ -130,7 +128,6 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 		em->unlock();
 	} else {
 		recvers.exit();
-		ASlice<AReceiver*>::_clear(free_list);
 	}
 	return count;
 }

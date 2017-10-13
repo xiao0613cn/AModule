@@ -52,6 +52,9 @@ struct ASystem {
 struct ASystemManager {
 	ASystem  *_systems;
 	AThread  *_exec_thread;
+	pthread_mutex_t  *_mutex;
+	void   lock()   { _mutex ? pthread_mutex_lock(_mutex) : 0; }
+	void   unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
 	int  (*check_allsys)(ASystemManager *sm, DWORD cur_tick);
 
 	AEntityManager  *_entity_manager;
