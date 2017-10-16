@@ -63,12 +63,12 @@ int main()
 		::Sleep(100);
 	}
 	sm._unregist(e); e->release();
-	sm._unregist(mqtt); mqtt->release();
 
 	for (;;) {
 		sm.check_allsys(&sm, GetTickCount());
 		::Sleep(10);
 	}
+	sm._unregist(mqtt); mqtt->release();
 
 	_CrtDumpMemoryLeaks();
 	return 0;

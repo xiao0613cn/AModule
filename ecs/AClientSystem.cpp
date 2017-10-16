@@ -25,17 +25,19 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		break;
 
 	case AClientComponent::Opening:
+		if (diff > c->_tick_abort) {
+			status = ASystem::Aborting;
+			break;
+		}
+		return NULL;
+
 	case AClientComponent::Opened:
 		if (diff > c->_tick_abort) {
-			c->_main_tick = cur_tick;
-			c->_main_abort = true;
-			if (c->abort == NULL)
-				return NULL;
 			status = ASystem::Aborting;
 			break;
 		}
 
-		if (c->_main_abort || (c->_status == AClientComponent::Opening)) {
+		if (c->_main_abort) {
 			if (c->_busy_count != 0)
 				return NULL;
 			c->_status = AClientComponent::Closing;
@@ -50,9 +52,13 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		break;
 
 	case AClientComponent::Closing:
-		if (c->_busy_count != 0)
-			return NULL;
-		break;
+		if (c->_busy_count == 0)
+			break;
+		if (diff > c->_tick_abort) {
+			status = ASystem::Aborting;
+			break;
+		}
+		return NULL;
 
 	case AClientComponent::Closed:
 		if (c->_busy_count != 0)
@@ -73,6 +79,10 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 	}
 
 	if (status == ASystem::Aborting) {
+		c->_main_tick = cur_tick;
+		c->_main_abort = true;
+		if (c->abort == NULL)
+			return NULL;
 		c->_self->addref();
 		c->use(1);
 		c->_abort_result.status = ASystem::Aborting;

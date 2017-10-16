@@ -39,8 +39,8 @@ struct AEventManager {
 	void lock() { _mutex ? pthread_mutex_lock(_mutex) : 0; }
 	void unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
 
-	void _sub_const(const char *name, bool preproc, void *user,
-	                int (*f)(void *user, const char *name, void *p, bool preproc));
+	struct AReceiver2* _sub_const(const char *name, bool preproc, void *user,
+		int (*f)(void *user, const char *name, void *p, bool preproc));
 };
 
 #ifdef _AMODULE_H_
@@ -63,12 +63,14 @@ struct AReceiver2 : public AObject, public AReceiver {
 	}
 };
 
-inline void AEventManager::_sub_const(const char *name, bool preproc, void *user,
-                                      int (*f)(void *user, const char *name, void *p, bool preproc)) {
+inline struct AReceiver2*
+ AEventManager::_sub_const(const char *name, bool preproc, void *user,
+                           int (*f)(void *user, const char *name, void *p, bool preproc)) {
 	AReceiver2 *r2 = AReceiver2::create();
 	r2->_name = name; r2->_oneshot = false; r2->_preproc = preproc;
 	r2->_user = user; r2->_func = f;
 	_subscribe(this, r2);
+	return r2;
 }
 #endif
 

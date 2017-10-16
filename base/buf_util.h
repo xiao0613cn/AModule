@@ -149,7 +149,7 @@ struct ASlice {
 			slice = create(max(left, size));
 			return (slice == NULL) ? -ENOMEM : 1;
 		}
-		if (slice->left() > left)
+		if (slice->left() >= left)
 			return 0;
 
 		Slice *s2 = create(max(slice->len()+left, size));

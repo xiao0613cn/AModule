@@ -245,10 +245,14 @@ static int MQTTClose(AClientComponent *c)
 static int MQTTOutput(AInOutComponent *c, int result)
 {
 	MQTTClient *mqtt = container_of(c, MQTTClient, _iocom);
-	if (result > 0)
+	if ((result > 0) && (mqtt->_iocom._outbuf->len() != 0))
 		result = mqtt_codec_bytesReceived(mqtt->_codec, (unsigned char*)mqtt->_iocom._outbuf->ptr(), mqtt->_iocom._outbuf->len());
 	if (result != 0) {
-		return -EFAULT;
+		mqtt->_client._main_abort = true;
+		mqtt->_client.use(-1);
+		mqtt->_iocom._output_end();
+		mqtt->_iocom._input_end(-EIO);
+		return -EIO;
 	}
 
 	mqtt->_iocom._outbuf->reset();
