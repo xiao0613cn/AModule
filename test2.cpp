@@ -14,6 +14,16 @@ static int on_event(void *user, const char *name, void *p, bool preproc) {
 	return 1;
 }
 
+ASystemManager sm;
+void* test_run(void *p)
+{
+	for (;;) {
+		sm.check_allsys(&sm, GetTickCount());
+		::Sleep(10);
+	}
+
+}
+
 int main()
 {
 	AModuleInit(NULL);
@@ -37,7 +47,9 @@ int main()
 	opt->release();
 
 	AEntity2 *mqtt = NULL;
-	AOptionDecode(&opt, "MQTTClient: { io: async_tcp { address: test.mosquitto.org, port: 1883, }, }", -1);
+	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
+		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
+		"}, }", -1);
 	result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
 
@@ -49,25 +61,17 @@ int main()
 	em._sub_const("on_client_closed", true, mqtt, &on_event);
 	em._sub_const("on_client_closed", false, e, &on_event);
 
-	ASystemManager sm; sm.init();
+	sm.init();
 	sm._event_manager = &em;
 
 	sm._regist(e);
 	sm._regist(mqtt);
-	for (int ix = 0; ix < 400; ++ix) {
-		sm.check_allsys(&sm, GetTickCount());
-		if (ix == 200) {
-			AInOutComponent *c = e->_get<AInOutComponent>();
-			c->_input_end(1);
-		}
-		::Sleep(100);
-	}
-	sm._unregist(e); e->release();
 
-	for (;;) {
-		sm.check_allsys(&sm, GetTickCount());
-		::Sleep(10);
-	}
+	pthread_t thr;
+	pthread_create(&thr, NULL, &test_run, NULL);
+	pthread_join(thr, NULL);
+
+	sm._unregist(e); e->release();
 	sm._unregist(mqtt); mqtt->release();
 
 	_CrtDumpMemoryLeaks();

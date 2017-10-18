@@ -182,8 +182,16 @@ int krx_ssl_ctx_init(krx* k, const char* keyname) {
   return 0;
 }
  
-int krx_ssl_verify_peer(int ok, X509_STORE_CTX* ctx) {
-  return 1;
+int krx_ssl_verify_peer(int ok, X509_STORE_CTX* ctx)
+{
+	if (!ok) {
+		int depth = X509_STORE_CTX_get_error_depth(pStore);
+		int err = X509_STORE_CTX_get_error(pStore);
+		std::string error(X509_verify_cert_error_string(err));
+		ErrorL<<depth<<" "<<error<<endl;
+		ok = 1;
+	}
+	return 1;
 }
  
 /* this sets up the SSL* */

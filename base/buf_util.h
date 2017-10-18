@@ -144,6 +144,14 @@ struct ASlice {
 		memcpy(next(), ptr, count*sizeof(Item));
 		push(count);
 	}
+	int   strfmt(const char *fmt, ...) {
+		va_list ap;
+		va_start(ap, fmt);
+		int len = vsnprintf(next(), left(), fmt, ap);
+		va_end(ap);
+		push(len);
+		return len;
+	}
 	static int reserve(Slice *&slice, int left, int size) {
 		if (slice == NULL) {
 			slice = create(max(left, size));

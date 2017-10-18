@@ -369,6 +369,18 @@
 				>
 			</File>
 			<File
+				RelativePath=".\io\AModule_ssl.cpp"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="D:\OpenSSL-Win32\include"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath=".\io\AModule_TCP.cpp"
 				>
 			</File>
@@ -932,15 +944,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\PVDClient\md5.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File
