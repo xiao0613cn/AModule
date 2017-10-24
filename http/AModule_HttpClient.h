@@ -26,7 +26,7 @@ struct HttpClient : public IOObject {
 	IOObject  *io;
 
 	// send
-	struct list_head send_headers;
+	AOption   send_headers;
 	char      send_buffer[send_bufsiz];
 	char      method[32];
 	char      url[BUFSIZ];

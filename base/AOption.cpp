@@ -6,8 +6,7 @@
 AMODULE_API void
 AOptionExit(AOption *option)
 {
-	AOptionClear(&option->children_list);
-
+	option->clear();
 	if (!list_empty(&option->brother_entry)) {
 		list_del_init(&option->brother_entry);
 	}
@@ -21,7 +20,7 @@ AOptionRelease(AOption *option)
 }
 
 AMODULE_API void
-AOptionInit(AOption *option, struct list_head *list)
+AOptionInit(AOption *option, AOption *parent)
 {
 	option->name[0] = '\0';
 	option->value[0] = '\0';
@@ -33,20 +32,23 @@ AOptionInit(AOption *option, struct list_head *list)
 	option->extend = NULL;
 	INIT_LIST_HEAD(&option->children_list);
 
-	option->parent = NULL;
-	if (list != NULL) {
-		list_add_tail(&option->brother_entry, list);
+	option->parent = parent;
+	if (parent != NULL) {
+		list_add_tail(&option->brother_entry, &parent->children_list);
 	} else {
 		INIT_LIST_HEAD(&option->brother_entry);
 	}
 }
 
 AMODULE_API AOption*
-AOptionCreate2(struct list_head *list)
+AOptionCreate(AOption *parent, const char *name, const char *value)
 {
 	AOption *option = gomake(AOption);
-	if (option != NULL)
-		AOptionInit(option, list);
+	if (option != NULL) {
+		AOptionInit(option, parent);
+		strcpy_sz(option->name, name);
+		strcpy_sz(option->value, value);
+	}
 	return option;
 }
 
@@ -436,12 +438,12 @@ AOptionSave(const AOption *option, const char *path)
 }
 
 AMODULE_API AOption*
-AOptionClone2(AOption *option, struct list_head *list)
+AOptionClone(AOption *option, AOption *parent)
 {
 	if (option == NULL)
 		return NULL;
 
-	AOption *current = AOptionCreate2(list);
+	AOption *current = AOptionCreate(parent, NULL, NULL);
 	if (current == NULL)
 		return NULL;
 
@@ -452,8 +454,7 @@ AOptionClone2(AOption *option, struct list_head *list)
 	current->type = option->type;
 	current->value_i64 = option->value_i64;
 
-	AOption *pos;
-	list_for_each_entry(pos, &option->children_list, AOption, brother_entry)
+	list_for_each2(pos, &option->children_list, AOption, brother_entry)
 	{
 		AOption *child = AOptionClone(pos, current);
 		if (child == NULL) {
@@ -465,10 +466,11 @@ AOptionClone2(AOption *option, struct list_head *list)
 }
 
 AMODULE_API AOption*
-AOptionFind2(struct list_head *list, const char *name)
+AOptionFind(AOption *parent, const char *name)
 {
-	AOption *child;
-	list_for_each_entry(child, list, AOption, brother_entry)
+	if (parent == NULL)
+		return NULL;
+	list_for_each2(child, &parent->children_list, AOption, brother_entry)
 	{
 		if (strcasecmp(child->name, name) == 0)
 			return child;
@@ -477,10 +479,11 @@ AOptionFind2(struct list_head *list, const char *name)
 }
 
 AMODULE_API AOption*
-AOptionFind3(struct list_head *list, const char *name, const char *value)
+AOptionFind3(AOption *parent, const char *name, const char *value)
 {
-	AOption *child;
-	list_for_each_entry(child, list, AOption, brother_entry)
+	if (parent == NULL)
+		return NULL;
+	list_for_each2(child, &parent->children_list, AOption, brother_entry)
 	{
 		if ((strcasecmp(child->name, name) == 0)
 		 && (strcasecmp(child->value, value) == 0))

@@ -7,7 +7,7 @@ extern void HttpClientRelease(AObject *object)
 	HttpClient *p = (HttpClient*)object;
 	release_s(p->io);
 
-	AOptionClear(&p->send_headers);
+	AOptionExit(&p->send_headers);
 	release_s(p->recv_buffer);
 	release_s(p->recv_header_buffer);
 }
@@ -34,7 +34,7 @@ extern int HttpClientCreate(AObject **object, AObject *parent, AOption *option)
 	if (parent != NULL)
 		AObjectAddRef(parent);
 
-	INIT_LIST_HEAD(&p->send_headers);
+	AOptionInit(&p->send_headers, NULL);
 	strcpy_sz(p->method, "GET");
 	strcpy_sz(p->url, "/");
 	strcpy_sz(p->version, "HTTP/1.0");
@@ -54,12 +54,12 @@ static int HttpClientSetHeader(HttpClient *p, AOption *option)
 {
 	AOption *header = NULL;
 	if (option->name[0] == ':')
-		header = AOptionFind2(&p->send_headers, option->name);
+		header = p->send_headers.find(option->name);
 
 	if (header != NULL) {
 		strcpy_sz(header->value, option->value);
 	} else {
-		header = AOptionClone2(option, &p->send_headers);
+		header = AOptionClone(option, &p->send_headers);
 		if (header == NULL)
 			return -ENOMEM;
 	}
@@ -152,7 +152,7 @@ int HttpClientOnSendStatus(HttpClient *p, int result)
 
 		case s_send_private_header:
 			AOption *pos;
-			list_for_each_entry(pos, &p->send_headers, AOption, brother_entry)
+			list_for_each_entry(pos, &p->send_headers.children_list, AOption, brother_entry)
 			{
 				if ((pos->name[0] != ':') && (pos->name[0] != '+'))
 					continue;

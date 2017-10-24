@@ -38,17 +38,17 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	AOption *addr = AOptionFind(option, "address");
+	const char *addr = option->getStr("address", NULL);
 	if (addr == NULL)
 		return -EINVAL;
 
-	AOption *port = AOptionFind(option, "port");
+	const char *port = option->getStr("port", NULL);
 	//if (port == NULL)
 	//	return -EINVAL;
 
-	struct addrinfo *ai = tcp_getaddrinfo(addr->value, port?port->value:NULL);
+	struct addrinfo *ai = tcp_getaddrinfo(addr, port);
 	if (ai == NULL) {
-		TRACE("path(%s:%s) error = %d.\n", addr->value, port?port->value:"", errno);
+		TRACE("path(%s:%s) error = %d.\n", addr, port, errno);
 		return -EIO;
 	}
 	godefer(addrinfo*, ai, freeaddrinfo(ai));
@@ -59,7 +59,8 @@ static int TCPOpen(AObject *object, AMessage *msg)
 			break;
 	} while ((ai_valid = ai_valid->ai_next) != NULL);
 	if (ai_valid == NULL) {
-		TRACE("invalid address: %s, ai_protocol = %d.\n", addr->value, ai->ai_protocol);
+		TRACE("invalid address: %s:%s, ai_protocol = %d.\n",
+			addr, port, ai->ai_protocol);
 		return -EINVAL;
 	}
 
@@ -70,7 +71,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		}
 	}
 
-	int timeout = AOptionGetInt(option, "timeout", 20);
+	int timeout = option->getInt("timeout", 20);
 	int result = tcp_connect(tcp->sock, ai_valid->ai_addr, ai_valid->ai_addrlen, timeout);
 
 	if (result < 0) {

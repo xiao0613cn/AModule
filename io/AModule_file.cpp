@@ -29,9 +29,9 @@ static int FileOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
-	const char *mode = AOptionGet(option, "mode", "rwb");
+	const char *mode = option->getStr("mode", "rwb");
 
-	const char *path = AOptionGet(option, "path", NULL);
+	const char *path = option->getStr("path", NULL);
 	if (path == NULL)
 		return -EINVAL;
 
@@ -51,10 +51,8 @@ static int FileRequest(AObject *object, int reqix, AMessage *msg)
 			int len = fwrite(msg->data+result, msg->size-result, 1, fo->fp);
 			if (len <= 0)
 				return -EIO;
-
 			result += len;
 		} while (ioMsgType_isBlock(msg->type) && (result < msg->size));
-
 		msg->size = result;
 		return result;
 	}
@@ -63,10 +61,8 @@ static int FileRequest(AObject *object, int reqix, AMessage *msg)
 			int len = fread(msg->data+result, msg->size-result, 1, fo->fp);
 			if (len <= 0)
 				return -EIO;
-
 			result += len;
 		} while (ioMsgType_isBlock(msg->type) && (result < msg->size));
-
 		msg->size = result;
 		return result;
 	}

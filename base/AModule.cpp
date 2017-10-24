@@ -44,15 +44,17 @@ AModuleRegister(AModule *module)
 		}
 	}
 
+	// delay init() in AModuleInit()
 	if (!g_inited)
 		return 0;
 
-	AOption *option = AOptionFind(g_option, module->module_name);
+	AOption *option = g_option->find(module->module_name);
 	if ((option == NULL) && (g_option != NULL))
-		option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
+		option = AOptionFind3(g_option, module->class_name, module->module_name);
 
 	int result = module->init(g_option, option, TRUE);
 	if (result < 0) {
+		TRACE("%s(%s) init() = %d.\n", module->module_name, module->class_name, result);
 		module->exit(result);
 
 		list_del_init(&module->global_entry);
@@ -70,13 +72,13 @@ AModuleInit(AOption *option)
 
 	list_for_each2(module, &g_module, AModule, global_entry)
 	{
-		option = AOptionFind(g_option, module->module_name);
+		option = g_option->find(module->module_name);
 		if ((option == NULL) && (g_option != NULL))
-			option = AOptionFind3(&g_option->children_list, module->class_name, module->module_name);
+			option = AOptionFind3(g_option, module->class_name, module->module_name);
 
 		int result = module->init(g_option, option, first);
 		if (result < 0) {
-			TRACE("module(%s) reload config failed = 0x%X.\n", module->module_name, -result);
+			TRACE("%s(%s) reload = %d.\n", module->module_name, module->class_name, result);
 		}
 	}
 	return 1;
@@ -198,7 +200,7 @@ AMODULE_API int
 AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module)
 {
 	if (module->object_size > 0) {
-		*object = gomake2(AObject, module->object_size);
+		*object = (AObject*)malloc(module->object_size);
 		if (*object == NULL)
 			return -ENOMEM;
 

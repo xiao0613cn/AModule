@@ -367,13 +367,13 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (server->option == NULL)
 		return -ENOMEM;
 
-	const char *af = AOptionGet(server->option, "family");
+	const char *af = server->option->getStr("family", NULL);
 	if ((af != NULL) && (strcasecmp(af, "inet6") == 0))
 		server->io_family = AF_INET6;
 	else
 		server->io_family = AF_INET;
 
-	server->port = (u_short)AOptionGetInt(server->option, "port", 0);
+	server->port = (u_short)server->option->getI64("port", 0);
 	if (server->port == 0)
 		return -EINVAL;
 
@@ -381,16 +381,16 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (server->sock == INVALID_SOCKET)
 		return -EINVAL;
 
-	int backlog = AOptionGetInt(server->option, "backlog", 8);
+	int backlog = server->option->getInt("backlog", 8);
 	int result = listen(server->sock, backlog);
 	if (result != 0)
 		return -EIO;
 
-	server->io_module = AModuleFind("io", AOptionGet(server->option, "io", "tcp"));
-	server->async_tcp = (strcasecmp(server->io_module->module_name, "async_tcp") == 0);
-	server->default_bridge = AOptionFind(server->option, "default_bridge");
+	server->io_module = AModuleFind("io", server->option->getStr("io", "async_tcp"));
+	server->async_tcp = server->option->getInt("is_async_io", TRUE);
+	server->default_bridge = server->option->find("default_bridge");
 
-	if (!AOptionGetInt(server->option, "background", TRUE))
+	if (!server->option->getInt("background", TRUE))
 		return 1;
 
 	AObjectAddRef(&server->object);
@@ -450,6 +450,8 @@ static int TCPServerCancel(AObject *object, int reqix, AMessage *msg)
 static int TCPServerClose(AObject *object, AMessage *msg)
 {
 	TCPServer *server = to_server(object);
+	if (msg == NULL)
+		return TCPServerCancel(object, 0, NULL);
 	closesocket_s(server->sock);
 	if_not2(server->thread, pthread_null, pthread_join(server->thread, NULL));
 	return 1;
