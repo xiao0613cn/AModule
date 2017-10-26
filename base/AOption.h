@@ -89,6 +89,9 @@ struct AOption {
 			return def_value;
 		return strtod(child->value, NULL);
 	}
+	AOption* first() {
+		return list_first_entry(&children_list, AOption, brother_entry);
+	}
 
 	// self
 	long addref() { assert(0); return 0; }
@@ -100,8 +103,8 @@ struct AOption {
 		return value_len;
 	}
 	void clear() {
-		while (!list_empty(&children_list)) {
-			AOptionRelease(list_first_entry(&children_list, AOption, brother_entry));
+		while (!children_list.empty()) {
+			AOptionRelease(first());
 		}
 	}
 
@@ -118,13 +121,13 @@ AMODULE_API int
 AOptionDecode(AOption **option, const char *name, int len);
 
 AMODULE_API int
-AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len));
+AOptionEncode(AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len));
 
 AMODULE_API int
 AOptionLoad(AOption **option, const char *path);
 
 AMODULE_API int
-AOptionSave(const AOption *option, const char *path);
+AOptionSave(AOption *option, const char *path);
 
 
 #endif

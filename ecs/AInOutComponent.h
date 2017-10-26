@@ -36,22 +36,28 @@ struct AInOutComponent : public AComponent {
 		int   (*inmsg_done)(AMessage *msg, int result);
 		int   (*outmsg_done)(AMessage *msg, int result);
 	};
-	void init(AObject *o, pthread_mutex_t *l) {
-		AComponent::init(o, name());
+	void init(AEntity2 *e, pthread_mutex_t *l) {
+		AComponent::init2(e, name());
 		//static com_module *impl = (com_module*)AModuleFind(name(), name());
 
 		_abort = true; _queue.init(); _mutex = l;
 		_io          = NULL;
-		_inmsg.done  = _inmsg_done;
-		do_post      = _do_post;
+		_inmsg.done  = &_inmsg_done;
+		do_post      = &_do_post;
 		_outbuf      = NULL;
-		_outmsg.done = _outmsg_done;
+		_outmsg.done = &_outmsg_done;
 
 		// set by inner module
 		do_input = &_do_input;
 		on_input = NULL; on_input_end = NULL; on_output = NULL;
 		// set by outter using
 		on_outmsg = NULL;
+	}
+	void exit() {
+		assert(_queue.empty());
+		_entity->_pop(this);
+		release_s(_io);
+		release_s(_outbuf);
 	}
 	static void _do_post(AInOutComponent *c, AMessage *msg) {
 		c->lock();
@@ -135,6 +141,7 @@ struct AInOutComponent : public AComponent {
 		_outmsg.done2(result);
 	}
 	void _output_end() {
+		// called by on_output()
 		_self->release();
 	}
 	static int _outmsg_done(AMessage *msg, int result) {

@@ -24,8 +24,8 @@ struct PVDClient : public AEntity2 {
 
 	void init() {
 		AEntity2::init();
-		_client.init(this); _push(&_client);
-		_iocom.init(this, &_mutex); _push(&_iocom);
+		_client.init2(this);
+		_iocom.init(this, &_mutex);
 		pthread_mutex_init(&_mutex, NULL);
 		_io_opt = NULL;
 
@@ -331,10 +331,8 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 static void PVDRelease(AObject *object)
 {
 	PVDClient *pvd = (PVDClient*)object;
-	pvd->_pop(&pvd->_client);
-	pvd->_pop(&pvd->_iocom);
-	release_s(pvd->_iocom._io);
-	release_s(pvd->_iocom._outbuf);
+	pvd->_client.exit();
+	pvd->_iocom.exit();
 
 	pthread_mutex_destroy(&pvd->_mutex);
 	release_s(pvd->_io_opt);

@@ -18,14 +18,17 @@ struct AComponent {
 		_entity = NULL; _entity_node.init();
 	}
 	bool valid();
+#ifdef _AMODULE_H_
+	void init2(struct AEntity2 *e, const char *n, int i = 0);
+#endif
 };
 
 struct AEntity {
 	AObject        *_self;
 	AEntityManager *_manager;
 	struct rb_node  _manager_node;
-	list_head _com_list;
-	int       _com_count;
+	list_head       _com_list;
+	int             _com_count;
 
 	void init(AObject *o) {
 		_self = o; _manager = NULL;
@@ -75,8 +78,8 @@ struct AEntity {
 		return NULL;
 	}
 	template <typename TComponent>
-	TComponent* _get(int com_index = -1) {
-		return (TComponent*)_get(TComponent::name(), com_index);
+	TComponent* _get(TComponent **c, int com_index = -1) {
+		return *c = (TComponent*)_get(TComponent::name(), com_index);
 	}
 };
 
@@ -177,6 +180,15 @@ inline bool AComponent::valid() {
 }
 #ifndef _AMODULE_H_
 #else
+struct AEntity2 : public AObject, public AEntity {
+	void  init() { AEntity::init(this); }
+};
+
+inline void AComponent::init2(AEntity2 *e, const char *n, int i) {
+	init(e, n, i); e->_push(this);
+}
+
+#if 0
 // outside component of entity, has self refcount
 struct AComponent2 : public AObject, public AComponent {
 	void init(const char *n, int i = 0) {
@@ -188,11 +200,6 @@ struct AComponent2 : public AObject, public AComponent {
 	}
 };
 
-struct AEntity2 : public AObject, public AEntity {
-	void  init() { AEntity::init(this); }
-};
-
-#if 0
 struct AEntityManager2 : public AEntityManager {
 	pthread_mutex_t _mutex;
 

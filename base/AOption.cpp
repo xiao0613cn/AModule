@@ -268,7 +268,7 @@ _return:
 }
 
 AMODULE_API int
-AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len))
+AOptionEncode(AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len))
 {
 #define write_sn(s, n) \
 	ret = write_cb(p, s, n); \
@@ -287,7 +287,7 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 
 	int write_size = 0;
 	int ret, len;
-	const AOption *current = option;
+	AOption *current = option;
 	for (;;) {
 		if (current->name[0] != '\0') {
 			write_sc(current->name, 0, "\"");
@@ -297,7 +297,7 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 
 		if (((current->value[0] == '\0' && current->type == AOption_Any)
 		  || (current->name_len >= _countof(current->name)))
-		 && list_empty(&current->children_list)) {
+		 && current->children_list.empty()) {
 			goto _next;
 		}
 		if (current->name[0] != '\0') {
@@ -307,8 +307,8 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 		// array
 		if ((current->type == AOption_Array) || (current->value[0] == '[')) {
 			write_sn("[", 1);
-			if (!list_empty(&current->children_list)) {
-				current = list_first_entry(&current->children_list, AOption, brother_entry);
+			if (!current->children_list.empty()) {
+				current = current->first();
 				continue;
 			} else {
 				write_sn("]", 1);
@@ -317,7 +317,7 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 		}
 
 		// value
-		if ((current->type != AOption_Object) && list_empty(&current->children_list)) {
+		if ((current->type != AOption_Object) && current->children_list.empty()) {
 			if ((current->type != AOption_String)
 			 && (current->type != AOption_StrExt)
 			 && ((current->type == AOption_false)
@@ -343,8 +343,8 @@ AOptionEncode(const AOption *option, void *p, int(*write_cb)(void *p, const char
 
 		// object
 		write_sn("{", 1);
-		if (!list_empty(&current->children_list)) {
-			current = list_first_entry(&current->children_list, AOption, brother_entry);
+		if (!current->children_list.empty()) {
+			current = current->first();
 			continue;
 		}
 		write_sn("}", 1);
@@ -414,7 +414,7 @@ static int write_buf(void *p, const char *str, int len)
 }
 
 AMODULE_API int
-AOptionSave(const AOption *option, const char *path)
+AOptionSave(AOption *option, const char *path)
 {
 	ARefsBuf *buf = NULL;
 	int result = ARefsBuf::reserve(buf, 512, 0);

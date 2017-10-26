@@ -98,7 +98,7 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 
 static ASystem::Result* client_check(AEntity *e, DWORD cur_tick)
 {
-	AClientComponent *c = e->_get<AClientComponent>();
+	AClientComponent *c; e->_get(&c);
 	if (c == NULL)
 		return NULL; //NotNeed;
 	return check_one(c, cur_tick);
@@ -191,7 +191,7 @@ static LIST_HEAD(g_com_list);
 
 static int reg_client(AEntity *e)
 {
-	AClientComponent *c = e->_get<AClientComponent>();
+	AClientComponent *c; e->_get(&c);
 	if ((c == NULL) || !c->_sys_node.empty())
 		return 0;
 	c->_self->addref();
@@ -201,7 +201,7 @@ static int reg_client(AEntity *e)
 
 static int unreg_client(AEntity *e)
 {
-	AClientComponent *c = e->_get<AClientComponent>();
+	AClientComponent *c; e->_get(&c);
 	if ((c == NULL) || c->_sys_node.empty())
 		return 0;
 	c->_sys_node.leave();

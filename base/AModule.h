@@ -13,8 +13,9 @@ struct AModule {
 
 	int   (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
-	int   (*probe)(AObject *other, AMessage *msg);
+	int   (*probe)(AObject *other, AMessage *msg, AOption *option);
 
+	long volatile    object_count;
 	struct list_head global_entry;
 	long             global_index;
 	struct list_head class_entry;
@@ -54,7 +55,7 @@ struct AObject {
 	}
 	template <typename object_t>
 	static int create2(object_t **p, AObject *parent, AOption *option, AModule *module) {
-		return AObjectCreate2((AObject**)&p, parent, option, module);
+		return AObjectCreate2((AObject**)p, parent, option, module);
 	}
 #endif
 };
@@ -93,7 +94,7 @@ AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 
 AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg);
+AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
 
 #ifdef __cplusplus
 struct auto_reg_t {

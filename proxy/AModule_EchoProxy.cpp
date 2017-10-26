@@ -1,84 +1,82 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
+#include "../ecs/AInOutComponent.h"
 
-struct EchoProxy : public IOObject {
-	IOObject  *client;
+struct EchoProxy : public AEntity2 {
+	AInOutComponent _iocom;
 };
 
 static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)*object;
-	echo->client = NULL;
+	echo->init();
+	echo->_iocom.init(echo, NULL);
 	return 1;
 }
 
 static void EchoRelease(AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	release_s(echo->client);
+	echo->_iocom.exit();
+	echo->exit();
 }
 
-static int EchoProbe(AObject *object, AMessage *msg)
+static int EchoProbe(AObject *object, AMessage *msg, AOption *option)
 {
 	if (msg->size < 4)
 		return -1;
-	return ((strncasecmp_sz(msg->data, "echo") == 0) ? 100 : 0);
+	return ((strncasecmp_sz(msg->data, "echo") == 0) ? 80 : -1);
 }
 
-static int EchoOpen(AObject *object, AMessage *msg)
+static int EchoMsgRun(AMessage *msg, int result)
 {
-	EchoProxy *echo = (EchoProxy*)object;
-	if ((msg->type != AMsgType_Object)
-	 || (msg->data == NULL)
-	 || (msg->size != 0))
-		return -EINVAL;
+	EchoProxy *echo = container_of(msg, EchoProxy, _iocom._outmsg);
+	ARefsBuf *buf = echo->_iocom._outbuf;
 
-	echo->client = (IOObject*)msg->data;
-	echo->client->addref();
-	return 1;
-}
-
-static int EchoRequest(AObject *object, int reqix, AMessage *msg)
-{
-	EchoProxy *echo = (EchoProxy*)object;
-	if (reqix != Aio_Input)
-		return -ENOSYS;
-	if (msg->size == 0)
-		return -ENOSYS;
-	return (*echo->client)->request(echo->client, reqix, msg);
-}
-
-static int EchoCancel(AObject *object, int reqix, AMessage *msg)
-{
-	EchoProxy *echo = (EchoProxy*)object;
-	int result = 1;
-
-	if (echo->client != NULL)
-		result = (*echo->client)->cancel(echo->client, reqix, msg);
+	int &status = echo->_iocom._inmsg.size;
+	while (result > 0)
+	{
+		if (buf->len() != 0) {
+			status = buf->len();
+			msg->init(ioMsgType_Block, buf->ptr(), buf->len());
+			buf->reset();
+			result = echo->_iocom._io->input(msg);
+		}
+		else if (status != 0) {
+			status = 0;
+			msg->init(0, buf->next(), buf->left());
+			result = echo->_iocom._io->output(msg);
+		}
+		else {
+			buf->push(msg->size);
+		}
+	}
+	if (result < 0)
+		echo->release();
 	return result;
 }
 
-static int EchoClose(AObject *object, AMessage *msg)
+static void EchoRun(AObject *object, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	release_s(echo->client);
-	return 1;
+	echo->addref();
+	echo->_iocom._inmsg.init();
+	echo->_iocom._outmsg.init();
+	echo->_iocom._outmsg.done = &EchoMsgRun;
+	echo->_iocom._outmsg.done2(1);
 }
 
-IOModule EchoModule = { {
-	"proxy",
+AService EchoService = { {
+	"AService",
 	"EchoProxy",
-	sizeof(AObject),
+	sizeof(EchoProxy),
 	NULL, NULL,
 	&EchoCreate,
 	&EchoRelease,
 	&EchoProbe, },
-	&EchoOpen,
 	NULL, NULL,
-	&EchoRequest,
-	&EchoCancel,
-	&EchoClose,
+	&EchoRun,
 };
 
-static auto_reg_t reg(EchoModule.module);
+static auto_reg_t reg(EchoService.module);

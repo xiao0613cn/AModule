@@ -64,6 +64,14 @@ struct AClientComponent : public AComponent {
 		// set by implement module
 		//open, heart, abort, close
 	}
+#ifdef _AMODULE_H_
+	void init2(AEntity2 *e) {
+		init(e); e->_push(this);
+	}
+#endif
+	void exit() {
+		_entity->_pop(this);
+	}
 };
 
 

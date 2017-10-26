@@ -83,6 +83,13 @@ struct IOObject : public AObject {
 	}
 	int shutdown()            { return (*this)->close(this, NULL); }
 };
+
+struct AService {
+	AModule module;
+	int  (*svc_init)(AObject *server, AOption *option);
+	void (*svc_exit)(AObject *server, AOption *option);
+	void (*svc_run)(AObject *object, AOption *option);
+};
 //>>>>>>>>>> C Style >>>>>>>>>>
 //<<<<<<<<<< C++ Style <<<<<<<<<<
 struct IOObject2 : public AObject {

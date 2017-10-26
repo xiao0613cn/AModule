@@ -64,11 +64,22 @@ int main()
 	sm.init();
 	sm._event_manager = &em;
 
-	sm._regist(e);
-	sm._regist(mqtt);
+	//sm._regist(e);
+	//sm._regist(mqtt);
 
 	pthread_t thr;
 	pthread_create(&thr, NULL, &test_run, NULL);
+
+	AOptionDecode(&opt, "tcp_server: { port: 4444, io: async_tcp, "
+		"is_async: 1, services: { EchoProxy } }", -1);
+
+	IOObject *tcp_server = NULL;
+	AObject::create(&tcp_server, NULL, opt, "tcp_server");
+
+	AMessage msg; msg.init(opt);
+	tcp_server->open(&msg);
+	opt->release();
+
 	pthread_join(thr, NULL);
 
 	sm._unregist(e); e->release();
