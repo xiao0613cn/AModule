@@ -3,7 +3,7 @@
 #include "../io/AModule_io.h"
 #include "../ecs/AInOutComponent.h"
 
-struct EchoProxy : public AEntity2 {
+struct EchoProxy : public AEntity {
 	AInOutComponent _iocom;
 };
 
@@ -11,14 +11,14 @@ static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)*object;
 	echo->init();
-	echo->_iocom.init(echo, NULL);
+	echo->_init_push(&echo->_iocom);
 	return 1;
 }
 
 static void EchoRelease(AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	echo->_iocom.exit();
+	echo->_pop_exit(&echo->_iocom);
 	echo->exit();
 }
 
@@ -57,14 +57,15 @@ static int EchoMsgRun(AMessage *msg, int result)
 	return result;
 }
 
-static void EchoRun(AObject *object, AOption *option)
+static int EchoRun(AObject *object, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	echo->addref();
 	echo->_iocom._inmsg.init();
 	echo->_iocom._outmsg.init();
 	echo->_iocom._outmsg.done = &EchoMsgRun;
-	echo->_iocom._outmsg.done2(1);
+
+	echo->addref();
+	return echo->_iocom._outmsg.done2(1);
 }
 
 AService EchoService = { {

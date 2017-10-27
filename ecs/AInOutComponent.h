@@ -36,11 +36,10 @@ struct AInOutComponent : public AComponent {
 		int   (*inmsg_done)(AMessage *msg, int result);
 		int   (*outmsg_done)(AMessage *msg, int result);
 	};
-	void init(AEntity2 *e, pthread_mutex_t *l) {
-		AComponent::init2(e, name());
+	void init2() {
 		//static com_module *impl = (com_module*)AModuleFind(name(), name());
+		_abort = true; _queue.init(); _mutex = NULL;
 
-		_abort = true; _queue.init(); _mutex = l;
 		_io          = NULL;
 		_inmsg.done  = &_inmsg_done;
 		do_post      = &_do_post;
@@ -53,9 +52,8 @@ struct AInOutComponent : public AComponent {
 		// set by outter using
 		on_outmsg = NULL;
 	}
-	void exit() {
+	void exit2() {
 		assert(_queue.empty());
-		_entity->_pop(this);
 		release_s(_io);
 		release_s(_outbuf);
 	}
@@ -74,7 +72,7 @@ struct AInOutComponent : public AComponent {
 			return;
 
 		c->_inmsg.done = _inmsg_done;
-		c->_self->addref();
+		c->_entity->addref();
 
 		int result = c->do_input(c, msg);
 		if (result != 0)
@@ -105,7 +103,7 @@ struct AInOutComponent : public AComponent {
 
 			msg->done2(result);
 			if (next == NULL) {
-				c->_self->release();
+				c->_entity->release();
 				return result;
 			}
 
@@ -135,14 +133,14 @@ struct AInOutComponent : public AComponent {
 		unlock();
 	}
 	void _output_begin(int ressiz, int bufsiz) {
-		_self->addref();
+		_entity->addref();
 		int result = ARefsBuf::reserve(_outbuf, ressiz, bufsiz);
 		_outmsg.init();
 		_outmsg.done2(result);
 	}
 	void _output_end() {
 		// called by on_output()
-		_self->release();
+		_entity->release();
 	}
 	static int _outmsg_done(AMessage *msg, int result) {
 		AInOutComponent *c = container_of(msg, AInOutComponent, _outmsg);

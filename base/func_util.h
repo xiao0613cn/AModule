@@ -82,5 +82,16 @@ static inline int find_ix0(type_t *array, type_t end, type_t test)
 }
 
 
+/* file: minunit.h */
+#define mu_assert(message, test) \
+	do { if (!(test)) return message; } while (0)
+
+#define mu_run_test(test) \
+	do { char *message = test(); tests_run++; \
+	     if (message) return message; } while (0)
+
+extern int tests_run;
+/* file: minunit.h */
+
 
 #endif

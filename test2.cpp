@@ -42,11 +42,11 @@ int main()
 	AOption *opt = NULL;
 	int result = AOptionDecode(&opt, opt_str, -1);
 
-	AEntity2 *e = NULL;
+	AEntity *e = NULL;
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
 
-	AEntity2 *mqtt = NULL;
+	AEntity *mqtt = NULL;
 	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
 		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
 		"}, }", -1);
@@ -64,8 +64,8 @@ int main()
 	sm.init();
 	sm._event_manager = &em;
 
-	//sm._regist(e);
-	//sm._regist(mqtt);
+	sm._regist(e);
+	sm._regist(mqtt);
 
 	pthread_t thr;
 	pthread_create(&thr, NULL, &test_run, NULL);
@@ -73,11 +73,10 @@ int main()
 	AOptionDecode(&opt, "tcp_server: { port: 4444, io: async_tcp, "
 		"is_async: 1, services: { EchoProxy } }", -1);
 
-	IOObject *tcp_server = NULL;
-	AObject::create(&tcp_server, NULL, opt, "tcp_server");
+	AObject *tcp_server = NULL;
+	AObject::create(&tcp_server, NULL, opt, NULL);
 
-	AMessage msg; msg.init(opt);
-	tcp_server->open(&msg);
+	((AService*)tcp_server->_module)->svc_run(tcp_server, opt);
 	opt->release();
 
 	pthread_join(thr, NULL);

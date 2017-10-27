@@ -6,7 +6,7 @@
 #include "PvdNetCmd.h"
 #include "md5.h"
 
-struct PVDClient : public AEntity2 {
+struct PVDClient : public AEntity {
 	AClientComponent _client;
 	AInOutComponent _iocom;
 	pthread_mutex_t _mutex;
@@ -23,10 +23,11 @@ struct PVDClient : public AEntity2 {
 	pvdnet_head _heart_head;
 
 	void init() {
-		AEntity2::init();
-		_client.init2(this);
-		_iocom.init(this, &_mutex);
+		AEntity::init();
+		_init_push(&_client);
+		_init_push(&_iocom);
 		pthread_mutex_init(&_mutex, NULL);
+		_iocom._mutex = &_mutex;
 		_io_opt = NULL;
 
 		_status = pvdnet_invalid;
@@ -331,8 +332,8 @@ static int PVDCreate(AObject **object, AObject *parent, AOption *option)
 static void PVDRelease(AObject *object)
 {
 	PVDClient *pvd = (PVDClient*)object;
-	pvd->_client.exit();
-	pvd->_iocom.exit();
+	pvd->_pop_exit(&pvd->_client);
+	pvd->_pop_exit(&pvd->_iocom);
 
 	pthread_mutex_destroy(&pvd->_mutex);
 	release_s(pvd->_io_opt);
@@ -340,7 +341,7 @@ static void PVDRelease(AObject *object)
 }
 
 AModule PVDClientModule = {
-	"AEntity2",
+	"AEntity",
 	"PVDClient",
 	sizeof(PVDClient),
 	NULL, NULL,

@@ -13,7 +13,6 @@ struct TCPClient;
 
 struct TCPServer : public AObject {
 	SOCKET     sock;
-	pthread_t  thread;
 	AOption   *option;
 	AOption   *services;
 	TCPClient *prepare;
@@ -43,12 +42,14 @@ enum TCPStatus {
 	tcp_probe_service,
 };
 struct TCPClient {
+	union {
 	AOperator  sysop;
+	AMessage   msg;
+	};
 	TCPServer *server;
 	TCPStatus  status;
 	SOCKET     sock;
 	IOObject  *io;
-	AMessage   msg;
 
 	ARefsBuf*  tobuf() { return container_of(this, ARefsBuf, _data); }
 };
@@ -128,7 +129,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			break;
 		}
 
-		AEntity2 *e = NULL;
+		AEntity *e = NULL;
 		result = AObject::create2(&e, server, option, &service->module);
 		if (result < 0)
 			break;
@@ -156,7 +157,8 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 static int TCPClientProcess(AOperator *asop, int result)
 {
 	TCPClient *client = container_of(asop, TCPClient, sysop);
-	return TCPClientInmsgDone(&client->msg, (result>=0) ? 1 : result);
+	client->msg.done = &TCPClientInmsgDone;
+	return client->msg.done2((result>=0) ? 1 : result);
 }
 
 static TCPClient* TCPClientCreate(TCPServer *server)
@@ -174,7 +176,6 @@ static TCPClient* TCPClientCreate(TCPServer *server)
 	client->status = tcp_io_accept;
 	client->sock = INVALID_SOCKET;
 	client->io = NULL;
-	client->msg.done = &TCPClientInmsgDone;
 	return client;
 }
 
@@ -214,27 +215,6 @@ static void* TCPServerProcess(void *p)
 	TRACE("%p: quit.\n", server);
 	server->release();
 	return 0;
-}
-
-static void TCPServerRelease(AObject *object)
-{
-	TCPServer *server = (TCPServer*)object;
-	closesocket_s(server->sock);
-	if_not(server->thread, pthread_null, pthread_detach);
-	release_s(server->option);
-	server->services = NULL;
-	if_not(server->prepare, NULL, TCPClientRelease);
-}
-
-static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
-{
-	TCPServer *server = (TCPServer*)*object;
-	server->sock = INVALID_SOCKET;
-	server->thread = pthread_null;
-	server->option = NULL;
-	server->services = NULL;
-	server->prepare = NULL;
-	return 1;
 }
 
 #ifdef _WIN32
@@ -288,15 +268,11 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 }
 #endif
 
-static int TCPServerOpen(AObject *object, AMessage *msg)
+static int TCPServerRun(AObject *object, AOption *option)
 {
-	if ((msg->type != AMsgType_Option)
-	 || (msg->data == NULL)
-	 || (msg->size != 0))
-		return -EINVAL;
-
 	TCPServer *server = (TCPServer*)object;
-	server->option = AOptionClone((AOption*)msg->data, NULL);
+
+	server->option = AOptionClone(option, NULL);
 	if (server->option == NULL)
 		return -ENOMEM;
 
@@ -317,24 +293,10 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	server->io_module = AModuleFind("io", server->io_option->value);
 	if (server->io_module == NULL)
 		return -ENOENT;
-	server->is_async = server->option->getInt("is_async", TRUE);
 
 	server->services = server->option->find("services");
 	if ((server->services == NULL) || server->services->children_list.empty())
 		return -EINVAL;
-
-	list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
-	{
-		AService *svc = NULL;
-		if (m_opt->value[0] == '\0')
-			svc = (AService*)AModuleFind(NULL, m_opt->name);
-		else
-			svc = (AService*)AModuleFind(m_opt->name, m_opt->value);
-		*m_ptr(m_opt) = svc;
-		if ((svc != NULL) && (svc->svc_init != NULL)) {
-			svc->svc_init(server, m_opt);
-		}
-	}
 
 	server->sock = tcp_bind(server->family, IPPROTO_TCP, server->port);
 	if (server->sock == INVALID_SOCKET)
@@ -345,21 +307,35 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 	if (result != 0)
 		return -EIO;
 
-	server->min_probe_size = server->option->getInt("min_probe_size", 128);
-	server->max_probe_size = server->option->getInt("max_probe_size", 1800);
-	if (!server->option->getInt("background", TRUE))
-		return 1;
-
-	server->addref();
-#ifndef _WIN32
-	pthread_create(&server->thread, NULL, &TCPServerProcess, server);
-	return 1;
-#else
-	if (!server->is_async) {
-		pthread_create(&server->thread, NULL, &TCPServerProcess, server);
-		return 1;
+	list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
+	{
+		AService *svc = NULL;
+		if (m_opt->value[0] == '\0')
+			svc = (AService*)AModuleFind(NULL, m_opt->name);
+		else
+			svc = (AService*)AModuleFind(m_opt->name, m_opt->value);
+		*m_ptr(m_opt) = svc;
+		if ((svc != NULL) && (svc->svr_init != NULL)) {
+			svc->svr_init(server, m_opt);
+		}
 	}
 
+	server->min_probe_size = server->option->getInt("min_probe_size", 128);
+	server->max_probe_size = server->option->getInt("max_probe_size", 1800);
+	server->is_async = server->option->getInt("is_async", TRUE);
+
+	server->addref();
+	int background = server->option->getInt("background", TRUE);
+	if (!background) {
+		TCPServerProcess(server);
+		return 1;
+	}
+#ifndef _WIN32
+	pthread_t thread = pthread_null;
+	pthread_create(&thread, NULL, &TCPServerProcess, server);
+	pthread_detach(thread);
+	return 0;
+#else
 	GUID ax_guid = WSAID_ACCEPTEX;
 	DWORD tx = 0;
 	result = WSAIoctl(server->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &ax_guid, sizeof(ax_guid),
@@ -381,26 +357,7 @@ static int TCPServerOpen(AObject *object, AMessage *msg)
 #endif
 }
 
-static int TCPServerRequest(AObject *object, int reqix, AMessage *msg)
-{
-	TCPServer *server = (TCPServer*)object;
-	if (reqix != Aio_Output) {
-		return -ENOSYS;
-	}
-
-	struct sockaddr addr;
-	memset(&addr, 0, sizeof(addr));
-
-	socklen_t addrlen = sizeof(addr);
-	SOCKET sock = accept(server->sock, &addr, &addrlen);
-	if (sock == INVALID_SOCKET)
-		return -EIO;
-
-	msg->init((HANDLE)sock);
-	return 1;
-}
-
-static int TCPServerCancel(AObject *object, int reqix, AMessage *msg)
+static int TCPServerAbort(AObject *object)
 {
 	TCPServer *server = (TCPServer*)object;
 	if (server->sock != INVALID_SOCKET)
@@ -408,43 +365,43 @@ static int TCPServerCancel(AObject *object, int reqix, AMessage *msg)
 	return 1;
 }
 
-static int TCPServerClose(AObject *object, AMessage *msg)
+static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
+{
+	TCPServer *server = (TCPServer*)*object;
+	server->sock = INVALID_SOCKET;
+	server->option = NULL;
+	server->services = NULL;
+	server->prepare = NULL;
+	return 1;
+}
+
+static void TCPServerRelease(AObject *object)
 {
 	TCPServer *server = (TCPServer*)object;
-	if (msg == NULL)
-		return TCPServerCancel(object, 0, NULL);
-
 	closesocket_s(server->sock);
-	if_not2(server->thread, pthread_null, pthread_join(server->thread, NULL));
-	release_s(server->option);
 	if_not2(server->services, NULL,
 		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
 		{
 			AService *svc = *m_ptr(m_opt);
-			if ((svc != NULL) && (svc->svc_exit != NULL)) {
-				svc->svc_exit(server, m_opt);
+			if ((svc != NULL) && (svc->svr_exit != NULL)) {
+				svc->svr_exit(server, m_opt);
 			}
-		}
-	);
+		});
+	release_s(server->option);
 	if_not(server->prepare, NULL, TCPClientRelease);
-	return 1;
 }
 
-IOModule TCPServerModule = { {
-	"server",
+AService TCPServerModule = { {
+	"AService",
 	"tcp_server",
 	sizeof(TCPServer),
 	NULL, NULL,
 	&TCPServerCreate,
 	&TCPServerRelease,
 	NULL, },
-
-	&TCPServerOpen,
-	NULL,
-	NULL,
-	&TCPServerRequest,
-	&TCPServerCancel,
-	&TCPServerClose,
+	NULL, NULL,
+	&TCPServerRun,
+	&TCPServerAbort,
 };
 
 static auto_reg_t reg(TCPServerModule.module);

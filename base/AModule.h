@@ -35,9 +35,9 @@ struct AObject {
 	AModule      *_module;
 
 #ifdef __cplusplus
-	void init(AModule *m) {
+	void init(AModule *m, void *release) {
 		_refcount = 1;
-		_release = m ? m->release : NULL;
+		_release = (void(*)(AObject*))release;
 		_module = m;
 	}
 	long addref() {

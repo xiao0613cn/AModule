@@ -203,10 +203,9 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 		*object = (AObject*)malloc(module->object_size);
 		if (*object == NULL)
 			return -ENOMEM;
-		InterlockedAdd(&module->object_count, 1);
 
-		(*object)->init(module);
-		(*object)->_release = &AObjectFree;
+		InterlockedAdd(&module->object_count, 1);
+		(*object)->init(module, &AObjectFree);
 	} else {
 		*object = NULL;
 	}

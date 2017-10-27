@@ -1,37 +1,32 @@
 #ifndef _AENTITY_H_
 #define _AENTITY_H_
+#include "../base/AModule_API.h"
 
-struct AObject;
 typedef struct AEntity AEntity;
 typedef struct AComponent AComponent;
 typedef struct AEntityManager AEntityManager, EM;
 
 struct AComponent {
-	AObject    *_self;
 	const char *_name;
 	long        _index;
 	AEntity    *_entity;
 	list_head   _entity_node;
 
-	void init(AObject *o, const char *n, int i = 0) {
-		_self = o; _name = n; _index = i;
+	void init(const char *n, int i = 0) {
+		_name = n; _index = i;
 		_entity = NULL; _entity_node.init();
 	}
 	bool valid();
-#ifdef _AMODULE_H_
-	void init2(struct AEntity2 *e, const char *n, int i = 0);
-#endif
 };
 
-struct AEntity {
-	AObject        *_self;
+struct AEntity : public AObject {
 	AEntityManager *_manager;
 	struct rb_node  _manager_node;
 	list_head       _com_list;
 	int             _com_count;
 
-	void init(AObject *o) {
-		_self = o; _manager = NULL;
+	void init() {
+		_manager = NULL;
 		RB_CLEAR_NODE(&_manager_node);
 		_com_list.init();
 		_com_count = 0;
@@ -55,6 +50,12 @@ struct AEntity {
 		}
 		return valid;
 	}
+	template <typename TComponent>
+	void _init_push(TComponent *c, int i = 0) {
+		c->init(TComponent::name(), i);
+		c->init2();
+		_push(c);
+	}
 	bool _pop(AComponent *c) {
 		bool valid = ((c->_entity == this) && !c->_entity_node.empty());
 		if (valid) {
@@ -65,6 +66,11 @@ struct AEntity {
 			assert(0);
 		}
 		return valid;
+	}
+	template <typename TComponent>
+	void _pop_exit(TComponent *c) {
+		_pop(c);
+		c->exit2();
 	}
 	AComponent* _get(const char *com_name, int com_index = -1) {
 		AComponent *c;
@@ -178,15 +184,6 @@ struct AEntityManager {
 inline bool AComponent::valid() {
 	return _entity->valid() && !_entity_node.empty();
 }
-#ifndef _AMODULE_H_
-#else
-struct AEntity2 : public AObject, public AEntity {
-	void  init() { AEntity::init(this); }
-};
-
-inline void AComponent::init2(AEntity2 *e, const char *n, int i) {
-	init(e, n, i); e->_push(this);
-}
 
 #if 0
 // outside component of entity, has self refcount
@@ -287,7 +284,6 @@ struct AEntityManager2 : public AEntityManager {
 		return result;
 	}
 };
-#endif
 #endif
 
 #endif

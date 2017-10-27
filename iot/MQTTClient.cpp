@@ -5,7 +5,7 @@
 #include "../ecs/AClientSystem.h"
 #include "../ecs/AInOutComponent.h"
 
-struct MQTTClient : public AEntity2 {
+struct MQTTClient : public AEntity {
 	enum Status {
 		Invalid = 0,
 		Opening,
@@ -25,10 +25,11 @@ struct MQTTClient : public AEntity2 {
 	AMessage   _heart_msg;
 
 	void init() {
-		AEntity2::init();
-		_client.init2(this);
-		_iocom.init(this, &_mutex);
+		AEntity::init();
+		_init_push(&_client);
+		_init_push(&_iocom);
 		pthread_mutex_init(&_mutex, NULL);
+		_iocom._mutex = &_mutex;
 
 		_codec = NULL;
 		_options = NULL;
@@ -279,8 +280,8 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 static void MQTTRelease(AObject *object)
 {
 	MQTTClient *mqtt = (MQTTClient*)object;
-	mqtt->_client.exit();
-	mqtt->_iocom.exit();
+	mqtt->_pop_exit(&mqtt->_client);
+	mqtt->_pop_exit(&mqtt->_iocom);
 
 	pthread_mutex_destroy(&mqtt->_mutex);
 	release_s(mqtt->_options);
@@ -288,7 +289,7 @@ static void MQTTRelease(AObject *object)
 }
 
 AModule MQTTClientModule = {
-	"AEntity2",
+	"AEntity",
 	"MQTTClient",
 	sizeof(MQTTClient),
 	NULL, NULL,

@@ -86,9 +86,10 @@ struct IOObject : public AObject {
 
 struct AService {
 	AModule module;
-	int  (*svc_init)(AObject *server, AOption *option);
-	void (*svc_exit)(AObject *server, AOption *option);
-	void (*svc_run)(AObject *object, AOption *option);
+	int  (*svr_init)(AObject *server, AOption *option); // option
+	int  (*svr_exit)(AObject *server, AOption *option); // option
+	int  (*svc_run)(AObject *object, AOption *option);
+	int  (*svc_abort)(AObject *object); // option
 };
 //>>>>>>>>>> C Style >>>>>>>>>>
 //<<<<<<<<<< C++ Style <<<<<<<<<<

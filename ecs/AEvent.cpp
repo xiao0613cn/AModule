@@ -2,6 +2,7 @@
 #include "../base/AModule_API.h"
 #include "AEvent.h"
 
+// event by name
 static inline int AReceiverCmp(const char *name, AReceiver *r) {
 	return strcmp(name, r->_name);
 }
@@ -18,7 +19,7 @@ static bool _do_subscribe(AEventManager *em, AReceiver *r)
 			first->_receiver_list.push_back(&r->_receiver_list);
 		r->_manager = em;
 		em->_receiver_count ++;
-		//r->r_object->addref();
+		//r->_self->addref();
 	} else {
 		assert(0);
 	}
@@ -60,7 +61,7 @@ static bool _do_unsubscribe(AEventManager *em, AReceiver *r)
 		return false;
 	}
 	_do_erase(em, first, r);
-	//r->_object->release();
+	//r->_self->release();
 	return valid;
 }
 
@@ -93,7 +94,7 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 			if (r->_oneshot)
 				_do_erase(em, first, r);
 			else
-				r->_self->addref();
+				r->addref();
 			recvers.push_back(r);
 		}
 		r = next;
@@ -103,7 +104,7 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 		if (first->_oneshot)
 			_do_erase(em, first, first);
 		else
-			first->_self->addref();
+			first->addref();
 		recvers.push_back(first);
 	}
 	em->unlock();
@@ -114,12 +115,12 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 	while (recvers.total_count() != 0) {
 		AReceiver *r = recvers.front();
 		r->on_event(r, p, false);
-		r->_self->release();
+		r->release();
 
 		recvers.pop_front(1, em->_recycle_recvers ? &free_list : NULL);
 	}
 
-	if (em->_recycle_recvers) {
+	if (em->_recycle_recvers && (!free_list.empty() || !recvers._slice_list.empty())) {
 		recvers.reset();
 
 		em->lock();
@@ -136,6 +137,8 @@ void AEventManager::init()
 {
 	INIT_RB_ROOT(&_receiver_map);
 	_receiver_count = 0;
+	INIT_RB_ROOT(&_receiver_map2);
+	_receiver_count2 = 0;
 	_mutex = NULL;
 	_subscribe = &_do_subscribe;
 	_unsubscribe = &_do_unsubscribe;
@@ -144,3 +147,10 @@ void AEventManager::init()
 	_recycle_recvers = true;
 	emit = &_do_emit;
 }
+
+// event by index
+typedef struct AReceiver ARecvByIndex;
+static inline int ARecvByIndexCmp(int index, ARecvByIndex *r) {
+	return index - r->_index;
+}
+rb_tree_define(ARecvByIndex, _manager_node, int, ARecvByIndexCmp)

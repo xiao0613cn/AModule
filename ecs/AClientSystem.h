@@ -53,8 +53,7 @@ struct AClientComponent : public AComponent {
 	int (*abort)(AClientComponent *c);
 	int (*close)(AClientComponent *c);
 
-	void init(AObject *o) {
-		AComponent::init(o, name());
+	void init2() {
 		_tick_reopen = 30*1000; _tick_heart = 10*1000; _tick_abort = 20*1000;
 		_owner_thread = false;  _open_heart = true;    _auto_reopen = true;
 		_status = Invalid;      _main_tick = 0;        _main_abort = false;
@@ -62,20 +61,11 @@ struct AClientComponent : public AComponent {
 		_sys_node.init();
 
 		// set by implement module
-		//open, heart, abort, close
+		open = NULL; heart = NULL; abort = NULL; close = NULL;
 	}
-#ifdef _AMODULE_H_
-	void init2(AEntity2 *e) {
-		init(e); e->_push(this);
-	}
-#endif
-	void exit() {
-		_entity->_pop(this);
+	void exit2() {
 	}
 };
-
-
-
 
 
 #endif

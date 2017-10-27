@@ -154,70 +154,71 @@ static int SSLOpenStatus(SSL_IO *sc, int result)
 static int SSLOpen(AObject *object, AMessage *msg)
 {
 	SSL_IO *sc = (SSL_IO*)object;
-	if (msg->type != AMsgType_Option)
-		return -EINVAL;
+	if (msg->type == AMsgType_Option)
+	{
+		AOption *option = (AOption*)msg->data;
+		if (sc->ssl_ctx == NULL) {
+			sc->is_client = option->getInt("is_client", TRUE);
 
-	AOption *option = (AOption*)msg->data;
-	if (sc->ssl_ctx == NULL) {
-		sc->is_client = option->getInt("is_client", TRUE);
+			sc->ssl_ctx = SSL_CTX_new(sc->is_client ? TLS_client_method() : TLS_server_method());
+			if (sc->ssl_ctx == NULL)
+				return -ENOENT;
 
-		sc->ssl_ctx = SSL_CTX_new(sc->is_client ? TLS_client_method() : TLS_server_method());
-		if (sc->ssl_ctx == NULL)
-			return -ENOENT;
+			int result = SSL_CTX_set_cipher_list(sc->ssl_ctx, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
+			if (result != 1) {
+				TRACE("Error: cannot set the cipher list.\n");
+				//ERR_print_errors_fp(stderr);
+				return -ENOENT;
+			}
 
-		int result = SSL_CTX_set_cipher_list(sc->ssl_ctx, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
-		if (result != 1) {
-			TRACE("Error: cannot set the cipher list.\n");
-			//ERR_print_errors_fp(stderr);
+			SSL_CTX_set_verify(sc->ssl_ctx, SSL_VERIFY_PEER, &krx_ssl_verify_peer);
+			SSL_CTX_set_verify_depth(sc->ssl_ctx, 9);
+			SSL_CTX_set_mode(sc->ssl_ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
+			SSL_CTX_set_session_cache_mode(sc->ssl_ctx, SSL_SESS_CACHE_OFF);
+
+			/*result = SSL_CTX_set_tlsext_use_srtp(sc->ssl_ctx, "SRTP_AES128_CM_SHA1_80");
+			if (result != 0) {
+				TRACE("Error: cannot setup srtp.\n");
+				return -3;
+			}*/
+		}
+
+		sc->ssl = SSL_new(sc->ssl_ctx);
+		if (sc->ssl == NULL) {
+			TRACE("Error: cannot create new SSL*.\n");
 			return -ENOENT;
 		}
 
-		SSL_CTX_set_verify(sc->ssl_ctx, SSL_VERIFY_PEER, &krx_ssl_verify_peer);
-		SSL_CTX_set_verify_depth(sc->ssl_ctx, 9);
-		SSL_CTX_set_mode(sc->ssl_ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
-		SSL_CTX_set_session_cache_mode(sc->ssl_ctx, SSL_SESS_CACHE_OFF);
+		sc->input.bio = BIO_new(BIO_s_mem());
+		sc->output.bio = BIO_new(BIO_s_mem());
+		if (sc->outbuf == NULL) {
+			sc->outbuf = BUF_MEM_new();
+			BUF_MEM_grow(sc->outbuf, 2048);
+		}
+		BUF_MEM_grow(sc->outbuf, 0);
+		BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
 
-		/*result = SSL_CTX_set_tlsext_use_srtp(sc->ssl_ctx, "SRTP_AES128_CM_SHA1_80");
-		if (result != 0) {
-			TRACE("Error: cannot setup srtp.\n");
-			return -3;
-		}*/
+		SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
+
+		/* either use the server or client part of the protocol */
+		if (sc->is_client) {
+			SSL_set_info_callback(sc->ssl, &krx_ssl_client_info_callback);
+			SSL_set_connect_state(sc->ssl);
+		} else {
+			SSL_set_info_callback(sc->ssl, &krx_ssl_server_info_callback);
+			SSL_set_accept_state(sc->ssl);
+		}
+
+		AOption *io_opt = option->find("io");
+		if (sc->io == NULL) {
+			int result = sc->create(&sc->io, sc, io_opt, "async_tcp");
+			if (result < 0)
+				return result;
+		}
+		sc->input.msg.init(io_opt);
+	} else { // attach io handle ??
+		sc->input.msg.init(msg);
 	}
-
-	sc->ssl = SSL_new(sc->ssl_ctx);
-	if (sc->ssl == NULL) {
-		TRACE("Error: cannot create new SSL*.\n");
-		return -ENOENT;
-	}
-
-	sc->input.bio = BIO_new(BIO_s_mem());
-	sc->output.bio = BIO_new(BIO_s_mem());
-	if (sc->outbuf == NULL) {
-		sc->outbuf = BUF_MEM_new();
-		BUF_MEM_grow(sc->outbuf, 2048);
-	}
-	BUF_MEM_grow(sc->outbuf, 0);
-	BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
-
-	SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
-
-	/* either use the server or client part of the protocol */
-	if (sc->is_client) {
-		SSL_set_info_callback(sc->ssl, &krx_ssl_client_info_callback);
-		SSL_set_connect_state(sc->ssl);
-	} else {
-		SSL_set_info_callback(sc->ssl, &krx_ssl_server_info_callback);
-		SSL_set_accept_state(sc->ssl);
-	}
-
-	AOption *io_opt = option->find("io");
-	if (sc->io == NULL) {
-		int result = sc->create(&sc->io, sc, io_opt, "async_tcp");
-		if (result < 0)
-			return result;
-	}
-
-	sc->input.msg.init(io_opt);
 	sc->input.msg.done = &TObjectDone(SSL_IO, input.msg, input.from, SSLOpenStatus);
 	sc->input.from = msg;
 
