@@ -55,6 +55,9 @@ struct IOModule {
 	int (*cancel)(AObject *object, int reqix, AMessage *msg);
 	int (*close)(AObject *object, AMessage *msg);
 
+	AModule *svc_module;
+	int  (*svc_accept)(AObject *object, AMessage *msg, AObject *svc_data);
+
 	static int MsgNull(AObject *other, AMessage *msg) { return -ENOSYS; }
 	static int OptNull(AObject *object, AOption *option) { return -ENOSYS; }
 	static int ReqNull(AObject *other, int reqix, AMessage *msg) { return -ENOSYS; }
@@ -62,36 +65,41 @@ struct IOModule {
 
 struct IOObject : public AObject {
 	static const char* class_name() { return "io"; }
-	IOModule* operator->() { return container_of(_module, IOModule, module); }
+	IOModule* m() { return container_of(_module, IOModule, module); }
 
-	int open(AMessage *msg)   { return (*this)->open(this, msg); }
-	int getopt(AOption *opt)  { return (*this)->getopt(this, opt); }
-	int setopt(AOption *opt)  { return (*this)->setopt(this, opt); }
-	int request(int reqix, AMessage *msg) { return (*this)->request(this, reqix, msg); }
-	int cancel(int reqix, AMessage *msg) { return (*this)->cancel(this, reqix, msg); }
-	int close(AMessage *msg)  { return (*this)->close(this, msg); }
+	int open(AMessage *msg)   { return m()->open(this, msg); }
+	int getopt(AOption *opt)  { return m()->getopt(this, opt); }
+	int setopt(AOption *opt)  { return m()->setopt(this, opt); }
+	int request(int reqix, AMessage *msg) { return m()->request(this, reqix, msg); }
+	int cancel(int reqix, AMessage *msg) { return m()->cancel(this, reqix, msg); }
+	int shutdown()            { return m()->close(this, NULL); }
+	int close(AMessage *msg)  { return m()->close(this, msg); }
 
 	int input(AMessage *msg)  { return request(Aio_Input, msg); }
 	int input(AMessage *msg, ARefsBuf *buf, int type = ioMsgType_Block) {
 		msg->init(type, buf->ptr(), buf->len());
 		return input(msg);
 	}
+
 	int output(AMessage *msg) { return request(Aio_Output, msg); }
 	int output(AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown) {
 		msg->init(type, buf->next(), buf->left());
 		return output(msg);
 	}
-	int shutdown()            { return (*this)->close(this, NULL); }
 };
 
-struct AService {
-	AModule module;
-	int  (*svr_init)(AObject *server, AOption *option); // option
-	int  (*svr_exit)(AObject *server, AOption *option); // option
-	int  (*svc_run)(AObject *object, AOption *option);
-	int  (*svc_abort)(AObject *object); // option
+struct AService : public AObject {
+	static const char* class_name() { return "AService"; }
+
+	AOption *peer_option;
+	AModule *peer_module;
+	int    (*start)(AService *service, AOption *option);
+	void   (*stop)(AService *service);
+	int    (*run)(AService *service, AObject *peer, AOption *option); // required
+	int    (*abort)(AService *service, AObject *peer);
 };
 //>>>>>>>>>> C Style >>>>>>>>>>
+
 //<<<<<<<<<< C++ Style <<<<<<<<<<
 struct IOObject2 : public AObject {
 	static const char* name() { return "io"; }

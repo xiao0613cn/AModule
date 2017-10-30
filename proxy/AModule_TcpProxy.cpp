@@ -11,16 +11,15 @@
 
 struct TCPClient;
 
-struct TCPServer : public AObject {
+struct TCPServer : public AService {
 	SOCKET     sock;
 	AOption   *option;
 	AOption   *services;
 	TCPClient *prepare;
+	AObject   *io_svc_data;
 
 	u_short    port;
 	int        family;
-	AOption   *io_option;
-	AModule   *io_module;
 	BOOL       is_async;
 	int        min_probe_size;
 	int        max_probe_size;
@@ -28,11 +27,12 @@ struct TCPServer : public AObject {
 	LPFN_ACCEPTEX acceptex;
 	AOperator  sysio;
 #endif
+	IOModule* io() { return (IOModule*)peer_module; }
 };
 
-static inline AService**
+static inline AService*&
 m_ptr(AOption *m_opt) {
-	return (AService**)(m_opt->value + sizeof(m_opt->value) - sizeof(AService*));
+	return *(AService**)(m_opt->value + sizeof(m_opt->value) - sizeof(AService*));
 }
 
 enum TCPStatus {
@@ -52,15 +52,13 @@ struct TCPClient {
 	IOObject  *io;
 
 	ARefsBuf*  tobuf() { return container_of(this, ARefsBuf, _data); }
+	void release() {
+		server->release();
+		closesocket_s(sock);
+		release_s(io);
+		tobuf()->release();
+	}
 };
-
-static void TCPClientRelease(TCPClient *client)
-{
-	client->server->release();
-	closesocket_s(client->sock);
-	release_s(client->io);
-	client->tobuf()->release();
-}
 
 static int TCPClientInmsgDone(AMessage *msg, int result)
 {
@@ -73,42 +71,41 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	switch (client->status)
 	{
 	case tcp_io_accept:
-		result = AObject::create2(&client->io, server, server->io_option, server->io_module);
+		result = AObject::create2(&client->io, server->io_svc_data, server->peer_option, server->peer_module);
 		if (result < 0)
 			break;
 
 		client->status = tcp_io_attach;
-		client->msg.init(AMsgType_Handle, (void*)client->sock, 0);
-		result = client->io->open(&client->msg);
+		msg->init(AMsgType_Handle, (void*)client->sock, 0);
+		result = server->io()->svc_accept(client->io, msg, server->io_svc_data);
 		break;
 
 	case tcp_io_attach:
 		client->sock = INVALID_SOCKET;
 		client->status = tcp_probe_service;
 		if (buf->len() == 0) {
-			client->msg.init(0, buf->next(), buf->left());
-			result = client->io->output(&client->msg);
+			result = client->io->output(msg, buf);
 			break;
 		}
-		client->msg.init();
+		msg->init();
 
 	case tcp_probe_service:
-		buf->push(client->msg.size);
-		client->msg.init(0, buf->ptr(), buf->len());
+		buf->push(msg->size);
+		msg->init(0, buf->ptr(), buf->len());
 	{
 		AService *service = NULL;
 		AOption *option = NULL;
 		int score = -1;
 		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
 		{
-			AService *svc = *m_ptr(m_opt);
+			AService *&svc = m_ptr(m_opt);
 			if (svc == NULL)
 				continue;
 
-			if (svc->module.probe != NULL)
-				result = svc->module.probe(client->io, &client->msg, m_opt);
+			if (svc->_module->probe != NULL)
+				result = svc->_module->probe(client->io, msg, m_opt);
 			else
-				result = 1;
+				result = 0;
 			if (result > score) {
 				service = svc;
 				option = m_opt;
@@ -116,21 +113,18 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 			}
 		}
 		if (service == NULL) {
-			if (client->msg.size < server->min_probe_size) {
-				//TRACE("retry probe: %d, %.*s.\n", client->msg.size,
-				//	client->msg.size, client->msg.data);
-				client->msg.init(0, buf->next(), buf->left());
-				result = client->io->output(&client->msg);
+			if (msg->size < server->min_probe_size) {
+				result = client->io->output(msg, buf);
 				break;
 			}
-			TRACE("no found service: %d, %.*s.\n", client->msg.size,
-				client->msg.size, client->msg.data);
+			TRACE("no found service: %d, %.*s.\n", msg->size,
+				msg->size, msg->data);
 			result = -EINVAL;
 			break;
 		}
 
 		AEntity *e = NULL;
-		result = AObject::create2(&e, server, option, &service->module);
+		result = AObject::create2(&e, service, option, service->peer_module);
 		if (result < 0)
 			break;
 
@@ -140,7 +134,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		release_s(c->_outbuf); c->_outbuf = buf;
 		release_s(client->server);
 
-		service->svc_run(e, option);
+		service->run(service, e, option);
 		e->release();
 		return 1;
 	}
@@ -149,7 +143,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	}
 	if (result < 0) {
 		TRACE("tcp error = %d.\n", result);
-		TCPClientRelease(client);
+		release_s(client);
 	}
 	return result;
 }
@@ -159,6 +153,13 @@ static int TCPClientProcess(AOperator *asop, int result)
 	TCPClient *client = container_of(asop, TCPClient, sysop);
 	client->msg.done = &TCPClientInmsgDone;
 	return client->msg.done2((result>=0) ? 1 : result);
+}
+
+static void* TCPClientThread(void *p)
+{
+	TCPClient *client = (TCPClient*)p;
+	client->msg.done = &TCPClientInmsgDone;
+	return (void*)client->msg.done2(1);
 }
 
 static TCPClient* TCPClientCreate(TCPServer *server)
@@ -204,12 +205,14 @@ static void* TCPServerProcess(void *p)
 		}
 
 		TCPClient *client = TCPClientCreate(server);
-		if (client != NULL) {
+		if (client == NULL) {
+			//ENOMEM
+			closesocket(sock);
+		} else if (server->is_async) {
 			client->sock = sock;
 			client->sysop.post(NULL);
 		} else {
-			//ENOMEM
-			closesocket(sock);
+			pthread_post(client, &TCPClientThread);
 		}
 	}
 	TRACE("%p: quit.\n", server);
@@ -238,8 +241,11 @@ static int TCPServerDoAcceptEx(TCPServer *server)
 		buf->next(), buf->left()-result*2,
 		result, result, &tx, &server->sysio.ao_ovlp);
 	if (!result) {
-		if (WSAGetLastError() != ERROR_IO_PENDING)
+		result = -WSAGetLastError();
+		if (result != -ERROR_IO_PENDING) {
+			TRACE("AcceptEx(%d) = %d.\n", server->port, result);
 			return -EIO;
+		}
 	}
 	return 0;
 }
@@ -247,18 +253,22 @@ static int TCPServerDoAcceptEx(TCPServer *server)
 static int TCPServerAcceptExDone(AOperator *sysop, int result)
 {
 	TCPServer *server = container_of(sysop, TCPServer, sysio);
-	if (result > 0) {
+	if (result >= 0) {
 		server->prepare->tobuf()->push(result);
 		result = setsockopt(server->prepare->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
 		                    (const char *)&server->sock, sizeof(server->sock));
 	}
 	if (result >= 0) {
-		server->prepare->sysop.post(NULL);
+		if (server->is_async) {
+			server->prepare->sysop.post(NULL);
+		} else {
+			pthread_post(server->prepare, &TCPClientThread);
+		}
 		server->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();
-		TRACE("%p: AcceptEx() = %d.\n", server, result);
-		if_not(server->prepare, NULL, TCPClientRelease);
+		TRACE("AcceptEx(%d) = %d.\n", server->port, result);
+		release_s(server->prepare);
 	}
 
 	result = TCPServerDoAcceptEx(server);
@@ -268,17 +278,65 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 }
 #endif
 
-static int TCPServerRun(AObject *object, AOption *option)
+static int TCPServerStart(AService *service, AOption *option)
 {
-	TCPServer *server = (TCPServer*)object;
+	TCPServer *server = (TCPServer*)service;
+	if (server->sock != INVALID_SOCKET) {
+		assert(0);
+		return -EACCES;
+	}
 
 	server->option = AOptionClone(option, NULL);
 	if (server->option == NULL)
 		return -ENOMEM;
 
+	server->peer_option = server->option->find("io");
+	server->peer_module = AModuleFind("io", server->peer_option ? server->peer_option->value : "async_tcp");
+	if ((server->peer_module == NULL) || (server->io()->svc_accept == NULL)) {
+		TRACE("require option: \"io\", function: io->svc_accept()\n");
+		return -ENOENT;
+	}
+
 	server->port = (u_short)server->option->getI64("port", 0);
-	if (server->port == 0)
+	if (server->port == 0) {
+		TRACE("require option: \"port\"\n");
 		return -EINVAL;
+	}
+
+	if (server->io()->svc_module != NULL) {
+		int result = AObjectCreate2(&server->io_svc_data, server, server->peer_option, server->io()->svc_module);
+		if (result < 0) {
+			TRACE("io(%s) create service data = %d.\n", server->peer_module->module_name, result);
+			return result;
+		}
+	}
+
+	server->services = server->option->find("services");
+	if ((server->services == NULL) || server->services->children_list.empty()) {
+		TRACE("require option: \"services\"\n");
+		return -EINVAL;
+	}
+	//list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry) {
+	//	m_ptr(m_opt) = NULL;
+	//}
+	list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry) {
+		AService *&svc = m_ptr(m_opt);
+
+		int result = AObject::create(&svc, server, m_opt, NULL);
+		if (result == NULL) {
+			TRACE("create services(%s,%s) = %d.\n", m_opt->name, m_opt->value, result);
+			continue;
+		}
+		if (strcasecmp(svc->peer_module->class_name, "AEntity") != 0) {
+			TRACE("service(%s,%s) peer type(%s,%s) maybe error!.\n",
+				svc->_module->class_name, svc->_module->module_name,
+				svc->peer_module->class_name, svc->peer_module->module_name);
+		}
+		if ((svc->start != NULL) && ((result = svc->start(svc, m_opt)) < 0)) {
+			TRACE("start services(%s,%s) = %d.\n", m_opt->name, m_opt->value, result);
+			release_s(svc);
+		}
+	}
 
 	const char *af = server->option->getStr("family", NULL);
 	if ((af != NULL) && (strcasecmp(af, "inet6") == 0))
@@ -286,38 +344,17 @@ static int TCPServerRun(AObject *object, AOption *option)
 	else
 		server->family = AF_INET;
 
-	server->io_option = server->option->find("io");
-	if ((server->io_option == NULL) || (server->io_option->value[0] == '\0'))
-		return -EINVAL;
-
-	server->io_module = AModuleFind("io", server->io_option->value);
-	if (server->io_module == NULL)
-		return -ENOENT;
-
-	server->services = server->option->find("services");
-	if ((server->services == NULL) || server->services->children_list.empty())
-		return -EINVAL;
-
 	server->sock = tcp_bind(server->family, IPPROTO_TCP, server->port);
-	if (server->sock == INVALID_SOCKET)
+	if (server->sock == INVALID_SOCKET) {
+		TRACE("tcp_bind(%d, %d) failed, error = %d.\n", server->family, server->port, errno);
 		return -EINVAL;
+	}
 
 	int backlog = server->option->getInt("backlog", 8);
 	int result = listen(server->sock, backlog);
-	if (result != 0)
+	if (result != 0) {
+		TRACE("listen(%d, %d) failed, error = %d.\n", server->sock, backlog, errno);
 		return -EIO;
-
-	list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
-	{
-		AService *svc = NULL;
-		if (m_opt->value[0] == '\0')
-			svc = (AService*)AModuleFind(NULL, m_opt->name);
-		else
-			svc = (AService*)AModuleFind(m_opt->name, m_opt->value);
-		*m_ptr(m_opt) = svc;
-		if ((svc != NULL) && (svc->svr_init != NULL)) {
-			svc->svr_init(server, m_opt);
-		}
 	}
 
 	server->min_probe_size = server->option->getInt("min_probe_size", 128);
@@ -331,9 +368,7 @@ static int TCPServerRun(AObject *object, AOption *option)
 		return 1;
 	}
 #ifndef _WIN32
-	pthread_t thread = pthread_null;
-	pthread_create(&thread, NULL, &TCPServerProcess, server);
-	pthread_detach(thread);
+	pthread_post(server, &TCPServerProcess, server);
 	return 0;
 #else
 	GUID ax_guid = WSAID_ACCEPTEX;
@@ -349,7 +384,6 @@ static int TCPServerRun(AObject *object, AOption *option)
 	memset(&server->sysio, 0, sizeof(server->sysio));
 	server->sysio.done = &TCPServerAcceptExDone;
 
-	if_not(server->prepare, NULL, TCPClientRelease);
 	result = TCPServerDoAcceptEx(server);
 	if (result < 0)
 		server->release();
@@ -357,21 +391,40 @@ static int TCPServerRun(AObject *object, AOption *option)
 #endif
 }
 
-static int TCPServerAbort(AObject *object)
+static void TCPServerStop(AService *service)
 {
-	TCPServer *server = (TCPServer*)object;
+	TCPServer *server = (TCPServer*)service;
 	if (server->sock != INVALID_SOCKET)
 		shutdown(server->sock, SD_BOTH);
-	return 1;
+
+	if_not2(server->services, NULL,
+		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
+	{
+		AService *svc = m_ptr(m_opt);
+		if (svc == NULL) {
+		} else if (svc->stop != NULL) {
+			svc->stop(svc);
+		} else if (svc->abort != NULL) {
+			svc->abort(svc, NULL);
+		}
+	});
 }
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
 	TCPServer *server = (TCPServer*)*object;
+	server->peer_option = option->find("io");
+	server->peer_module = AModuleFind("io", server->peer_option ? server->peer_option->value : "async_tcp");
+	server->start = &TCPServerStart;
+	server->stop = &TCPServerStop;
+	server->run = NULL;
+	server->abort = NULL;
+
 	server->sock = INVALID_SOCKET;
 	server->option = NULL;
 	server->services = NULL;
 	server->prepare = NULL;
+	server->io_svc_data = NULL;
 	return 1;
 }
 
@@ -381,27 +434,25 @@ static void TCPServerRelease(AObject *object)
 	closesocket_s(server->sock);
 	if_not2(server->services, NULL,
 		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
-		{
-			AService *svc = *m_ptr(m_opt);
-			if ((svc != NULL) && (svc->svr_exit != NULL)) {
-				svc->svr_exit(server, m_opt);
-			}
-		});
+	{
+		AService *&svc = m_ptr(m_opt);
+		if ((svc != NULL) && (svc->stop != NULL)) {
+			svc->stop(svc);
+		}
+		release_s(svc);
+	});
 	release_s(server->option);
-	if_not(server->prepare, NULL, TCPClientRelease);
+	release_s(server->prepare);
+	release_s(server->io_svc_data);
 }
 
-AService TCPServerModule = { {
+AModule TCPServerModule = {
 	"AService",
 	"tcp_server",
 	sizeof(TCPServer),
 	NULL, NULL,
 	&TCPServerCreate,
 	&TCPServerRelease,
-	NULL, },
-	NULL, NULL,
-	&TCPServerRun,
-	&TCPServerAbort,
 };
 
-static auto_reg_t reg(TCPServerModule.module);
+static int reg_svr = AModuleRegister(&TCPServerModule);

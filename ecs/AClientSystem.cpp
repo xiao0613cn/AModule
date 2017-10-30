@@ -235,4 +235,4 @@ ASystem AClientSystem = { {
 	&client_abort,
 };
 
-static auto_reg_t reg(AClientSystem.module);
+static int reg_cs = AModuleRegister(&AClientSystem.module);

@@ -45,8 +45,7 @@ static int EchoMsgRun(AMessage *msg, int result)
 		}
 		else if (status != 0) {
 			status = 0;
-			msg->init(0, buf->next(), buf->left());
-			result = echo->_iocom._io->output(msg);
+			result = echo->_iocom._io->output(msg, buf);
 		}
 		else {
 			buf->push(msg->size);
@@ -57,7 +56,7 @@ static int EchoMsgRun(AMessage *msg, int result)
 	return result;
 }
 
-static int EchoRun(AObject *object, AOption *option)
+static int EchoRun(AService *service, AObject *object, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)object;
 	echo->_iocom._inmsg.init();
@@ -68,16 +67,44 @@ static int EchoRun(AObject *object, AOption *option)
 	return echo->_iocom._outmsg.done2(1);
 }
 
-AService EchoService = { {
-	"AService",
+AModule EchoModule = {
+	"AEntity",
 	"EchoProxy",
 	sizeof(EchoProxy),
 	NULL, NULL,
 	&EchoCreate,
 	&EchoRelease,
-	&EchoProbe, },
-	NULL, NULL,
-	&EchoRun,
+	&EchoProbe,
 };
 
-static auto_reg_t reg(EchoService.module);
+static int reg_echo = AModuleRegister(&EchoModule);
+
+
+static int EchoServiceCreate(AObject **object, AObject *parent, AOption *option)
+{
+	AService *service = (AService*)*object;
+	service->peer_option = NULL;
+	service->peer_module = &EchoModule;
+	service->start = NULL;
+	service->stop = NULL;
+	service->run = &EchoRun;
+	service->abort = NULL;
+	return 1;
+}
+
+static void EchoServiceRelease(AObject *object)
+{
+	AService *service = (AService*)object;
+}
+
+AModule EchoServiceModule = {
+	"AService",
+	"EchoService",
+	sizeof(AService),
+	NULL, NULL,
+	&EchoServiceCreate,
+	&EchoServiceRelease,
+	&EchoProbe,
+};
+
+static int reg_svc = AModuleRegister(&EchoServiceModule);

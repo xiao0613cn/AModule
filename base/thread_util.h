@@ -310,6 +310,13 @@ CloseEvent(HANDLE h) {
 }
 #endif //!_WIN32
 
+static inline void
+pthread_post(void *arg, void*(*func)(void*)) {
+	pthread_t tid;
+	pthread_create(&tid, NULL, func, arg);
+	pthread_detach(tid);
+}
+
 #ifdef __cplusplus
 template <typename object_t, void(object_t::*run)()>
 void* pthread_object_run(void *p) {

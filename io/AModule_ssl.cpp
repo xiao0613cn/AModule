@@ -30,7 +30,6 @@ enum SSLOpenState {
 struct SSL_IO : public AObject {
 	SSL_CTX  *ssl_ctx;
 	SSL      *ssl;
-	BOOL      is_client;
 	SSLReq    input;
 	SSLReq    output;
 	BUF_MEM  *outbuf;
@@ -50,9 +49,9 @@ static int krx_ssl_verify_peer(int ok, X509_STORE_CTX* ctx)
 		int err = X509_STORE_CTX_get_error(ctx);
 		TRACE("depth = %d, error = %d, string = %s.\n",
 			depth, err, X509_verify_cert_error_string(err));
-		ok = 1;
+		ok = (err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
 	}
-	return 1;
+	return ok;
 }
 
 static void krx_ssl_info_callback(const SSL* ssl, int where, int ret, const char* name) {
@@ -63,6 +62,94 @@ static void krx_ssl_server_info_callback(const SSL* ssl, int where, int ret) {
 }
 static void krx_ssl_client_info_callback(const SSL* ssl, int where, int ret) {
 	krx_ssl_info_callback(ssl, where, ret, "client");
+}
+
+static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
+{
+	ctx = SSL_CTX_new(is_client ? TLS_client_method() : TLS_server_method());
+	if (ctx == NULL)
+		return -ENOMEM;
+
+	int result = SSL_CTX_set_cipher_list(ctx, opt->getStr("cipher_list", "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"));
+	if (result != 1) {
+		TRACE("SSL_CTX_set_cipher_list() = %d.\n", result);
+		return -ENOENT;
+	}
+
+	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &krx_ssl_verify_peer);
+	SSL_CTX_set_verify_depth(ctx, 9);
+	SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
+	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+
+	const char *ca_file = opt->getStr("ca_file", NULL);
+	const char *ca_path = opt->getStr("ca_path", NULL);
+	if ((ca_file != NULL) || (ca_path != NULL)) {
+		result = SSL_CTX_load_verify_locations(ctx, ca_file, ca_path);
+		if (result != 1) {
+			TRACE("SSL_CTX_load_verify_locations(%s,%s) = %d.\n", ca_file, ca_path, result);
+			return -ENOENT;
+		}
+	}
+
+	const char *key_file = opt->getStr("key_file", NULL);
+	if (key_file != NULL) {
+		int key_type = opt->getInt("key_type", SSL_FILETYPE_PEM);
+		result = SSL_CTX_use_PrivateKey_file(ctx, key_file, key_type);
+		if (result != 1) {
+			TRACE("SSL_CTX_use_PrivateKey_file(%s, %d) = %d.\n", key_file, key_type, result);
+			return -ENOENT;
+		}
+
+		result = SSL_CTX_check_private_key(ctx);
+		if (result != 1) {
+			TRACE("SSL_CTX_check_private_key() = %d.\n", result);
+			return -EACCES;
+		}
+	}
+
+	/*result = SSL_CTX_set_tlsext_use_srtp(sc->ssl_ctx, "SRTP_AES128_CM_SHA1_80");
+	if (result != 0) {
+		TRACE("Error: cannot setup srtp.\n");
+		return -3;
+	}*/
+	return 1;
+}
+
+static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
+{
+	sc->ssl = SSL_new(ctx);
+	if (sc->ssl == NULL) {
+		TRACE("Error: cannot create new SSL*.\n");
+		return -ENOMEM;
+	}
+
+	sc->input.bio = BIO_new(BIO_s_mem());
+	sc->output.bio = BIO_new(BIO_s_mem());
+	if (sc->outbuf == NULL) {
+		sc->outbuf = BUF_MEM_new();
+		BUF_MEM_grow(sc->outbuf, opt->getInt("outbuf", 2048));
+	}
+	BUF_MEM_grow(sc->outbuf, 0);
+	BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
+
+	SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
+
+	/* either use the server or client part of the protocol */
+	if (is_client) {
+		SSL_set_info_callback(sc->ssl, &krx_ssl_client_info_callback);
+		SSL_set_connect_state(sc->ssl);
+	} else {
+		SSL_set_info_callback(sc->ssl, &krx_ssl_server_info_callback);
+		SSL_set_accept_state(sc->ssl);
+	}
+
+	if (sc->io == NULL) {
+		AOption *io_opt = opt->find("io");
+		int result = AObject::create(&sc->io, sc, io_opt, "async_tcp");
+		if (result < 0)
+			return result;
+	}
+	return 1;
 }
 
 static inline int SSL_do_input(SSL_IO *sc)
@@ -103,6 +190,9 @@ static inline int SSL_on_output(SSL_IO *sc, AMessage &msg)
 #if SSL_NON_BUFFER
 	// BIO_write(), update read pointer
 	sc->outbuf->length += msg.size;
+	if (sc->outbuf->length == sc->outbuf->max) {
+		BUF_MEM_grow(sc->outbuf, sc->outbuf->length);
+	}
 	*sc->outread = *sc->outbuf;
 	BIO_clear_retry_flags(sc->output.bio);
 	return msg.size;
@@ -151,80 +241,35 @@ static int SSLOpenStatus(SSL_IO *sc, int result)
 	}
 	return result;
 }
+
 static int SSLOpen(AObject *object, AMessage *msg)
 {
 	SSL_IO *sc = (SSL_IO*)object;
-	if (msg->type == AMsgType_Option)
-	{
-		AOption *option = (AOption*)msg->data;
-		if (sc->ssl_ctx == NULL) {
-			sc->is_client = option->getInt("is_client", TRUE);
+	if (msg->type != AMsgType_Option)
+		return -EINVAL;
 
-			sc->ssl_ctx = SSL_CTX_new(sc->is_client ? TLS_client_method() : TLS_server_method());
-			if (sc->ssl_ctx == NULL)
-				return -ENOENT;
-
-			int result = SSL_CTX_set_cipher_list(sc->ssl_ctx, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
-			if (result != 1) {
-				TRACE("Error: cannot set the cipher list.\n");
-				//ERR_print_errors_fp(stderr);
-				return -ENOENT;
-			}
-
-			SSL_CTX_set_verify(sc->ssl_ctx, SSL_VERIFY_PEER, &krx_ssl_verify_peer);
-			SSL_CTX_set_verify_depth(sc->ssl_ctx, 9);
-			SSL_CTX_set_mode(sc->ssl_ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
-			SSL_CTX_set_session_cache_mode(sc->ssl_ctx, SSL_SESS_CACHE_OFF);
-
-			/*result = SSL_CTX_set_tlsext_use_srtp(sc->ssl_ctx, "SRTP_AES128_CM_SHA1_80");
-			if (result != 0) {
-				TRACE("Error: cannot setup srtp.\n");
-				return -3;
-			}*/
-		}
-
-		sc->ssl = SSL_new(sc->ssl_ctx);
-		if (sc->ssl == NULL) {
-			TRACE("Error: cannot create new SSL*.\n");
-			return -ENOENT;
-		}
-
-		sc->input.bio = BIO_new(BIO_s_mem());
-		sc->output.bio = BIO_new(BIO_s_mem());
-		if (sc->outbuf == NULL) {
-			sc->outbuf = BUF_MEM_new();
-			BUF_MEM_grow(sc->outbuf, 2048);
-		}
-		BUF_MEM_grow(sc->outbuf, 0);
-		BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
-
-		SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
-
-		/* either use the server or client part of the protocol */
-		if (sc->is_client) {
-			SSL_set_info_callback(sc->ssl, &krx_ssl_client_info_callback);
-			SSL_set_connect_state(sc->ssl);
-		} else {
-			SSL_set_info_callback(sc->ssl, &krx_ssl_server_info_callback);
-			SSL_set_accept_state(sc->ssl);
-		}
-
-		AOption *io_opt = option->find("io");
-		if (sc->io == NULL) {
-			int result = sc->create(&sc->io, sc, io_opt, "async_tcp");
-			if (result < 0)
-				return result;
-		}
-		sc->input.msg.init(io_opt);
-	} else { // attach io handle ??
-		sc->input.msg.init(msg);
+	AOption *option = (AOption*)msg->data;
+	AOption *io_opt = option->find("io");
+	if (io_opt == NULL) {
+		TRACE("require option: \"io\"\n");
+		return -EINVAL;
 	}
+
+	int result = SSL_CTX_create(sc->ssl_ctx, option, TRUE);
+	if (result < 0)
+		return result;
+
+	result = SSL_io_init(sc, sc->ssl_ctx, option, TRUE);
+	if (result < 0)
+		return result;
+
+	sc->input.msg.init(io_opt);
 	sc->input.msg.done = &TObjectDone(SSL_IO, input.msg, input.from, SSLOpenStatus);
 	sc->input.from = msg;
 
 	sc->state = S_init;
-	int result = sc->io->open(&sc->input.msg);
-	if (result != 0)
+	result = sc->io->open(&sc->input.msg);
+	if (result > 0)
 		result = SSLOpenStatus(sc, result);
 	return result;
 }
@@ -267,10 +312,10 @@ static int SSLOutputStatus(SSL_IO *sc, int result)
 		result = SSL_get_error(sc->ssl, result);
 		if (result == SSL_ERROR_WANT_WRITE) {
 			int len = BIO_ctrl_pending(sc->input.bio);
-			assert(len != 0);
+			assert(0);
 		}
 		if ((result != SSL_ERROR_WANT_READ) && (result != SSL_ERROR_ZERO_RETURN)) {
-			TRACE("ssl unknown error = %d.\n", result);
+			TRACE("SSL_read(), error = %d.\n", result);
 			return -EIO;
 		}
 		result = SSL_do_output(sc, sc->output.msg);
@@ -366,17 +411,66 @@ static void SSLExit(BOOL inited)
 	}
 }
 
+struct SSLSvcData : public AObject {
+	SSL_CTX  *ssl_ctx;
+	AObject  *io_svc_data;
+};
+
+static int SSLSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
+{
+	SSLSvcData *ssl_svc = (SSLSvcData*)*svc_data;
+	ssl_svc->ssl_ctx = NULL;
+	ssl_svc->io_svc_data = NULL;
+
+	//////////////////////////////////////////////////////////////////////////
+	AOption *io_opt = option->find("io");
+	if (io_opt == NULL)
+		return -EINVAL;
+
+	IOModule *io = (IOModule*)AModuleFind("io", io_opt->value);
+	if (io == NULL)
+		return -EINVAL;
+
+	if (io->svc_module == NULL)
+		return 1;
+	return AObjectCreate2(&ssl_svc->io_svc_data, ssl_svc, io_opt, io->svc_module);
+}
+
+static void SSLSvcRelease(AObject *svc_data)
+{
+	SSLSvcData *ssl_svc = (SSLSvcData*)svc_data;
+	if_not(ssl_svc->ssl_ctx, NULL, SSL_CTX_free);
+	release_s(ssl_svc->io_svc_data);
+}
+
+static int SSLSvcAccept(AObject *object, AMessage *msg, AObject *svc_data)
+{
+	return -1;
+}
+
+AModule SSLSvcModule = {
+	"SSLSvcData",
+	"SSLSvcData",
+	sizeof(SSLSvcData),
+	NULL, NULL,
+	&SSLSvcCreate,
+	&SSLSvcRelease,
+};
+static int reg_svc = AModuleRegister(&SSLSvcModule);
+
 IOModule OpenSSLModule = { {
 	"io",
 	"io_openssl",
 	sizeof(SSL_IO),
-	&SSLInit, NULL,
+	&SSLInit, &SSLExit,
 	&SSLCreate, &SSLRelease, NULL, },
 	&SSLOpen,
 	&SSLSetOpt, &SSLGetOpt,
 	&SSLRequest,
 	&SSLCancel,
 	&SSLClose,
-};
 
-static auto_reg_t reg(OpenSSLModule.module);
+	&SSLSvcModule,
+	&SSLSvcAccept,
+};
+static int reg_ssl = AModuleRegister(&OpenSSLModule.module);

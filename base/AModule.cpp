@@ -43,6 +43,8 @@ AModuleRegister(AModule *module)
 			break;
 		}
 	}
+	TRACE("%2d: %s(%s): object size = %d.\n", module->global_index,
+		module->module_name, module->class_name, module->object_size);
 
 	// delay init() in AModuleInit()
 	if (!g_inited)
@@ -99,6 +101,9 @@ AModuleExit(void)
 AMODULE_API AModule*
 AModuleFind(const char *class_name, const char *module_name)
 {
+	if ((class_name == NULL) && (module_name == NULL))
+		return NULL;
+
 	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
@@ -124,14 +129,22 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
-		if (comp(param, pos) == 0)
+
+		int result = comp(param, pos);
+		if (result > 0)
 			return pos;
+		if (result < 0)
+			return NULL;
+
 		if (class_name == NULL)
 			continue;
 
 		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry) {
-			if (comp(param, class_pos) == 0)
+			result = comp(param, class_pos);
+			if (result > 0)
 				return class_pos;
+			if (result < 0)
+				return NULL;
 		}
 		break;
 	}

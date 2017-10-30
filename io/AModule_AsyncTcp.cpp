@@ -471,6 +471,22 @@ static int AsyncTcpInit(AOption *global_option, AOption *module_option, BOOL fir
 	return 1;
 }
 
+static int AsyncTcpAccept(AObject *object, AMessage *msg, AObject *svc_data)
+{
+	AsyncTcp *tcp = (AsyncTcp*)object;
+	if (msg->type != AMsgType_Handle)
+		return -EINVAL;
+
+	closesocket_s(tcp->sock);
+	tcp->sock = (SOCKET)msg->data;
+#ifndef _WIN32
+	if (tcp_nonblock(tcp->sock, 1) != 0)
+		return -EIO;
+#endif
+	return AsyncTcpBind(tcp, NULL);
+}
+
+
 IOModule AsyncTcpModule = { {
 	"io",
 	"async_tcp",
@@ -484,6 +500,8 @@ IOModule AsyncTcpModule = { {
 	&AsyncTcpRequest,
 	&AsyncTcpCancel,
 	&AsyncTcpClose,
+
+	NULL, &AsyncTcpAccept,
 };
 
-static auto_reg_t reg(AsyncTcpModule.module);
+static int reg_code = AModuleRegister(&AsyncTcpModule.module);

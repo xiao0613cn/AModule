@@ -176,6 +176,17 @@ static int TCPInit(AOption *global_option, AOption *module_option, BOOL first)
 	return 1;
 }
 
+static int TCPSvcAccept(AObject *object, AMessage *msg, AObject *svc_data)
+{
+	TCPObject *tcp = (TCPObject*)object;
+	if (msg->type != AMsgType_Handle)
+		return -EINVAL;
+
+	closesocket_s(tcp->sock);
+	tcp->sock = (SOCKET)msg->data;
+	return 1;
+}
+
 IOModule TCPModule = { {
 	"io",
 	"tcp",
@@ -189,6 +200,8 @@ IOModule TCPModule = { {
 	&TCPRequest,
 	&TcpCancel,
 	&TCPClose,
+
+	NULL, &TCPSvcAccept,
 };
 
-static auto_reg_t reg(TCPModule.module);
+static int reg_code = AModuleRegister(&TCPModule.module);

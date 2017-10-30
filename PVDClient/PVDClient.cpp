@@ -349,4 +349,4 @@ AModule PVDClientModule = {
 	&PVDRelease,
 };
 
-static auto_reg_t reg(PVDClientModule);
+static int reg_pvd = AModuleRegister(&PVDClientModule);

@@ -96,12 +96,6 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 AMODULE_API AModule*
 AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
 
-#ifdef __cplusplus
-struct auto_reg_t {
-	auto_reg_t(AModule &module) { AModuleRegister(&module); }
-};
-#endif //__cplusplus
-
 
 typedef enum AObject_Status {
 	AObject_Invalid = 0,

@@ -297,4 +297,4 @@ AModule MQTTClientModule = {
 	&MQTTRelease,
 };
 
-static auto_reg_t reg(MQTTClientModule);
+static int reg_mqtt = AModuleRegister(&MQTTClientModule);

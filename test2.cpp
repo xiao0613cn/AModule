@@ -66,20 +66,17 @@ int main()
 
 	sm._regist(e);
 	sm._regist(mqtt);
-
-	pthread_t thr;
-	pthread_create(&thr, NULL, &test_run, NULL);
+	//pthread_post(NULL, &test_run);
 
 	AOptionDecode(&opt, "tcp_server: { port: 4444, io: async_tcp, "
-		"is_async: 1, services: { EchoProxy } }", -1);
+		"is_async: 1, services: { EchoService } }", -1);
 
-	AObject *tcp_server = NULL;
+	AService *tcp_server = NULL;
 	AObject::create(&tcp_server, NULL, opt, NULL);
 
-	((AService*)tcp_server->_module)->svc_run(tcp_server, opt);
+	tcp_server->start(tcp_server, opt);
 	opt->release();
-
-	pthread_join(thr, NULL);
+	test_run(&sm);
 
 	sm._unregist(e); e->release();
 	sm._unregist(mqtt); mqtt->release();

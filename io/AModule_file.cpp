@@ -97,4 +97,4 @@ IOModule FileModule = { {
 	&FileClose,
 };
 
-static auto_reg_t reg(FileModule.module);
+static int reg_file = AModuleRegister(&FileModule.module);

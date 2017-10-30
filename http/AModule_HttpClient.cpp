@@ -491,12 +491,12 @@ static int HttpClientRequest(AObject *object, int reqix, AMessage *msg)
 
 	if (msg->type == httpMsgType_RawData) {
 		msg->type = AMsgType_Unknown;
-		return (*p->io)->request(p->io, reqix, msg);
+		return p->io->request(reqix, msg);
 	}
 
 	if (msg->type == httpMsgType_RawBlock) {
 		msg->type = ioMsgType_Block;
-		return (*p->io)->request(p->io, reqix, msg);
+		return p->io->request(reqix, msg);
 	}
 
 	if (reqix == Aio_Input) {
@@ -518,7 +518,7 @@ static int HttpClientCancel(AObject *object, int reqix, AMessage *msg)
 	HttpClient *p = (HttpClient*)object;
 	if (p->io == NULL)
 		return -ENOENT;
-	return (*p->io)->cancel(p->io, reqix, msg);
+	return p->io->cancel(reqix, msg);
 }
 
 static int HttpClientClose(AObject *object, AMessage *msg)
@@ -545,4 +545,4 @@ IOModule HttpClientModule = { {
 	&HttpClientClose,
 };
 
-static auto_reg_t reg(HttpClientModule.module);
+static int reg_http = AModuleRegister(&HttpClientModule.module);

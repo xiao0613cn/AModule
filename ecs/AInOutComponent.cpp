@@ -11,4 +11,4 @@ AInOutComponent::com_module InOutModule = { {
 	&AInOutComponent::_outmsg_done,
 };
 
-static auto_reg_t reg(InOutModule.module);
+static int reg_iocom = AModuleRegister(&InOutModule.module);

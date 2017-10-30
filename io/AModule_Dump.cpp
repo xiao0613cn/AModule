@@ -178,13 +178,13 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 	DumpObject *dump = (DumpObject*)object;
 	DumpReq *req = DumpReqGet(dump, reqix);
 	if (req == NULL)
-		return (*dump->io)->request(dump->io, reqix, msg);
+		return dump->io->request(reqix, msg);
 
 	req->msg.init(msg);
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
-	int result = (*dump->io)->request(dump->io, reqix, &req->msg);
+	int result = dump->io->request(reqix, &req->msg);
 	if (result != 0) {
 		OnDumpRequest(req, result);
 	}
@@ -196,7 +196,7 @@ static int DumpCancel(AObject *object, int reqix, AMessage *msg)
 	DumpObject *dump = (DumpObject*)object;
 	if (dump->io == NULL)
 		return -ENOENT;
-	return (*dump->io)->cancel(dump->io, reqix, msg);
+	return dump->io->cancel(reqix, msg);
 }
 
 static int DumpClose(AObject *object, AMessage *msg)
@@ -207,7 +207,17 @@ static int DumpClose(AObject *object, AMessage *msg)
 	}
 	return dump->io->close(msg);
 }
+/*
+struct DumpSvc {
 
+};
+
+static int DumpSvcAccept(AObject *object, void *svc_data, AMessage *msg)
+{
+	DumpObject *dump = (DumpObject*)object;
+	return DumpOpen(dump, msg);
+}
+*/
 IOModule DumpModule = { {
 	"io",
 	"io_dump",
@@ -221,6 +231,10 @@ IOModule DumpModule = { {
 	&DumpRequest,
 	&DumpCancel,
 	&DumpClose,
+
+	//&DumpSvcInit,
+	//&DumpSvcExit,
+	//&DumpSvcAccept,
 };
 
-static auto_reg_t reg(DumpModule.module);
+static int reg_dumpio = AModuleRegister(&DumpModule.module);
