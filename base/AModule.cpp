@@ -28,18 +28,14 @@ AModuleRegister(AModule *module)
 	if (module->release == NULL) module->release = &AModuleReleaseNull;
 	if (module->probe == NULL) module->probe = &AObjectProbeNull;
 
-	list_add_tail(&module->global_entry, &g_module);
 	module->global_index = InterlockedAdd(&g_index, 1);
-
-	INIT_LIST_HEAD(&module->class_entry);
-	module->class_index = 0;
-	module->class_count = 0;
+	g_module.push_back(&module->global_entry);
+	module->class_entry.init();
 
 	list_for_each2(pos, &g_module, AModule, global_entry)
 	{
 		if (strcasecmp(pos->class_name, module->class_name) == 0) {
 			list_add_tail(&module->class_entry, &pos->class_entry);
-			module->class_index = InterlockedAdd(&pos->class_count, 1);
 			break;
 		}
 	}
@@ -69,7 +65,7 @@ AModuleRegister(AModule *module)
 AMODULE_API int
 AModuleInit(AOption *option)
 {
-	release_s(g_option);    g_option = option;
+	if_not(g_option, option, release_s);
 	BOOL first = !g_inited; g_inited = TRUE;
 
 	list_for_each2(module, &g_module, AModule, global_entry)
@@ -235,6 +231,84 @@ AObjectFree(AObject *object)
 	object->_module->release(object);
 	InterlockedAdd(&object->_module->object_count, -1);
 	free(object);
+}
+
+#ifdef _WIN32
+#include <direct.h>
+#ifdef _WIN64
+	#define DLL_BIN_OS    "Win64"
+#else
+	#define DLL_BIN_OS    "Win32"
+#endif
+#define DLL_BIN_LIB   ""
+#define DLL_BIN_NAME  "dll"
+#else
+#include <dlfcn.h>
+#if defined(__LP64__) && (__LP64__)
+	#define DLL_BIN_OS    "linux64"
+#else
+	#define DLL_BIN_OS    "linux32"
+#endif
+#define DLL_BIN_LIB   "lib"
+#define DLL_BIN_NAME  "so"
+#endif
+
+static long dlload_tid = 0;
+
+AMODULE_API void*
+dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
+{
+	long cur_tid = gettid();
+	long last_tid = 0;
+
+	for (;;) {
+		last_tid = InterlockedCompareExchange(&dlload_tid, cur_tid, 0);
+		if ((last_tid == 0) || (last_tid == cur_tid))
+			break;
+
+		TRACE("%s: current(%d) wait other(%d) completed...\n",
+			dll_name, cur_tid, last_tid);
+		Sleep(10);
+	}
+
+	char cur_path[BUFSIZ];
+	getcwd(cur_path, sizeof(cur_path));
+
+	char abs_path[BUFSIZ];
+#ifdef _WIN32
+	DWORD len = GetModuleFileNameA(NULL, abs_path, sizeof(abs_path));
+	const char *pos = strrchr(abs_path, '\\');
+#else
+	size_t len = readlink("/proc/self/exe", abs_path, sizeof(abs_path));
+	const char *pos = strrchr(abs_path, '/');
+#endif
+	len = pos - abs_path + 1;
+	abs_path[len] = '\0';
+
+	if (relative_path != NULL) {
+		if (relative_os_name) {
+			len += snprintf(abs_path+len, sizeof(abs_path)-len,
+				"%s_%s/", relative_path, DLL_BIN_OS);
+		} else {
+			len += snprintf(abs_path+len, sizeof(abs_path)-len,
+				"%s/", relative_path);
+		}
+		chdir(abs_path);
+	}
+	snprintf(abs_path+len, sizeof(abs_path)-len,
+		"%s%s.%s", DLL_BIN_LIB, dll_name, DLL_BIN_NAME);
+
+	void *module = dlopen(abs_path, RTLD_NOW);
+	if ((module == NULL) && (relative_path != NULL))
+		module = dlopen(abs_path+len, RTLD_NOW);
+
+	if (relative_path != NULL) {
+		chdir(cur_path);
+	}
+	if (last_tid == 0) {
+		InterlockedExchange(&dlload_tid, 0);
+	}
+	return module;
 }
 
 AMODULE_API int

@@ -167,7 +167,7 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="Debug DLL|Win32"
+			Name="Debug_DLL|Win32"
 			OutputDirectory="$(SolutionDir)bin"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
@@ -191,7 +191,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="ffmpeg/include"
+				AdditionalIncludeDirectories="ffmpeg/include;./"
 				PreprocessorDefinitions="WIN32;_DEBUG;AMODULE_API_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -240,7 +240,7 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="Release DLL|Win32"
+			Name="Release_DLL|Win32"
 			OutputDirectory="$(SolutionDir)bin"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
@@ -266,8 +266,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="ffmpeg/include"
-				PreprocessorDefinitions="WIN32;NDEBUG;AMODULE_API_EXPORTS"
+				AdditionalIncludeDirectories="ffmpeg/include;./"
+				PreprocessorDefinitions="WIN32;NDEBUG;AMODULE_API_EXPORTS;LIBPSUTIL_EXPORTS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="2"
@@ -329,10 +329,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ecs\AEvent.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\ecs\AInOutComponent.cpp"
 				>
 			</File>
@@ -369,18 +365,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\io\AModule_ssl.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="D:\OpenSSL-Win32\include"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
 				RelativePath=".\io\AModule_TCP.cpp"
 				>
 			</File>
@@ -397,10 +381,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ecs\ASystem.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\crypto\av_md5.c"
 				>
 				<FileConfiguration
@@ -412,7 +392,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -431,12 +419,44 @@
 						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\crypto\crc.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -469,7 +489,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -493,7 +521,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -504,6 +540,14 @@
 			<File
 				RelativePath=".\media\libPSutil.cpp"
 				>
+				<FileConfiguration
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						PreprocessorDefinitions="LIBPSUTIL_EXPORTS"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\PVDClient\md5.cpp"
@@ -520,12 +564,44 @@
 						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\iot\mqtt_message.c"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -549,7 +625,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -569,7 +653,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -589,7 +681,15 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -617,7 +717,7 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug DLL|Win32"
+					Name="Debug_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -625,23 +725,11 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Release DLL|Win32"
+					Name="Release_DLL|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
 						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\test2.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
 					/>
 				</FileConfiguration>
 			</File>
@@ -944,15 +1032,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\PVDClient\md5.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File

@@ -176,7 +176,7 @@ static int TCPInit(AOption *global_option, AOption *module_option, BOOL first)
 	return 1;
 }
 
-static int TCPSvcAccept(AObject *object, AMessage *msg, AObject *svc_data)
+static int TCPSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOption *svc_opt)
 {
 	TCPObject *tcp = (TCPObject*)object;
 	if (msg->type != AMsgType_Handle)

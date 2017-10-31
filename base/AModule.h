@@ -16,11 +16,9 @@ struct AModule {
 	int   (*probe)(AObject *other, AMessage *msg, AOption *option);
 
 	long volatile    object_count;
-	struct list_head global_entry;
 	long             global_index;
+	struct list_head global_entry;
 	struct list_head class_entry;
-	long             class_index;
-	long             class_count;
 };
 
 AMODULE_API int
@@ -76,6 +74,9 @@ AObjectRelease(AObject *object) {
 AMODULE_API void
 AObjectFree(AObject *object);
 
+
+AMODULE_API void*
+dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name);
 
 
 AMODULE_API int

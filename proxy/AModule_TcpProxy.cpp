@@ -77,7 +77,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 
 		client->status = tcp_io_attach;
 		msg->init(AMsgType_Handle, (void*)client->sock, 0);
-		result = server->io()->svc_accept(client->io, msg, server->io_svc_data);
+		result = server->io()->svc_accept(client->io, msg, server->io_svc_data, server->peer_option);
 		break;
 
 	case tcp_io_attach:
@@ -238,7 +238,7 @@ static int TCPServerDoAcceptEx(TCPServer *server)
 	DWORD tx = 0;
 	ARefsBuf *buf = server->prepare->tobuf();
 	result = server->acceptex(server->sock, server->prepare->sock,
-		buf->next(), buf->left()-result*2,
+		buf->next(), /*buf->left()-result*2*/0,
 		result, result, &tx, &server->sysio.ao_ovlp);
 	if (!result) {
 		result = -WSAGetLastError();
@@ -327,8 +327,9 @@ static int TCPServerStart(AService *service, AOption *option)
 			TRACE("create services(%s,%s) = %d.\n", m_opt->name, m_opt->value, result);
 			continue;
 		}
+		svc->sysmng = server->sysmng;
 		if (strcasecmp(svc->peer_module->class_name, "AEntity") != 0) {
-			TRACE("service(%s,%s) peer type(%s,%s) maybe error!.\n",
+			TRACE("service(%s,%s) peer type(%s,%s) maybe error, require AEntity!.\n",
 				svc->_module->class_name, svc->_module->module_name,
 				svc->peer_module->class_name, svc->peer_module->module_name);
 		}
@@ -376,6 +377,7 @@ static int TCPServerStart(AService *service, AOption *option)
 	result = WSAIoctl(server->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &ax_guid, sizeof(ax_guid),
 	                  &server->acceptex, sizeof(server->acceptex), &tx, NULL, NULL);
 	if (result != 0) {
+		TRACE("server(%d,%d) require AcceptEx() funciton.\n", server->sock, server->port);
 		server->release();
 		return -EIO;
 	}
@@ -401,13 +403,29 @@ static void TCPServerStop(AService *service)
 		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
 	{
 		AService *svc = m_ptr(m_opt);
-		if (svc == NULL) {
-		} else if (svc->stop != NULL) {
+		if ((svc == NULL) && (svc->stop != NULL)) {
 			svc->stop(svc);
-		} else if (svc->abort != NULL) {
-			svc->abort(svc, NULL);
 		}
 	});
+}
+
+static int TCPServerRun(AService *service, AObject *peer, AOption *option)
+{
+	TCPServer *server = (TCPServer*)service;
+	if (peer->_module != server->peer_module) {
+		TRACE("invalid peer %s(%s), require %s(%s).\n",
+			peer->_module->class_name, peer->_module->module_name,
+			server->peer_module->class_name, server->peer_module->module_name);
+		//return -EINVAL;
+	}
+
+	TCPClient *client = TCPClientCreate(server);
+	if (client == NULL)
+		return -ENOMEM;
+
+	client->status = tcp_io_attach;
+	client->io = (IOObject*)peer;
+	return TCPClientInmsgDone(&client->msg, 1);
 }
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
@@ -417,7 +435,7 @@ static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 	server->peer_module = AModuleFind("io", server->peer_option ? server->peer_option->value : "async_tcp");
 	server->start = &TCPServerStart;
 	server->stop = &TCPServerStop;
-	server->run = NULL;
+	server->run = &TCPServerRun;
 	server->abort = NULL;
 
 	server->sock = INVALID_SOCKET;

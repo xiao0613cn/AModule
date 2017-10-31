@@ -16,6 +16,7 @@ struct DumpObject : public IOObject {
 	FILE    *file;
 	char     file_name[BUFSIZ];
 	BOOL     single_file;
+	BOOL     trace_log;
 	IOObject *io;
 
 	pthread_mutex_t  req_mutex;
@@ -44,6 +45,7 @@ static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 {
 	DumpObject *dump = (DumpObject*)*object;
 	dump->file = NULL;
+	dump->io = NULL;
 
 	pthread_mutex_init(&dump->req_mutex, NULL);
 	INIT_LIST_HEAD(&dump->req_list);
@@ -85,7 +87,7 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 	}
 	pthread_mutex_unlock(&dump->req_mutex);
 
-	if (!dump->single_file && (req != NULL)) {
+	if ((req != NULL) && !dump->single_file && (dump->file_name[0] != '\0')) {
 		char file_name[512];
 		snprintf(file_name, sizeof(file_name), "%s_%d.dmp", dump->file_name, reqix);
 		req->file = fopen(file_name, "a+b");
@@ -95,35 +97,24 @@ static DumpReq* DumpReqGet(DumpObject *dump, int reqix)
 
 int OnDumpRequest(DumpReq *req, int result)
 {
-	if (result < 0) {
-		return result;
-	}
+	if ((result > 0) && (req->msg.size != 0))
+		req->from->init(&req->msg);
 
-	DumpObject *dump = req->dump;
-	//if (dump->object.reqix_count == 0) // open done
-	//	dump->object.reqix_count = dump->io->reqix_count;
-
-	req->from->init(&req->msg);
 	if (req->file != NULL) {
 		fwrite(req->msg.data, req->msg.size, 1, req->file);
-	} else {
-		TRACE("dump(%s): reqix = %d, type = %08x, size = %d, result = %d.\n",
-			dump->file_name, req->reqix, req->msg.type, req->msg.size, result);
+	}
+	if (req->dump->trace_log) {
+		TRACE("dump(%s): reqix = %d, type = %08x, size = %d, result = %d, data:\n%.*s\n",
+			req->dump->file_name, req->reqix, req->msg.type, req->msg.size, result,
+			req->msg.size, req->msg.data);
 	}
 	return result;
 }
 
-static int DumpOpen(AObject *object, AMessage *msg)
+static int Dump_init(DumpObject *dump, AOption *msg_opt)
 {
-	if ((msg->type != AMsgType_Option)
-	 || (msg->data == NULL)
-	 || (msg->size != 0))
-		return -EINVAL;
-
-	AOption *msg_opt = (AOption*)msg->data;
-	DumpObject *dump = (DumpObject*)object;
-
-	strcpy_sz(dump->file_name, msg_opt->getStr("file_name", "io_dump"));
+	dump->trace_log = msg_opt->getInt("trace_log", TRUE);
+	strcpy_sz(dump->file_name, msg_opt->getStr("file_name", ""));
 	dump->single_file = msg_opt->getInt("single_file", FALSE);
 
 	if (dump->single_file && (dump->file_name[0] != '\0')) {
@@ -137,23 +128,39 @@ static int DumpOpen(AObject *object, AMessage *msg)
 
 	AOption *io_opt = AOptionFind(msg_opt, "io");
 	if (dump->io == NULL) {
-		int result = dump->create(&dump->io, dump, io_opt, NULL);
-		if (dump->io == NULL)
+		int result = AObject::create(&dump->io, dump, io_opt, NULL);
+		if (result < 0) {
+			TRACE("require option: \"io\"\n");
 			return result;
+		}
 	}
+	return 1;
+}
+
+static int DumpOpen(AObject *object, AMessage *msg)
+{
+	if ((msg->type != AMsgType_Option)
+	 || (msg->data == NULL)
+	 || (msg->size != 0))
+		return -EINVAL;
+
+	DumpObject *dump = (DumpObject*)object;
+	AOption *msg_opt = (AOption*)msg->data;
+	int result = Dump_init(dump, msg_opt);
+	if (result < 0)
+		return result;
 
 	DumpReq *req = DumpReqGet(dump, 0);
 	if (req == NULL)
 		return -ENOMEM;
 
-	req->msg.init(io_opt);
+	req->msg.init(msg_opt->find("io"));
 	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
-	int result = dump->io->open(&req->msg);
-	if (result != 0) {
-		OnDumpRequest(req, result);
-	}
+	result = dump->io->open(&req->msg);
+	if (result != 0)
+		result = OnDumpRequest(req, result);
 	return result;
 }
 
@@ -185,9 +192,8 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 	req->from = msg;
 
 	int result = dump->io->request(reqix, &req->msg);
-	if (result != 0) {
-		OnDumpRequest(req, result);
-	}
+	if (result != 0)
+		result = OnDumpRequest(req, result);
 	return result;
 }
 
@@ -202,22 +208,55 @@ static int DumpCancel(AObject *object, int reqix, AMessage *msg)
 static int DumpClose(AObject *object, AMessage *msg)
 {
 	DumpObject *dump = (DumpObject*)object;
-	if (msg != NULL) {
-		if_not(dump->file, NULL, fclose);
-	}
+	if (dump->io == NULL)
+		return -ENOENT;
 	return dump->io->close(msg);
 }
-/*
-struct DumpSvc {
 
-};
-
-static int DumpSvcAccept(AObject *object, void *svc_data, AMessage *msg)
+static int DumpSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOption *svc_opt)
 {
 	DumpObject *dump = (DumpObject*)object;
-	return DumpOpen(dump, msg);
+	int result = Dump_init(dump, svc_opt);
+	if (result < 0)
+		return result;
+
+	DumpReq *req = DumpReqGet(dump, 0);
+	if (req == NULL)
+		return -ENOMEM;
+
+	req->msg.init(msg);
+	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
+	req->from = msg;
+
+	result = dump->io->m()->svc_accept(dump->io, &req->msg, svc_data, svc_opt->find("io"));
+	if (result != 0)
+		result = OnDumpRequest(req, result);
+	return result;
 }
-*/
+
+static int DumpSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
+{
+	AOption *io_opt = option->find("io");
+	if (io_opt == NULL)
+		return -EINVAL;
+
+	IOModule *io = (IOModule*)AModuleFind("io", io_opt->value);
+	if ((io == NULL) || (io->svc_accept == NULL))
+		return -EINVAL;
+
+	if (io->svc_module == NULL)
+		return 1;
+	return AObjectCreate2(svc_data, parent, io_opt, io->svc_module);
+}
+
+AModule DumpSvcModule = {
+	"DumpSvcModule",
+	"DumpSvcModule",
+	0, NULL, NULL,
+	&DumpSvcCreate,
+};
+static int reg_svc = AModuleRegister(&DumpSvcModule);
+
 IOModule DumpModule = { {
 	"io",
 	"io_dump",
@@ -232,9 +271,7 @@ IOModule DumpModule = { {
 	&DumpCancel,
 	&DumpClose,
 
-	//&DumpSvcInit,
-	//&DumpSvcExit,
-	//&DumpSvcAccept,
+	&DumpSvcModule,
+	&DumpSvcAccept,
 };
-
 static int reg_dumpio = AModuleRegister(&DumpModule.module);

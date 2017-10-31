@@ -7,8 +7,9 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #ifdef _WIN32
-#pragma comment(lib, "D:\\OpenSSL-Win32\\lib\\VC\\libssl32MT.lib")
-#pragma comment(lib, "D:\\OpenSSL-Win32\\lib\\VC\\libcrypto32MT.lib")
+#pragma comment(lib, "..\\bin\\AModule.lib")
+#pragma comment(lib, "..\\win32\\openssl\\libssl32MT.lib")
+#pragma comment(lib, "..\\win32\\openssl\\libcrypto32MT.lib")
 #endif
 
 struct SSLReq {
@@ -20,7 +21,6 @@ struct SSLReq {
 enum SSLOpenState {
 	S_invalid = 0,
 	S_init,
-	S_input,
 	S_output,
 	S_opened,
 };
@@ -42,30 +42,30 @@ struct SSL_IO : public AObject {
 #endif
 };
 
-static int krx_ssl_verify_peer(int ok, X509_STORE_CTX* ctx)
+template <BOOL enable_self_signed_certi>
+static int verify_peer(int ok, X509_STORE_CTX* ctx)
 {
 	if (!ok) {
 		int depth = X509_STORE_CTX_get_error_depth(ctx);
 		int err = X509_STORE_CTX_get_error(ctx);
 		TRACE("depth = %d, error = %d, string = %s.\n",
 			depth, err, X509_verify_cert_error_string(err));
-		ok = (err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
+		if (enable_self_signed_certi)
+			ok = (err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
 	}
 	return ok;
 }
 
-static void krx_ssl_info_callback(const SSL* ssl, int where, int ret, const char* name) {
-	TRACE("ssl info, where = %x, ret = %d, name = %s.\n", where, ret, name);
-}
-static void krx_ssl_server_info_callback(const SSL* ssl, int where, int ret) {
-	krx_ssl_info_callback(ssl, where, ret, "server");
-}
-static void krx_ssl_client_info_callback(const SSL* ssl, int where, int ret) {
-	krx_ssl_info_callback(ssl, where, ret, "client");
+template <BOOL is_client>
+static void info_callback(const SSL* ssl, int where, int ret)
+{
+	TRACE("ssl info, where = %x, ret = %d, name = %s.\n", where, ret,
+		is_client ? "client" : "server");
 }
 
 static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 {
+	assert(ctx == NULL);
 	ctx = SSL_CTX_new(is_client ? TLS_client_method() : TLS_server_method());
 	if (ctx == NULL)
 		return -ENOMEM;
@@ -76,7 +76,11 @@ static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 		return -ENOENT;
 	}
 
-	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &krx_ssl_verify_peer);
+	if (opt->getInt("enable_self_signed_certi", TRUE))
+		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &verify_peer<TRUE>);
+	else
+		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &verify_peer<FALSE>);
+
 	SSL_CTX_set_verify_depth(ctx, 9);
 	SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
 	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
@@ -86,7 +90,17 @@ static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 	if ((ca_file != NULL) || (ca_path != NULL)) {
 		result = SSL_CTX_load_verify_locations(ctx, ca_file, ca_path);
 		if (result != 1) {
-			TRACE("SSL_CTX_load_verify_locations(%s,%s) = %d.\n", ca_file, ca_path, result);
+			TRACE("SSL_CTX_load_verify_locations(%s, %s) = %d.\n", ca_file, ca_path, result);
+			return -ENOENT;
+		}
+	}
+
+	const char *certi_file = opt->getStr("certi_file", NULL);
+	if (certi_file != NULL) {
+		int certi_type = opt->getInt("certi_type", SSL_FILETYPE_PEM);
+		result = SSL_CTX_use_certificate_file(ctx, certi_file, certi_type);
+		if (result != 1) {
+			TRACE("SSL_use_certificate_file(%s, %d) = %d.\n", certi_file, certi_type, result);
 			return -ENOENT;
 		}
 	}
@@ -117,6 +131,7 @@ static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 
 static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
 {
+	assert(sc->ssl == NULL);
 	sc->ssl = SSL_new(ctx);
 	if (sc->ssl == NULL) {
 		TRACE("Error: cannot create new SSL*.\n");
@@ -127,7 +142,7 @@ static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
 	sc->output.bio = BIO_new(BIO_s_mem());
 	if (sc->outbuf == NULL) {
 		sc->outbuf = BUF_MEM_new();
-		BUF_MEM_grow(sc->outbuf, opt->getInt("outbuf", 2048));
+		BUF_MEM_grow(sc->outbuf, opt->getInt("outbuf_size", 2048));
 	}
 	BUF_MEM_grow(sc->outbuf, 0);
 	BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
@@ -135,19 +150,25 @@ static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
 	SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
 
 	/* either use the server or client part of the protocol */
+	if (opt->getInt("debug", FALSE)) {
+		if (is_client)
+			SSL_set_info_callback(sc->ssl, &info_callback<TRUE>);
+		else
+			SSL_set_info_callback(sc->ssl, &info_callback<FALSE>);
+	}
 	if (is_client) {
-		SSL_set_info_callback(sc->ssl, &krx_ssl_client_info_callback);
 		SSL_set_connect_state(sc->ssl);
 	} else {
-		SSL_set_info_callback(sc->ssl, &krx_ssl_server_info_callback);
 		SSL_set_accept_state(sc->ssl);
 	}
 
 	if (sc->io == NULL) {
 		AOption *io_opt = opt->find("io");
 		int result = AObject::create(&sc->io, sc, io_opt, "async_tcp");
-		if (result < 0)
+		if (result < 0) {
+			TRACE("unknown io module(%s).\n", io_opt->value);
 			return result;
+		}
 	}
 	return 1;
 }
@@ -255,11 +276,13 @@ static int SSLOpen(AObject *object, AMessage *msg)
 		return -EINVAL;
 	}
 
-	int result = SSL_CTX_create(sc->ssl_ctx, option, TRUE);
-	if (result < 0)
-		return result;
+	if (sc->ssl_ctx == NULL) {
+		int result = SSL_CTX_create(sc->ssl_ctx, option, TRUE);
+		if (result < 0)
+			return result;
+	}
 
-	result = SSL_io_init(sc, sc->ssl_ctx, option, TRUE);
+	int result = SSL_io_init(sc, sc->ssl_ctx, option, TRUE);
 	if (result < 0)
 		return result;
 
@@ -315,7 +338,7 @@ static int SSLOutputStatus(SSL_IO *sc, int result)
 			assert(0);
 		}
 		if ((result != SSL_ERROR_WANT_READ) && (result != SSL_ERROR_ZERO_RETURN)) {
-			TRACE("SSL_read(), error = %d.\n", result);
+			TRACE("SSL_read(%d), error = %d.\n", sc->output.from->size, result);
 			return -EIO;
 		}
 		result = SSL_do_output(sc, sc->output.msg);
@@ -364,9 +387,10 @@ static int SSLClose(AObject *object, AMessage *msg)
 	SSL_IO *sc = (SSL_IO*)object;
 	if (sc->io == NULL)
 		return -ENOENT;
+	if (msg == NULL)
+		return sc->io->shutdown();
 
-	if (msg != NULL)
-		if_not(sc->ssl, NULL, SSL_free);
+	if_not(sc->ssl, NULL, SSL_free);
 	return sc->io->close(msg);
 }
 
@@ -375,6 +399,7 @@ static int SSLCreate(AObject **object, AObject *parent, AOption *option)
 	SSL_IO *sc = (SSL_IO*)*object;
 	sc->ssl_ctx = NULL; sc->ssl = NULL;
 	sc->io = NULL; sc->outbuf = NULL;
+	sc->state = S_invalid;
 	return 1;
 }
 
@@ -424,12 +449,20 @@ static int SSLSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
 
 	//////////////////////////////////////////////////////////////////////////
 	AOption *io_opt = option->find("io");
-	if (io_opt == NULL)
+	if (io_opt == NULL) {
+		TRACE("require option: \"io\"\n");
 		return -EINVAL;
+	}
 
 	IOModule *io = (IOModule*)AModuleFind("io", io_opt->value);
-	if (io == NULL)
+	if ((io == NULL) || (io->svc_accept == NULL)) {
+		TRACE("unknown io module(%s), require io->svc_accept().\n", io_opt->value);
 		return -EINVAL;
+	}
+
+	int result = SSL_CTX_create(ssl_svc->ssl_ctx, option, FALSE);
+	if (result < 0)
+		return result;
 
 	if (io->svc_module == NULL)
 		return 1;
@@ -443,9 +476,24 @@ static void SSLSvcRelease(AObject *svc_data)
 	release_s(ssl_svc->io_svc_data);
 }
 
-static int SSLSvcAccept(AObject *object, AMessage *msg, AObject *svc_data)
+static int SSLSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOption *svc_opt)
 {
-	return -1;
+	SSL_IO *sc = (SSL_IO*)object;
+	SSLSvcData *ssl_svc = (SSLSvcData*)svc_data;
+
+	int result = SSL_io_init(sc, ssl_svc->ssl_ctx, svc_opt, FALSE);
+	if (result < 0)
+		return result;
+
+	sc->input.msg.init(msg);
+	sc->input.msg.done = &TObjectDone(SSL_IO, input.msg, input.from, SSLOpenStatus);
+	sc->input.from = msg;
+
+	sc->state = S_init;
+	result = sc->io->m()->svc_accept(sc->io, &sc->input.msg, ssl_svc->io_svc_data, svc_opt->find("io"));
+	if (result > 0)
+		result = SSLOpenStatus(sc, result);
+	return result;
 }
 
 AModule SSLSvcModule = {

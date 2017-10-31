@@ -471,7 +471,7 @@ static int AsyncTcpInit(AOption *global_option, AOption *module_option, BOOL fir
 	return 1;
 }
 
-static int AsyncTcpAccept(AObject *object, AMessage *msg, AObject *svc_data)
+static int AsyncTcpAccept(AObject *object, AMessage *msg, AObject *svc_data, AOption *svc_opt)
 {
 	AsyncTcp *tcp = (AsyncTcp*)object;
 	if (msg->type != AMsgType_Handle)

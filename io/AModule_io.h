@@ -56,7 +56,7 @@ struct IOModule {
 	int (*close)(AObject *object, AMessage *msg);
 
 	AModule *svc_module;
-	int  (*svc_accept)(AObject *object, AMessage *msg, AObject *svc_data);
+	int  (*svc_accept)(AObject *object, AMessage *msg, AObject *svc_data, AOption *svc_opt);
 
 	static int MsgNull(AObject *other, AMessage *msg) { return -ENOSYS; }
 	static int OptNull(AObject *object, AOption *option) { return -ENOSYS; }
@@ -90,6 +90,7 @@ struct IOObject : public AObject {
 
 struct AService : public AObject {
 	static const char* class_name() { return "AService"; }
+	struct ASystemManager *sysmng; // set by user
 
 	AOption *peer_option;
 	AModule *peer_module;

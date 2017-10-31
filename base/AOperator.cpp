@@ -172,7 +172,7 @@ AThreadWakeup(AThread *at, BOOL is_pool)
 }
 
 //////////////////////////////////////////////////////////////////////////
-static AThread *work_thread[2];
+static AThread *work_thread[4];
 static int work_thread_begin(int max_timewait)
 {
 #ifndef _WIN32
