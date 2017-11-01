@@ -8,6 +8,11 @@
 struct AInOutComponent : public AComponent {
 	static const char* name() { return "AInOutComponent"; }
 
+	// used by outter
+	void    post(AMessage *msg) { do_post(this, msg); }
+	void  (*on_outmsg)(AInOutComponent *c, AMessage *msg, int result);
+
+	// implement by inner...
 	bool volatile    _abort;
 	struct list_head _queue;
 	pthread_mutex_t *_mutex;
@@ -18,18 +23,12 @@ struct AInOutComponent : public AComponent {
 	AMessage  _inmsg;
 	void  (*do_post)(AInOutComponent *c, AMessage *msg); // => _do_post()
 	int   (*do_input)(AInOutComponent *c, AMessage *msg); // => _do_input()
-	void  (*on_input)(AInOutComponent *c, AMessage *msg, int result); // = NULL
-	void  (*on_input_end)(AInOutComponent *c, int result);
+	void  (*on_post_end)(AInOutComponent *c, int result);
 
 	AMessage  _outmsg;
 	ARefsBuf *_outbuf;
 	int   (*on_output)(AInOutComponent *c, int result);
 
-	// using by outter
-	void    post(AMessage *msg) { do_post(this, msg); }
-	void  (*on_outmsg)(AInOutComponent *c, AMessage *msg, int result);
-
-	// implement by inner...
 	struct com_module {
 		AModule module;
 		void  (*do_post)(AInOutComponent *c, AMessage *msg);
@@ -48,7 +47,8 @@ struct AInOutComponent : public AComponent {
 
 		// set by inner module
 		do_input = &_do_input;
-		on_input = NULL; on_input_end = NULL; on_output = NULL;
+		on_post_end = NULL;
+		on_output = NULL;
 		// set by outter using
 		on_outmsg = NULL;
 	}
@@ -71,8 +71,8 @@ struct AInOutComponent : public AComponent {
 		if (!first)
 			return;
 
-		c->_inmsg.done = _inmsg_done;
 		c->_entity->addref();
+		assert(c->_inmsg.done == &_inmsg_done);
 
 		int result = c->do_input(c, msg);
 		if (result != 0)
@@ -86,18 +86,15 @@ struct AInOutComponent : public AComponent {
 	static int _inmsg_done(AMessage *msg, int result) {
 		AInOutComponent *c = container_of(msg, AInOutComponent, _inmsg);
 		for (;;) {
-			msg = list_first_entry(&c->_queue, AMessage, entry);
-			if ((c->on_input != NULL) && (c->_inmsg.data != NULL))
-				c->on_input(c, msg, result);
-
 			AMessage *next = NULL;
+
 			c->lock();
-			msg->entry.leave();
+			msg = list_pop_front(&c->_queue, AMessage, entry);
 			if (!c->_queue.empty()) {
 				next = list_first_entry(&c->_queue, AMessage, entry);
-			} else if (c->_abort) {
-				c->on_input_end(c, result);
-				c->on_input_end = NULL;
+			} else if (c->_abort && (c->on_post_end != NULL)) {
+				c->on_post_end(c, result);
+				c->on_post_end = NULL;
 			}
 			c->unlock();
 
@@ -109,6 +106,7 @@ struct AInOutComponent : public AComponent {
 
 			if (c->_abort) {
 				c->_inmsg.init();
+				result = -EINTR;
 			} else {
 				result = c->do_input(c, next);
 				if (result == 0)
@@ -116,19 +114,19 @@ struct AInOutComponent : public AComponent {
 			}
 		}
 	}
-	void _input_begin(void  (*input_end)(AInOutComponent *c, int result)) {
+	void _input_begin(void  (*post_end)(AInOutComponent *c, int result)) {
 		lock();
 		assert(_queue.empty());
 		_abort = false;
-		on_input_end = input_end;
+		on_post_end = post_end;
 		unlock();
 	}
 	void _input_end(int result) {
 		lock();
 		_abort = true;
-		if (_queue.empty() && (on_input_end != NULL)) {
-			on_input_end(this, result);
-			on_input_end = NULL;
+		if (_queue.empty() && (on_post_end != NULL)) {
+			on_post_end(this, result);
+			on_post_end = NULL;
 		}
 		unlock();
 	}

@@ -179,6 +179,14 @@ struct ASlice {
 
 typedef ASlice<char> ARefsBuf;
 
+template <typename Item = char>
+struct  ARefsBlock {
+	ASlice<Item> *_buf;
+	int    _pos;
+	int    _len;
+	Item*  ptr() { return _buf->data + _pos; }
+};
+
 template<typename Item>
 struct APool {
 	typedef ASlice<Item> Slice;
@@ -222,7 +230,7 @@ struct APool {
 	}
 	void join(Pool &other) {
 		while (!other._slice_list.empty()) {
-			Slice *slice = list_first_entry(&other._slice_list, Slice, _node);
+			Slice *slice = other._slice_pop();
 			_join(slice);
 		}
 		other.init(other._chunk_size);

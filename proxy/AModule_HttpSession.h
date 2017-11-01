@@ -13,6 +13,23 @@ enum HttpStatus {
 	s_send_body,
 };
 
+struct HttpCompenont : public AInOutComponent
+{
+	http_parser _parser;
+
+	void init2() {
+		AInOutComponent::init2();
+		http_parser_init(&_parser, HTTP_BOTH, this);
+	}
+	void exit2() {
+		release_s(_io); release_s(_outbuf);
+	}
+	static int _try_output(AMessage *msg, int result) {
+		assert(msg->type == HttpMsgType);
+		HttpMsg *hm = (HttpMsg*)msg->data;
+	}
+};
+
 struct HttpConnection : public AEntity {
 	AInOutComponent _iocom;
 	http_parser     _parser;

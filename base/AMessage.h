@@ -73,8 +73,7 @@ static inline void
 AMsgListClear(struct list_head *head, int result)
 {
 	while (!list_empty(head)) {
-		AMessage *msg = list_first_entry(head, AMessage, entry);
-		list_del_init(&msg->entry);
+		AMessage *msg = list_pop_front(head, AMessage, entry);
 		msg->done(msg, result);
 	}
 }

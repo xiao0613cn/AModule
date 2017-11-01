@@ -272,7 +272,6 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 	mqtt->_client.heart = &MQTTHeart;
 	mqtt->_client.abort = &MQTTAbort;
 	mqtt->_client.close = &MQTTClose;
-	mqtt->_iocom.on_input_end = &MQTTInputEnd;
 	mqtt->_iocom.on_output = &MQTTOutput;
 	return 1;
 }
