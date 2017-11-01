@@ -352,7 +352,7 @@ _retry:
 
 	if (strcasecmp(option->value, "PVDClient") == 0) {
 		release_s(pvd, AObjectRelease, NULL);
-		result = AObjectCreate2(&pvd, NULL, option, &PVDClientModule);
+		result = AObjectCreate(&pvd, NULL, option, "PVDClient");
 	} else {
 		result = -1;
 	}
@@ -379,7 +379,7 @@ _retry:
 	}
 	if (pvd != NULL) {
 		strcpy_sz(option->value, "PVDRTStream");
-		result = AObjectCreate2(&rt, pvd, option, &PVDRTModule);
+		result = AObjectCreate(&rt, pvd, option, "PVDRTStream");
 	}
 	if (result >= 0) {
 		result = rt->open(rt, &sm);

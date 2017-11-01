@@ -38,10 +38,10 @@ struct list_head {
 	list_head* pop_back();
 	list_head* front();
 	list_head* back();
-// node function
+	void move_front(list_head *entry);
+	void move_back(list_head *entry);
+// item function
 	void leave();
-	void move_back(list_head *other);
-	void move_front(list_head *other);
 #endif
 };
 
