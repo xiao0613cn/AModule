@@ -3,7 +3,322 @@
 #include "../io/AModule_io.h"
 #include "AModule_HttpSession.h"
 
+#ifdef _WIN32
+#pragma comment(lib, "../bin/AModule.lib")
+#endif
 
+static int HttpInputHeadStatus(HttpConnection *p, HttpMsg *hm, int result)
+{
+	AInOutComponent *c = &p->_iocom;
+	assert(c->_inmsg.data == p->_inbuf->ptr());
+	assert(c->_inmsg.size == p->_inbuf->len());
+
+	p->_inbuf->reset();
+	c->_inmsg.done = &AInOutComponent::_inmsg_done;
+
+	if ((result >= 0) && (hm->body_len() > 0)) {
+		c->_inmsg.init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
+		result = c->_io->input(&c->_inmsg);
+	}
+	return result;
+}
+
+static int HttpInputHeadDone(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
+
+	msg = list_first_entry(&p->_iocom._queue, AMessage, entry);
+	assert(msg->type == HttpMsgType);
+	HttpMsg *hm = (HttpMsg*)msg->data;
+
+	result = HttpInputHeadStatus(p, hm, result);
+	if (result != 0)
+		result = p->_iocom._inmsg.done2(result);
+	return result;
+}
+
+static int HttpConnInput(AInOutComponent *c, AMessage *msg)
+{
+	if (msg->type == ioMsgType_Block) {
+		c->_inmsg.init(msg);
+		assert(c->_inmsg.done == &AInOutComponent::_inmsg_done);
+		return c->_io->input(&c->_inmsg);
+	}
+	if (msg->type != HttpMsgType)
+		return -EINVAL;
+
+	HttpConnection *p = container_of(c, HttpConnection, _iocom);
+	HttpMsg *hm = (HttpMsg*)msg;
+	str_t v;
+
+	int result = 20;
+	for (int ix = 0; ix < hm->_head_num; ++ix) {
+		result += hm->at(ix, &v).len;
+		result += v.len + 6;
+	}
+	if (hm->body_len() > 0)
+		result += 64;
+
+	result = ARefsBuf::reserve(p->_inbuf, result, 2048);
+	if (result < 0)
+		return result;
+
+	v = hm->url();
+	if (hm->_parser.type == HTTP_REQUEST) {
+		p->_inbuf->strfmt("%s %.*s HTTP/%d.%d\r\n", http_method_str(hm->_parser.method),
+			v.len, v.str, hm->_parser.http_major, hm->_parser.http_minor);
+	} else {
+		p->_inbuf->strfmt("HTTP/%d.%d %d %.*s\r\n", hm->_parser.http_major, hm->_parser.http_minor,
+			hm->_parser.status_code, v.len, v.str);
+	}
+	if (hm->body_len() > 0) {
+		p->_inbuf->strfmt("Content-Length: %lld\r\n", hm->body_len());
+	}
+	for (int ix = 1; ix < hm->_head_num; ++ix) {
+		str_t f = hm->at(ix, &v);
+		p->_inbuf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
+	}
+	p->_inbuf->strfmt("\r\n");
+
+	c->_inmsg.init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
+	c->_inmsg.done = &HttpInputHeadDone;
+
+	result = c->_io->input(&c->_inmsg);
+	if (result != 0)
+		result = HttpInputHeadStatus(p, hm, result);
+	return result;
+}
+
+static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *option)
+{
+	HttpConnection *p = (HttpConnection*)*object;
+	p->init();
+	p->_init_push(&p->_iocom);
+	p->_iocom.do_input = &HttpConnInput;
+	p->_inbuf = NULL;
+
+	http_parser_init(&p->_parser, HTTP_BOTH, p);
+	return 1;
+}
+
+static void HttpConnectionRelease(AObject *object)
+{
+	HttpConnection *p = (HttpConnection*)object;
+	p->_pop_exit(&p->_iocom);
+	p->exit();
+}
+
+static int HttpProbe(AObject *other, AMessage *msg, AOption *option)
+{
+	if (msg->size < 4)
+		return -1;
+	if (strncmp_sz(msg->data, "GET ") == 0) {
+		return strstr(msg->data, "HTTP/") ? 90 : 40;
+	}
+	return 0;
+}
+
+AModule HttpConnectionModule = {
+	"HttpConnectionModule",
+	"HttpConnectionModule",
+	sizeof(HttpConnection),
+	NULL, NULL,
+	&HttpConnectionCreate,
+	&HttpConnectionRelease,
+	&HttpProbe,
+};
+static int reg_conn = AModuleRegister(&HttpConnectionModule);
+
+static int on_m_begin(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+
+	p->recv_header_count = 0;
+	p->h_f_pos() = 0;
+	p->h_f_len() = 0;
+	p->h_v_pos() = 0;
+	p->h_v_len() = 0;
+
+	release_s(p->recv_header_buffer);
+	p->recv_header_pos = 0;
+	return 0;
+}
+
+static int on_url_or_status(http_parser *parser, const char *at, size_t length)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
+
+	if (p->h_f_len() == 0) {
+		p->h_v_pos() = p->h_f_pos() = (at - p->recv_buffer->ptr());
+	}
+	p->h_f_len() += length;
+	p->h_v_len() += length;
+	return 0;
+}
+
+static int on_h_field(http_parser *parser, const char *at, size_t length)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
+
+	if (p->h_v_len() != 0) {
+		if (++p->recv_header_count >= max_head_count)
+			return -EACCES;
+		p->h_f_pos() = 0;
+		p->h_f_len() = 0;
+		p->h_v_pos() = 0;
+		p->h_v_len() = 0;
+	}
+
+	if (p->h_f_len() == 0)
+		p->h_f_pos() = (at - p->recv_buffer->ptr());
+	p->h_f_len() += length;
+	return 0;
+}
+
+static int on_h_value(http_parser *parser, const char *at, size_t length)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
+
+	if (p->h_v_len() == 0) {
+		p->h_v_pos() = (at - p->recv_buffer->ptr());
+	}
+	p->h_v_len() += length;
+	return 0;
+}
+
+static int on_h_done(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	if (p->h_v_len() != 0) {
+		p->recv_header_count++;
+	}
+
+	p->recv_header_buffer = p->recv_buffer;
+	p->recv_header_buffer->addref();
+	p->recv_header_pos = p->recv_buffer->_bgn;
+	return 0;
+}
+
+static int on_body(http_parser *parser, const char *at, size_t length)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	assert((at >= p->r_p_ptr()) && (at < p->r_p_ptr()+p->r_p_len()));
+
+	if (p->recv_body_len == 0)
+		p->recv_body_pos = (at - p->recv_buffer->ptr());
+	p->recv_body_len += length;
+	return 0;
+}
+
+static int on_m_done(http_parser *parser)
+{
+	//HttpClient *p = (HttpClient*)parser->data;
+	http_parser_pause(parser, TRUE);
+	return 0;
+}
+
+static int on_chunk_header(http_parser *parser)
+{
+	//HttpClient *p = (HttpClient*)parser->data;
+	TRACE("chunk header, body = %lld.\n", parser->content_length);
+	return 0;
+}
+
+static int on_chunk_complete(http_parser *parser)
+{
+	HttpClient *p = (HttpClient*)parser->data;
+	if (p->recv_body_len != 0)
+		http_parser_pause(parser, TRUE);
+	else
+		; // last chunk size = 0
+	return 0;
+}
+
+static const struct http_parser_settings cb_sets = {
+	&on_m_begin, &on_url_or_status, &on_url_or_status, &on_h_field, &on_h_value,
+	&on_h_done, &on_body, &on_m_done,
+	&on_chunk_header, &on_chunk_complete
+};
+
+static int HttpConnCycle(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
+	AInOutComponent *c = &p->_iocom;
+
+	while (result >= 0) {
+	switch (p->_status)
+	{
+	case s_recv_header:
+		c->_outbuf->push(msg->size);
+
+		result = http_parser_execute(&p->_parser, &cb_sets, p->r_p_ptr(), p->r_p_len());
+		if (p->_parser.http_errno == HPE_PAUSED)
+			http_parser_pause(&p->_parser, FALSE);
+
+		if (p->_parser.http_errno != HPE_OK) {
+			TRACE("http_errno_name = %s.\n", http_parser_error(&p->_parser));
+			result = -p->_parser.http_errno;
+			break;
+		}
+		result = http_next_chunk_is_incoming(&p->_parser);
+		if (!result) {
+	}
+	}
+	if (result < 0)
+		p->release();
+	return result;
+}
+
+static int HttpConnRun(AService *svc, AObject *object, AOption *option)
+{
+	HttpConnection *p = (HttpConnection*)object;
+	AInOutComponent *c = &p->_iocom;
+	int result = ARefsBuf::reserve(c->_outbuf, 1024, 2048);
+	if (result < 0)
+		return result;
+
+	p->addref();
+	p->_status = s_recv_header;
+	c->_outmsg.init();
+	c->_outmsg.done = &HttpConnCycle;
+
+	if (c->_outbuf->len() != 0) {
+		c->_outmsg.done2(0);
+	} else {
+		result = c->_io->output(&c->_outmsg, c->_outbuf);
+		if (result != 0)
+			c->_outmsg.done2(result);
+	}
+	return 0;
+}
+
+static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
+{
+	AService *svc = (AService*)*object;
+	svc->peer_option = NULL;
+	svc->peer_module = &HttpConnectionModule;
+	svc->start = NULL;
+	svc->stop = NULL;
+	svc->run = &HttpConnRun;
+	svc->abort = NULL;
+	return 1;
+}
+
+AModule HttpServiceModule = {
+	"AService",
+	"HttpServiceModule",
+	sizeof(AService),
+	NULL, NULL,
+	&HttpServiceCreate,
+	NULL,
+	&HttpProbe,
+};
+static int reg_svc = AModuleRegister(&HttpServiceModule);
+
+#if 0
 static SessionManager sm;
 
 static void HttpProxyClose(HttpClient *p)
@@ -337,3 +652,4 @@ IOModule HTTPProxyModule = { {
 };
 
 static auto_reg_t reg(HTTPProxyModule.module);
+#endif

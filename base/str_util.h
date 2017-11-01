@@ -1,6 +1,14 @@
 #ifndef _STR_UTIL_H_
 #define _STR_UTIL_H_
 
+struct str_t {
+	const char *str;
+	int   len;
+
+	str_t(const char *p = NULL, int n = 0) {
+		str = p; len = n;
+	}
+};
 
 #ifndef _tostring
 #define _tostring(x) #x
@@ -84,10 +92,12 @@ strnchr(const char *str, int val, size_t len)
 	return NULL;
 }
 
-#define tm_fmt   "%04d-%02d-%02d %02d:%02d:%02d"
+#define tm_fmt      "%04d-%02d-%02d %02d:%02d:%02d"
 #define tm_args(t)  \
 	(t)->tm_year+1900, (t)->tm_mon+1, (t)->tm_mday, \
 	(t)->tm_hour, (t)->tm_min, (t)->tm_sec
+
+#define c4_args(p)  (p)[0], (p)[1], (p)[2], (p)[3]
 
 static inline int
 strtotm(const char *str, struct tm *t)

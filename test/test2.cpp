@@ -20,7 +20,7 @@ ASystemManager sm;
 
 CuSuite all_test_suites;
 
-#ifdef TEST_ECHO_SERVICE
+#if defined TEST_ECHO_SERVICE
 CU_TEST(test_echo_service)
 {
 	AOption *opt = NULL;
@@ -34,9 +34,7 @@ CU_TEST(test_echo_service)
 	tcp_server->start(tcp_server, opt);
 	opt->release();
 }
-#endif
-
-#ifdef TEST_ECHO_CLIENT
+#elif defined TEST_ECHO_CLIENT
 struct echo_info {
 	int      count;
 	uint64_t recv_size;
@@ -107,11 +105,18 @@ CU_TEST(test_echo_client)
 	}
 	TRACE("total_qps = %d, total_speed = %lld KBps.\n", total_qps, total_speed);
 }
-#endif
-
-#ifdef TEST_ENTITY
+#else
+void* test_entity_run(void*)
+{
+	for (;;) {
+		sm.check_allsys(&sm, GetTickCount());
+		::Sleep(10);
+	}
+	return NULL;
+}
 CU_TEST(test_entity)
 {
+	return;
 	const char *opt_str =
 	"PVDClient: {"
 		"io: async_tcp {"
@@ -146,12 +151,63 @@ CU_TEST(test_entity)
 	sm._regist(e);
 	sm._regist(mqtt);
 
-	for (;;) {
-		sm.check_allsys(&sm, GetTickCount());
-		::Sleep(10);
+	//sm._unregist(e); e->release();
+	//sm._unregist(mqtt); mqtt->release();
+	pthread_post(NULL, &test_entity_run);
+}
+
+struct client_t {
+	IOObject *io;
+	AMessage  msg;
+	AOperator asop;
+	char      data[1024];
+};
+int c_msg_done(AMessage *msg, int result)
+{
+	client_t *c = container_of(msg, client_t, msg);
+	if (c->data[0] == '\0') {
+		c->msg.init(ioMsgType_Block, c->data, sprintf(c->data, "%s", "echo1234567890abcdefghijklmnopqrstuvwxyz"
+			"fasdhlfjkahdlkfahslkdfhaljksdfhalksjdfhlaksjdfhlaksdjfhlakjdsfhlakjsdfheiurowieuryhqoiwuhfalkj"
+			"sdbnvzxjbvljdhlfkaheiuhiou3hrihalwekjfksdjbfasbdvkljzcxhiduhfoiauwe"));
+		result = c->io->input(&c->msg);
+	} else if (c->msg.type == ioMsgType_Block) {
+		c->msg.init(0, c->data, sizeof(c->data));
+		result = c->io->output(&c->msg);
+	} else {
+		c->data[0] = '\0';
+		result = c->asop.delay(NULL, 200);
 	}
-	sm._unregist(e); e->release();
-	sm._unregist(mqtt); mqtt->release();
+	if (result < 0) {
+		TRACE("client result = %d.\n", result);
+		c->io->release();
+		free(c);
+	}
+	return result;
+}
+int c_asop_done(AOperator *asop, int result)
+{
+	client_t *c = container_of(asop, client_t, asop);
+	return c->msg.done2(1);
+}
+CU_TEST(test_client)
+{
+	AOption *opt = NULL;
+	AOptionDecode(&opt, "async_tcp:{address:192.168.40.17,port:4444}", -1);
+
+	for (int ix = 0; ix < 5000; ++ix) {
+		client_t *c = gomake(client_t);
+		AObject::create(&c->io, NULL, opt, NULL);
+		
+		c->msg.init(opt);
+		c->msg.done = &c_msg_done;
+		c->asop.timer();
+		c->asop.done = &c_asop_done;
+		c->data[0] = '\0';
+
+		int result = c->io->open(&c->msg);
+		if (result < 0)
+			c->msg.done2(result);
+	}
 }
 #endif
 
@@ -165,7 +221,11 @@ int main()
 	sm.init();
 	sm._event_manager = &em;
 
+	CuString *output = CuStringNew();
 	CuSuiteRun(&all_test_suites);
+	CuSuiteSummary(&all_test_suites, output);
+	CuSuiteDetails(&all_test_suites, output);
+	fputs(output->buffer, stdout);
 
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();

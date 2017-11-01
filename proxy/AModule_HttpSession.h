@@ -1,6 +1,26 @@
 #ifndef _AMODULE_HTTPSESSION_H_
 #define _AMODULE_HTTPSESSION_H_
 
+#include "../ecs/AEntity.h"
+#include "../ecs/AInOutComponent.h"
+#define _USE_HTTP_MSG_IMPL_ 1
+#include "../http/http_msg.h"
+
+enum HttpStatus {
+	s_recv_header = 0,
+	s_recv_body,
+	s_send_header,
+	s_send_body,
+};
+
+struct HttpConnection : public AEntity {
+	AInOutComponent _iocom;
+	http_parser     _parser;
+	ARefsBuf       *_inbuf;
+	HttpStatus      _status;
+};
+
+#if 0
 #ifndef _AMODULE_HTTPCLIENT_H_
 #include "../http/AModule_HttpClient.h"
 #endif
@@ -31,5 +51,6 @@ struct HttpCtxExt {
 	AOperator asop;
 	int       segix;
 };
+#endif
 
 #endif

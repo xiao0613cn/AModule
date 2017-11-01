@@ -357,10 +357,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\http\AModule_HttpClient.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\rtmp\AModule_rtmp.cpp"
 				>
 			</File>
@@ -467,43 +463,6 @@
 			<File
 				RelativePath=".\media\h264_decode_sps.cpp"
 				>
-			</File>
-			<File
-				RelativePath=".\http\http_parser.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-						DisableSpecificWarnings="4127;4244"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\base\iocp_util.cpp"
@@ -780,10 +739,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\http\AModule_HttpClient.h"
-				>
-			</File>
-			<File
 				RelativePath=".\io\AModule_io.h"
 				>
 			</File>
@@ -828,11 +783,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
@@ -872,11 +827,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
@@ -908,11 +863,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
@@ -964,10 +919,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\http\http_parser.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\imgutils.h"
 				>
 			</File>
@@ -976,11 +927,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
@@ -1004,11 +955,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
@@ -1032,15 +983,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\md5.h"
-				>
-			</File>
-			<File
 				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\PVDClient\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavutil\md5.h"
 				>
 			</File>
 			<File

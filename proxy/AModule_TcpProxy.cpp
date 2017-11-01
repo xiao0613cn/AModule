@@ -92,6 +92,8 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	case tcp_probe_service:
 		buf->push(msg->size);
 		msg->init(0, buf->ptr(), buf->len());
+		if (buf->left() != 0)
+			*buf->next() = '\0';
 	{
 		AService *service = NULL;
 		AOption *option = NULL;
@@ -104,6 +106,8 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 
 			if (svc->_module->probe != NULL)
 				result = svc->_module->probe(client->io, msg, m_opt);
+			else if (svc->peer_module->probe != NULL)
+				result = svc->peer_module->probe(client->io, msg, m_opt);
 			else
 				result = 0;
 			if (result > score) {

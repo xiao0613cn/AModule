@@ -2143,7 +2143,7 @@ http_should_keep_alive (const http_parser *parser)
 
 
 const char *
-http_method_str (enum http_method m)
+http_method_str (unsigned int m)
 {
   return ELEM_AT(method_strings, m, "<unknown>");
 }
