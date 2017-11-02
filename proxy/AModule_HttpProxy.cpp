@@ -4,7 +4,7 @@
 #include "AModule_HttpSession.h"
 
 #ifdef _WIN32
-#pragma comment(lib, "../bin/AModule.lib")
+//#pragma comment(lib, "../bin/AModule.lib")
 #endif
 
 const struct http_parser_settings HttpCompenont::cb_sets = {
@@ -118,8 +118,8 @@ static int HttpProbe(AObject *other, AMessage *msg, AOption *option)
 }
 
 AModule HttpConnectionModule = {
-	"HttpConnectionModule",
-	"HttpConnectionModule",
+	"AEntity",
+	"HttpConnection",
 	sizeof(HttpConnection),
 	NULL, NULL,
 	&HttpConnectionCreate,
@@ -128,12 +128,37 @@ AModule HttpConnectionModule = {
 };
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
+// TODO: FIXME
+static int HttpSendResp(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _http._outmsg);
+	msg->done = &AInOutComponent::_outmsg_done;
+	if (result > 0) {
+		p->_inbuf->reset();
+		if (p->_resp->body_len() > 0) {
+			msg->init(ioMsgType_Block, p->_resp->body_ptr(), p->_resp->body_len());
+			result = p->_http._io->input(msg);
+		}
+	}
+	if (result != 0) {
+		msg->init();
+		result = msg->done2(result); // continue recv next request
+	}
+	return result;
+}
+
+#define set_sz(field, value)  set(str_t(field,sizeof(field)-1), str_t(value, sizeof(value)-1))
+
 static int HttpOnRecvMsg(HttpCompenont *c, int result)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _http);
 	if (result < 0) {
 		TRACE("http connection down, result = %d.\n", result);
 		return result;
+	}
+	if (p->_http._parser.type != HTTP_REQUEST) {
+		TRACE("invalid http type: %d.\n", p->_http._parser.type);
+		return -EINVAL;
 	}
 	if (p->_resp == NULL) {
 		p->_resp = new HttpMsgImpl();
@@ -143,27 +168,46 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 			p->_resp->_body_buf->reset();
 	}
 	p->_resp->_parser = p->_http._parser;
+	p->_resp->_parser.type = HTTP_RESPONSE;
+	p->_resp->_parser.content_length = 0;
 
-	FILE *fp = fopen(p->_req.url().str, "rb");
-	if (fp == NULL) {
-		status_code = 404;
-	} else {
+	FILE *fp = fopen(p->_req.url().str+1, "rb");
+	if (fp != NULL) {
 		fseek(fp, 0, SEEK_END);
-		file_size = ftell(fp);
+		p->_resp->_parser.content_length = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
 	}
 
-	if (file_size <= 0) {
-		status_code = 404;
-	} else if (ARefsBufCheck(ctx->proc_buf, file_size, recv_bufsiz, NULL, NULL) < 0) {
-		status_code = 501;
-	} else if (fread(ctx->proc_buf->data, file_size, 1, fp) != 1) {
-		status_code = 502;
+	if (p->_resp->_parser.content_length <= 0) {
+		p->_resp->_parser.status_code = 404;
+		p->_resp->set_sz("", "File Invalid");
+	} else if (ARefsBuf::reserve(p->_resp->_body_buf, p->_resp->_parser.content_length, recv_bufsiz) < 0) {
+		p->_resp->_parser.status_code = 501;
+		p->_resp->set_sz("", "Out Of Memory");
+	} else if (fread(p->_resp->_body_buf->next(), p->_resp->_parser.content_length, 1, fp) != 1) {
+		p->_resp->_parser.status_code = 502;
+		p->_resp->set_sz("", "Read File Error");
 	} else {
-		p->recv_msg.init(ioMsgType_Block, ctx->proc_buf->data, file_size);
+		p->_resp->_body_buf->push(p->_resp->_parser.content_length);
+		p->_resp->_parser.status_code = 200;
+		p->_resp->set_sz("", "OK");
 	}
-	release_s(fp, fclose, NULL);
-	return 1; // continue recv next request
+	p->_resp->set_sz("Content-Type", "text/html");
+	HttpCompenont::encode(p->_inbuf, p->_resp);
+
+	AMessage *msg = &p->_http._outmsg;
+	msg->done = &HttpSendResp;
+	result = p->_http._io->input(msg, p->_inbuf);
+	if (result > 0) {
+		msg->done = &AInOutComponent::_outmsg_done;
+		p->_inbuf->reset();
+
+		if (p->_resp->body_len() > 0) {
+			msg->init(ioMsgType_Block, p->_resp->body_ptr(), p->_resp->body_len());
+			result = p->_http._io->input(msg);
+		}
+	}
+	return result; // continue recv next request
 }
 
 static int HttpConnRun(AService *svc, AObject *object, AOption *option)
@@ -186,7 +230,7 @@ static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
 
 AModule HttpServiceModule = {
 	"AService",
-	"HttpServiceModule",
+	"HttpService",
 	sizeof(AService),
 	NULL, NULL,
 	&HttpServiceCreate,

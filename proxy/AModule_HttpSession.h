@@ -141,7 +141,7 @@ struct HttpCompenont : public AInOutComponent {
 
 		if (p->_value_len != 0) {
 			if (++p->_header_count == 1) {
-				p->_httpmsg->set(str_t("URL",3), p->_value());
+				p->_httpmsg->set(str_t("",0), p->_value());
 			} else {
 				p->_httpmsg->set(p->_field(), p->_value());
 			}
@@ -218,7 +218,7 @@ struct HttpCompenont : public AInOutComponent {
 		if (hm->body_len() > 0)
 			result += 64;
 
-		result = ARefsBuf::reserve(buf, result, 2048);
+		result = ARefsBuf::reserve(buf, result, send_bufsiz);
 		if (result < 0)
 			return result;
 

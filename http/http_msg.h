@@ -44,7 +44,7 @@ struct HttpMsgImpl : public HttpMsg {
 	static str_t head_at(HttpMsg *p, int ix, str_t *value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		HeaderMap::iterator it = me->_headers.begin();
-		while (ix > 0) { --it; --ix; }
+		while (ix > 0) { ++it; --ix; }
 		if (value != NULL) {
 			value->str = it->second.c_str();
 			value->len = it->second.length();
