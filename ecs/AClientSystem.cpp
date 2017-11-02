@@ -83,14 +83,14 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		c->_main_abort = true;
 		if (c->abort == NULL)
 			return NULL;
-		c->_entity->addref();
+		c->_object->addref();
 		c->use(1);
 		c->_abort_result.status = ASystem::Aborting;
 		return &c->_abort_result;
 	}
 
 	if (c->_status != AClientComponent::Closed)
-		c->_entity->addref();
+		c->_object->addref();
 	c->use(1);
 	c->_run_result.status= ASystem::Runnable;
 	return &c->_run_result;
@@ -108,7 +108,7 @@ static int client_run(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
 	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
-		c->_entity->_module->module_name, c->_entity, c->_entity->_refcount,
+		c->_object->_module->module_name, c->_object, c->_object->_refcount,
 		c->_status, c->_busy_count, result);
 
 	switch (c->_status)
@@ -169,7 +169,7 @@ static int client_run(ASystem::Result *r, int result)
 
 	r->status = ASystem::NotNeed;
 	c->use(-1);
-	c->_entity->release();
+	c->_object->release();
 	return result;
 }
 
@@ -180,9 +180,9 @@ static int client_abort(ASystem::Result *r)
 	c->use(-1);
 
 	TRACE("%s(%p, %d): status = %d, busy_count = %d.\n",
-		c->_entity->_module->module_name, c->_entity, c->_entity->_refcount,
+		c->_object->_module->module_name, c->_object, c->_object->_refcount,
 		c->_status, c->_busy_count);
-	c->_entity->release();
+	c->_object->release();
 	return result;
 }
 
@@ -194,7 +194,7 @@ static int reg_client(AEntity *e)
 	AClientComponent *c; e->_get(&c);
 	if ((c == NULL) || !c->_sys_node.empty())
 		return 0;
-	c->_entity->addref();
+	c->_object->addref();
 	g_com_list.push_back(&c->_sys_node);
 	return 1;
 }
@@ -205,7 +205,7 @@ static int unreg_client(AEntity *e)
 	if ((c == NULL) || c->_sys_node.empty())
 		return 0;
 	c->_sys_node.leave();
-	c->_entity->release();
+	c->_object->release();
 	return 1;
 }
 

@@ -42,9 +42,6 @@ ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown)
 #define ioMsgType_Block           (AMsgType_Class|0)
 #define ioMsgType_isBlock(type)   ((type) & (AMsgType_Class|AMsgType_Private))
 
-#define httpMsgType_RawData       (AMsgType_Private|1)
-#define httpMsgType_RawBlock      (AMsgType_Private|2)
-
 //<<<<<<<<<< C style <<<<<<<<<
 struct IOModule {
 	AModule module;

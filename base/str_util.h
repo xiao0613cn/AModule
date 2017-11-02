@@ -7,6 +7,7 @@ struct str_t {
 
 	str_t(const char *p = NULL, int n = 0) {
 		str = p; len = n;
+		if (len < 0) len = strlen(str);
 	}
 };
 

@@ -141,7 +141,7 @@ int MQTTClient::open(int result)
 
 		_client.use(2);
 		_iocom._input_begin(&MQTTInputEnd);
-		_iocom._output_begin(1024, 0);
+		_iocom._output_cycle(512, 2048);
 		return 1;
 
 	default: assert(0); return -EACCES;
@@ -246,12 +246,11 @@ static int MQTTClose(AClientComponent *c)
 static int MQTTOutput(AInOutComponent *c, int result)
 {
 	MQTTClient *mqtt = container_of(c, MQTTClient, _iocom);
-	if ((result > 0) && (mqtt->_iocom._outbuf->len() != 0))
-		result = mqtt_codec_bytesReceived(mqtt->_codec, (unsigned char*)mqtt->_iocom._outbuf->ptr(), mqtt->_iocom._outbuf->len());
+	if (result >= 0)
+		result = mqtt_codec_bytesReceived(mqtt->_codec, (unsigned char*)c->_outbuf->ptr(), c->_outbuf->len());
 	if (result != 0) {
 		mqtt->_client._main_abort = true;
 		mqtt->_client.use(-1);
-		mqtt->_iocom._output_end();
 		mqtt->_iocom._input_end(-EIO);
 		return -EIO;
 	}

@@ -13,8 +13,8 @@ enum AMsgTypes
 	AMsgType_InOutMsg, /* data = AInOutMsg*, size = 0 */
 	AMsgType_RefsMsg,  /* data = ARefsMsg*, size = 0 */
 	AMsgType_RefsChain,/* data = ARefsChain*, size = 0 */
-	AMsgType_Class   = 0x20000000, /* class defined */
-	AMsgType_Private = 0x40000000, /* module defined */
+	AMsgType_Class   = 0x10000000, /* class defined */
+	AMsgType_Private = 0x20000000, /* module defined */
 };
 
 typedef struct AMessage AMessage;

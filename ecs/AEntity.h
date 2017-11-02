@@ -9,14 +9,16 @@ typedef struct AEntityManager AEntityManager, EM;
 struct AComponent {
 	const char *_name;
 	long        _index;
-	AEntity    *_entity;
+	AObject    *_object;
 	list_head   _entity_node;
 
 	void init(const char *n, int i = 0) {
 		_name = n; _index = i;
-		_entity = NULL; _entity_node.init();
+		_object = NULL; _entity_node.init();
 	}
-	bool valid();
+	bool valid() {
+		return ((_object != NULL) && !_entity_node.empty());
+	}
 };
 
 struct AEntity : public AObject {
@@ -38,11 +40,11 @@ struct AEntity : public AObject {
 	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }
 
 	bool _push(AComponent *c) {
-		bool valid = ((c->_entity == NULL) && c->_entity_node.empty());
+		bool valid = ((c->_object == NULL) && c->_entity_node.empty());
 		if (valid) {
 			//c->_self->addref();
 			//this->_self->addref();
-			c->_entity = this;
+			c->_object = this;
 			_com_list.push_back(&c->_entity_node);
 			++_com_count;
 		} else {
@@ -57,7 +59,7 @@ struct AEntity : public AObject {
 		_push(c);
 	}
 	bool _pop(AComponent *c) {
-		bool valid = ((c->_entity == this) && !c->_entity_node.empty());
+		bool valid = ((c->_object == this) && !c->_entity_node.empty());
 		if (valid) {
 			//c->_self->release();
 			c->_entity_node.leave();
@@ -180,10 +182,6 @@ struct AEntityManager {
 		return _next_each_com(cur, TComponent::name(), (int(*)(AComponent*,void*))func, com_index);
 	}
 };
-
-inline bool AComponent::valid() {
-	return _entity->valid() && !_entity_node.empty();
-}
 
 #if 0
 // outside component of entity, has self refcount

@@ -213,7 +213,7 @@ int PVDClient::open(int result)
 
 		_client.use(2);
 		_iocom._input_begin(&PVDEndInput);
-		_iocom._output_begin(2048, 4096);
+		_iocom._output_cycle(512, 4096);
 		return result;
 
 	default: assert(0); return -EACCES;
@@ -260,15 +260,14 @@ static int PVDOutput(AInOutComponent *c, int result)
 {
 	PVDClient *pvd = container_of(c, PVDClient, _iocom);
 	if (result >= 0)
-		result = PVDTryOutput(pvd->_userid, pvd->_iocom._outbuf, pvd->_iocom._outmsg);
+		result = PVDTryOutput(pvd->_userid, c->_outbuf, c->_outmsg);
 	if (result == 0) // need more data
-		return 0;
+		return 1;
 
 	if (pvd->_iocom._abort || (result < 0)) {
 		pvd->_client._main_abort = true;
 		pvd->_client.use(-1);
 		pvd->_iocom._input_end(result);
-		pvd->_iocom._output_end();
 		return -EINTR;
 	}
 

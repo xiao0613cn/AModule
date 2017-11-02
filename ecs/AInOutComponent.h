@@ -71,7 +71,7 @@ struct AInOutComponent : public AComponent {
 		if (!first)
 			return;
 
-		c->_entity->addref();
+		c->_object->addref();
 		assert(c->_inmsg.done == &_inmsg_done);
 
 		int result = c->do_input(c, msg);
@@ -100,7 +100,7 @@ struct AInOutComponent : public AComponent {
 
 			msg->done2(result);
 			if (next == NULL) {
-				c->_entity->release();
+				c->_object->release();
 				return result;
 			}
 
@@ -130,35 +130,32 @@ struct AInOutComponent : public AComponent {
 		}
 		unlock();
 	}
-	void _output_begin(int ressiz, int bufsiz) {
-		_entity->addref();
+	int _output_cycle(int ressiz, int bufsiz) {
+		_object->addref();
 		int result = ARefsBuf::reserve(_outbuf, ressiz, bufsiz);
 		_outmsg.init();
-		_outmsg.done2(result);
-	}
-	void _output_end() {
-		// called by on_output()
-		_entity->release();
+		return _outmsg.done2(result);
 	}
 	static int _outmsg_done(AMessage *msg, int result) {
 		AInOutComponent *c = container_of(msg, AInOutComponent, _outmsg);
 		for (;;) {
 			if (result >= 0)
 				c->_outbuf->push(c->_outmsg.size);
-			result = c->on_output(c, result);
-			if (result < 0)
-				return result;
-
-			if ((result > 0) && (c->on_outmsg != NULL)) {
-				c->on_outmsg(c, &c->_outmsg, result);
+			if (c->_outbuf->len() != 0) {
+				result = c->on_output(c, result);
+				if (result == 0)
+					return 0;
 			}
-			result = ARefsBuf::reserve(c->_outbuf, 2048, c->_outbuf->_size);
-			if (result < 0)
-				continue;
-
-			result = c->_io->output(&c->_outmsg, c->_outbuf);
-			if (result == 0)
-				return 0;
+			if ((result < 0) || (result >= AMsgType_Class)) {
+				c->_object->release();
+				return result;
+			}
+			result = ARefsBuf::reserve(c->_outbuf, 512, c->_outbuf->_size);
+			if (result >= 0) {
+				result = c->_io->output(&c->_outmsg, c->_outbuf);
+				if (result == 0)
+					return 0;
+			}
 		}
 	}
 };
