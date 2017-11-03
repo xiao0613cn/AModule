@@ -4,7 +4,7 @@
 #include "AModule_HttpSession.h"
 
 #ifdef _WIN32
-//#pragma comment(lib, "../bin/AModule.lib")
+#pragma comment(lib, "../bin/AModule.lib")
 #endif
 
 const struct http_parser_settings HttpCompenont::cb_sets = {
@@ -20,31 +20,48 @@ const struct http_parser_settings HttpCompenont::cb_sets = {
 	&HttpCompenont::on_chunk_complete
 };
 
-static int HttpInputHeadStatus(HttpConnection *p, HttpMsg *hm, int result)
+static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
 {
-	AInOutComponent *c = &p->_http;
-	assert(c->_inmsg.data == p->_inbuf->ptr());
-	assert(c->_inmsg.size == p->_inbuf->len());
+	do {
+		if (msg->data == NULL) { // do input header
+			assert(msg->done != &AInOutComponent::_inmsg_done
+			    && msg->done != &AInOutComponent::_outmsg_done);
 
-	p->_inbuf->reset();
-	c->_inmsg.done = &AInOutComponent::_inmsg_done;
+			msg->init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
+			result = p->_http._io->input(msg);
+			continue;
+		}
+		if (msg->data == p->_inbuf->ptr()) { // do input body
+			assert(msg->size == p->_inbuf->len());
 
-	if ((result >= 0) && (hm->body_len() > 0)) {
-		c->_inmsg.init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
-		result = c->_io->input(&c->_inmsg);
-	}
+			p->_inbuf->reset();
+			msg->init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
+			msg->done = ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
+
+			if ((result >= 0) && (msg->size > 0)) {
+				result = p->_http._io->input(msg);
+			}
+			continue;
+		}
+		assert(msg->data == hm->body_ptr());
+		assert(msg->size == hm->body_len());
+		assert(msg->done == ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done));
+		return result; // input done
+
+	} while (result > 0);
+	if (result != 0)
+		msg->done = ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 	return result;
 }
 
-static int HttpInputHeadDone(AMessage *msg, int result)
+static int HttpInputDone(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _http._inmsg);
 
 	msg = list_first_entry(&p->_http._queue, AMessage, entry);
 	assert(msg->type == httpMsgType_HttpMsg);
 
-	HttpMsg *hm = (HttpMsg*)msg->data;
-	result = HttpInputHeadStatus(p, hm, result);
+	result = HttpInputStatus(p, &p->_http._inmsg, (HttpMsg*)msg->data, result);
 	if (result != 0)
 		result = p->_http._inmsg.done2(result);
 	return result;
@@ -74,12 +91,11 @@ static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 	if (result < 0)
 		return result;
 
-	c->_inmsg.init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
-	c->_inmsg.done = &HttpInputHeadDone;
+	p->raw_inmsg_done = c->_inmsg.done;
+	c->_inmsg.init();
+	c->_inmsg.done = &HttpInputDone;
 
-	result = c->_io->input(&c->_inmsg);
-	if (result != 0)
-		result = HttpInputHeadStatus(p, hm, result);
+	result = HttpInputStatus(p, &c->_inmsg, hm, 1);
 	return result;
 }
 
@@ -87,12 +103,11 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 {
 	HttpConnection *p = (HttpConnection*)*object;
 	p->init();
-	p->_init_push(&p->_http);
-	p->_http.do_input = &HttpConnInput;
+	p->_init_push(&p->_http); p->_http.do_input = &HttpConnInput;
 	p->_inbuf = NULL;
-	p->_resp = NULL;
 
-	new (&p->_req) HttpMsgImpl();
+	p->_req = NULL;
+	p->_resp = NULL;
 	return 1;
 }
 
@@ -100,9 +115,9 @@ static void HttpConnectionRelease(AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
 	if_not2(p->_resp, NULL, delete p->_resp);
-	release_s(p->_inbuf);
-	p->_req.~HttpMsgImpl();
+	if_not2(p->_req, NULL, delete p->_req);
 
+	release_s(p->_inbuf);
 	p->_pop_exit(&p->_http);
 	p->exit();
 }
@@ -128,21 +143,13 @@ AModule HttpConnectionModule = {
 };
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
-// TODO: FIXME
 static int HttpSendResp(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _http._outmsg);
-	msg->done = &AInOutComponent::_outmsg_done;
-	if (result > 0) {
-		p->_inbuf->reset();
-		if (p->_resp->body_len() > 0) {
-			msg->init(ioMsgType_Block, p->_resp->body_ptr(), p->_resp->body_len());
-			result = p->_http._io->input(msg);
-		}
-	}
+	result = HttpInputStatus(p, msg, p->_resp, result);
 	if (result != 0) {
 		msg->init();
-		result = msg->done2(result); // continue recv next request
+		msg->done2(result);
 	}
 	return result;
 }
@@ -171,7 +178,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	p->_resp->_parser.type = HTTP_RESPONSE;
 	p->_resp->_parser.content_length = 0;
 
-	FILE *fp = fopen(p->_req.url().str+1, "rb");
+	FILE *fp = fopen(p->_req->get_url().str+1, "rb");
 	if (fp != NULL) {
 		fseek(fp, 0, SEEK_END);
 		p->_resp->_parser.content_length = ftell(fp);
@@ -193,27 +200,26 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		p->_resp->set_sz("", "OK");
 	}
 	p->_resp->set_sz("Content-Type", "text/html");
-	HttpCompenont::encode(p->_inbuf, p->_resp);
+	result = HttpCompenont::encode(p->_inbuf, p->_resp);
+	if (result < 0)
+		return result;
 
-	AMessage *msg = &p->_http._outmsg;
-	msg->done = &HttpSendResp;
-	result = p->_http._io->input(msg, p->_inbuf);
-	if (result > 0) {
-		msg->done = &AInOutComponent::_outmsg_done;
-		p->_inbuf->reset();
+	p->raw_outmsg_done = c->_outmsg.done;
+	c->_outmsg.init();
+	c->_outmsg.done = &HttpSendResp;
 
-		if (p->_resp->body_len() > 0) {
-			msg->init(ioMsgType_Block, p->_resp->body_ptr(), p->_resp->body_len());
-			result = p->_http._io->input(msg);
-		}
-	}
+	result = HttpInputStatus(p, &c->_outmsg, p->_resp, 1);
 	return result; // continue recv next request
 }
 
 static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 {
 	HttpConnection *p = (HttpConnection*)object;
-	return p->_http.try_output(&p->_req, &HttpOnRecvMsg);
+
+	assert(p->_req == NULL);
+	p->_req = new HttpMsgImpl();
+
+	return p->_http.try_output(p->_req, &HttpOnRecvMsg);
 }
 
 static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)

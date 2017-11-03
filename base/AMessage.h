@@ -11,8 +11,8 @@ enum AMsgTypes
 	AMsgType_Module,   /* data = AModule*, size = 0 */
 	AMsgType_OtherMsg, /* data = AMessage*, size = 0 */
 	AMsgType_InOutMsg, /* data = AInOutMsg*, size = 0 */
-	AMsgType_RefsMsg,  /* data = ARefsMsg*, size = 0 */
-	AMsgType_RefsChain,/* data = ARefsChain*, size = 0 */
+	AMsgType_RefsBuf,  /* data = ARefsBuf*, size = 0 */
+	AMsgType_RefsBlock,/* data = ARefsBlock*, size = 0 */
 	AMsgType_Class   = 0x10000000, /* class defined */
 	AMsgType_Private = 0x20000000, /* module defined */
 };
@@ -46,6 +46,7 @@ int MsgDoneT(AMessage *msg, int result) {
 };
 #endif
 
+#if 0
 // util function
 static inline void
 AMsgInit(AMessage *msg, int type, const void *data, int size)
@@ -185,6 +186,6 @@ _retry:
 		return type;
 	}
 }
-
+#endif
 
 #endif

@@ -13,9 +13,7 @@
 
 #include "str_util.h"
 
-#ifndef _align_8bytes
-#define _align_8bytes(x) (((x)+7)&~7)
-#endif
+
 #ifndef container_of
 #define container_of(ptr, type, member)   ((type*)((char*)(ptr) - (char*)(&((type*)0)->member)))
 #endif
@@ -25,11 +23,6 @@
 #define __attribute__(x) 
 #endif
 
-#define RTLD_NOW  0
-static inline void*
-dlopen(const char *filename, int flag) {
-	return LoadLibraryExA(filename, NULL, flag);
-}
 static inline void*
 dlsym(void *handle, const char *symbol) {
 	return GetProcAddress((HMODULE)handle, symbol);

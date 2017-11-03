@@ -97,7 +97,7 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 AMODULE_API AModule*
 AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
 
-
+#if 0
 typedef enum AObject_Status {
 	AObject_Invalid = 0,
 	AObject_Opening,
@@ -166,6 +166,6 @@ AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip
 
 AMODULE_API int
 AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map);
-
+#endif
 
 #endif

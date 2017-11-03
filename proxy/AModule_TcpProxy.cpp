@@ -53,7 +53,7 @@ struct TCPClient {
 
 	ARefsBuf*  tobuf() { return container_of(this, ARefsBuf, _data); }
 	void release() {
-		server->release();
+		release_s(server);
 		closesocket_s(sock);
 		release_s(io);
 		tobuf()->release();
@@ -84,16 +84,16 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		client->sock = INVALID_SOCKET;
 		client->status = tcp_probe_service;
 		if (buf->len() == 0) {
-			result = client->io->output(msg, buf);
+			msg->init(0, buf->next(), buf->left()-1);
+			result = client->io->output(msg);
 			break;
 		}
 		msg->init();
 
 	case tcp_probe_service:
 		buf->push(msg->size);
+		*buf->next() = '\0';
 		msg->init(0, buf->ptr(), buf->len());
-		if (buf->left() != 0)
-			*buf->next() = '\0';
 	{
 		AService *service = NULL;
 		AOption *option = NULL;
@@ -118,7 +118,8 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		}
 		if (service == NULL) {
 			if (msg->size < server->min_probe_size) {
-				result = client->io->output(msg, buf);
+				msg->init(0, buf->next(), buf->left()-1);
+				result = client->io->output(msg);
 				break;
 			}
 			TRACE("no found service: %d, %.*s.\n", msg->size,
@@ -276,8 +277,10 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 	}
 
 	result = TCPServerDoAcceptEx(server);
-	if (result < 0)
+	if (result < 0) {
+		release_s(server->prepare);
 		server->release();
+	}
 	return result;
 }
 #endif
@@ -400,17 +403,16 @@ static int TCPServerStart(AService *service, AOption *option)
 static void TCPServerStop(AService *service)
 {
 	TCPServer *server = (TCPServer*)service;
-	if (server->sock != INVALID_SOCKET)
-		shutdown(server->sock, SD_BOTH);
+	closesocket_s(server->sock);
 
-	if_not2(server->services, NULL,
+	if (server->services != NULL)
 		list_for_each2(m_opt, &server->services->children_list, AOption, brother_entry)
 	{
 		AService *svc = m_ptr(m_opt);
 		if ((svc == NULL) && (svc->stop != NULL)) {
 			svc->stop(svc);
 		}
-	});
+	}
 }
 
 static int TCPServerRun(AService *service, AObject *peer, AOption *option)

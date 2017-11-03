@@ -234,10 +234,9 @@ WinEvent_Init(WinEvent *ev, int manual, int state) {
 
 static inline HANDLE
 CreateEvent(const void *attr, int manual, int state, const char *name) {
-	if (name != NULL) // not support!!
-		return NULL;
-
-	WinEvent *ev = gomake(WinEvent);
+	WinEvent *ev = NULL;
+	if (name == NULL) // else not support!!
+		ev = gomake(WinEvent);
 	if (ev != NULL)
 		WinEvent_Init(ev, manual, state);
 	return ev;
@@ -246,6 +245,7 @@ CreateEvent(const void *attr, int manual, int state, const char *name) {
 #define WAIT_OBJECT_0   0
 #define WAIT_ABANDONED  0x00000080L
 #define WAIT_TIMEOUT    0x00000102L
+#define WAIT_FAILED     ((DWORD)0xFFFFFFFF)
 
 static inline int
 WaitEvent(HANDLE h, DWORD msec) {

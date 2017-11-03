@@ -11,10 +11,6 @@ struct str_t {
 	}
 };
 
-#ifndef _tostring
-#define _tostring(x) #x
-#endif
-
 #ifdef _WIN32
 
 #ifndef snprintf

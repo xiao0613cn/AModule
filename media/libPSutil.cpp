@@ -13,7 +13,7 @@ extern "C" {
 #define MPEGPS_STARTCODE_LEN  6
 #define MARKER_BIT  1
 
-extern LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp)
+LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp)
 {
 	long long ullTmp = timestamp;
 	unsigned short usTmp = 0;
@@ -60,7 +60,7 @@ extern LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long
 	return sizeof(*ph);
 }
 
-extern LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
+LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
 {
 	sh->shsc = MAKEFOURCC(0,0,1,MPEGPS_SYSTEM_HEADER_START_CODE);
 	sh->hl = sizeof(*sh) - MPEGPS_STARTCODE_LEN;
@@ -78,7 +78,7 @@ extern LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh)
 	return sizeof(*sh);
 }
 
-extern LIBPSUTIL_API int MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh)
+LIBPSUTIL_API int MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh)
 {
 	mh->psmsc = MAKEFOURCC(0,0,1,MPEGPS_PROGRAM_STREAM_MAP);
 	mh->psml = sizeof(*mh) - MPEGPS_STARTCODE_LEN - sizeof(mh->esm);
@@ -90,12 +90,12 @@ extern LIBPSUTIL_API int MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh)
 	return MPEGPS_STARTCODE_LEN + mh->psml;
 }
 
-extern LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader *mh)
+LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader *mh)
 {
 	return (MPEGPS_ESMap*)((unsigned char*)mh->esm + mh->esml);
 }
 
-extern LIBPSUTIL_API int MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
+LIBPSUTIL_API int MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
 {
 	MPEGPS_ESMap *esm = (MPEGPS_ESMap*)((unsigned char*)mh->esm + mh->esml);
 
@@ -106,7 +106,7 @@ extern LIBPSUTIL_API int MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh)
 	return MPEGPS_STARTCODE_LEN + mh->psml;
 }
 
-extern LIBPSUTIL_API int MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh)
+LIBPSUTIL_API int MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh)
 {
 	int psml = mh->psml;
 	mh->psml = MAKETWOCC(mh->psml>>8,mh->psml);
@@ -117,7 +117,7 @@ extern LIBPSUTIL_API int MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh)
 	return MPEGPS_STARTCODE_LEN + psml;
 }
 
-extern LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length)
+LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length)
 {
 	if (stream_length > MPEGPS_PES_MAX_PPL) {
 		assert(FALSE);
@@ -143,7 +143,7 @@ extern LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned c
 	return sizeof(*pes) + stream_length;
 }
 
-extern LIBPSUTIL_API void MPEGPS_PTS_Encode(unsigned char pdf, long long timestamp, unsigned char buf[5])
+LIBPSUTIL_API void MPEGPS_PTS_Encode(unsigned char pdf, long long timestamp, unsigned char buf[5])
 {
 	buf[0] = (pdf<<4) | ((timestamp>>29)&0x0E) | MARKER_BIT; // 30~32: 3 bits
 	buf[1] = (timestamp>>21)&0xFF;                           // 22~29: 8 bits
@@ -152,7 +152,7 @@ extern LIBPSUTIL_API void MPEGPS_PTS_Encode(unsigned char pdf, long long timesta
 	buf[4] = ((timestamp<<1)&0xFE) | MARKER_BIT;             // 0~6: 7 bits
 }
 
-extern LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const unsigned char buf[5])
+LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const unsigned char buf[5])
 {
 	*timestamp = ((long long)(buf[0]&0x0E) << 29)
 	           | ((MAKETWOCC(buf[2],buf[1])>>1) << 15)
@@ -174,7 +174,7 @@ inline int FillData(unsigned char *dest_ptr, int &dest_pos, int dest_len, const 
 	return used;
 }
 
-extern int LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info)
+LIBPSUTIL_API int MPEGPS_ParserInit(MPEGPS_ParserInfo *info)
 {
 	memset(info, 0, sizeof(*info));
 	return 0;
@@ -309,7 +309,7 @@ static void MPEGPS_ParserHeaderEnd(MPEGPS_ParserInfo *info)
 	}
 }
 
-extern int LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
+LIBPSUTIL_API int MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
 {
 	// fill header data
 	if (info->header_pos < info->header_size)
@@ -382,7 +382,7 @@ extern int LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsig
 	return pos+len;
 }
 
-extern int LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
+LIBPSUTIL_API int MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len)
 {
 	int pos = 0;
 	while (pos < len)

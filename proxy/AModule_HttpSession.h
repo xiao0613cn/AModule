@@ -19,7 +19,7 @@ struct HttpCompenont : public AInOutComponent {
 	char*       p_next() { return _outbuf->ptr() + _parsed_len; }
 	int         p_left() { return _outbuf->len() - _parsed_len; }
 
-	ARefsBuf   *_header_buffer;
+	ARefsBlock<>_header_block;
 	int         _header_count;
 	int         _header_pos;
 	int         _header_len;
@@ -39,11 +39,15 @@ struct HttpCompenont : public AInOutComponent {
 
 		http_parser_init(&_parser, HTTP_BOTH, this);
 		_parsed_len = 0;
-		_header_buffer = NULL;
-		_header_count = _header_pos = _header_len = 0;
+		_header_block.init();
+		_header_count = 0;
 		_field_pos = _field_len = 0;
 		_value_pos = _value_len = 0;
 		_body_pos = _body_len = 0;
+	}
+	void exit2() {
+		_header_block.set(NULL, 0, 0);
+		AInOutComponent::exit2();
 	}
 	int try_output(HttpMsg *hm, int (*on)(HttpCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = on;
@@ -54,7 +58,6 @@ struct HttpCompenont : public AInOutComponent {
 		HttpCompenont *p = (HttpCompenont*)c;
 		if (result < 0)
 			return p->on_httpmsg(p, result);
-
 		if (p->p_left() == 0)
 			return 1; // need more data
 
@@ -116,8 +119,8 @@ struct HttpCompenont : public AInOutComponent {
 		HttpCompenont *p = (HttpCompenont*)parser->data;
 
 		p->_httpmsg->set(str_t(), str_t());
-		release_s(p->_header_buffer);
-		p->_header_count = p->_header_pos = p->_header_len = 0;
+		p->_header_block.set(NULL, 0, 0);
+		p->_header_count = 0;
 
 		p->_field_pos = p->_field_len = 0;
 		p->_value_pos = p->_value_len = 0;
@@ -141,7 +144,7 @@ struct HttpCompenont : public AInOutComponent {
 
 		if (p->_value_len != 0) {
 			if (++p->_header_count == 1) {
-				p->_httpmsg->set(str_t("",0), p->_value());
+				p->_httpmsg->set_url(p->_value());
 			} else {
 				p->_httpmsg->set(p->_field(), p->_value());
 			}
@@ -170,10 +173,8 @@ struct HttpCompenont : public AInOutComponent {
 			p->_header_count++;
 			p->_httpmsg->set(p->_field(), p->_value());
 		}
-		assert(p->_header_buffer == NULL);
-		p->_header_buffer = p->_outbuf; p->_outbuf->addref();
-		p->_header_pos = p->_outbuf->_bgn;
-		p->_header_len = p->_parser.nread;
+		assert(p->_header_block._buf == NULL);
+		p->_header_block.set(p->_outbuf, p->_outbuf->_bgn, p->_parser.nread);
 		return 0;
 	}
 	static int on_body(http_parser *parser, const char *at, size_t length) {
@@ -222,7 +223,7 @@ struct HttpCompenont : public AInOutComponent {
 		if (result < 0)
 			return result;
 
-		v = hm->url();
+		v = hm->get_url();
 		if (hm->_parser.type == HTTP_REQUEST) {
 			buf->strfmt("%s %.*s HTTP/%d.%d\r\n", http_method_str(hm->_parser.method),
 				v.len, v.str, hm->_parser.http_major, hm->_parser.http_minor);
@@ -251,10 +252,13 @@ enum HttpStatus {
 
 struct HttpConnection : public AEntity {
 	HttpCompenont _http;
-	HttpMsgImpl   _req;
+
 	ARefsBuf     *_inbuf;
+	int (*raw_inmsg_done)(AMessage*,int);
+
+	HttpMsgImpl  *_req;
 	HttpMsgImpl  *_resp;
-	HttpStatus    _status;
+	int (*raw_outmsg_done)(AMessage*,int);
 };
 
 #if 0

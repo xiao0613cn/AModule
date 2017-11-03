@@ -12,7 +12,8 @@ struct HttpMsg {
 	int         (*_head_set)(HttpMsg *p, str_t field, str_t value);
 	ARefsBuf     *_body_buf;
 
-	str_t    url()                         { str_t u; at(0, &u); return u; }
+	str_t    get_url()                     { return _head_get(this, ""); }
+	int      set_url(str_t value)          { return _head_set(this, str_t("",0), value); }
 	str_t    at(int ix, str_t *value)      { return _head_at(this, ix, value); }
 	str_t    get(const char *field)        { return _head_get(this, field); }
 	int      set(str_t field, str_t value) { return _head_set(this, field, value); }
@@ -40,6 +41,9 @@ struct HttpMsgImpl : public HttpMsg {
 		_head_get = &head_get;
 		_head_set = &head_set;
 		_body_buf = NULL;
+	}
+	~HttpMsgImpl() {
+		release_s(_body_buf);
 	}
 	static str_t head_at(HttpMsg *p, int ix, str_t *value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;

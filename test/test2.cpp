@@ -18,14 +18,15 @@ static int on_event(void *user, const char *name, void *p, bool preproc) {
 
 ASystemManager sm;
 
-CuSuite all_test_suites;
+CuSuite *all_test_suites = CuSuiteNew();
 
 #if defined TEST_ECHO_SERVICE
 CU_TEST(test_echo_service)
 {
+	dlload(NULL, "service_http", FALSE);
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "tcp_server: { port: 4444, io: async_tcp, "
-		"is_async: 1, services: { EchoService, HttpService, }, background: 0 }", -1);
+	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: async_tcp }, "
+		"is_async: 1, services: { EchoService, HttpService, }, background: 1 }", -1);
 
 	AService *tcp_server = NULL;
 	AObject::create(&tcp_server, NULL, opt, NULL);
@@ -33,6 +34,10 @@ CU_TEST(test_echo_service)
 
 	tcp_server->start(tcp_server, opt);
 	opt->release();
+
+	getchar();
+	tcp_server->stop(tcp_server);
+	tcp_server->release();
 }
 #elif defined TEST_ECHO_CLIENT
 struct echo_info {
@@ -222,14 +227,18 @@ int main()
 	sm._event_manager = &em;
 
 	CuString *output = CuStringNew();
-	CuSuiteRun(&all_test_suites);
-	CuSuiteSummary(&all_test_suites, output);
-	CuSuiteDetails(&all_test_suites, output);
+	CuSuiteRun(all_test_suites);
+	CuSuiteSummary(all_test_suites, output);
+	CuSuiteDetails(all_test_suites, output);
 	fputs(output->buffer, stdout);
+	CuStringDelete(output);
+	CuSuiteDelete(all_test_suites);
 
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif
 	getchar();
+	AThreadEnd(NULL);
+	AModuleExit();
 	return 0;
 }

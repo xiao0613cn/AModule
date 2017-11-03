@@ -185,6 +185,12 @@ struct  ARefsBlock {
 	int    _pos;
 	int    _len;
 	Item*  ptr() { return _buf->data + _pos; }
+	void   init() { _buf = 0; _pos = _len = 0; }
+
+	void   set(ASlice<Item> *p, int bgn, int len) {
+		release_s(_buf); _buf = p; if (p) p->addref();
+		_pos = bgn; _len = len;
+	}
 };
 
 template<typename Item>

@@ -6,9 +6,9 @@
 // 符号视为是被导出的。
 #ifndef LIBPSUTIL_API
 #ifdef LIBPSUTIL_EXPORTS
-#define LIBPSUTIL_API __declspec(dllexport)
+#define LIBPSUTIL_API EXTERN_C __declspec(dllexport)
 #elif defined(_WIN32)
-#define LIBPSUTIL_API __declspec(dllimport)
+#define LIBPSUTIL_API EXTERN_C __declspec(dllimport)
 #else
 #define LIBPSUTIL_API
 #endif
@@ -173,22 +173,22 @@ typedef struct MPEGPS_PESHeader
 //////////////////////////////////////////////////////////////////////////
 
 // PS encode
-extern LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp);
-extern LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh);
+LIBPSUTIL_API int MPEGPS_PackHeader_Init(MPEGPS_PackHeader *ph, long long timestamp);
+LIBPSUTIL_API int MPEGPS_SystemHeader_Init(MPEGPS_SystemHeader *sh);
 
-extern LIBPSUTIL_API int           MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh);
-extern LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader *mh);
-extern LIBPSUTIL_API int           MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh);
-extern LIBPSUTIL_API int           MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh);
+LIBPSUTIL_API int           MPEGPS_MapHeader_Init(MPEGPS_MapHeader *mh);
+LIBPSUTIL_API MPEGPS_ESMap* MPEGPS_MapHeader_NextElement(MPEGPS_MapHeader *mh);
+LIBPSUTIL_API int           MPEGPS_MapHeader_PushElement(MPEGPS_MapHeader *mh);
+LIBPSUTIL_API int           MPEGPS_MapHeader_EndElement(MPEGPS_MapHeader *mh);
 
 #define MPEGPS_PES_MAX_PPL   (0xFFFF - sizeof(MPEGPS_PESHeader) + MPEGPS_STARTCODE_LEN)
-extern LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length);
+LIBPSUTIL_API int MPEGPS_PESHeader_Init(MPEGPS_PESHeader *pes, unsigned char stream_id, unsigned short stream_length);
 
 
 #define MPEGPS_PTS_FLAG       2
 #define MPEGPS_DTS_FLAG       1
-extern LIBPSUTIL_API void          MPEGPS_PTS_Encode(unsigned char pdf, long long timestamp, unsigned char buf[5]);
-extern LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const unsigned char buf[5]);
+LIBPSUTIL_API void          MPEGPS_PTS_Encode(unsigned char pdf, long long timestamp, unsigned char buf[5]);
+LIBPSUTIL_API unsigned char MPEGPS_PTS_Decode(long long *timestamp, const unsigned char buf[5]);
 
 
 // PS decode
@@ -216,9 +216,9 @@ struct MPEGPS_ParserInfo
 	long long       dts;
 };
 
-extern int LIBPSUTIL_API MPEGPS_ParserInit(MPEGPS_ParserInfo *info);
-extern int LIBPSUTIL_API MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
-extern int LIBPSUTIL_API MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
+LIBPSUTIL_API int MPEGPS_ParserInit(MPEGPS_ParserInfo *info);
+LIBPSUTIL_API int MPEGPS_ParserInput(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
+LIBPSUTIL_API int MPEGPS_ParserRun(MPEGPS_ParserInfo *info, const unsigned char *buf, int len);
 
 
 // util function

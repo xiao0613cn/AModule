@@ -242,7 +242,13 @@ AObjectFree(AObject *object)
 #endif
 #define DLL_BIN_LIB   ""
 #define DLL_BIN_NAME  "dll"
-#else
+
+#define RTLD_NOW  0
+static inline void*
+dlopen(const char *filename, int flag) {
+	return LoadLibraryExA(filename, NULL, flag);
+}
+#else //_WIN32
 #include <dlfcn.h>
 #if defined(__LP64__) && (__LP64__)
 	#define DLL_BIN_OS    "linux64"
@@ -251,7 +257,7 @@ AObjectFree(AObject *object)
 #endif
 #define DLL_BIN_LIB   "lib"
 #define DLL_BIN_NAME  "so"
-#endif
+#endif //!_WIN32
 
 static long dlload_tid = 0;
 
@@ -311,6 +317,7 @@ dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
 	return module;
 }
 
+#if 0
 AMODULE_API int
 AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
 {
@@ -383,4 +390,4 @@ AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map)
 	}
 	return 0;
 }
-
+#endif

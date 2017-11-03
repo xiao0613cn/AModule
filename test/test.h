@@ -6,7 +6,7 @@ extern "C" {
 };
 
 
-extern CuSuite all_test_suites;
+extern CuSuite *all_test_suites;
 
 
 #define CU_TEST(func) \
@@ -17,7 +17,7 @@ extern CuSuite all_test_suites;
 
 struct test_reg_t {
 	test_reg_t(CuTest *test) {
-		CuSuiteAdd(&all_test_suites, test);
+		CuSuiteAdd(all_test_suites, test);
 	}
 };
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "AModule_API.h"
 
-
+#if 0
 AMODULE_API AMessage*
 AMsgDispatch(struct list_head *notify_list, AMessage *from, struct list_head *quit_list)
 {
@@ -48,3 +48,4 @@ AMsgDispatch2(pthread_mutex_t *mutex, struct list_head *notify_list, AMessage *f
 	}
 	return (msg != NULL);
 }
+#endif
