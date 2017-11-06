@@ -23,7 +23,6 @@ CuSuite *all_test_suites = CuSuiteNew();
 #if defined TEST_ECHO_SERVICE
 CU_TEST(test_echo_service)
 {
-	dlload(NULL, "service_http", FALSE);
 	AOption *opt = NULL;
 	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: async_tcp }, "
 		"is_async: 1, services: { EchoService, HttpService, }, background: 1 }", -1);
@@ -219,6 +218,7 @@ CU_TEST(test_client)
 int main()
 {
 	dlload(NULL, "io_openssl", FALSE);
+	dlload(NULL, "service_http", FALSE);
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 

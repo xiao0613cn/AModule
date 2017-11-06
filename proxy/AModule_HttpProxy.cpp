@@ -28,7 +28,7 @@ static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int re
 			    && msg->done != &AInOutComponent::_outmsg_done);
 
 			msg->init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
-			result = p->_http._io->input(msg);
+			result = p->_iocom._io->input(msg);
 			continue;
 		}
 		if (msg->data == p->_inbuf->ptr()) { // do input body
@@ -36,34 +36,34 @@ static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int re
 
 			p->_inbuf->reset();
 			msg->init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
-			msg->done = ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
+			msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 
 			if ((result >= 0) && (msg->size > 0)) {
-				result = p->_http._io->input(msg);
+				result = p->_iocom._io->input(msg);
 			}
 			continue;
 		}
 		assert(msg->data == hm->body_ptr());
 		assert(msg->size == hm->body_len());
-		assert(msg->done == ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done));
+		assert(msg->done == ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done));
 		return result; // input done
 
 	} while (result > 0);
 	if (result != 0)
-		msg->done = ((msg == &p->_http._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
+		msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 	return result;
 }
 
 static int HttpInputDone(AMessage *msg, int result)
 {
-	HttpConnection *p = container_of(msg, HttpConnection, _http._inmsg);
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
 
-	msg = list_first_entry(&p->_http._queue, AMessage, entry);
+	msg = list_first_entry(&p->_iocom._queue, AMessage, entry);
 	assert(msg->type == httpMsgType_HttpMsg);
 
-	result = HttpInputStatus(p, &p->_http._inmsg, (HttpMsg*)msg->data, result);
+	result = HttpInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
 	if (result != 0)
-		result = p->_http._inmsg.done2(result);
+		result = p->_iocom._inmsg.done2(result);
 	return result;
 }
 
@@ -84,7 +84,7 @@ static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 	if (msg->type != httpMsgType_HttpMsg)
 		return -EINVAL;
 
-	HttpConnection *p = container_of(c, HttpConnection, _http);
+	HttpConnection *p = container_of(c, HttpConnection, _iocom);
 	HttpMsg *hm = (HttpMsg*)msg->data;
 
 	int result = HttpCompenont::encode(p->_inbuf, hm);
@@ -103,7 +103,8 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 {
 	HttpConnection *p = (HttpConnection*)*object;
 	p->init();
-	p->_init_push(&p->_http); p->_http.do_input = &HttpConnInput;
+	p->_init_push(&p->_http);
+	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnInput;
 	p->_inbuf = NULL;
 
 	p->_req = NULL;
@@ -119,6 +120,7 @@ static void HttpConnectionRelease(AObject *object)
 
 	release_s(p->_inbuf);
 	p->_pop_exit(&p->_http);
+	p->_pop_exit(&p->_iocom);
 	p->exit();
 }
 
@@ -145,7 +147,7 @@ static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
 static int HttpSendResp(AMessage *msg, int result)
 {
-	HttpConnection *p = container_of(msg, HttpConnection, _http._outmsg);
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
 	result = HttpInputStatus(p, msg, p->_resp, result);
 	if (result != 0) {
 		msg->init();
@@ -163,16 +165,14 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		TRACE("http connection down, result = %d.\n", result);
 		return result;
 	}
-	if (p->_http._parser.type != HTTP_REQUEST) {
-		TRACE("invalid http type: %d.\n", p->_http._parser.type);
+	if (p->_req->_parser.type != HTTP_REQUEST) {
+		TRACE("invalid http type: %d.\n", p->_req->_parser.type);
 		return -EINVAL;
 	}
 	if (p->_resp == NULL) {
 		p->_resp = new HttpMsgImpl();
 	} else {
-		p->_resp->set(str_t(), str_t());
-		if (p->_resp->_body_buf != NULL)
-			p->_resp->_body_buf->reset();
+		p->_resp->reset();
 	}
 	p->_resp->_parser = p->_http._parser;
 	p->_resp->_parser.type = HTTP_RESPONSE;
@@ -204,11 +204,11 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	if (result < 0)
 		return result;
 
-	p->raw_outmsg_done = c->_outmsg.done;
-	c->_outmsg.init();
-	c->_outmsg.done = &HttpSendResp;
+	p->raw_outmsg_done = p->_iocom._outmsg.done;
+	p->_iocom._outmsg.init();
+	p->_iocom._outmsg.done = &HttpSendResp;
 
-	result = HttpInputStatus(p, &c->_outmsg, p->_resp, 1);
+	result = HttpInputStatus(p, &p->_iocom._outmsg, p->_resp, 1);
 	return result; // continue recv next request
 }
 
