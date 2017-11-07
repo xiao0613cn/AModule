@@ -225,12 +225,9 @@ static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *svc = (AService*)*object;
-	svc->peer_option = NULL;
+	svc->init();
 	svc->peer_module = &HttpConnectionModule;
-	svc->start = NULL;
-	svc->stop = NULL;
 	svc->run = &HttpConnRun;
-	svc->abort = NULL;
 	return 1;
 }
 

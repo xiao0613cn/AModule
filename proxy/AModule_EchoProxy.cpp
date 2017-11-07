@@ -83,12 +83,9 @@ static int reg_echo = AModuleRegister(&EchoModule);
 static int EchoServiceCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *service = (AService*)*object;
-	service->peer_option = NULL;
+	service->init();
 	service->peer_module = &EchoModule;
-	service->start = NULL;
-	service->stop = NULL;
 	service->run = &EchoRun;
-	service->abort = NULL;
 	return 1;
 }
 

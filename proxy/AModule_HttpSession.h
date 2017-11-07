@@ -18,9 +18,9 @@ struct HttpCompenont : public AComponent {
 
 	http_parser _parser;
 	int         _parsed_len;
-	ARefsBuf   *_outbuf;
-	char*       p_next() { return _outbuf->ptr() + _parsed_len; }
-	int         p_left() { return _outbuf->len() - _parsed_len; }
+	ARefsBuf   *outbuf() { return (ARefsBuf*)_parser.data; }
+	char*       p_next() { return outbuf()->ptr() + _parsed_len; }
+	int         p_left() { return outbuf()->len() - _parsed_len; }
 
 	ARefsBlock<>_header_block;
 	int         _header_count;
@@ -35,7 +35,7 @@ struct HttpCompenont : public AComponent {
 		_httpmsg = NULL;
 		on_httpmsg = NULL;
 
-		http_parser_init(&_parser, HTTP_BOTH, this);
+		http_parser_init(&_parser, HTTP_BOTH, NULL);
 		_parsed_len = 0;
 		_header_block.init();
 		_header_count = 0;
@@ -69,11 +69,10 @@ struct HttpCompenont : public AComponent {
 			assert(0);
 			return -EACCES;
 		}
-		p->_outbuf = c->_outbuf;
 		return p->on_io_output(result, c->_outbuf);
 	}
 	int on_io_output(int result, ARefsBuf *&buf) {
-		assert(_outbuf == buf);
+		_parser.data = buf;
 		if (result < 0)
 			return on_httpmsg(this, result);
 		if (p_left() == 0)
@@ -101,7 +100,7 @@ struct HttpCompenont : public AComponent {
 			else if (_body_len < max_body_size) {
 				if (_body_len == 0)
 					_body_pos = _parsed_len;
-				_outbuf->pop(_body_pos);
+				outbuf()->pop(_body_pos);
 				_parsed_len -= _body_pos;
 				_body_pos = 0;
 				reserve = min(_parser.content_length, max_body_size-_body_len);
@@ -113,26 +112,26 @@ struct HttpCompenont : public AComponent {
 				return (result >= 0) ? 1 : on_httpmsg(this, result);
 			}
 		}
-		_body_pos += _outbuf->_bgn;
-		_outbuf->pop(_parsed_len);
+		_body_pos += outbuf()->_bgn;
+		outbuf()->pop(_parsed_len);
 		_parsed_len = 0;
 
 		assert(_httpmsg->_head_num == _header_count);
 		_httpmsg->_parser = _parser;
 
 		release_s(_httpmsg->_body_buf);
-		_httpmsg->_body_buf = _outbuf; _outbuf->addref();
+		_httpmsg->_body_buf = outbuf(); outbuf()->addref();
 		_httpmsg->body_pos() = _body_pos;
 		_httpmsg->body_len() = _body_len;
 
 		return on_httpmsg(this, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
 	}
 	//////////////////////////////////////////////////////////////////////////
-	str_t _field() { return str_t(_outbuf->ptr() + _field_pos, _field_len); }
-	str_t _value() { return str_t(_outbuf->ptr() + _value_pos, _value_len); }
+	str_t _field() { return str_t(outbuf()->ptr() + _field_pos, _field_len); }
+	str_t _value() { return str_t(outbuf()->ptr() + _value_pos, _value_len); }
 
 	static int on_m_begin(http_parser *parser) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 
 		p->_httpmsg->reset();
 		p->_header_block.set(NULL, 0, 0);
@@ -144,18 +143,18 @@ struct HttpCompenont : public AComponent {
 		return 0;
 	}
 	static int on_url_or_status(http_parser *parser, const char *at, size_t length) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
 		if (p->_field_len == 0) {
-			p->_field_pos = p->_value_pos = (at - p->_outbuf->ptr());
+			p->_field_pos = p->_value_pos = (at - p->outbuf()->ptr());
 		}
 		p->_field_len += length;
 		p->_value_len += length;
 		return 0;
 	}
 	static int on_h_field(http_parser *parser, const char *at, size_t length) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
 		if (p->_value_len != 0) {
@@ -169,51 +168,51 @@ struct HttpCompenont : public AComponent {
 		}
 
 		if (p->_field_len == 0)
-			p->_field_pos = (at - p->_outbuf->ptr());
+			p->_field_pos = (at - p->outbuf()->ptr());
 		p->_field_len += length;
 		return 0;
 	}
 	static int on_h_value(http_parser *parser, const char *at, size_t length) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
 		assert(p->_field_len != 0);
 		if (p->_value_len == 0)
-			p->_value_pos = (at - p->_outbuf->ptr());
+			p->_value_pos = (at - p->outbuf()->ptr());
 		p->_value_len += length;
 		return 0;
 	}
 	static int on_h_done(http_parser *parser) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		if (p->_value_len != 0) {
 			p->_header_count++;
 			p->_httpmsg->set(p->_field(), p->_value());
 		}
 		assert(p->_header_block._buf == NULL);
-		p->_header_block.set(p->_outbuf, p->_outbuf->_bgn, p->_parser.nread);
+		p->_header_block.set(p->outbuf(), p->outbuf()->_bgn, p->_parser.nread);
 		return 0;
 	}
 	static int on_body(http_parser *parser, const char *at, size_t length) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
 		if (p->_body_len == 0)
-			p->_body_pos = (at - p->_outbuf->ptr());
+			p->_body_pos = (at - p->outbuf()->ptr());
 		p->_body_len += length;
 		return 0;
 	}
 	static int on_m_done(http_parser *parser) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		http_parser_pause(parser, TRUE);
 		return 0;
 	}
 	static int on_chunk_header(http_parser *parser) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		TRACE("chunk header, body = %lld.\n", parser->content_length);
 		return 0;
 	}
 	static int on_chunk_complete(http_parser *parser) {
-		HttpCompenont *p = (HttpCompenont*)parser->data;
+		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 		if (p->_body_len != 0)
 			http_parser_pause(parser, TRUE);
 		else

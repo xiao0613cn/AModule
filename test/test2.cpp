@@ -31,11 +31,11 @@ CU_TEST(test_echo_service)
 	AObject::create(&tcp_server, NULL, opt, NULL);
 	tcp_server->sysmng = &sm;
 
-	tcp_server->start(tcp_server, opt);
+	AServiceStart(tcp_server, opt, TRUE);
 	opt->release();
 
 	getchar();
-	tcp_server->stop(tcp_server);
+	AServiceStop(tcp_server, FALSE);
 	tcp_server->release();
 }
 #elif defined TEST_ECHO_CLIENT

@@ -11,6 +11,7 @@ struct HttpMsg {
 	str_t       (*_head_get)(HttpMsg *p, const char *field);
 	int         (*_head_set)(HttpMsg *p, str_t field, str_t value);
 	ARefsBuf     *_body_buf;
+	char*          body_ptr() { return _body_buf->_data + _parser.nread; }
 	uint32_t&      body_pos() { return _parser.nread; }
 	int64_t&       body_len() { return *(int64_t*)&_parser.content_length; }
 
@@ -20,7 +21,6 @@ struct HttpMsg {
 	str_t    at(int ix, str_t *value)      { return _head_at(this, ix, value); }
 	str_t    get(const char *field)        { return _head_get(this, field); }
 	int      set(str_t field, str_t value) { return _head_set(this, field, value); }
-	char*    body_ptr() { return _body_buf->_data + _parser.nread; }
 };
 
 #define httpMsgType_RawData       (AMsgType_Private|1)
