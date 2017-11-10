@@ -15,7 +15,8 @@ struct HttpMsg {
 	uint32_t&      body_pos() { return _parser.nread; }
 	int64_t&       body_len() { return *(int64_t*)&_parser.content_length; }
 
-	void     reset()                       { set(str_t(), str_t()); release_s(_body_buf); }
+	void     reset_head()                  { set(str_t(), str_t()); }
+	void     reset_body()                  { if (_body_buf) _body_buf->reset(); body_pos() = 0; body_len() = 0; }
 	str_t    get_url()                     { return _head_get(this, ""); }
 	int      set_url(str_t value)          { return _head_set(this, str_t("",0), value); }
 	str_t    at(int ix, str_t *value)      { return _head_at(this, ix, value); }
@@ -23,9 +24,7 @@ struct HttpMsg {
 	int      set(str_t field, str_t value) { return _head_set(this, field, value); }
 };
 
-#define httpMsgType_RawData       (AMsgType_Private|1)
-#define httpMsgType_RawBlock      (AMsgType_Private|2)
-#define httpMsgType_HttpMsg       (AMsgType_Private|3)
+enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };
 
 
 #if defined(_USE_HTTP_MSG_IMPL_) && (_USE_HTTP_MSG_IMPL_ != 0)

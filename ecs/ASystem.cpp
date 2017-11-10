@@ -79,6 +79,7 @@ void ASystemManager::init()
 {
 	_systems = ASystem::find(NULL);
 	_exec_thread = NULL;
+	_services = NULL;
 	_mutex = NULL;
 	check_allsys = &_do_check_allsys;
 

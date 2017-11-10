@@ -133,7 +133,7 @@ struct HttpCompenont : public AComponent {
 	static int on_m_begin(http_parser *parser) {
 		HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 
-		p->_httpmsg->reset();
+		p->_httpmsg->reset_head();
 		p->_header_block.set(NULL, 0, 0);
 		p->_header_count = 0;
 

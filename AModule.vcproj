@@ -357,10 +357,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\AModule_rtmp.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\io\AModule_TCP.cpp"
 				>
 			</File>
@@ -374,6 +370,10 @@
 			</File>
 			<File
 				RelativePath=".\base\AOption.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\io\AService.cpp"
 				>
 			</File>
 			<File
@@ -601,34 +601,6 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\rtmp\rtmppkt.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
 				RelativePath=".\crypto\sha.c"
 				>
 				<FileConfiguration
@@ -743,14 +715,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\AModule_rtmp.h"
-				>
-			</File>
-			<File
-				RelativePath=".\rtmp\AModule_rtmpconn.h"
-				>
-			</File>
-			<File
 				RelativePath=".\base\AOperator.h"
 				>
 			</File>
@@ -783,11 +747,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\avconfig.h"
+				RelativePath=".\ffmpeg\libavutil\avconfig.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\avconfig.h"
+				RelativePath=".\crypto\avconfig.h"
 				>
 			</File>
 			<File
@@ -827,11 +791,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
@@ -863,11 +827,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
@@ -927,11 +891,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intfloat.h"
+				RelativePath=".\crypto\intfloat.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intfloat.h"
+				RelativePath=".\ffmpeg\libavutil\intfloat.h"
 				>
 			</File>
 			<File
@@ -955,11 +919,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\lfg.h"
+				RelativePath=".\crypto\lfg.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\lfg.h"
+				RelativePath=".\ffmpeg\libavutil\lfg.h"
 				>
 			</File>
 			<File
@@ -983,15 +947,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\md5.h"
-				>
-			</File>
-			<File
 				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
@@ -1075,27 +1039,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\rtmp\rtmpcrypt.h"
-				>
-			</File>
-			<File
-				RelativePath=".\rtmp\rtmpdh.h"
-				>
-			</File>
-			<File
-				RelativePath=".\rtmp\rtmppkt.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\samplefmt.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File

@@ -89,21 +89,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		*buf->next() = '\0';
 		msg->init(0, buf->ptr(), buf->len());
 	{
-		AService *service = NULL;
-		int score = -1;
-		list_for_each2(svc, &server->children_list, AService, brother_entry)
-		{
-			if (svc->_module->probe != NULL)
-				result = svc->_module->probe(client->io, msg, svc->svc_option);
-			else if (svc->peer_module->probe != NULL)
-				result = svc->peer_module->probe(client->io, msg, svc->svc_option);
-			else
-				result = 0;
-			if (result > score) {
-				service = svc;
-				score = result;
-			}
-		}
+		AService *service = AServiceProbe(server, client->io, msg);
 		if (service == NULL) {
 			if (msg->size < server->min_probe_size) {
 				msg->init(0, buf->next(), buf->left()-1);
@@ -425,79 +411,3 @@ AModule TCPServerModule = {
 	&TCPServerRelease,
 };
 static int reg_svr = AModuleRegister(&TCPServerModule);
-
-//////////////////////////////////////////////////////////////////////////
-AMODULE_API int
-AServiceStart(AService *service, AOption *option, BOOL create_chains)
-{
-	if (service->save_option) {
-		assert(service->svc_option == NULL);
-		service->svc_option = AOptionClone(option, NULL);
-		if (service->svc_option == NULL)
-			return -ENOMEM;
-		option = service->svc_option;
-	} else {
-		service->svc_option = option;
-	}
-
-	if (create_chains) {
-		AOption *services_list = option->find("services");
-	if (services_list != NULL)
-		list_for_each2(svc_opt, &services_list->children_list, AOption, brother_entry)
-	{
-		AService *svc = NULL;
-		int result = AObject::create(&svc, service, svc_opt, svc_opt->value);
-		if (result < 0) {
-			TRACE("service(%s,%s) create()= %d.\n", svc_opt->name, svc_opt->value, result);
-			continue;
-		}
-		svc->sysmng = service->sysmng;
-		svc->parent = service;
-
-		if ((svc->peer_module != NULL)
-		 && (strcasecmp(svc->peer_module->class_name, "AEntity") != 0)) {
-			TRACE("service(%s,%s) peer type(%s,%s) maybe error, require AEntity!.\n",
-				svc_opt->name, svc_opt->value,
-				svc->peer_module->class_name, svc->peer_module->module_name);
-		}
-		result = AServiceStart(svc, svc_opt, create_chains);
-		if (result < 0) {
-			release_s(svc);
-			continue;
-		}
-		service->children_list.push_back(&svc->brother_entry);
-	} }
-
-	if (service->require_child && service->children_list.empty()) {
-		TRACE("service(%s) require children list.\n", service->_module->module_name);
-		return -EINVAL;
-	}
-
-	int result = 0;
-	if (service->start != NULL)
-		result = service->start(service, option);
-
-	TRACE("service(%s) start() = %d.\n", service->_module->module_name, result);
-	if (result < 0)
-		AServiceStop(service, create_chains);
-	return result;
-}
-
-AMODULE_API void
-AServiceStop(AService *service, BOOL clean_chains)
-{
-	if (service->stop != NULL)
-		service->stop(service);
-	if (clean_chains)
-		while (!service->children_list.empty())
-		{
-			AService *svc = list_first_entry(&service->children_list, AService, brother_entry);
-			AServiceStop(svc, clean_chains);
-			svc->brother_entry.leave();
-			release_s(svc);
-		}
-	else list_for_each2(svc, &service->children_list, AService, brother_entry)
-		{
-			AServiceStop(svc, clean_chains);
-		}
-}

@@ -39,7 +39,7 @@ ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown)
 	return io->request(Aio_Output, msg);
 }
 */
-#define ioMsgType_Block           (AMsgType_Class|0)
+enum { ioMsgType_Block = (AMsgType_Class|0) };
 #define ioMsgType_isBlock(type)   ((type) & (AMsgType_Class|AMsgType_Private))
 
 //<<<<<<<<<< C style <<<<<<<<<
@@ -84,40 +84,6 @@ struct IOObject : public AObject {
 		return output(msg);
 	}
 };
-
-struct AService : public AObject {
-	static const char* class_name() { return "AService"; }
-
-	struct ASystemManager *sysmng; // set by user
-	struct AService *parent;
-	struct list_head children_list;
-	struct list_head brother_entry;
-
-	unsigned int save_option : 1;
-	unsigned int require_child : 1;
-
-	AOption *svc_option;
-	AModule *peer_module;
-	int    (*start)(AService *service, AOption *option);
-	void   (*stop)(AService *service);
-	int    (*run)(AService *service, AObject *peer, AOption *option);
-	int    (*abort)(AService *service, AObject *peer);
-
-	void init() {
-		sysmng = NULL; parent = NULL;
-		children_list.init(); brother_entry.init();
-		save_option = FALSE; require_child = FALSE;
-		svc_option = NULL; peer_module = NULL;
-		start = NULL; stop = NULL; run = NULL; abort = NULL;
-	}
-};
-
-AMODULE_API int
-AServiceStart(AService *service, AOption *option, BOOL create_chains);
-
-AMODULE_API void
-AServiceStop(AService *service, BOOL clean_chains);
-
 //>>>>>>>>>> C Style >>>>>>>>>>
 
 //<<<<<<<<<< C++ Style <<<<<<<<<<
@@ -130,5 +96,43 @@ struct IOObject2 : public AObject {
 	virtual int close(AMessage *msg) = NULL;
 };
 //>>>>>>>>>> C++ Style >>>>>>>>>>
+
+//////////////////////////////////////////////////////////////////////////
+struct AService : public AObject {
+	static const char* class_name() { return "AService"; }
+
+	struct ASystemManager *sysmng; // set by user
+	struct AService *parent;
+	struct list_head children_list;
+	struct list_head brother_entry;
+
+	unsigned int save_option : 1;
+	unsigned int require_child : 1;
+	unsigned int post_start : 1;
+
+	AOption *svc_option;
+	AModule *peer_module;
+	int    (*start)(AService *service, AOption *option);
+	void   (*stop)(AService *service);
+	int    (*run)(AService *service, AObject *peer, AOption *option);
+	int    (*abort)(AService *service, AObject *peer);
+
+	void init() {
+		sysmng = NULL; parent = NULL;
+		children_list.init(); brother_entry.init();
+		save_option = require_child = post_start = 0;
+		svc_option = NULL; peer_module = NULL;
+		start = NULL; stop = NULL; run = NULL; abort = NULL;
+	}
+};
+
+AMODULE_API int
+AServiceStart(AService *service, AOption *option, BOOL create_chains);
+
+AMODULE_API void
+AServiceStop(AService *service, BOOL clean_chains);
+
+AMODULE_API AService*
+AServiceProbe(AService *server, AObject *object, AMessage *msg);
 
 #endif

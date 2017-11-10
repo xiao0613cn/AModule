@@ -22,10 +22,13 @@ const struct http_parser_settings HttpCompenont::cb_sets = {
 
 static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
 {
-	do {
+	while (result > 0) {
 		if (msg->data == NULL) { // do input header
 			assert(msg->done != &AInOutComponent::_inmsg_done
 			    && msg->done != &AInOutComponent::_outmsg_done);
+			result = HttpCompenont::encode(p->_inbuf, hm);
+			if (result < 0)
+				break;
 
 			msg->init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
 			result = p->_iocom._io->input(msg);
@@ -36,19 +39,16 @@ static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int re
 
 			p->_inbuf->reset();
 			msg->init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
-			msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 
-			if ((result >= 0) && (msg->size > 0)) {
+			if (msg->size > 0) {
 				result = p->_iocom._io->input(msg);
+				continue;
 			}
-			continue;
 		}
 		assert(msg->data == hm->body_ptr());
 		assert(msg->size == hm->body_len());
-		assert(msg->done == ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done));
-		return result; // input done
-
-	} while (result > 0);
+		break; // input done
+	}
 	if (result != 0)
 		msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 	return result;
@@ -69,34 +69,24 @@ static int HttpInputDone(AMessage *msg, int result)
 
 static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 {
+	HttpConnection *p = container_of(c, HttpConnection, _iocom);
 	assert(c->_inmsg.done == &AInOutComponent::_inmsg_done);
 	switch (msg->type)
 	{
-	case httpMsgType_RawData:
-		c->_inmsg.init(0, msg->data, msg->size);
-		return c->_io->input(&c->_inmsg);
-
+	case AMsgType_Unknown:
 	case ioMsgType_Block:
-	case httpMsgType_RawBlock:
 		c->_inmsg.init(msg);
 		return c->_io->input(&c->_inmsg);
-	}
-	if (msg->type != httpMsgType_HttpMsg)
+
+	case httpMsgType_HttpMsg:
+		p->raw_inmsg_done = c->_inmsg.done;
+		c->_inmsg.init();
+		c->_inmsg.done = &HttpInputDone;
+		return HttpInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
+
+	default: assert(0);
 		return -EINVAL;
-
-	HttpConnection *p = container_of(c, HttpConnection, _iocom);
-	HttpMsg *hm = (HttpMsg*)msg->data;
-
-	int result = HttpCompenont::encode(p->_inbuf, hm);
-	if (result < 0)
-		return result;
-
-	p->raw_inmsg_done = c->_inmsg.done;
-	c->_inmsg.init();
-	c->_inmsg.done = &HttpInputDone;
-
-	result = HttpInputStatus(p, &c->_inmsg, hm, 1);
-	return result;
+	}
 }
 
 static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *option)
@@ -172,37 +162,35 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	if (p->_resp == NULL) {
 		p->_resp = new HttpMsgImpl();
 	} else {
-		p->_resp->reset();
+		p->_resp->reset_head();
 	}
 	p->_resp->_parser = p->_http._parser;
 	p->_resp->_parser.type = HTTP_RESPONSE;
-	p->_resp->_parser.content_length = 0;
+	p->_resp->reset_body();
 
 	FILE *fp = fopen(p->_req->get_url().str+1, "rb");
 	if (fp != NULL) {
 		fseek(fp, 0, SEEK_END);
-		p->_resp->_parser.content_length = ftell(fp);
+		p->_resp->body_len() = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
 	}
 
-	if (p->_resp->_parser.content_length <= 0) {
+	if (p->_resp->body_len() <= 0) {
 		p->_resp->_parser.status_code = 404;
 		p->_resp->set_sz("", "File Invalid");
-	} else if (ARefsBuf::reserve(p->_resp->_body_buf, p->_resp->_parser.content_length, recv_bufsiz) < 0) {
+	} else if (ARefsBuf::reserve(p->_resp->_body_buf, p->_resp->body_len(), recv_bufsiz) < 0) {
 		p->_resp->_parser.status_code = 501;
 		p->_resp->set_sz("", "Out Of Memory");
-	} else if (fread(p->_resp->_body_buf->next(), p->_resp->_parser.content_length, 1, fp) != 1) {
+	} else if (fread(p->_resp->_body_buf->next(), p->_resp->body_len(), 1, fp) != 1) {
 		p->_resp->_parser.status_code = 502;
 		p->_resp->set_sz("", "Read File Error");
 	} else {
-		p->_resp->_body_buf->push(p->_resp->_parser.content_length);
+		p->_resp->_body_buf->push(p->_resp->body_len());
 		p->_resp->_parser.status_code = 200;
 		p->_resp->set_sz("", "OK");
 	}
+	if_not2(fp, NULL, fclose(fp));
 	p->_resp->set_sz("Content-Type", "text/html");
-	result = HttpCompenont::encode(p->_inbuf, p->_resp);
-	if (result < 0)
-		return result;
 
 	p->raw_outmsg_done = p->_iocom._outmsg.done;
 	p->_iocom._outmsg.init();

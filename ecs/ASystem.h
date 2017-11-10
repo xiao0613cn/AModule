@@ -8,6 +8,7 @@ struct ASystemManager;
 struct AEntity;
 struct AEntityManager;
 struct AEventManager;
+struct AService;
 
 struct ASystem {
 	AModule module;
@@ -52,6 +53,7 @@ struct ASystem {
 struct ASystemManager {
 	ASystem  *_systems;
 	AThread  *_exec_thread;
+	AService *_services;
 	pthread_mutex_t  *_mutex;
 	void   lock()   { _mutex ? pthread_mutex_lock(_mutex) : 0; }
 	void   unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
