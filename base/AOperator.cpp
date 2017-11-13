@@ -33,6 +33,8 @@ struct AThread {
 	long volatile    bind_count;
 	struct list_head public_list;
 	struct list_head private_list;
+	int&             public_signal() { return signal[1]; }
+	int&             private_signal() { return signal[0]; }
 #endif
 	pthread_mutex_t  mutex;
 	struct rb_root   waiting_tree;
@@ -142,7 +144,7 @@ static void* AThreadRun(void *p)
 		for (int ix = 0; ix < count; ++ix)
 		{
 			if ((events[ix].data.u64 == 0) || (events[ix].data.u64 == 1)) {
-				int fd = (events[ix].data.u64 ? pool->signal[1] : at->signal[0]);
+				int fd = at->signal[ events[ix].data.u64 ];
 				int result = read(fd, &sigbuf, sizeof(sigbuf));
 
 				TRACE2("%d: wakeup for %s event, signal = %lld, result = %d\n", (int)gettid(),
@@ -159,15 +161,15 @@ static void* AThreadRun(void *p)
 }
 
 static inline void
-AThreadWakeup(AThread *at, BOOL is_pool)
+AThreadWakeup(AThread *at, BOOL is_public)
 {
 #ifdef _WIN32
 	PostQueuedCompletionStatus(at->iocp, 0, iocp_key_signal, NULL);
 #elif defined _NO_EVENTFD_H_
-	send(at->signal[!is_pool], "a", 1, MSG_NOSIGNAL);
+	send(at->signal[!is_public], "a", 1, MSG_NOSIGNAL);
 #else
 	uint64_t us = 1;
-	write(at->signal[is_pool], &us, sizeof(us));
+	write(at->signal[is_public], &us, sizeof(us));
 #endif
 }
 
@@ -236,17 +238,17 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 		return -EFAULT;
 	}
 #ifndef _NO_EVENTFD_H_
-	at->signal[0] = eventfd(0, EFD_NONBLOCK);
+	at->private_signal() = eventfd(0, EFD_NONBLOCK);
 	if (pool == NULL)
-		at->signal[1] = eventfd(0, EFD_NONBLOCK|EFD_SEMAPHORE);
+		at->public_signal() = eventfd(0, EFD_NONBLOCK|EFD_SEMAPHORE);
 	else
-		at->signal[1] = pool->signal[1];
+		at->public_signal() = pool->public_signal();
 
-	if ((at->signal[0] == -1) || (at->signal[1] == -1)) {
+	if ((at->private_signal() == -1) || (at->public_signal() == -1)) {
 		close(at->epoll);
-		if_not(at->signal[0], -1, close);
+		if_not(at->private_signal(), -1, close);
 		if (pool == NULL)
-			if_not(at->signal[1], -1, close);
+			if_not(at->public_signal(), -1, close);
 		free(at);
 		return -EFAULT;
 	}
@@ -257,23 +259,23 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 		return -EFAULT;
 	}
 
-	tcp_nonblock(at->signal[0], 1);
-	tcp_nonblock(at->signal[1], 1);
+	tcp_nonblock(at->private_signal(), 1);
+	tcp_nonblock(at->public_signal(), 1);
 #endif
 	//private_list signal
 	struct epoll_event epev;
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
 	epev.data.u64 = 0;
-	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[0], &epev);
+	epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->private_signal(), &epev);
 
 	//public_list signal
 	epev.events = EPOLLIN|EPOLLET|EPOLLHUP|EPOLLERR;
 	epev.data.u64 = 1;
 	if (pool == NULL) {
-		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->signal[1], &epev);
+		epoll_ctl(at->epoll, EPOLL_CTL_ADD, at->public_signal(), &epev);
 		INIT_LIST_HEAD(&at->public_list);
 	} else {
-		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->signal[1], &epev);
+		epoll_ctl(at->epoll, EPOLL_CTL_ADD, pool->public_signal(), &epev);
 	}
 
 	at->bind_count = 0;
@@ -318,11 +320,11 @@ AThreadEnd(AThread *at)
 	}
 	CloseHandle(at->iocp);
 #else
-	close(at->signal[0]);
+	close(at->private_signal());
 #ifndef _NO_EVENTFD_H_
 	if (at->pool == NULL)
 #endif
-		close(at->signal[1]);
+		close(at->public_signal());
 	close(at->epoll);
 
 	while (!list_empty(&at->private_list)) {

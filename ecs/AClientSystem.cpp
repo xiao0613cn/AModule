@@ -89,8 +89,7 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		return &c->_abort_result;
 	}
 
-	if (c->_status != AClientComponent::Closed)
-		c->_object->addref();
+	c->_object->addref();
 	c->use(1);
 	c->_run_result.status= ASystem::Runnable;
 	return &c->_run_result;
@@ -148,6 +147,7 @@ static int client_run(ASystem::Result *r, int result)
 			assert(c->_check_heart == AClientComponent::HeartCheckDone);
 			c->_check_heart = AClientComponent::HeartNone;
 		} else {
+			c->_main_abort = true;
 			if (c->abort) c->abort(c);
 			c->_status = AClientComponent::Closing;
 		}

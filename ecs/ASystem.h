@@ -51,9 +51,9 @@ struct ASystem {
 };
 
 struct ASystemManager {
-	ASystem  *_systems;
+	ASystem  *_all_systems;
 	AThread  *_exec_thread;
-	AService *_services;
+	AService *_all_services;
 	pthread_mutex_t  *_mutex;
 	void   lock()   { _mutex ? pthread_mutex_lock(_mutex) : 0; }
 	void   unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
@@ -69,13 +69,13 @@ struct ASystemManager {
 	void init();
 
 	void _regist(AEntity *e) {
-		_systems->regist ? _systems->regist(e) : 0;
-		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
+		_all_systems->regist ? _all_systems->regist(e) : 0;
+		list_for_each2(s, &_all_systems->module.class_entry, ASystem, module.class_entry)
 			s->regist ? s->regist(e) : 0;
 	}
 	void _unregist(AEntity *e) {
-		_systems->unregist ? _systems->unregist(e) : 0;
-		list_for_each2(s, &_systems->module.class_entry, ASystem, module.class_entry)
+		_all_systems->unregist ? _all_systems->unregist(e) : 0;
+		list_for_each2(s, &_all_systems->module.class_entry, ASystem, module.class_entry)
 			s->unregist ? s->unregist(e) : 0;
 	}
 	void _exec_results(list_head &results) {

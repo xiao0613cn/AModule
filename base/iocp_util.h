@@ -10,10 +10,10 @@
 #endif
 
 AMODULE_API struct addrinfo*
-tcp_getaddrinfo(const char *netaddr, const char *port);
+net_getaddrinfo(const char *netaddr, const char *port);
 
 AMODULE_API SOCKET
-tcp_bind(int family, int protocol, unsigned short port);
+socket_bind(int family, int protocol, unsigned short port);
 
 AMODULE_API int
 tcp_connect(SOCKET sock, const struct sockaddr *name, int namelen, int seconds);

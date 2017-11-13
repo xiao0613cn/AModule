@@ -129,5 +129,8 @@ AOptionLoad(AOption **option, const char *path);
 AMODULE_API int
 AOptionSave(AOption *option, const char *path);
 
+#define list_for_AOption(child, parent) \
+	list_for_each2(child, &(parent)->children_list, AOption, brother_entry)
+
 
 #endif

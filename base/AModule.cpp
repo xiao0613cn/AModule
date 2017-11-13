@@ -7,10 +7,10 @@ static BOOL g_inited = FALSE;
 static long g_index = 0;
 
 AMODULE_API struct list_head*
-AModuleList()
-{
+AModuleList() {
 	return &g_module;
 }
+#define list_for_all_AModule(pos)  list_for_each2(pos, &g_module, AModule, global_entry)
 
 
 static int  AModuleInitNull(AOption *global_option, AOption *module_option, int first) { return 0; }
@@ -28,17 +28,16 @@ AModuleRegister(AModule *module)
 	if (module->release == NULL) module->release = &AModuleReleaseNull;
 	if (module->probe == NULL) module->probe = &AObjectProbeNull;
 
-	module->global_index = InterlockedAdd(&g_index, 1);
-	g_module.push_back(&module->global_entry);
 	module->class_entry.init();
-
-	list_for_each2(pos, &g_module, AModule, global_entry)
+	list_for_all_AModule(pos)
 	{
 		if (strcasecmp(pos->class_name, module->class_name) == 0) {
 			list_add_tail(&module->class_entry, &pos->class_entry);
 			break;
 		}
 	}
+	module->global_index = InterlockedAdd(&g_index, 1);
+	g_module.push_back(&module->global_entry);
 	TRACE("%2d: %s(%s): object size = %d.\n", module->global_index,
 		module->module_name, module->class_name, module->object_size);
 
@@ -68,7 +67,7 @@ AModuleInit(AOption *option)
 	if_not(g_option, option, release_s);
 	BOOL first = !g_inited; g_inited = TRUE;
 
-	list_for_each2(module, &g_module, AModule, global_entry)
+	list_for_all_AModule(module)
 	{
 		option = g_option->find(module->module_name);
 		if ((option == NULL) && (g_option != NULL))
@@ -100,7 +99,7 @@ AModuleFind(const char *class_name, const char *module_name)
 	if ((class_name == NULL) && (module_name == NULL))
 		return NULL;
 
-	list_for_each2(pos, &g_module, AModule, global_entry)
+	list_for_all_AModule(pos)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
@@ -121,7 +120,7 @@ AModuleFind(const char *class_name, const char *module_name)
 AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 {
-	list_for_each2(pos, &g_module, AModule, global_entry)
+	list_for_all_AModule(pos)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
@@ -154,7 +153,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 	int score = 0;
 	int ret;
 
-	list_for_each2(pos, &g_module, AModule, global_entry)
+	list_for_all_AModule(pos)
 	{
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;

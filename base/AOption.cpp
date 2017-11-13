@@ -454,7 +454,7 @@ AOptionClone(AOption *option, AOption *parent)
 	current->type = option->type;
 	current->value_i64 = option->value_i64;
 
-	list_for_each2(pos, &option->children_list, AOption, brother_entry)
+	list_for_AOption(pos, option)
 	{
 		AOption *child = AOptionClone(pos, current);
 		if (child == NULL) {
@@ -470,7 +470,7 @@ AOptionFind(AOption *parent, const char *name)
 {
 	if (parent == NULL)
 		return NULL;
-	list_for_each2(child, &parent->children_list, AOption, brother_entry)
+	list_for_AOption(child, parent)
 	{
 		if (strcasecmp(child->name, name) == 0)
 			return child;
@@ -483,7 +483,7 @@ AOptionFind3(AOption *parent, const char *name, const char *value)
 {
 	if (parent == NULL)
 		return NULL;
-	list_for_each2(child, &parent->children_list, AOption, brother_entry)
+	list_for_AOption(child, parent)
 	{
 		if ((strcasecmp(child->name, name) == 0)
 		 && (strcasecmp(child->value, value) == 0))

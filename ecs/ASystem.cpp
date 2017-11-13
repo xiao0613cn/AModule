@@ -14,15 +14,16 @@ static int _do_check_one(ASystemManager *sm, list_head &results, AEntity *e, DWO
 {
 	int count = 0;
 
-	ASystem::Result *r = sm->_systems->check_one ? sm->_systems->check_one(e, cur_tick) : 0;
+	ASystem::Result *r = sm->_all_systems->check_one ? sm->_all_systems->check_one(e, cur_tick) : NULL;
 	if (r != NULL) {
-		r->system = sm->_systems;
+		r->system = sm->_all_systems;
 		results.push_back(&r->node);
 		count ++;
 	}
 
-	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry) {
-		r = s->check_one ? s->check_one(e, cur_tick) : 0;
+	list_for_each2(s, &sm->_all_systems->module.class_entry, ASystem, module.class_entry)
+	{
+		r = s->check_one ? s->check_one(e, cur_tick) : NULL;
 		if (r != NULL) {
 			r->system = s;
 			results.push_back(&r->node);
@@ -60,10 +61,12 @@ static int _do_check_allsys(ASystemManager *sm, DWORD cur_tick)
 	list_head results; results.init();
 
 	sm->lock();
-	int count = sm->_systems->check_all ? sm->_systems->check_all(&results, cur_tick) : 0;
+	int count = sm->_all_systems->check_all ? sm->_all_systems->check_all(&results, cur_tick) : 0;
 
-	list_for_each2(s, &sm->_systems->module.class_entry, ASystem, module.class_entry)
+	list_for_each2(s, &sm->_all_systems->module.class_entry, ASystem, module.class_entry)
+	{
 		count += s->check_all ? s->check_all(&results, cur_tick) : 0;
+	}
 	sm->unlock();
 
 	sm->_exec_results(results);
@@ -77,9 +80,9 @@ static int _do_emit(ASystemManager *sm, const char *name, void *p)
 
 void ASystemManager::init()
 {
-	_systems = ASystem::find(NULL);
+	_all_systems = ASystem::find(NULL);
 	_exec_thread = NULL;
-	_services = NULL;
+	_all_services = NULL;
 	_mutex = NULL;
 	check_allsys = &_do_check_allsys;
 

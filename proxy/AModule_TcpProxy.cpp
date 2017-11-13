@@ -296,9 +296,9 @@ static int TCPServerStart(AService *service, AOption *option)
 	else
 		server->family = AF_INET;
 
-	server->sock = tcp_bind(server->family, IPPROTO_TCP, server->port);
+	server->sock = socket_bind(server->family, IPPROTO_TCP, server->port);
 	if (server->sock == INVALID_SOCKET) {
-		TRACE("tcp_bind(%d, %d) failed, error = %d.\n", server->family, server->port, errno);
+		TRACE("socket_bind(%d, %d) failed, error = %d.\n", server->family, server->port, errno);
 		return -EINVAL;
 	}
 

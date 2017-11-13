@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "AModule_API.h"
+#include "iocp_util.h"
 
 #ifdef _WIN32
 #ifndef _MSWSOCK_
@@ -9,7 +10,7 @@
 #endif
 
 AMODULE_API struct addrinfo*
-tcp_getaddrinfo(const char *netaddr, const char *port)
+net_getaddrinfo(const char *netaddr, const char *port)
 {
 	char ipaddr[BUFSIZ];
 	if (port != NULL) {
@@ -36,7 +37,7 @@ tcp_getaddrinfo(const char *netaddr, const char *port)
 }
 
 AMODULE_API SOCKET
-tcp_bind(int family, int protocol, unsigned short port)
+socket_bind(int family, int protocol, unsigned short port)
 {
 	int type;
 	if (protocol == IPPROTO_TCP)

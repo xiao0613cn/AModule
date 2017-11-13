@@ -334,7 +334,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 	//if (port == NULL)
 	//	return -EINVAL;
 
-	struct addrinfo *ai = tcp_getaddrinfo(addr, port);
+	struct addrinfo *ai = net_getaddrinfo(addr, port);
 	if (ai == NULL) {
 		TRACE("path(%s:%s) error = %d.\n", addr, port, errno);
 		return -EFAULT;
