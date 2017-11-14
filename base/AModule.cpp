@@ -10,8 +10,11 @@ AMODULE_API struct list_head*
 AModuleList() {
 	return &g_module;
 }
-#define list_for_all_AModule(pos)  list_for_each2(pos, &g_module, AModule, global_entry)
+#define list_for_all_AModule(pos) \
+	list_for_each2(pos, &g_module, AModule, global_entry)
 
+#define list_for_class_module(pos, class_module) \
+	list_for_each2(pos, &(class_module)->class_entry, AModule, class_entry)
 
 static int  AModuleInitNull(AOption *global_option, AOption *module_option, int first) { return 0; }
 static void AModuleExitNull(int inited) { }
@@ -105,10 +108,11 @@ AModuleFind(const char *class_name, const char *module_name)
 			continue;
 		if ((module_name == NULL) || (strcasecmp(module_name, pos->module_name) == 0))
 			return pos;
+
 		if (class_name == NULL)
 			continue;
-
-		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry) {
+		list_for_class_module(class_pos, pos)
+		{
 			if (strcasecmp(module_name, class_pos->module_name) == 0)
 				return class_pos;
 		}
@@ -133,8 +137,8 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 
 		if (class_name == NULL)
 			continue;
-
-		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry) {
+		list_for_class_module(class_pos, pos)
+		{
 			result = comp(param, class_pos);
 			if (result > 0)
 				return class_pos;
@@ -166,8 +170,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 
 		if (class_name == NULL)
 			continue;
-
-		list_for_each2(class_pos, &pos->class_entry, AModule, class_entry)
+		list_for_class_module(class_pos, pos)
 		{
 			ret = class_pos->probe(other, msg, option);
 			if (ret > score) {

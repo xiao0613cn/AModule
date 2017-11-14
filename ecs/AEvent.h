@@ -32,48 +32,27 @@ struct AEventManager {
 	struct rb_root   _receiver_map2;
 	long             _receiver_count2;
 	pthread_mutex_t *_mutex;
-	bool (*_subscribe)(AEventManager *em, AReceiver *r);
-	bool (*_unsubscribe)(AEventManager *em, AReceiver *r);
-
-	struct list_head _free_recvers;
-	bool             _recycle_recvers;
-	int  (*emit)(AEventManager *em, const char *name, void *p);
-
-	void init();
 	void lock() { _mutex ? pthread_mutex_lock(_mutex) : 0; }
 	void unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
 
-	struct AReceiver2* _sub_const(const char *name, bool preproc, void *user,
-		int (*f)(void *user, const char *name, void *p, bool preproc));
-};
+	struct list_head _free_recvers;
+	bool             _recycle_recvers;
 
-struct AReceiver2 : public AReceiver {
-	void  *_user;
-	int  (*_func)(void *user, const char *name, void *p, bool preproc);
-
-	static AReceiver2* create() {
-		AReceiver2 *r2 = gomake(AReceiver2);
-		r2->AObject::init(NULL, &free);
-
-		r2->AReceiver::init();
-		r2->on_event = &AReceiver2::on_user_event;
-		return r2;
+	void init() {
+		INIT_RB_ROOT(&_receiver_map);
+		_receiver_count = 0;
+		INIT_RB_ROOT(&_receiver_map2);
+		_receiver_count2 = 0;
+		_mutex = NULL;
+		_free_recvers.init();
+		_recycle_recvers = true;
 	}
-	static int on_user_event(AReceiver *r, void *p, bool preproc) {
-		AReceiver2 *r2 = (AReceiver2*)r;
-		return r2->_func(r2->_user, r2->_name, p, preproc);
-	}
+	bool _subscribe(AReceiver *r);
+	void _erase(AReceiver *first, AReceiver *r);
+	bool _unsubscribe(AReceiver *r);
+	int  emit(const char *name, void *p);
+	int  emit2(int index, void *p);
 };
-
-inline struct AReceiver2*
-AEventManager::_sub_const(const char *name, bool preproc, void *user,
-                          int (*f)(void *user, const char *name, void *p, bool preproc)) {
-	AReceiver2 *r2 = AReceiver2::create();
-	r2->_name = name; r2->_oneshot = false; r2->_preproc = preproc;
-	r2->_user = user; r2->_func = f;
-	_subscribe(this, r2);
-	return r2;
-}
 
 
 #endif

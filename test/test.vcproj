@@ -319,14 +319,6 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\ecs\AEvent.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\ecs\ASystem.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\cutest-1.5\CuTest.c"
 				>
 				<FileConfiguration

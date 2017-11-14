@@ -125,6 +125,8 @@ struct AService : public AObject {
 		start = NULL; stop = NULL; run = NULL; abort = NULL;
 	}
 };
+#define list_for_AService(pos, service) \
+	list_for_each2(pos, &(service)->children_list, AService, brother_entry)
 
 AMODULE_API int
 AServiceStart(AService *service, AOption *option, BOOL create_chains);

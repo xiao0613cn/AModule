@@ -329,6 +329,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ecs\AEvent.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\ecs\AInOutComponent.cpp"
 				>
 			</File>
@@ -370,6 +374,10 @@
 			</File>
 			<File
 				RelativePath=".\io\AService.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ecs\ASystem.cpp"
 				>
 			</File>
 			<File

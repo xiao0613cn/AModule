@@ -112,15 +112,17 @@ CU_TEST(test_echo_client)
 #else
 void* test_entity_run(void*)
 {
+	list_head results; results.init();
 	for (;;) {
-		sm.check_allsys(&sm, GetTickCount());
+		sm._check_by_allsys(&sm, &results, GetTickCount());
+		sm._exec_results(results);
 		::Sleep(10);
 	}
 	return NULL;
 }
 CU_TEST(test_entity)
 {
-	return;
+	//return;
 	const char *opt_str =
 	"PVDClient: {"
 		"io: async_tcp {"
@@ -145,12 +147,12 @@ CU_TEST(test_entity)
 	result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
 
-	sm._event_manager->_sub_const("on_client_opened", false, e, &on_event);
-	sm._event_manager->_sub_const("on_client_opened", true, e, &on_event);
-	sm._event_manager->_sub_const("on_client_opened", true, mqtt, &on_event);
-	sm._event_manager->_sub_const("on_client_closed", true, e, &on_event);
-	sm._event_manager->_sub_const("on_client_closed", true, mqtt, &on_event);
-	sm._event_manager->_sub_const("on_client_closed", false, e, &on_event);
+	sm._sub_const(&sm, "on_client_opened", false, e, &on_event);
+	sm._sub_const(&sm, "on_client_opened", true, e, &on_event);
+	sm._sub_const(&sm, "on_client_opened", true, mqtt, &on_event);
+	sm._sub_const(&sm, "on_client_closed", true, e, &on_event);
+	sm._sub_const(&sm, "on_client_closed", true, mqtt, &on_event);
+	sm._sub_const(&sm, "on_client_closed", false, e, &on_event);
 
 	sm._regist(e);
 	sm._regist(mqtt);
@@ -195,6 +197,7 @@ int c_asop_done(AOperator *asop, int result)
 }
 CU_TEST(test_client)
 {
+	return;
 	AOption *opt = NULL;
 	AOptionDecode(&opt, "async_tcp:{address:192.168.40.17,port:4444}", -1);
 
@@ -223,7 +226,7 @@ int main()
 	AThreadBegin(NULL, NULL, 1000);
 
 	AEventManager em; em.init();
-	sm.init();
+	sm.init(ASystemManagerDefaultModule::get());
 	sm._event_manager = &em;
 
 	CuString *output = CuStringNew();

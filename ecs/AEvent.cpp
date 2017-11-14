@@ -8,17 +8,17 @@ static inline int AReceiverCmp(const char *name, AReceiver *r) {
 }
 rb_tree_define(AReceiver, _manager_node, const char*, AReceiverCmp)
 
-static bool _do_subscribe(AEventManager *em, AReceiver *r)
+bool AEventManager::_subscribe(AReceiver *r)
 {
 	bool valid = ((r->_manager == NULL)
 	           && RB_EMPTY_NODE(&r->_manager_node)
 	           && r->_receiver_list.empty());
 	if (valid) {
-		AReceiver *first = rb_insert_AReceiver(&em->_receiver_map, r, r->_name);
+		AReceiver *first = rb_insert_AReceiver(&_receiver_map, r, r->_name);
 		if (first != NULL)
 			first->_receiver_list.push_back(&r->_receiver_list);
-		r->_manager = em;
-		em->_receiver_count ++;
+		r->_manager = this;
+		_receiver_count ++;
 		//r->_self->addref();
 	} else {
 		assert(0);
@@ -26,7 +26,7 @@ static bool _do_subscribe(AEventManager *em, AReceiver *r)
 	return valid;
 }
 
-static void _do_erase(AEventManager *em, AReceiver *first, AReceiver *r)
+void AEventManager::_erase(AReceiver *first, AReceiver *r)
 {
 	if (first != r) {
 		assert(!first->_receiver_list.empty());
@@ -36,48 +36,48 @@ static void _do_erase(AEventManager *em, AReceiver *first, AReceiver *r)
 		r->_receiver_list.leave();
 	}
 	else if (first->_receiver_list.empty()) {
-		rb_erase(&first->_manager_node, &em->_receiver_map);
+		rb_erase(&first->_manager_node, &_receiver_map);
 		RB_CLEAR_NODE(&first->_manager_node);
 	}
 	else {
 		r = list_first_entry(&first->_receiver_list, AReceiver, _receiver_list);
-		rb_replace_node(&first->_manager_node, &r->_manager_node, &em->_receiver_map);
+		rb_replace_node(&first->_manager_node, &r->_manager_node, &_receiver_map);
 		first->_receiver_list.leave();
 	}
-	em->_receiver_count --;
+	_receiver_count --;
 }
 
-static bool _do_unsubscribe(AEventManager *em, AReceiver *r)
+bool AEventManager::_unsubscribe(AReceiver *r)
 {
-	bool valid = ((r->_manager == em) && (!RB_EMPTY_NODE(&r->_manager_node) || !r->_receiver_list.empty()));
+	bool valid = ((r->_manager == this) && (!RB_EMPTY_NODE(&r->_manager_node) || !r->_receiver_list.empty()));
 	if (!valid) {
 		assert(0);
 		return false;
 	}
 
-	AReceiver *first = rb_find_AReceiver(&em->_receiver_map, r->_name);
+	AReceiver *first = rb_find_AReceiver(&_receiver_map, r->_name);
 	if (first == NULL) {
 		assert(0);
 		return false;
 	}
-	_do_erase(em, first, r);
+	_erase(first, r);
 	//r->_self->release();
 	return valid;
 }
 
-static int _do_emit(AEventManager *em, const char *name, void *p)
+int AEventManager::emit(const char *name, void *p)
 {
 	APool<AReceiver*> recvers; recvers.init(128);
 
-	em->lock();
-	AReceiver *first = rb_find_AReceiver(&em->_receiver_map, name);
+	lock();
+	AReceiver *first = rb_find_AReceiver(&_receiver_map, name);
 	if (first == NULL) {
-		em->unlock();
+		unlock();
 		return 0;
 	}
 
-	if (!em->_free_recvers.empty()) {
-		ASlice<AReceiver*> *slice = list_first_entry(&em->_free_recvers, ASlice<AReceiver*>, _node);
+	if (!_free_recvers.empty()) {
+		ASlice<AReceiver*> *slice = list_first_entry(&_free_recvers, ASlice<AReceiver*>, _node);
 		recvers._join(slice);
 	}
 
@@ -92,7 +92,7 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 
 		if (!r->_preproc || (r->on_event(r, p, true) >= 0)) {
 			if (r->_oneshot)
-				_do_erase(em, first, r);
+				_erase(first, r);
 			else
 				r->addref();
 			recvers.push_back(r);
@@ -102,12 +102,12 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 
 	if (!first->_preproc || (first->on_event(first, p, true) >= 0)) {
 		if (first->_oneshot)
-			_do_erase(em, first, first);
+			_erase(first, first);
 		else
 			first->addref();
 		recvers.push_back(first);
 	}
-	em->unlock();
+	unlock();
 
 	list_head free_list; free_list.init();
 	int count = recvers.total_count();
@@ -117,35 +117,20 @@ static int _do_emit(AEventManager *em, const char *name, void *p)
 		r->on_event(r, p, false);
 		r->release();
 
-		recvers.pop_front(1, em->_recycle_recvers ? &free_list : NULL);
+		recvers.pop_front(1, _recycle_recvers ? &free_list : NULL);
 	}
 
-	if (em->_recycle_recvers && (!free_list.empty() || !recvers._slice_list.empty())) {
+	if (_recycle_recvers && (!free_list.empty() || !recvers._slice_list.empty())) {
 		recvers.reset();
 
-		em->lock();
-		list_splice_init(&recvers._slice_list, &em->_free_recvers);
-		list_splice_init(&free_list, &em->_free_recvers);
-		em->unlock();
+		lock();
+		list_splice_init(&recvers._slice_list, &_free_recvers);
+		list_splice_init(&free_list, &_free_recvers);
+		unlock();
 	} else {
 		recvers.exit();
 	}
 	return count;
-}
-
-void AEventManager::init()
-{
-	INIT_RB_ROOT(&_receiver_map);
-	_receiver_count = 0;
-	INIT_RB_ROOT(&_receiver_map2);
-	_receiver_count2 = 0;
-	_mutex = NULL;
-	_subscribe = &_do_subscribe;
-	_unsubscribe = &_do_unsubscribe;
-
-	_free_recvers.init();
-	_recycle_recvers = true;
-	emit = &_do_emit;
 }
 
 // event by index

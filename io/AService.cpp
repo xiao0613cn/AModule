@@ -19,7 +19,7 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 	if (create_chains) {
 		AOption *services_list = option->find("services");
 	if (services_list != NULL)
-		list_for_each2(svc_opt, &services_list->children_list, AOption, brother_entry)
+		list_for_AOption(svc_opt, services_list)
 	{
 		AService *svc = NULL;
 		int result = AObject::create(&svc, service, svc_opt, svc_opt->value);
@@ -66,7 +66,7 @@ AServicePostStartChains(AService *service)
 			return result;
 		}
 	}
-	list_for_each2(svc, &service->children_list, AService, brother_entry) {
+	list_for_AService(svc, service) {
 		AServicePostStartChains(svc);
 	}
 	return 0;
@@ -98,7 +98,7 @@ AServiceStop(AService *service, BOOL clean_chains)
 			svc->brother_entry.leave();
 			release_s(svc);
 		}
-	else list_for_each2(svc, &service->children_list, AService, brother_entry)
+	else list_for_AService(svc, service)
 		{
 			AServiceStop(svc, clean_chains);
 		}
@@ -109,7 +109,7 @@ AServiceProbe(AService *server, AObject *object, AMessage *msg)
 {
 	AService *service = NULL;
 	int score = -1;
-	list_for_each2(svc, &server->children_list, AService, brother_entry)
+	list_for_AService(svc, server)
 	{
 		int result = svc->_module->probe(object, msg, svc->svc_option);
 		if ((result < 0) && (svc->peer_module != NULL)) {

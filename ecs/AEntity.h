@@ -94,8 +94,8 @@ struct AEntity : public AObject {
 rb_tree_declare(AEntity, AEntity*)
 
 struct AEntityManager {
-	struct rb_root _entity_map;
-	int            _entity_count;
+	struct rb_root   _entity_map;
+	int              _entity_count;
 	pthread_mutex_t *_mutex;
 
 	void init() {
