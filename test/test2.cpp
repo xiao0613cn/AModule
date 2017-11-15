@@ -8,13 +8,9 @@
 #include "ecs/AEvent.h"
 #include "ecs/ASystem.h"
 #include "ecs/AInOutComponent.h"
+#include "ecs/AClientSystem.h"
 #include "test.h"
 
-
-static int on_event(void *user, const char *name, void *p, bool preproc) {
-	TRACE("user = %p, name = %s, p = %p, preproc = %d.\n", user, name, p, preproc);
-	return 1;
-}
 
 ASystemManager sm;
 
@@ -110,6 +106,16 @@ CU_TEST(test_echo_client)
 	TRACE("total_qps = %d, total_speed = %lld KBps.\n", total_qps, total_speed);
 }
 #else
+static int on_event(void *user, const char *name, void *p, bool preproc)
+{
+	AEntity *e = (AEntity*)user;
+	AClientComponent *c = (AClientComponent*)p;
+	TRACE("%s: user = %s(%p), p = %s(%p, %p), preproc = %d.\n",
+		name, e->_module->module_name, e,
+		c->_object->_module->module_name, c->_object, c, preproc);
+	return 1;
+}
+
 void* test_entity_run(void*)
 {
 	list_head results; results.init();

@@ -180,7 +180,7 @@ struct ASlice {
 typedef ASlice<char> ARefsBuf;
 
 template <typename Item = char>
-struct  ARefsBlock {
+struct ARefsBlock {
 	ASlice<Item> *_buf;
 	int    _pos;
 	int    _len;

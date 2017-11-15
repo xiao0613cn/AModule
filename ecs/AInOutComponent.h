@@ -10,7 +10,6 @@ struct AInOutComponent : public AComponent {
 
 	// used by outter
 	void    post(AMessage *msg) { do_post(this, msg); }
-	void  (*on_outmsg)(AInOutComponent *c, AMessage *msg, int result);
 
 	// implement by inner...
 	bool volatile    _abort;
@@ -28,6 +27,7 @@ struct AInOutComponent : public AComponent {
 	AMessage  _outmsg;
 	ARefsBuf *_outbuf;
 	int   (*on_output)(AInOutComponent *c, int result);
+	void     *_outuser;
 
 	struct com_module {
 		AModule module;
@@ -36,21 +36,18 @@ struct AInOutComponent : public AComponent {
 		int   (*outmsg_done)(AMessage *msg, int result);
 	};
 	void init2() {
+		// set by inner module
 		//static com_module *impl = (com_module*)AModuleFind(name(), name());
 		_abort = true; _queue.init(); _mutex = NULL;
-
 		_io          = NULL;
 		_inmsg.done  = &_inmsg_done;
 		do_post      = &_do_post;
+		do_input     = &_do_input;
+		on_post_end  = NULL;
 		_outbuf      = NULL;
 		_outmsg.done = &_outmsg_done;
-
-		// set by inner module
-		do_input = &_do_input;
-		on_post_end = NULL;
-		on_output = NULL;
-		// set by outter using
-		on_outmsg = NULL;
+		on_output = NULL; // set by decoder
+		_outuser = NULL; // set by decoder
 	}
 	void exit2() {
 		assert(_queue.empty());
@@ -141,7 +138,7 @@ struct AInOutComponent : public AComponent {
 		for (;;) {
 			if (result >= 0)
 				c->_outbuf->push(c->_outmsg.size);
-			if (c->_outbuf->len() != 0) {
+			if ((result < 0) || (c->_outbuf->len() != 0)) {
 				result = c->on_output(c, result);
 				if (result == 0)
 					return 0;

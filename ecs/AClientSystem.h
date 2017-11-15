@@ -58,7 +58,7 @@ struct AClientComponent : public AComponent {
 		_owner_thread = false;  _open_heart = true;    _auto_reopen = true;
 		_status = Invalid;      _main_tick = 0;        _main_abort = false;
 		_last_opened = false; _check_heart = HeartNone; _busy_count = 0;
-		_sys_node.init();
+		_sys_node.init(); _run_result.status = _abort_result.status = ASystem::NotNeed;
 
 		// set by implement module
 		open = NULL; heart = NULL; abort = NULL; close = NULL;

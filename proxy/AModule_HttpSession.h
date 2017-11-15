@@ -47,11 +47,7 @@ struct HttpCompenont : public AComponent {
 		_header_block.set(NULL, 0, 0);
 	}
 	int try_output(HttpMsg *hm, int (*on)(HttpCompenont*,int)) {
-		if (strcasecmp(_object->_module->class_name, "AEntity") != 0) {
-			assert(0);
-			return -EACCES;
-		}
-		AInOutComponent *c; ((AEntity*)_object)->_get(&c);
+		AInOutComponent *c; _other(&c);
 		if (c == NULL) {
 			assert(0);
 			return -EACCES;
@@ -61,70 +57,65 @@ struct HttpCompenont : public AComponent {
 
 		assert((c->on_output == NULL) || (c->on_output == &_try_output));
 		c->on_output = &_try_output;
+		c->_outuser = this;
 		return c->_output_cycle(512, send_bufsiz);
 	}
 	static int _try_output(AInOutComponent *c, int result) {
-		HttpCompenont *p; ((AEntity*)c->_object)->_get(&p);
-		if (p == NULL) {
-			assert(0);
-			return -EACCES;
-		}
-		return p->on_io_output(result, c->_outbuf);
-	}
-	int on_io_output(int result, ARefsBuf *&buf) {
-		_parser.data = buf;
+		HttpCompenont *p = (HttpCompenont*)c->_outuser;
 		if (result < 0)
-			return on_httpmsg(this, result);
-		if (p_left() == 0)
+			return p->on_httpmsg(p, result);
+
+		p->_parser.data = c->_outbuf;
+		if (p->p_left() == 0)
 			return 1; // need more data
 
-		result = http_parser_execute(&_parser, &cb_sets, p_next(), p_left());
-		if (_parser.http_errno == HPE_PAUSED)
-			http_parser_pause(&_parser, FALSE);
+		result = http_parser_execute(&p->_parser, &cb_sets, p->p_next(), p->p_left());
+		if (p->_parser.http_errno == HPE_PAUSED)
+			http_parser_pause(&p->_parser, FALSE);
 
-		if (_parser.http_errno != HPE_OK) {
+		if (p->_parser.http_errno != HPE_OK) {
 			TRACE("http_parser_error(%d) = %s.\n",
-				_parser.http_errno, http_parser_error(&_parser));
-			return on_httpmsg(this, -AMsgType_Private|_parser.http_errno);
+				p->_parser.http_errno, http_parser_error(&p->_parser));
+			return p->on_httpmsg(p, -AMsgType_Private|p->_parser.http_errno);
 		}
-		_parsed_len += result;
+		p->_parsed_len += result;
 
-		result = http_next_chunk_is_incoming(&_parser);
+		result = http_next_chunk_is_incoming(&p->_parser);
 		if (result == 0) {
 			// new buffer
-			assert(p_left() == 0);
+			assert(p->p_left() == 0);
 			int reserve = 0;
-			if (!http_header_is_complete(&_parser)) {
+			if (!http_header_is_complete(&p->_parser)) {
 				reserve = send_bufsiz;
 			}
-			else if (_body_len < max_body_size) {
-				if (_body_len == 0)
-					_body_pos = _parsed_len;
-				outbuf()->pop(_body_pos);
-				_parsed_len -= _body_pos;
-				_body_pos = 0;
-				reserve = min(_parser.content_length, max_body_size-_body_len);
+			else if (p->_body_len < max_body_size) {
+				if (p->_body_len == 0)
+					p->_body_pos = p->_parsed_len;
+				c->_outbuf->pop(p->_body_pos);
+				p->_parsed_len -= p->_body_pos;
+				p->_body_pos = 0;
+				reserve = min(p->_parser.content_length, max_body_size-p->_body_len);
 			}
 			if (reserve != 0) { // need more data
-				result = ARefsBuf::reserve(buf, reserve, recv_bufsiz);
+				result = ARefsBuf::reserve(c->_outbuf, reserve, recv_bufsiz);
 				TRACE2("resize buffer size = %d, left = %d, reserve = %d, result = %d.\n",
-					buf->len(), buf->left(), reserve, result);
-				return (result >= 0) ? 1 : on_httpmsg(this, result);
+					c->_outbuf->len(), c->_outbuf->left(), reserve, result);
+				return (result >= 0) ? 1 : p->on_httpmsg(p, result);
 			}
 		}
-		_body_pos += outbuf()->_bgn;
-		outbuf()->pop(_parsed_len);
-		_parsed_len = 0;
+		p->_body_pos += c->_outbuf->_bgn;
+		c->_outbuf->pop(p->_parsed_len);
+		p->_parsed_len = 0;
 
-		assert(_httpmsg->_head_num == _header_count);
-		_httpmsg->_parser = _parser;
+		assert(p->_httpmsg->_head_num == p->_header_count);
+		p->_httpmsg->_parser = p->_parser;
 
-		release_s(_httpmsg->_body_buf);
-		_httpmsg->_body_buf = outbuf(); outbuf()->addref();
-		_httpmsg->body_pos() = _body_pos;
-		_httpmsg->body_len() = _body_len;
+		release_s(p->_httpmsg->_body_buf);
+		p->_httpmsg->_body_buf = c->_outbuf; c->_outbuf->addref();
+		p->_httpmsg->body_pos() = p->_body_pos;
+		p->_httpmsg->body_len() = p->_body_len;
 
-		return on_httpmsg(this, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
+		return p->on_httpmsg(p, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
 	}
 	//////////////////////////////////////////////////////////////////////////
 	str_t _field() { return str_t(outbuf()->ptr() + _field_pos, _field_len); }

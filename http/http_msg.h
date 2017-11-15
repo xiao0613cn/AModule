@@ -34,6 +34,7 @@ enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };
 struct HttpMsgImpl : public HttpMsg {
 	typedef std::map<std::string,std::string> HeaderMap;
 	HeaderMap _headers;
+	void     *_user;
 
 	HttpMsgImpl() {
 		memset(&_parser, 0, sizeof(_parser));

@@ -19,6 +19,10 @@ struct AComponent {
 	bool valid() {
 		return ((_object != NULL) && !_entity_node.empty());
 	}
+	template <typename TComponent>
+	TComponent* _other(TComponent **c, int com_index = -1) {
+		return ((AEntity*)_object)->_get(c, com_index);
+	}
 };
 
 struct AEntity : public AObject {

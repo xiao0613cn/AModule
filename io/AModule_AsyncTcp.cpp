@@ -70,7 +70,7 @@ static int AsyncTcpRequestDone(AOperator *asop, int result)
 		else
 			result = iocp_recvv(tcp->sock, &ovlp->buf, 1, &ovlp->ao_ovlp);
 		if (result == 0)
-			return result;
+			return 0;
 	}
 	return ovlp->from->done2(result);
 }
