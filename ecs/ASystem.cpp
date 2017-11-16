@@ -91,36 +91,35 @@ static int emit_event(ASystemManager *sm, const char *name, void *p)
 
 static int emit_event2(ASystemManager *sm, int index, void *p)
 {
+	//TODO:
 	//if (sm->_event_manager == NULL)
 		return -1;
 	//return sm->_event_manager->emit(name, p);
 }
 
 struct AReceiver2 : public AReceiver {
-	void  *_user;
-	int  (*_func)(void *user, const char *name, void *p, bool preproc);
-
-	static AReceiver2* create() {
-		AReceiver2 *r2 = gomake(AReceiver2);
-		r2->AObject::init(NULL, &free);
-
-		r2->AReceiver::init();
-		r2->on_event = &AReceiver2::on_user_event;
-		return r2;
-	}
-	static int on_user_event(AReceiver *r, void *p, bool preproc) {
-		AReceiver2 *r2 = (AReceiver2*)r;
-		return r2->_func(r2->_user, r2->_name, p, preproc);
-	}
+	void      *_user;
+	AOwnerFunc _func;
 };
 
-static AReceiver* _sub_const(ASystemManager *sm, const char *name, bool preproc, void *user,
-		int (*f)(void *user, const char *name, void *p, bool preproc))
+static int on_owner_event(AReceiver *r, void *p, bool preproc)
+{
+	AReceiver2 *r2 = (AReceiver2*)r;
+	if (r2->_user != p)
+		return -1;
+	return r2->_func(r2->_name, preproc, p);
+}
+
+static AReceiver* _sub_owner(ASystemManager *sm, const char *name, bool preproc, void *user, AOwnerFunc f)
 {
 	if (sm->_event_manager == NULL)
 		return NULL;
 
-	AReceiver2 *r2 = AReceiver2::create();
+	AReceiver2 *r2 = gomake(AReceiver2);
+	r2->AObject::init(NULL, &free);
+	r2->AReceiver::init();
+	r2->on_event = &on_owner_event;
+
 	r2->_name = name; r2->_oneshot = false; r2->_preproc = preproc;
 	r2->_user = user; r2->_func = f;
 	sm->_event_manager->_subscribe(r2);
@@ -237,7 +236,7 @@ ASystemManagerDefaultModule SysMngModule = {
 	&_unsubscribe,
 	&emit_event,
 	&emit_event2,
-	&_sub_const,
+	&_sub_owner,
 	&clear_sub,
 } };
 static int reg_sys = AModuleRegister(&SysMngModule.module);

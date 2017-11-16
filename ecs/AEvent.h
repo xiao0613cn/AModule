@@ -5,6 +5,8 @@
 typedef struct AReceiver AReceiver;
 typedef struct AEventManager AEventManager;
 
+typedef int  (*AEventFunc)(AReceiver *r, void *p, bool preproc);
+
 struct AReceiver : public AObject {
 	AEventManager *_manager;
 	struct rb_node _manager_node;
@@ -16,7 +18,7 @@ struct AReceiver : public AObject {
 	};
 	bool        _oneshot;
 	bool        _preproc;
-	int  (*on_event)(AReceiver *r, void *p, bool preproc);
+	AEventFunc  on_event;
 
 	void init() {
 		_manager = NULL;

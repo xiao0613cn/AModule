@@ -106,13 +106,11 @@ CU_TEST(test_echo_client)
 	TRACE("total_qps = %d, total_speed = %lld KBps.\n", total_qps, total_speed);
 }
 #else
-static int on_event(void *user, const char *name, void *p, bool preproc)
+static int on_event(const char *name, bool preproc, void *p)
 {
-	AEntity *e = (AEntity*)user;
 	AClientComponent *c = (AClientComponent*)p;
-	TRACE("%s: user = %s(%p), p = %s(%p, %p), preproc = %d.\n",
-		name, e->_module->module_name, e,
-		c->_object->_module->module_name, c->_object, c, preproc);
+	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
+		name, c->_object->_module->module_name, c->_object, c, preproc);
 	return 1;
 }
 CU_TEST(test_pvd)
@@ -135,11 +133,12 @@ CU_TEST(test_pvd)
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
 
+	AClientComponent *c; e->_get(&c);
 	sm._event_manager->lock();
-	sm._sub_const(&sm, "on_client_opened", false, e, &on_event);
-	sm._sub_const(&sm, "on_client_opened", true, e, &on_event);
-	sm._sub_const(&sm, "on_client_closed", true, e, &on_event);
-	sm._sub_const(&sm, "on_client_closed", false, e, &on_event);
+	sm._sub_owner(&sm, "on_client_opened", false, c, &on_event);
+	sm._sub_owner(&sm, "on_client_opened", true, c, &on_event);
+	sm._sub_owner(&sm, "on_client_closed", true, c, &on_event);
+	sm._sub_owner(&sm, "on_client_closed", false, c, &on_event);
 	sm._event_manager->unlock();
 
 	sm.lock();
@@ -158,9 +157,10 @@ CU_TEST(test_mqtt)
 	int result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
 
+	AClientComponent *c; mqtt->_get(&c);
 	sm._event_manager->lock();
-	sm._sub_const(&sm, "on_client_opened", true, mqtt, &on_event);
-	sm._sub_const(&sm, "on_client_closed", true, mqtt, &on_event);
+	sm._sub_owner(&sm, "on_client_opened", true, c, &on_event);
+	sm._sub_owner(&sm, "on_client_closed", true, c, &on_event);
 	sm._event_manager->unlock();
 
 	sm.lock();

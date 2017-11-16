@@ -55,6 +55,8 @@ struct ASystem {
 #define list_for_allsys(pos, allsys) \
 	list_for_each2(pos, &(allsys)->module.class_entry, ASystem, module.class_entry)
 
+typedef int (*AOwnerFunc)(const char *name, bool preproc, void *user);
+
 struct ASystemManagerMethod {
 	int  (*start_checkall)(ASystemManager *sm);
 	void (*stop_checkall)(ASystemManager *sm);
@@ -66,8 +68,7 @@ struct ASystemManagerMethod {
 	bool (*_unsubscribe)(ASystemManager *sm, AReceiver *r);
 	int  (*emit_event)(ASystemManager *sm, const char *name, void *p);
 	int  (*emit_event2)(ASystemManager *sm, int index, void *p);
-	AReceiver* (*_sub_const)(ASystemManager *sm, const char *name, bool preproc, void *user,
-		int (*f)(void *user, const char *name, void *p, bool preproc));
+	AReceiver* (*_sub_owner)(ASystemManager *sm, const char *name, bool preproc, void *user, AOwnerFunc f);
 	void (*clear_sub)(ASystemManager *sm);
 };
 
