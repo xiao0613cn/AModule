@@ -6,9 +6,18 @@ static AOption *g_option = NULL;
 static BOOL g_inited = FALSE;
 static long g_index = 0;
 
-AMODULE_API struct list_head*
-AModuleList() {
-	return &g_module;
+AMODULE_API AModule*
+AModuleNext(AModule *m)
+{
+	if (m == NULL) {
+		if (g_module.empty())
+			return NULL;
+		return list_first_entry(&g_module, AModule, global_entry);
+	}
+
+	if (g_module.is_last(&m->global_entry))
+		return NULL;
+	return list_entry(m->global_entry.next, AModule, global_entry);
 }
 #define list_for_all_AModule(pos) \
 	list_for_each2(pos, &g_module, AModule, global_entry)
@@ -41,7 +50,7 @@ AModuleRegister(AModule *module)
 	}
 	module->global_index = InterlockedAdd(&g_index, 1);
 	g_module.push_back(&module->global_entry);
-	TRACE("%2d: %s(%s): object size = %d.\n", module->global_index,
+	TRACE("%2d: %s(%s): object_size = %d.\n", module->global_index,
 		module->module_name, module->class_name, module->object_size);
 
 	// delay init() in AModuleInit()
@@ -90,6 +99,11 @@ AModuleExit(void)
 	while (!list_empty(&g_module)) {
 		AModule *pos = list_pop_front(&g_module, AModule, global_entry);
 		pos->exit(g_inited);
+
+		if (pos->object_count != 0) {
+			TRACE("%2d: %s(%s): left object_count = %d.\n", pos->global_index,
+				pos->module_name, pos->class_name, pos->object_count);
+		}
 	}
 	g_inited = FALSE;
 	release_s(g_option);
@@ -230,8 +244,12 @@ AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *modu
 AMODULE_API void
 AObjectFree(AObject *object)
 {
-	object->_module->release(object);
-	InterlockedAdd(&object->_module->object_count, -1);
+	AModule *m = object->_module;
+	m->release(object);
+	InterlockedAdd(&m->object_count, -1);
+
+	TRACE2("%s(%s): free one, left object_count = %d.\n",
+		m->module_name, m->class_name, m->object_count);
 	free(object);
 }
 

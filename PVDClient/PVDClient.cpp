@@ -333,8 +333,8 @@ static void PVDRelease(AObject *object)
 	PVDClient *pvd = (PVDClient*)object;
 	pvd->_pop_exit(&pvd->_client);
 	pvd->_pop_exit(&pvd->_iocom);
-
 	pthread_mutex_destroy(&pvd->_mutex);
+
 	release_s(pvd->_io_opt);
 	pvd->exit();
 }

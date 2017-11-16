@@ -115,18 +115,7 @@ static int on_event(void *user, const char *name, void *p, bool preproc)
 		c->_object->_module->module_name, c->_object, c, preproc);
 	return 1;
 }
-
-void* test_entity_run(void*)
-{
-	list_head results; results.init();
-	for (;;) {
-		sm._check_by_allsys(&sm, &results, GetTickCount());
-		sm._exec_results(results);
-		::Sleep(10);
-	}
-	return NULL;
-}
-CU_TEST(test_entity)
+CU_TEST(test_pvd)
 {
 	//return;
 	const char *opt_str =
@@ -146,26 +135,37 @@ CU_TEST(test_entity)
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
 
-	AEntity *mqtt = NULL;
+	sm._event_manager->lock();
+	sm._sub_const(&sm, "on_client_opened", false, e, &on_event);
+	sm._sub_const(&sm, "on_client_opened", true, e, &on_event);
+	sm._sub_const(&sm, "on_client_closed", true, e, &on_event);
+	sm._sub_const(&sm, "on_client_closed", false, e, &on_event);
+	sm._event_manager->unlock();
+
+	sm.lock();
+	sm._regist(e); e->release();
+	sm.unlock();
+}
+
+CU_TEST(test_mqtt)
+{
+	AOption *opt = NULL;
 	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
 		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
 		"}, }", -1);
-	result = AObject::create(&mqtt, NULL, opt, NULL);
+
+	AEntity *mqtt = NULL;
+	int result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
 
-	sm._sub_const(&sm, "on_client_opened", false, e, &on_event);
-	sm._sub_const(&sm, "on_client_opened", true, e, &on_event);
+	sm._event_manager->lock();
 	sm._sub_const(&sm, "on_client_opened", true, mqtt, &on_event);
-	sm._sub_const(&sm, "on_client_closed", true, e, &on_event);
 	sm._sub_const(&sm, "on_client_closed", true, mqtt, &on_event);
-	sm._sub_const(&sm, "on_client_closed", false, e, &on_event);
+	sm._event_manager->unlock();
 
-	sm._regist(e);
-	sm._regist(mqtt);
-
-	//sm._unregist(e); e->release();
-	//sm._unregist(mqtt); mqtt->release();
-	pthread_post(NULL, &test_entity_run);
+	sm.lock();
+	sm._regist(mqtt); mqtt->release();
+	sm.unlock();
 }
 
 struct client_t {
@@ -231,9 +231,11 @@ int main()
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 
-	AEventManager em; em.init();
 	sm.init(ASystemManagerDefaultModule::get());
+	AEventManager em; em.init();
+
 	sm._event_manager = &em;
+	sm.start_checkall(&sm);
 
 	CuString *output = CuStringNew();
 	CuSuiteRun(all_test_suites);
@@ -243,11 +245,21 @@ int main()
 	CuStringDelete(output);
 	CuSuiteDelete(all_test_suites);
 
+	TRACE("press enter for end..............................\n");
+	getchar();
+
+	sm.stop_checkall(&sm);
+	sm.clear_allsys(true);
+	sm.clear_sub(&sm);
+
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif
 	getchar();
 	AThreadEnd(NULL);
 	AModuleExit();
+
+	em.exit();
+	pthread_mutex_destroy(&sm._mutex); //sm.exit();
 	return 0;
 }

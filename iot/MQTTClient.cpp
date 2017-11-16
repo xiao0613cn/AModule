@@ -280,8 +280,9 @@ static void MQTTRelease(AObject *object)
 	MQTTClient *mqtt = (MQTTClient*)object;
 	mqtt->_pop_exit(&mqtt->_client);
 	mqtt->_pop_exit(&mqtt->_iocom);
-
 	pthread_mutex_destroy(&mqtt->_mutex);
+
+	if_not(mqtt->_codec, NULL, mqtt_codec_destroy);
 	release_s(mqtt->_options);
 	mqtt->exit();
 }

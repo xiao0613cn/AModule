@@ -1,10 +1,10 @@
 #pragma once
 
+
 struct srsw_count {
 	size_t  add_count;
 	size_t  del_count;
 
-#ifdef __cplusplus
 	srsw_count(void) { reset(); }
 	~srsw_count(void) { }
 
@@ -12,25 +12,8 @@ struct srsw_count {
 	operator size_t(void) { return (add_count - del_count); }
 	void operator+=(size_t n) { add_count += n; }
 	void operator-=(size_t n) { del_count += n; }
-#endif
 };
 
-static inline void srsw_reset(srsw_count *n) {
-	n->add_count = 0;
-	n->del_count = 0;
-}
-
-static inline size_t srsw_get(srsw_count *n) {
-	return (n->add_count - n->del_count);
-}
-
-static inline size_t srsw_add(srsw_count *n, size_t num) {
-	n->add_count += num;
-}
-
-static inline void srsw_del(srsw_count *n, size_t num) {
-	n->del_count += num;
-}
 
 template <typename item_t, size_t capacity>
 class srsw_queue {
@@ -42,54 +25,37 @@ public:
 	srsw_queue(void) { reset(); }
 	~srsw_queue(void) { }
 
-	void reset(void)
-	{
+	void reset(void) {
 		item_count.reset();
 		put_index = 0;
 		get_index = 0;
 	}
 
-	size_t _capacity(void)
-	{
-		return capacity;
-	}
-	size_t size(void)
-	{
-		return item_count;
-	}
+	size_t _capacity(void) { return capacity; }
+	size_t size(void)      { return item_count; }
 
-	item_t& end(void)
-	{
-		return item_array[put_index];
-	}
-	void put_end(void)
-	{
+	item_t& end(void)   { return item_array[put_index]; }
+	item_t& front(void) { return item_array[get_index]; }
+
+	void put_end(void) {
 		if (put_index == capacity-1)
 			put_index = 0;
 		else
 			++put_index;
 		item_count += 1;
 	}
-	void put_back(const item_t &i)
-	{
+	void put_back(const item_t &i) {
 		end() = i;
 		put_end();
 	}
-
-	item_t& front(void)
-	{
-		return item_array[get_index];
-	}
-	void pop_front(void)
-	{
+	void pop_front(void) {
 		if (get_index == capacity-1)
 			get_index = 0;
 		else
 			++get_index;
 		item_count -= 1;
 	}
-	void get_front(item_t &i)
-	{
+	void get_front(item_t &i) {
 		i = front();
 		pop_front();
 	}
@@ -105,16 +71,14 @@ class srsw_buffer_t {
 	size_t  write_pos;
 	size_t  read_pos;
 public:
-	srsw_buffer_t(void)
-	{
+	srsw_buffer_t(void) {
 		buf_data = NULL;
 		buf_size = 0;
 		reset(NULL, 0);
 	}
 	~srsw_buffer_t(void) { }
 
-	byte_t* reset(byte_t *ptr, size_t len)
-	{
+	byte_t* reset(byte_t *ptr, size_t len) {
 		byte_t *old_ptr = buf_data;
 		if (ptr != NULL) {
 			buf_data = ptr;
@@ -126,14 +90,8 @@ public:
 		return old_ptr;
 	}
 
-	size_t capacity(void)
-	{
-		return buf_size;
-	}
-	size_t size(void)
-	{
-		return write_siz - read_siz;
-	}
+	size_t capacity(void) { return buf_size; }
+	size_t size(void)     { return write_siz - read_siz; }
 
 	size_t write(byte_t *ptr, size_t len)
 	{

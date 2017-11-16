@@ -207,7 +207,7 @@ static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 	assert(p->_req == NULL);
 	p->_req = new HttpMsgImpl();
 
-	return p->_http.try_output(p->_req, &HttpOnRecvMsg);
+	return p->_http.try_output(&p->_iocom, p->_req, &HttpOnRecvMsg);
 }
 
 static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)

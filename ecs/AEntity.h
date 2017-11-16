@@ -100,15 +100,19 @@ rb_tree_declare(AEntity, AEntity*)
 struct AEntityManager {
 	struct rb_root   _entity_map;
 	int              _entity_count;
-	pthread_mutex_t *_mutex;
+	pthread_mutex_t  _mutex;
 
 	void init() {
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;
-		_mutex = NULL;
+		pthread_mutex_init(&_mutex, NULL);
 	}
-	void lock() { _mutex ? pthread_mutex_lock(_mutex) : 0; }
-	void unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
+	void exit() {
+		assert(RB_EMPTY_ROOT(&_entity_map));
+		pthread_mutex_destroy(&_mutex);
+	}
+	void lock() { pthread_mutex_lock(&_mutex); }
+	void unlock() { pthread_mutex_unlock(&_mutex); }
 
 	bool _push(AEntity *e) {
 		bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_manager_node));

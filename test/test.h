@@ -17,6 +17,7 @@ extern CuSuite *all_test_suites;
 
 struct test_reg_t {
 	test_reg_t(CuTest *test) {
+		TRACE("%s()\n", test->name);
 		CuSuiteAdd(all_test_suites, test);
 	}
 };

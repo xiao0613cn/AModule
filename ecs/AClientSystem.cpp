@@ -209,6 +209,18 @@ static int unreg_client(AEntity *e)
 	return 1;
 }
 
+static int clear_all(bool abort)
+{
+	int count = 0;
+	while (!g_com_list.empty()) {
+		AClientComponent *c = list_pop_front(&g_com_list, AClientComponent, _sys_node);
+		c->abort ? c->abort(c) : 0;
+		c->_object->release();
+		count ++;
+	}
+	return count;
+}
+
 static int check_all(list_head *results, DWORD cur_tick)
 {
 	int count = 0;
@@ -229,6 +241,7 @@ ASystem AClientSystem = { {
 	"AClientSystem", },
 	&reg_client,
 	&unreg_client,
+	&clear_all,
 	&check_all,
 	&client_check,
 	&client_run,

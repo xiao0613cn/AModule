@@ -7,8 +7,8 @@ struct ASystem;
 struct ASystemManager;
 struct AEntity;
 struct AEntityManager;
-struct AEventManager;
 struct AReceiver;
+struct AEventManager;
 struct AService;
 
 struct ASystem {
@@ -30,6 +30,7 @@ struct ASystem {
 
 	int    (*regist)(AEntity *e);
 	int    (*unregist)(AEntity *e);
+	int    (*clear_all)(bool abort);
 
 	int    (*check_all)(list_head *results, DWORD cur_tick);
 	Result* (*check_one)(AEntity *e, DWORD cur_tick);
@@ -55,9 +56,11 @@ struct ASystem {
 	list_for_each2(pos, &(allsys)->module.class_entry, ASystem, module.class_entry)
 
 struct ASystemManagerMethod {
-	int  (*_check_by_allsys)(ASystemManager *sm, list_head *results, DWORD cur_tick);
-	int  (*_check_by_manager)(ASystemManager *sm, list_head *results_list, int max_count, DWORD cur_tick);
-	int  (*_check_one)(ASystemManager *sm, list_head *results, AEntity *e, DWORD cur_tick);
+	int  (*start_checkall)(ASystemManager *sm);
+	void (*stop_checkall)(ASystemManager *sm);
+	int  (*_check_by_allsys)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
+	int  (*_check_by_entities)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
+	int  (*_check_one)(ASystemManager *sm, list_head *exec_list, AEntity *e, DWORD cur_tick);
 
 	bool (*_subscribe)(ASystemManager *sm, AReceiver *r);
 	bool (*_unsubscribe)(ASystemManager *sm, AReceiver *r);
@@ -65,6 +68,7 @@ struct ASystemManagerMethod {
 	int  (*emit_event2)(ASystemManager *sm, int index, void *p);
 	AReceiver* (*_sub_const)(ASystemManager *sm, const char *name, bool preproc, void *user,
 		int (*f)(void *user, const char *name, void *p, bool preproc));
+	void (*clear_sub)(ASystemManager *sm);
 };
 
 struct ASystemManagerDefaultModule {
@@ -77,25 +81,37 @@ struct ASystemManagerDefaultModule {
 
 struct ASystemManager : public ASystemManagerMethod {
 	ASystem         *_all_systems;
-	AThread         *_exec_thread;
-	AService        *_all_services;
-	pthread_mutex_t *_mutex;
-	void   lock()   { _mutex ? pthread_mutex_lock(_mutex) : 0; }
-	void   unlock() { _mutex ? pthread_mutex_unlock(_mutex) : 0; }
+	AThread         *_thr_systems;
+	AOperator        _asop_systems; // single operator execute
+	DWORD            _tick_systems;
+	bool             _systhr_check_entities;
+	pthread_mutex_t  _mutex;
+	void   lock()   { pthread_mutex_lock(&_mutex); }
+	void   unlock() { pthread_mutex_unlock(&_mutex); }
 
-	AEntityManager  *_entity_manager;
-	AEntity         *_last_check;
+	AEntityManager  *_all_entities;
+	AThread         *_thr_entities;
+	AOperator        _asop_entities; // multiple operator execute
+	DWORD            _tick_entities;
+	AEntity         *_last_entity;
+
+	AService        *_all_services;
 	AEventManager   *_event_manager;
 
 	void init(ASystemManagerDefaultModule *m) {
 		if (m != NULL) {
 			_all_systems = ASystem::find(NULL);
-			_exec_thread = NULL;
-			_all_services = NULL;
-			_mutex = NULL;
+			_thr_systems = NULL;
+			_tick_systems = 1000;
+			_systhr_check_entities = false;
+			pthread_mutex_init(&_mutex, NULL);
 
-			_entity_manager = NULL;
-			_last_check = NULL;
+			_all_entities = NULL;
+			_thr_entities = NULL;
+			_tick_entities = 1000;
+			_last_entity = NULL;
+
+			_all_services = NULL;
 			_event_manager = NULL;
 			*(ASystemManagerMethod*)this = m->methods;
 		} else {
@@ -120,6 +136,14 @@ struct ASystemManager : public ASystemManagerMethod {
 			r->manager = this;
 			r->system->_exec(r);
 		}
+	}
+	void clear_allsys(bool abort) {
+		lock();
+		_all_systems->clear_all ? _all_systems->clear_all(abort) : 0;
+		list_for_allsys(s, _all_systems) {
+			s->clear_all ? s->clear_all(abort) : 0;
+		}
+		unlock();
 	}
 };
 

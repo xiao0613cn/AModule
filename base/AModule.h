@@ -92,6 +92,9 @@ AMODULE_API AModule*
 AModuleFind(const char *class_name, const char *module_name);
 
 AMODULE_API AModule*
+AModuleNext(AModule *m);
+
+AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 
 AMODULE_API AModule*

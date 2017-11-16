@@ -46,21 +46,16 @@ struct HttpCompenont : public AComponent {
 	void exit2() {
 		_header_block.set(NULL, 0, 0);
 	}
-	int try_output(HttpMsg *hm, int (*on)(HttpCompenont*,int)) {
-		AInOutComponent *c; _other(&c);
-		if (c == NULL) {
-			assert(0);
-			return -EACCES;
-		}
+	int try_output(AInOutComponent *c, HttpMsg *hm, int (*on)(HttpCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = on;
 		_body_pos = _body_len = 0;
 
-		assert((c->on_output == NULL) || (c->on_output == &_try_output));
-		c->on_output = &_try_output;
+		assert((c->on_output == NULL) || (c->on_output == &on_iocom_output));
+		c->on_output = &on_iocom_output;
 		c->_outuser = this;
 		return c->_output_cycle(512, send_bufsiz);
 	}
-	static int _try_output(AInOutComponent *c, int result) {
+	static int on_iocom_output(AInOutComponent *c, int result) {
 		HttpCompenont *p = (HttpCompenont*)c->_outuser;
 		if (result < 0)
 			return p->on_httpmsg(p, result);
