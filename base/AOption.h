@@ -44,6 +44,7 @@ struct AOption {
 	union {
 	int64_t     value_i64;
 	double      value_dbl;
+	long        refcount;
 	char       *extend;
 	};
 
@@ -94,8 +95,10 @@ struct AOption {
 	}
 
 	// self
-	long addref() { assert(0); return 0; }
+	long addref() { return InterlockedAdd(&refcount, 1); }
+	void delref() { if (InterlockedAdd(&refcount, -1) == 0) release(); }
 	long release() { AOptionRelease(this); return 0; }
+
 	int  sfmt(const char *fmt, ...) {
 		va_list ap; va_start(ap, fmt);
 		value_len = vsnprintf(value, sizeof(value), fmt, ap);

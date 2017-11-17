@@ -36,35 +36,41 @@ static int _check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DWOR
 	return count;
 }
 
-static int _check_by_entities(ASystemManager *sm, list_head *exec_list, DWORD cur_tick)
+static int check_by_entities(ASystemManager *sm, list_head *exec_list, DWORD cur_tick)
 {
-	if (sm->_all_entities == NULL) {
+	AEntityManager *em = sm->_all_entities;
+	if (em == NULL) {
 		TRACE("no manager for checking...\n");
 		return 0;
 	}
 
-	sm->_last_entity = sm->_all_entities->_upper(sm->_last_entity);
+	int result = 0;
+	em->lock();
+	sm->_last_entity = em->_upper(sm->_last_entity);
 	while (sm->_last_entity != NULL)
 	{
-		int result = sm->_check_one(sm, exec_list, sm->_last_entity, cur_tick);
+		result = sm->_check_one(sm, exec_list, sm->_last_entity, cur_tick);
 		if (result > 0)
-			return result;
-		sm->_last_entity = sm->_all_entities->_next(sm->_last_entity);
+			break;
+		sm->_last_entity = em->_next(sm->_last_entity);
 	}
-	return 0;
+	em->unlock();
+	return result;
 }
 
-static int _check_by_allsys(ASystemManager *sm, list_head *exec_list, DWORD cur_tick)
+static int check_by_allsys(ASystemManager *sm, list_head *exec_list, DWORD cur_tick)
 {
 	if (sm->_all_systems == NULL) {
 		TRACE("no systems for checking entity...\n");
 		return 0;
 	}
 
+	sm->lock();
 	int count = sm->_all_systems->check_all ? sm->_all_systems->check_all(exec_list, cur_tick) : 0;
 	list_for_allsys(s, sm->_all_systems) {
 		count += s->check_all ? s->check_all(exec_list, cur_tick) : 0;
 	}
+	sm->unlock();
 	return count;
 }
 
@@ -98,11 +104,11 @@ static int emit_event2(ASystemManager *sm, int index, void *p)
 }
 
 struct AReceiver2 : public AReceiver {
-	void      *_user;
-	AOwnerFunc _func;
+	void     *_user;
+	ASelfFunc _func;
 };
 
-static int on_owner_event(AReceiver *r, void *p, bool preproc)
+static int on_self_event(AReceiver *r, void *p, bool preproc)
 {
 	AReceiver2 *r2 = (AReceiver2*)r;
 	if (r2->_user != p)
@@ -110,7 +116,7 @@ static int on_owner_event(AReceiver *r, void *p, bool preproc)
 	return r2->_func(r2->_name, preproc, p);
 }
 
-static AReceiver* _sub_owner(ASystemManager *sm, const char *name, bool preproc, void *user, AOwnerFunc f)
+static AReceiver* _sub_self(ASystemManager *sm, const char *name, bool preproc, void *user, ASelfFunc f)
 {
 	if (sm->_event_manager == NULL)
 		return NULL;
@@ -118,7 +124,7 @@ static AReceiver* _sub_owner(ASystemManager *sm, const char *name, bool preproc,
 	AReceiver2 *r2 = gomake(AReceiver2);
 	r2->AObject::init(NULL, &free);
 	r2->AReceiver::init();
-	r2->on_event = &on_owner_event;
+	r2->on_event = &on_self_event;
 
 	r2->_name = name; r2->_oneshot = false; r2->_preproc = preproc;
 	r2->_user = user; r2->_func = f;
@@ -135,14 +141,10 @@ static int check_allsys(AOperator *asop, int result)
 	}
 
 	struct list_head exec_list; exec_list.init();
-	sm->lock();
-	result = sm->_check_by_allsys(sm, &exec_list, GetTickCount());
-	sm->unlock();
+	result = sm->check_by_allsys(sm, &exec_list, GetTickCount());
 
-	if (exec_list.empty() && (sm->_all_entities != NULL)) {
-		sm->_all_entities->lock();
-		result = sm->_check_by_entities(sm, &exec_list, GetTickCount());
-		sm->_all_entities->unlock();
+	if (exec_list.empty() && sm->_idle_check_entities) {
+		result = sm->check_by_entities(sm, &exec_list, GetTickCount());
 	}
 
 	sm->_exec_results(exec_list);
@@ -159,11 +161,7 @@ static int check_entities(AOperator *asop, int result)
 	}
 
 	struct list_head exec_list; exec_list.init();
-	if (sm->_all_entities != NULL) {
-		sm->_all_entities->lock();
-		result = sm->_check_by_entities(sm, &exec_list, GetTickCount());
-		sm->_all_entities->unlock();
-	}
+	result = sm->check_by_entities(sm, &exec_list, GetTickCount());
 
 	if (exec_list.empty()) {
 		asop->delay(sm->_thr_entities, sm->_tick_entities);
@@ -176,13 +174,15 @@ static int check_entities(AOperator *asop, int result)
 
 static int start_checkall(ASystemManager *sm)
 {
-	sm->_asop_systems.timer();
-	sm->_asop_systems.done = &check_allsys;
-	sm->_asop_systems.delay(sm->_thr_systems, sm->_tick_systems);
+	if (sm->_asop_systems.done == NULL)
+		sm->_asop_systems.done = &check_allsys;
+	sm->_asop_systems.post(sm->_thr_systems);
 
-	sm->_asop_entities.timer();
-	sm->_asop_entities.done = &check_entities;
-	sm->_asop_entities.delay(sm->_thr_entities, sm->_tick_entities);
+	if (sm->_all_entities != NULL) {
+		if (sm->_asop_entities.done == NULL)
+			sm->_asop_entities.done = &check_entities;
+		sm->_asop_entities.post(sm->_thr_entities);
+	}
 	return 0;
 }
 
@@ -229,14 +229,14 @@ ASystemManagerDefaultModule SysMngModule = {
 }, {
 	&start_checkall,
 	&stop_checkall,
-	&_check_by_allsys,
-	&_check_by_entities,
+	&check_by_allsys,
+	&check_by_entities,
 	&_check_one,
 	&_subscribe,
 	&_unsubscribe,
 	&emit_event,
 	&emit_event2,
-	&_sub_owner,
+	&_sub_self,
 	&clear_sub,
 } };
 static int reg_sys = AModuleRegister(&SysMngModule.module);

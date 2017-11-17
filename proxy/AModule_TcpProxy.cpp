@@ -26,7 +26,7 @@ struct TCPServer : public AService {
 	AOperator  sysio;
 	TCPClient *prepare;
 #endif
-	IOModule* io() { return (IOModule*)peer_module; }
+	IOModule* io() { return (IOModule*)_peer_module; }
 };
 
 enum TCPStatus {
@@ -65,7 +65,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	switch (client->status)
 	{
 	case tcp_io_accept:
-		result = AObject::create2(&client->io, server->io_svc_data, server->io_option, server->peer_module);
+		result = AObject::create2(&client->io, server->io_svc_data, server->io_option, server->_peer_module);
 		if (result < 0)
 			break;
 
@@ -103,7 +103,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		}
 
 		AEntity *e = NULL;
-		result = AObject::create2(&e, service, service->svc_option, service->peer_module);
+		result = AObject::create2(&e, service, service->_svc_option, service->_peer_module);
 		if (result < 0)
 			break;
 
@@ -113,7 +113,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		release_s(c->_outbuf); c->_outbuf = buf;
 		release_s(client->server);
 
-		service->run(service, e, service->svc_option);
+		service->run(service, e, service->_svc_option);
 		e->release();
 		return 1;
 	}
@@ -267,30 +267,33 @@ static int TCPServerStart(AService *service, AOption *option)
 		return -EACCES;
 	}
 
-	assert(server->svc_option == option);
-	server->io_option = server->svc_option->find("io");
+	assert(server->_svc_option == option);
+	server->io_option = server->_svc_option->find("io");
 
-	server->peer_module = AModuleFind("io", server->io_option ? server->io_option->value : "async_tcp");
-	if ((server->peer_module == NULL) || (server->io()->svc_accept == NULL)) {
+	server->_peer_module = AModuleFind("io", server->io_option
+	                     ? server->io_option->value : "async_tcp");
+	if ((server->_peer_module == NULL) || (server->io()->svc_accept == NULL)) {
 		TRACE("require option: \"io\", function: io->svc_accept()\n");
 		return -ENOENT;
 	}
 
-	server->port = (u_short)server->svc_option->getI64("port", 0);
+	server->port = (u_short)server->_svc_option->getI64("port", 0);
 	if (server->port == 0) {
 		TRACE("require option: \"port\"\n");
 		return -EINVAL;
 	}
 
 	if (server->io()->svc_module != NULL) {
-		int result = AObjectCreate2(&server->io_svc_data, server, server->io_option, server->io()->svc_module);
+		int result = AObjectCreate2(&server->io_svc_data,
+			server, server->io_option, server->io()->svc_module);
 		if (result < 0) {
-			TRACE("io(%s) create service data = %d.\n", server->peer_module->module_name, result);
+			TRACE("io(%s) create service data = %d.\n",
+				server->_peer_module->module_name, result);
 			return result;
 		}
 	}
 
-	const char *af = server->svc_option->getStr("family", NULL);
+	const char *af = server->_svc_option->getStr("family", NULL);
 	if ((af != NULL) && (strcasecmp(af, "inet6") == 0))
 		server->family = AF_INET6;
 	else
@@ -298,23 +301,25 @@ static int TCPServerStart(AService *service, AOption *option)
 
 	server->sock = socket_bind(server->family, IPPROTO_TCP, server->port);
 	if (server->sock == INVALID_SOCKET) {
-		TRACE("socket_bind(%d, %d) failed, error = %d.\n", server->family, server->port, errno);
+		TRACE("socket_bind(%d, %d) failed, error = %d.\n",
+			server->family, server->port, errno);
 		return -EINVAL;
 	}
 
-	int backlog = server->svc_option->getInt("backlog", 8);
+	int backlog = server->_svc_option->getInt("backlog", 8);
 	int result = listen(server->sock, backlog);
 	if (result != 0) {
-		TRACE("listen(%d, %d) failed, error = %d.\n", server->sock, backlog, errno);
+		TRACE("listen(%d, %d) failed, error = %d.\n",
+			server->sock, backlog, errno);
 		return -EIO;
 	}
 
-	server->min_probe_size = server->svc_option->getInt("min_probe_size", 128);
-	server->max_probe_size = server->svc_option->getInt("max_probe_size", 1800);
-	server->is_async = server->svc_option->getInt("is_async", TRUE);
+	server->min_probe_size = server->_svc_option->getInt("min_probe_size", 128);
+	server->max_probe_size = server->_svc_option->getInt("max_probe_size", 1800);
+	server->is_async = server->_svc_option->getInt("is_async", TRUE);
 
 	server->addref();
-	int background = server->svc_option->getInt("background", TRUE);
+	int background = server->_svc_option->getInt("background", TRUE);
 	if (!background) {
 		TCPServerProcess(server);
 		return 1;
@@ -355,10 +360,10 @@ static void TCPServerStop(AService *service)
 static int TCPServerRun(AService *service, AObject *peer, AOption *option)
 {
 	TCPServer *server = (TCPServer*)service;
-	if (peer->_module != server->peer_module) {
+	if (peer->_module != server->_peer_module) {
 		TRACE("invalid peer %s(%s), require %s(%s).\n",
 			peer->_module->class_name, peer->_module->module_name,
-			server->peer_module->class_name, server->peer_module->module_name);
+			server->_peer_module->class_name, server->_peer_module->module_name);
 		//return -EINVAL;
 	}
 
@@ -375,9 +380,9 @@ static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
 	TCPServer *server = (TCPServer*)*object;
 	server->init();
-	server->save_option = TRUE; server->require_child = TRUE;
+	server->_save_option = TRUE; server->_require_child = TRUE;
 	server->io_option = option->find("io");
-	server->peer_module = AModuleFind("io", server->io_option ? server->io_option->value : "async_tcp");
+	server->_peer_module = AModuleFind("io", server->io_option ? server->io_option->value : "async_tcp");
 	server->start = &TCPServerStart;
 	server->stop = &TCPServerStop;
 	server->run = &TCPServerRun;
@@ -394,7 +399,7 @@ static void TCPServerRelease(AObject *object)
 {
 	TCPServer *server = (TCPServer*)object;
 	AServiceStop(server, TRUE);
-	release_s(server->svc_option);
+	release_s(server->_svc_option);
 	closesocket_s(server->sock);
 	release_s(server->io_svc_data);
 #ifdef _WIN32

@@ -84,7 +84,7 @@ static int EchoServiceCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *service = (AService*)*object;
 	service->init();
-	service->peer_module = &EchoModule;
+	service->_peer_module = &EchoModule;
 	service->run = &EchoRun;
 	return 1;
 }

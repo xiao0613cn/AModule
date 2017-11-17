@@ -36,18 +36,19 @@ struct AInOutComponent : public AComponent {
 		int   (*outmsg_done)(AMessage *msg, int result);
 	};
 	void init2() {
-		// set by inner module
 		//static com_module *impl = (com_module*)AModuleFind(name(), name());
+		// set by inner module
 		_abort = true; _queue.init(); _mutex = NULL;
 		_io          = NULL;
-		_inmsg.done  = &_inmsg_done;
-		do_post      = &_do_post;
-		do_input     = &_do_input;
+		_inmsg.done  = &_inmsg_done;  // = impl.inmsg_done;
+		do_post      = &_do_post;     // = impl.do_post;
+		do_input     = &_do_input;    // = impl.do_input;
 		on_post_end  = NULL;
 		_outbuf      = NULL;
-		_outmsg.done = &_outmsg_done;
-		on_output = NULL; // set by decoder
-		_outuser = NULL; // set by decoder
+		_outmsg.done = &_outmsg_done; // = impl.outmsg_done;
+
+		on_output = NULL;             // set by decoder
+		_outuser = NULL;              // set by decoder
 	}
 	void exit2() {
 		assert(_queue.empty());

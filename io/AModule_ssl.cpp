@@ -356,6 +356,7 @@ static int SSLRequest(AObject *object, int reqix, AMessage *msg)
 		result = SSL_write(sc->ssl, msg->data, msg->size);
 		if (result < 0)
 			return -EIO;
+		assert(msg->size == result);
 
 		if (BIO_ctrl_pending(sc->input.bio) > 0) {
 			sc->input.msg.done = &SSLInputDone;

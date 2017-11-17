@@ -214,7 +214,7 @@ static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *svc = (AService*)*object;
 	svc->init();
-	svc->peer_module = &HttpConnectionModule;
+	svc->_peer_module = &HttpConnectionModule;
 	svc->run = &HttpConnRun;
 	return 1;
 }

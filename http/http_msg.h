@@ -28,12 +28,13 @@ enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };
 
 
 #if defined(_USE_HTTP_MSG_IMPL_) && (_USE_HTTP_MSG_IMPL_ != 0)
-#include <map>
+#include <vector>
 #include <string>
 
 struct HttpMsgImpl : public HttpMsg {
-	typedef std::map<std::string,std::string> HeaderMap;
-	HeaderMap _headers;
+	typedef std::pair<std::string, std::string> HeaderItem;
+	typedef std::vector<HeaderItem> HeaderVec;
+	HeaderVec _headers;
 	void     *_user;
 
 	HttpMsgImpl() {
@@ -49,8 +50,7 @@ struct HttpMsgImpl : public HttpMsg {
 	}
 	static str_t head_at(HttpMsg *p, int ix, str_t *value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
-		HeaderMap::iterator it = me->_headers.begin();
-		while (ix > 0) { ++it; --ix; }
+		HeaderVec::iterator it = me->_headers.begin() + ix;
 		if (value != NULL) {
 			value->str = it->second.c_str();
 			value->len = it->second.length();
@@ -59,17 +59,31 @@ struct HttpMsgImpl : public HttpMsg {
 	}
 	static str_t head_get(HttpMsg *p, const char *field) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
-		HeaderMap::iterator it = me->_headers.find(field);
-		if (it == me->_headers.end())
-			return str_t();
-		return str_t(it->second.c_str(), it->second.length());
+		for (HeaderVec::iterator it = me->_headers.begin();
+			it != me->_headers.end(); ++it)
+		{
+			if (it->first != field) continue;
+			return str_t(it->second.c_str(), it->second.length());
+		}
+		return str_t();
 	}
 	static int head_set(HttpMsg *p, str_t field, str_t value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
-		if (field.str == NULL)
+		if (field.str == NULL) {
 			me->_headers.clear();
-		else
-			me->_headers[std::string(field.str,field.len)].assign(value.str, value.len);
+			return me->_head_num = 0;
+		}
+		for (HeaderVec::iterator it = me->_headers.begin();
+			it != me->_headers.end(); ++it)
+		{
+			if ((strncmp(it->first.c_str(), field.str, field.len) != 0)
+			 || (it->first.c_str()[field.len] != '\0'))
+				continue;
+			it->second = std::string(value.str,value.len);
+			return me->_headers.size();
+		}
+		me->_headers.push_back(HeaderItem(
+			std::string(field.str,field.len), std::string(value.str,value.len)));
 		return me->_head_num = me->_headers.size();
 	}
 };

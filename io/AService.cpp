@@ -6,14 +6,15 @@
 AMODULE_API int
 AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 {
-	if (service->save_option) {
-		assert(service->svc_option == NULL);
-		service->svc_option = AOptionClone(option, NULL);
-		if (service->svc_option == NULL)
+	assert(!service->_running);
+	if (service->_save_option) {
+		assert(service->_svc_option == NULL);
+		service->_svc_option = AOptionClone(option, NULL);
+		if (service->_svc_option == NULL)
 			return -ENOMEM;
-		option = service->svc_option;
+		option = service->_svc_option;
 	} else {
-		service->svc_option = option;
+		service->_svc_option = option;
 	}
 
 	if (create_chains) {
@@ -27,29 +28,30 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 			TRACE("service(%s,%s) create()= %d.\n", svc_opt->name, svc_opt->value, result);
 			continue;
 		}
-		svc->sysmng = service->sysmng;
-		svc->parent = service;
+		svc->_sysmng = service->_sysmng;
+		svc->_parent = service;
 
-		if ((svc->peer_module != NULL)
-			&& (strcasecmp(svc->peer_module->class_name, "AEntity") != 0)) {
-				TRACE("service(%s,%s) peer type(%s,%s) maybe error, require AEntity!.\n",
-					svc_opt->name, svc_opt->value,
-					svc->peer_module->class_name, svc->peer_module->module_name);
+		if ((svc->_peer_module != NULL)
+		 && (strcasecmp(svc->_peer_module->class_name, "AEntity") != 0)) {
+			TRACE("service(%s,%s) peer type(%s,%s) maybe error, require AEntity!.\n",
+				svc_opt->name, svc_opt->value,
+				svc->_peer_module->class_name, svc->_peer_module->module_name);
 		}
 		result = AServicePreStartChains(svc, svc_opt, create_chains);
 		if (result < 0) {
 			release_s(svc);
 			continue;
 		}
-		service->children_list.push_back(&svc->brother_entry);
+		service->_children_list.push_back(&svc->_brother_entry);
 	} }
 
-	if (service->require_child && service->children_list.empty()) {
+	if (service->_require_child && service->_children_list.empty()) {
 		TRACE("service(%s) require children list.\n", service->_module->module_name);
 		return -EINVAL;
 	}
 
 	int result = 0;
+	service->_running = TRUE;
 	if (service->start != NULL)
 		result = service->start(service, option);
 	TRACE("service(%s) start() = %d.\n", service->_module->module_name, result);
@@ -59,7 +61,8 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 AMODULE_API int
 AServicePostStartChains(AService *service)
 {
-	if (service->post_start) {
+	assert(service->_running);
+	if (service->_post_start) {
 		int result = service->start(service, NULL);
 		if (result < 0) {
 			TRACE("service(%s) post start() = %d.\n", service->_module->module_name, result);
@@ -88,14 +91,15 @@ AServiceStart(AService *service, AOption *option, BOOL create_chains)
 AMODULE_API void
 AServiceStop(AService *service, BOOL clean_chains)
 {
+	service->_running = FALSE;
 	if (service->stop != NULL)
 		service->stop(service);
 	if (clean_chains)
-		while (!service->children_list.empty())
+		while (!service->_children_list.empty())
 		{
-			AService *svc = list_first_entry(&service->children_list, AService, brother_entry);
+			AService *svc = list_first_entry(&service->_children_list, AService, _brother_entry);
 			AServiceStop(svc, clean_chains);
-			svc->brother_entry.leave();
+			svc->_brother_entry.leave();
 			release_s(svc);
 		}
 	else list_for_AService(svc, service)
@@ -111,9 +115,9 @@ AServiceProbe(AService *server, AObject *object, AMessage *msg)
 	int score = -1;
 	list_for_AService(svc, server)
 	{
-		int result = svc->_module->probe(object, msg, svc->svc_option);
-		if ((result < 0) && (svc->peer_module != NULL)) {
-			result = svc->peer_module->probe(object, msg, svc->svc_option);
+		int result = svc->_module->probe(object, msg, svc->_svc_option);
+		if ((result < 0) && (svc->_peer_module != NULL)) {
+			result = svc->_peer_module->probe(object, msg, svc->_svc_option);
 		}
 		if (result > score) {
 			service = svc;
