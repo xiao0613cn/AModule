@@ -69,7 +69,7 @@ void* echo_thread(void *p)
 CU_TEST(test_echo_client)
 {
 	int thread_num = 10;
-	fprintf(stdout, "input test thread num(default 10):\n");
+	TRACE("input test thread num(default 10):\n");
 	fscanf(stdin, "%d", &thread_num);
 	if (thread_num == 0) thread_num = 10;
 
@@ -107,68 +107,6 @@ CU_TEST(test_service)
 
 	AServiceStart(tcp_server, opt, TRUE);
 	opt->release();
-}
-
-static int on_event(const char *name, bool preproc, void *p)
-{
-	AClientComponent *c = (AClientComponent*)p;
-	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
-		name, c->_object->_module->module_name, c->_object, c, preproc);
-	return 1;
-}
-CU_TEST(test_pvd)
-{
-	//return;
-	const char *opt_str =
-	"PVDClient: {"
-		"io: async_tcp {"
-			"address: 192.168.40.86,"
-			"port: 8101,"
-			"timeout: 5,"
-		"},"
-		"username: admin,"
-		"password: 888888,"
-	"}";
-	AOption *opt = NULL;
-	int result = AOptionDecode(&opt, opt_str, -1);
-
-	AEntity *e = NULL;
-	result = AObject::create(&e, NULL, opt, NULL);
-	opt->release();
-
-	AClientComponent *c; e->_get(&c);
-	sm._event_manager->lock();
-	sm._sub_self(&sm, "on_client_opened", false, c, &on_event);
-	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", false, c, &on_event);
-	sm._event_manager->unlock();
-
-	sm.lock();
-	sm._regist(e); e->release();
-	sm.unlock();
-}
-
-CU_TEST(test_mqtt)
-{
-	AOption *opt = NULL;
-	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
-		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
-		"}, }", -1);
-
-	AEntity *mqtt = NULL;
-	int result = AObject::create(&mqtt, NULL, opt, NULL);
-	opt->release();
-
-	AClientComponent *c; mqtt->_get(&c);
-	sm._event_manager->lock();
-	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
-	sm._event_manager->unlock();
-
-	sm.lock();
-	sm._regist(mqtt); mqtt->release();
-	sm.unlock();
 }
 
 struct client_t {
@@ -217,7 +155,15 @@ CU_TEST(test_client)
 	AOptionDecode(&opt, "async_tcp:{address:192.168.40.17,port:4444}", -1);
 	opt->refcount = 1;
 
-	for (int ix = 0; ix < 5000; ++ix) {
+	int count = 5000;
+	TRACE("input test client num(default 5000):\r\n");
+	fscanf(stdin, "%d", &count);
+	char buf[412];
+	fgets(buf, sizeof(buf), stdin);
+	fgets(buf, sizeof(buf), stdin);
+	if (count == 0) count = 5000;
+
+	for (int ix = 0; ix < count; ++ix) {
 		client_t *c = gomake(client_t);
 		AObject::create(&c->io, NULL, opt, NULL);
 
@@ -234,6 +180,68 @@ CU_TEST(test_client)
 	}
 	opt->delref();
 }
+
+static int on_event(const char *name, bool preproc, void *p)
+{
+	AClientComponent *c = (AClientComponent*)p;
+	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
+		name, c->_object->_module->module_name, c->_object, c, preproc);
+	return 1;
+}
+CU_TEST(test_pvd)
+{
+	//return;
+	const char *opt_str =
+		"PVDClient: {"
+		"io: async_tcp {"
+		"address: 192.168.40.86,"
+		"port: 8101,"
+		"timeout: 5,"
+		"},"
+		"username: admin,"
+		"password: 888888,"
+		"}";
+	AOption *opt = NULL;
+	int result = AOptionDecode(&opt, opt_str, -1);
+
+	AEntity *e = NULL;
+	result = AObject::create(&e, NULL, opt, NULL);
+	opt->release();
+
+	AClientComponent *c; e->_get(&c);
+	sm._event_manager->lock();
+	sm._sub_self(&sm, "on_client_opened", false, c, &on_event);
+	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
+	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
+	sm._sub_self(&sm, "on_client_closed", false, c, &on_event);
+	sm._event_manager->unlock();
+
+	sm.lock();
+	sm._regist(e); e->release();
+	sm.unlock();
+}
+CU_TEST(test_mqtt)
+{
+	AOption *opt = NULL;
+	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
+		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
+		"}, }", -1);
+
+	AEntity *mqtt = NULL;
+	int result = AObject::create(&mqtt, NULL, opt, NULL);
+	opt->release();
+
+	AClientComponent *c; mqtt->_get(&c);
+	sm._event_manager->lock();
+	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
+	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
+	sm._event_manager->unlock();
+
+	sm.lock();
+	sm._regist(mqtt); mqtt->release();
+	sm.unlock();
+}
+
 #endif
 
 int main()

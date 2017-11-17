@@ -22,11 +22,27 @@ struct AModule {
 };
 
 AMODULE_API int
-AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module);
+AModuleRegister(AModule *module);
 
 AMODULE_API int
-AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module);
+AModuleInit(AOption *option);
 
+AMODULE_API int
+AModuleExit(void);
+
+AMODULE_API AModule*
+AModuleFind(const char *class_name, const char *module_name);
+
+AMODULE_API AModule*
+AModuleNext(AModule *m);
+
+AMODULE_API AModule*
+AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
+
+AMODULE_API AModule*
+AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
+
+///////////////////////////////////////////////////////////////////////////////
 struct AObject {
 	long volatile _refcount;
 	void        (*_release)(AObject *object);
@@ -47,58 +63,49 @@ struct AObject {
 			this->_release(this);
 		return result;
 	}
-	template <typename object_t>
-	static int create(object_t **p, AObject *parent, AOption *option, const char *default_module) {
-		return AObjectCreate((AObject**)p, parent, option, default_module);
+	template <typename TObject>
+	static int create(TObject **object, AObject *parent, AOption *option, const char *default_module) {
+		ACreateParam param(parent, option, NULL,
+			(option && option->value[0]) ? option->name : NULL,
+			(option && !option->value[0]) ? option->name : default_module, 0);
+		return AObjectCreate((AObject**)object, &param);
 	}
-	template <typename object_t>
-	static int create2(object_t **p, AObject *parent, AOption *option, AModule *module) {
-		return AObjectCreate2((AObject**)p, parent, option, module);
+	template <typename TObject>
+	static int create2(TObject **object, AObject *parent, AOption *option, AModule *module) {
+		ACreateParam param(parent, option, module, NULL, NULL, 0);
+		return AObjectCreate((AObject**)object, &param);
+	}
+	template <typename TObject>
+	static int from(TObject **object, AObject *parent, AOption *p_opt, const char *def_mn) {
+		AOption *o_opt = p_opt->find(TObject::class_name());
+		ACreateParam param(parent, o_opt, NULL, TObject::class_name(),
+			(o_opt && o_opt->value[0]) ? o_opt->value : def_mn, 0);
+		return AObjectCreate((AObject**)object, &param);
 	}
 #endif
 };
 
-static inline long
-AObjectAddRef(AObject *object) {
-	return InterlockedAdd(&object->_refcount, 1);
-}
+struct ACreateParam {
+	AObject  *parent;
+	AOption  *option;
+	AModule  *module;
+	const char *class_name;
+	const char *module_name;
+	int       ex_size;
 
-static inline long
-AObjectRelease(AObject *object) {
-	long result = InterlockedAdd(&object->_refcount, -1);
-	if (result <= 0)
-		object->_release(object);
-	return result;
-}
+	ACreateParam(AObject *p, AOption *o, AModule *m, const char *cn, const char *mn, int ex) {
+		parent = p; option = o; module = m;
+		class_name = cn; module_name = mn; ex_size = ex;
+	}
+};
+
+AMODULE_API int
+AObjectCreate(AObject **object, ACreateParam *p);
 
 AMODULE_API void
 AObjectFree(AObject *object);
 
 
-AMODULE_API void*
-dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name);
-
-
-AMODULE_API int
-AModuleRegister(AModule *module);
-
-AMODULE_API int
-AModuleInit(AOption *option);
-
-AMODULE_API int
-AModuleExit(void);
-
-AMODULE_API AModule*
-AModuleFind(const char *class_name, const char *module_name);
-
-AMODULE_API AModule*
-AModuleNext(AModule *m);
-
-AMODULE_API AModule*
-AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
-
-AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
 
 #if 0
 typedef enum AObject_Status {

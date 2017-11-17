@@ -23,7 +23,7 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 		list_for_AOption(svc_opt, services_list)
 	{
 		AService *svc = NULL;
-		int result = AObject::create(&svc, service, svc_opt, svc_opt->value);
+		int result = AObject::create(&svc, service, svc_opt, NULL);
 		if (result < 0) {
 			TRACE("service(%s,%s) create()= %d.\n", svc_opt->name, svc_opt->value, result);
 			continue;

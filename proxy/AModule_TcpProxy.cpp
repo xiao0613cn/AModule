@@ -284,7 +284,7 @@ static int TCPServerStart(AService *service, AOption *option)
 	}
 
 	if (server->io()->svc_module != NULL) {
-		int result = AObjectCreate2(&server->io_svc_data,
+		int result = AObject::create2(&server->io_svc_data,
 			server, server->io_option, server->io()->svc_module);
 		if (result < 0) {
 			TRACE("io(%s) create service data = %d.\n",

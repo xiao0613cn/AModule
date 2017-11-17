@@ -6,19 +6,6 @@ static AOption *g_option = NULL;
 static BOOL g_inited = FALSE;
 static long g_index = 0;
 
-AMODULE_API AModule*
-AModuleNext(AModule *m)
-{
-	if (m == NULL) {
-		if (g_module.empty())
-			return NULL;
-		return list_first_entry(&g_module, AModule, global_entry);
-	}
-
-	if (g_module.is_last(&m->global_entry))
-		return NULL;
-	return list_entry(m->global_entry.next, AModule, global_entry);
-}
 #define list_for_all_AModule(pos) \
 	list_for_each2(pos, &g_module, AModule, global_entry)
 
@@ -136,6 +123,20 @@ AModuleFind(const char *class_name, const char *module_name)
 }
 
 AMODULE_API AModule*
+AModuleNext(AModule *m)
+{
+	if (m == NULL) {
+		if (g_module.empty())
+			return NULL;
+		return list_first_entry(&g_module, AModule, global_entry);
+	}
+
+	if (g_module.is_last(&m->global_entry))
+		return NULL;
+	return list_entry(m->global_entry.next, AModule, global_entry);
+}
+
+AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 {
 	list_for_all_AModule(pos)
@@ -199,43 +200,25 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API int
-AObjectCreate(AObject **object, AObject *parent, AOption *option, const char *default_module)
+AObjectCreate(AObject **object, ACreateParam *p)
 {
-	const char *class_name = NULL;
-	const char *module_name = default_module;
-	if (option == NULL) {
-		;
-	} else if ((option->value[0] != '\0') && (option->value[0] != '[')) {
-		class_name = option->name;
-		module_name = option->value;
-	} else if (option->name[0] != '\0') {
-		module_name = option->name;
+	*object = NULL;
+	if (p->module == NULL) {
+		p->module = AModuleFind(p->class_name, p->module_name);
+		if (p->module == NULL)
+			return -EINVAL;
 	}
-	if ((class_name == NULL) && (module_name == NULL))
-		return -EINVAL;
 
-	AModule *module = AModuleFind(class_name, module_name);
-	if (module == NULL)
-		return -ENOSYS;
-
-	return AObjectCreate2(object, parent, option, module);
-}
-
-AMODULE_API int
-AObjectCreate2(AObject **object, AObject *parent, AOption *option, AModule *module)
-{
-	if (module->object_size > 0) {
-		*object = (AObject*)malloc(module->object_size);
+	if (p->module->object_size > 0) {
+		*object = (AObject*)malloc(p->module->object_size + p->ex_size);
 		if (*object == NULL)
 			return -ENOMEM;
 
-		InterlockedAdd(&module->object_count, 1);
-		(*object)->init(module, &AObjectFree);
-	} else {
-		*object = NULL;
+		InterlockedAdd(&p->module->object_count, 1);
+		(*object)->init(p->module, &AObjectFree);
 	}
 
-	int result = module->create(object, parent, option);
+	int result = p->module->create(object, p->parent, p->option);
 	if (result < 0)
 		release_s(*object);
 	return result;

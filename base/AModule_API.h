@@ -61,6 +61,9 @@
 #include "AModule.h"
 
 
+AMODULE_API void*
+dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name);
+
 
 #ifdef __cplusplus
 template <typename TObject, size_t offset_msg, size_t offset_from, int OnMsgDone(TObject*,int)>

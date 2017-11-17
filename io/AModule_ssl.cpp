@@ -163,10 +163,9 @@ static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
 	}
 
 	if (sc->io == NULL) {
-		AOption *io_opt = opt->find("io");
-		int result = AObject::create(&sc->io, sc, io_opt, "async_tcp");
+		int result = AObject::from(&sc->io, sc, opt, "async_tcp");
 		if (result < 0) {
-			TRACE("unknown io module(%s).\n", io_opt->value);
+			TRACE("unknown io module.\n");
 			return result;
 		}
 	}
@@ -467,7 +466,7 @@ static int SSLSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
 
 	if (io->svc_module == NULL)
 		return 1;
-	return AObjectCreate2(&ssl_svc->io_svc_data, ssl_svc, io_opt, io->svc_module);
+	return AObject::create2(&ssl_svc->io_svc_data, ssl_svc, io_opt, io->svc_module);
 }
 
 static void SSLSvcRelease(AObject *svc_data)

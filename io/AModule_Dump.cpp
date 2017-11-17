@@ -246,7 +246,7 @@ static int DumpSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
 
 	if (io->svc_module == NULL)
 		return 1;
-	return AObjectCreate2(svc_data, parent, io_opt, io->svc_module);
+	return AObject::create2(svc_data, parent, io_opt, io->svc_module);
 }
 
 AModule DumpSvcModule = {
