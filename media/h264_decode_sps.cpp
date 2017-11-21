@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include <math.h> 
-#include "base/AModule_API.h"
+#include "../base/AModule_API.h"
 #include "h264_decode_sps.h"
 #pragma warning(disable: 4189) //局部变量已初始化但不引用
 

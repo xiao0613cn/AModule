@@ -18,48 +18,54 @@ extern "C" {
 #include "mqttconst.h"
 //#include "azure_c_shared_utility/strings.h"
 
-#ifndef STRING_HANDLE
-#define STRING_HANDLE  void*
-#define STRING_new(...)      (0)
-#define STRING_sprintf(...)  (0)
-#define STRING_copy(...)     (0)
-#define STRING_concat(...)   (0)
-#define STRING_construct_sprintf(...) (0)
-#define STRING_concat_with_STRING(...) (0)
-#define STRING_delete(...)   (0)
-#endif
 
-typedef struct MQTTCODEC_INSTANCE_TAG* MQTTCODEC_HANDLE;
+typedef enum CODEC_STATE_RESULT {
+	CODEC_STATE_FIXED_HEADER,
+	CODEC_STATE_VAR_HEADER,
+	CODEC_STATE_PAYLOAD,
+} CODEC_STATE_RESULT;
 
-typedef void(*ON_PACKET_COMPLETE_CALLBACK)(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag);
+typedef void(*ON_PACKET_COMPLETE_CALLBACK)(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag);
+typedef struct MQTT_MESSAGE MQTT_MESSAGE;
+
+typedef struct MQTTCODEC_INSTANCE {
+	CONTROL_PACKET_TYPE currPacket;
+	CODEC_STATE_RESULT codecState;
+	size_t bufferOffset;
+	int headerFlags;
+	MQTT_BUFFER headerData;
+	ON_PACKET_COMPLETE_CALLBACK packetComplete;
+	void* callContext;
+	uint8_t storeRemainLen[4];
+	size_t remainLenIndex;
+} MQTTCODEC_INSTANCE;
 
 #ifdef __cplusplus
 };
 
-template <typename TObject, void(TObject::*cb)(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)>
-void mqtt_packet_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)
-{
+template <typename TObject, void(TObject::*cb)(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag)>
+void mqtt_packet_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag) {
 	(((TObject*)context)->*cb)(packet, flags, headerData, packetTag);
 }
 
 extern "C" {
 #endif
 
-MQTTCODEC_HANDLE mqtt_codec_create(ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx);
-void mqtt_codec_destroy(MQTTCODEC_HANDLE handle);
+void mqtt_codec_init(MQTTCODEC_INSTANCE *handle, ON_PACKET_COMPLETE_CALLBACK packetComplete, void* callbackCtx);
+void mqtt_codec_exit(MQTTCODEC_INSTANCE *handle);
 
-BUFFER_HANDLE mqtt_codec_connect(BUFFER_HANDLE result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions/*!=NULL*/);
-BUFFER_HANDLE mqtt_codec_disconnect(BUFFER_HANDLE result/*!=NULL*/);
-BUFFER_HANDLE mqtt_codec_publish(BUFFER_HANDLE result/*!=NULL*/, const struct MQTT_MESSAGE *msg/*!=NULL*/);
-BUFFER_HANDLE mqtt_codec_publishAck(uint16_t packetId);
-BUFFER_HANDLE mqtt_codec_publishReceived(uint16_t packetId);
-BUFFER_HANDLE mqtt_codec_publishRelease(uint16_t packetId);
-BUFFER_HANDLE mqtt_codec_publishComplete(uint16_t packetId);
-BUFFER_HANDLE mqtt_codec_ping(BUFFER_HANDLE result/*!=NULL*/);
-BUFFER_HANDLE mqtt_codec_subscribe(uint16_t packetId, SUBSCRIBE_PAYLOAD* subscribeList, size_t count, STRING_HANDLE trace_log);
-BUFFER_HANDLE mqtt_codec_unsubscribe(uint16_t packetId, const char** unsubscribeList, size_t count, STRING_HANDLE trace_log);
+MQTT_BUFFER* mqtt_codec_connect(MQTT_BUFFER *result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions/*!=NULL*/);
+MQTT_BUFFER* mqtt_codec_disconnect(MQTT_BUFFER *result/*!=NULL*/);
+MQTT_BUFFER* mqtt_codec_publish(MQTT_BUFFER *result/*!=NULL*/, const MQTT_MESSAGE *msg/*!=NULL*/);
+MQTT_BUFFER* mqtt_codec_publishAck(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
+MQTT_BUFFER* mqtt_codec_publishReceived(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
+MQTT_BUFFER* mqtt_codec_publishRelease(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
+MQTT_BUFFER* mqtt_codec_publishComplete(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
+MQTT_BUFFER* mqtt_codec_ping(MQTT_BUFFER *result/*!=NULL*/);
+MQTT_BUFFER* mqtt_codec_subscribe(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId, SUBSCRIBE_PAYLOAD* subscribeList, size_t count);
+MQTT_BUFFER* mqtt_codec_unsubscribe(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId, const char** unsubscribeList, size_t count);
 
-int mqtt_codec_bytesReceived(MQTTCODEC_HANDLE handle, const unsigned char* buffer, size_t size);
+int mqtt_codec_bytesReceived(MQTTCODEC_INSTANCE *handle/*!=NULL*/, const unsigned char* buffer/*!=NULL*/, size_t size/*!=0*/);
 
 #ifdef __cplusplus
 };

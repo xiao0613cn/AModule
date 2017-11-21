@@ -65,9 +65,14 @@ struct AObject {
 	}
 	template <typename TObject>
 	static int create(TObject **object, AObject *parent, AOption *option, const char *default_module) {
-		ACreateParam param(parent, option, NULL,
-			(option && option->value[0]) ? option->name : NULL,
-			(option && !option->value[0]) ? option->name : default_module, 0);
+		ACreateParam param(parent, option, NULL, NULL, default_module, 0);
+		if (option == NULL) {
+		} else if (option->value[0] != '\0') {
+			param.class_name = option->name;
+			param.module_name = option->value;
+		} else if (option->name[0] != '\0') {
+			param.module_name = option->name;
+		}
 		return AObjectCreate((AObject**)object, &param);
 	}
 	template <typename TObject>

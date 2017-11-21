@@ -1,9 +1,14 @@
-#include "stdafx.h"
+#include "../stdafx.h"
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
-#include "mqtt_codec.h"
 #include "../ecs/AClientSystem.h"
 #include "../ecs/AInOutComponent.h"
+#include "mqtt_codec.h"
+#include "mqtt_message.h"
+#include "MQTTComponent.h"
+#ifdef _WIN32
+#pragma comment(lib, "../bin/AModule.lib")
+#endif
 
 struct MQTTClient : public AEntity {
 	enum Status {
@@ -19,7 +24,7 @@ struct MQTTClient : public AEntity {
 	AInOutComponent  _iocom;
 	pthread_mutex_t  _mutex;
 
-	MQTTCODEC_HANDLE _codec;
+	MqttComponent _mqtt;
 	AOption   *_options;
 	Status     _status;
 	AMessage   _heart_msg;
@@ -31,12 +36,12 @@ struct MQTTClient : public AEntity {
 		pthread_mutex_init(&_mutex, NULL);
 		_iocom._mutex = &_mutex;
 
-		_codec = NULL;
+		_init_push(&_mqtt);
 		_options = NULL;
 		_status = Invalid;
 	}
 	int open(int result);
-	void on_packet(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag);
+	void on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* headerData, void *packetTag);
 };
 
 static void MQTTInputEnd(AInOutComponent *c, int result)
@@ -117,9 +122,11 @@ int MQTTClient::open(int result)
 		if (result < 0)
 			return result;
 
-		_codec = mqtt_codec_create(&mqtt_packet_callback<MQTTClient, &MQTTClient::on_packet>, this);
-		if (_codec == NULL)
-			return -ENOMEM;
+		mqtt_codec_exit(&_mqtt._codec);
+		mqtt_codec_init(&_mqtt._codec, &mqtt_packet_callback<MQTTClient, &MQTTClient::on_packet>, this);
+		//_codec = mqtt_codec_create(&mqtt_packet_callback<MQTTClient, &MQTTClient::on_packet>, this);
+		//if (_codec == NULL)
+		//	return -ENOMEM;
 
 		_status = LoginRecv;
 		_iocom._outbuf->reset();
@@ -130,7 +137,7 @@ int MQTTClient::open(int result)
 		if (result < 0)
 			return result;
 
-		result = mqtt_codec_bytesReceived(_codec, (unsigned char*)_heart_msg.data, _heart_msg.size);
+		result = mqtt_codec_bytesReceived(&_mqtt._codec, (unsigned char*)_heart_msg.data, _heart_msg.size);
 		if ((result != 0) || (_status == LoginFailed))
 			return -EFAULT;
 
@@ -150,7 +157,7 @@ int MQTTClient::open(int result)
 	return 0;
 }
 
-void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE headerData, void *packetTag)
+void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* headerData, void *packetTag)
 {
 	TRACE("packet = %x, flags = %x.\n", packet, flags);
 
@@ -162,23 +169,54 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, BUFFER_HANDLE 
 			_status = LoginFailed;
 		return;
 	}
-
-	if (packet == PUBLISH_TYPE) {
+	if (packet == PINGRESP_TYPE) {
 		return;
 	}
 
-	if (packet == PINGRESP_TYPE) {
+	if (packet == PUBLISH_TYPE) {
+		MQTT_MESSAGE *msg = (MQTT_MESSAGE*)packetTag;
+		// TODO: dispath msg...
+
+		if (msg->qosInfo == DELIVER_AT_LEAST_ONCE) {
+			MqttMsg *reply = MqttMsg::create();
+			mqtt_codec_publishAck(&reply->buf, msg->packetId);
+			_mqtt.post(reply);
+		}
+		else if (msg->qosInfo == DELIVER_EXACTLY_ONCE) {
+			MqttMsg *reply = MqttMsg::create();
+			mqtt_codec_publishReceived(&reply->buf, msg->packetId);
+			_mqtt.post(reply);
+		}
+		return;
+	}
+	if (packet == PUBREC_TYPE) {
+		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
+		MqttMsg *reply = MqttMsg::create();
+		mqtt_codec_publishRelease(&reply->buf, publish_ack->packetId);
+		_mqtt.post(reply);
+		return;
+	}
+	if (packet == PUBREL_TYPE) {
+		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
+		MqttMsg *reply = MqttMsg::create();
+		mqtt_codec_publishComplete(&reply->buf, publish_ack->packetId);
+		_mqtt.post(reply);
 		return;
 	}
 }
 
 static int MQTTHeartMsgDone(AMessage *msg, int result)
 {
+#if 0
+	MqttMsg *mm = (MqttMsg*)msg;
+	MQTTClient *mqtt = (MQTTClient*)mm->user;
+	mm->done_free(mm, result);
+#else
 	MQTTClient *mqtt = container_of(msg, MQTTClient, _heart_msg);
 
 	MQTT_BUFFER buf = { (unsigned char*)msg->data, msg->size };
 	BUFFER_unbuild(&buf);
-
+#endif
 	mqtt->_client.exec_done(result);
 	return result;
 }
@@ -186,7 +224,13 @@ static int MQTTHeartMsgDone(AMessage *msg, int result)
 static int MQTTHeart(AClientComponent *c)
 {
 	MQTTClient *mqtt = container_of(c, MQTTClient, _client);
-
+#if 0
+	MqttMsg *mm = MqttMsg::create();
+	mm->user = mqtt;
+	mm->done = &MQTTHeartMsgDone;
+	mqtt_codec_ping(&mm->buf);
+	mqtt->_mqtt.post(mm);
+#else
 	MQTT_BUFFER buf = { 0 };
 	mqtt_codec_ping(&buf);
 
@@ -194,6 +238,7 @@ static int MQTTHeart(AClientComponent *c)
 	mqtt->_heart_msg.done = &MQTTHeartMsgDone;
 
 	mqtt->_iocom.post(&mqtt->_heart_msg);
+#endif
 	return 0;
 }
 
@@ -230,7 +275,7 @@ static int MQTTClose(AClientComponent *c)
 		return 1;
 
 	mqtt->_status = MQTTClient::Invalid;
-	if_not(mqtt->_codec, NULL, mqtt_codec_destroy);
+	mqtt_codec_exit(&mqtt->_mqtt._codec);
 
 	MQTT_BUFFER buf = { 0 };
 	mqtt_codec_disconnect(&buf);
@@ -247,7 +292,7 @@ static int MQTTOutput(AInOutComponent *c, int result)
 {
 	MQTTClient *mqtt = container_of(c, MQTTClient, _iocom);
 	if (result >= 0)
-		result = mqtt_codec_bytesReceived(mqtt->_codec, (unsigned char*)c->_outbuf->ptr(), c->_outbuf->len());
+		result = mqtt_codec_bytesReceived(&mqtt->_mqtt._codec, (unsigned char*)c->_outbuf->ptr(), c->_outbuf->len());
 	if (result != 0) {
 		mqtt->_client._main_abort = true;
 		mqtt->_client.use(-1);
@@ -257,6 +302,12 @@ static int MQTTOutput(AInOutComponent *c, int result)
 
 	mqtt->_iocom._outbuf->reset();
 	return 1;
+}
+
+static void MQTTPost(MqttComponent *c, AMessage *msg)
+{
+	MQTTClient *p = container_of(c, MQTTClient, _mqtt);
+	p->_iocom.post(msg);
 }
 
 static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
@@ -272,6 +323,7 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 	mqtt->_client.abort = &MQTTAbort;
 	mqtt->_client.close = &MQTTClose;
 	mqtt->_iocom.on_output = &MQTTOutput;
+	mqtt->_mqtt.do_post = &MQTTPost;
 	return 1;
 }
 
@@ -282,7 +334,7 @@ static void MQTTRelease(AObject *object)
 	mqtt->_pop_exit(&mqtt->_iocom);
 	pthread_mutex_destroy(&mqtt->_mutex);
 
-	if_not(mqtt->_codec, NULL, mqtt_codec_destroy);
+	mqtt->_pop_exit(&mqtt->_mqtt);
 	release_s(mqtt->_options);
 	mqtt->exit();
 }

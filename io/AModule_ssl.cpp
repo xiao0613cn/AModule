@@ -1,6 +1,6 @@
 // http://roxlu.com/2014/042/using-openssl-with-memory-bios
 
-#include "stdafx.h"
+#include "../stdafx.h"
 #include "../base/AModule_API.h"
 #include "AModule_io.h"
 

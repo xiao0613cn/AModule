@@ -4,11 +4,12 @@
 struct str_t {
 	const char *str;
 	int   len;
-
+#ifdef __cplusplus
 	str_t(const char *p = NULL, int n = 0) {
 		str = p; len = n;
 		if (len < 0) len = strlen(str);
 	}
+#endif
 };
 
 #ifdef _WIN32
@@ -42,8 +43,7 @@ struct str_t {
 
 
 static inline char*
-strncpy_sz(char *dest, size_t size, const char *src, size_t len)
-{
+strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
 	if (src == NULL) {
 		dest[0] = '\0';
 	} else {
@@ -56,30 +56,26 @@ strncpy_sz(char *dest, size_t size, const char *src, size_t len)
 }
 
 static inline char*
-strcpy_sz(char *dest, size_t size, const char *src)
-{
-	return strncpy_sz(dest, size, src, 0xffffffff);
+strcpy_sz(char *dest, size_t size, const char *src) {
+	return strncpy_sz(dest, size, src, -1);
 }
 
 #ifdef __cplusplus
 template <size_t size>
 inline char*
-strncpy_sz(char (&dest)[size], const char *src, size_t len)
-{
+strncpy_sz(char (&dest)[size], const char *src, size_t len) {
 	return strncpy_sz(dest, size, src, len);
 }
 
 template <size_t size>
 inline char*
-strcpy_sz(char (&dest)[size], const char *src)
-{
+strcpy_sz(char (&dest)[size], const char *src) {
 	return strcpy_sz(dest, size, src);
 }
 #endif
 
 static inline const char*
-strnchr(const char *str, int val, size_t len)
-{
+strnchr(const char *str, int val, size_t len) {
 	const char *end = str + len;
 	while ((str != end) && (*str != '\0')) {
 		if (*str == val)
@@ -97,8 +93,7 @@ strnchr(const char *str, int val, size_t len)
 #define c4_args(p)  (p)[0], (p)[1], (p)[2], (p)[3]
 
 static inline int
-strtotm(const char *str, struct tm *t)
-{
+strtotm(const char *str, struct tm *t) {
 	int result = sscanf(str, "%d-%d-%d %d:%d:%d",
 		&t->tm_year, &t->tm_mon, &t->tm_mday,
 		&t->tm_hour, &t->tm_min, &t->tm_sec);
@@ -108,11 +103,20 @@ strtotm(const char *str, struct tm *t)
 }
 
 static inline time_t
-strtotime(const char *str)
-{
+strtotime(const char *str) {
 	struct tm t = { 0 };
 	strtotm(str, &t);
 	return mktime(&t);
+}
+
+static inline char*
+strndup(const char *src, int len) {
+	char *str = (char*)malloc(len + 2);
+	if (str != NULL) {
+		memcpy(str, src, len);
+		str[len] = '\0';
+	}
+	return str;
 }
 
 

@@ -41,12 +41,11 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../;../win32"
+				AdditionalIncludeDirectories="../win32"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;IO_OPENSSL_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
-				UsePrecompiledHeader="2"
 				WarningLevel="4"
 				DebugInformationFormat="4"
 			/>
@@ -114,11 +113,10 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="../;../win32"
+				AdditionalIncludeDirectories="../win32"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;IO_OPENSSL_EXPORTS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="2"
 				WarningLevel="4"
 				DebugInformationFormat="3"
 			/>
@@ -174,36 +172,12 @@
 				RelativePath=".\AModule_ssl.cpp"
 				>
 			</File>
-			<File
-				RelativePath="..\stdafx.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-			</File>
 		</Filter>
 		<Filter
 			Name="头文件"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
-			<File
-				RelativePath="..\stdafx.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="资源文件"

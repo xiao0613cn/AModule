@@ -15,20 +15,20 @@
 #define closesocket_s(sock)         if_not2(sock, INVALID_SOCKET, closesocket(sock));
 
 /*
-template <typename object_t>
+template <typename TObject>
 struct ARefsPtr {
-	object_t *_this;
+	TObject *_this;
 
-	void init(object_t *p = NULL) { _this = p; }
-	object_t *operator->() { return _this; }
-	operator object_t*() { return _this; }
+	TObject* init(TObject *p = NULL) { return _this = p; }
+	TObject* operator->() { return _this; }
+	operator TObject*() { return _this; }
 
-	object_t* operator=(object_t *p) {
+	TObject* operator=(TObject *p) {
 		if (_this != NULL) _this->release();
 		_this = p;
 		return _this;
 	}
-	object_t* operator=(ARefsPtr<object_t> &other) {
+	TObject* operator=(ARefsPtr<TObject> &other) {
 		if (_this != NULL) _this->release();
 		_this = other._this;
 		if (_this != NULL) _this->addref();
@@ -37,8 +37,8 @@ struct ARefsPtr {
 };
 */
 
-#define gomake2(type, count) (type*)malloc(sizeof(type)*(count))
-#define gomake(type)         (type*)malloc(sizeof(type))
+#define goarrary(type, count) (type*)calloc(count, sizeof(type))
+#define gomake(type)          (type*)malloc(sizeof(type))
 
 
 #define defer_struct(name, type, member, close) \

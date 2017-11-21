@@ -11,8 +11,8 @@ typedef MQTT_BUFFER BUFFER;
 //#include "azure_c_shared_utility/xlogging.h"
 
 
-/* Codes_SRS_BUFFER_07_001: [BUFFER_new shall allocate a BUFFER_HANDLE that will contain a NULL unsigned char*.] */
-BUFFER_HANDLE BUFFER_new(void)
+/* Codes_SRS_BUFFER_07_001: [BUFFER_new shall allocate a MQTT_BUFFER* that will contain a NULL unsigned char*.] */
+MQTT_BUFFER* BUFFER_new(void)
 {
     BUFFER* temp = (BUFFER*)malloc(sizeof(BUFFER));
     /* Codes_SRS_BUFFER_07_002: [BUFFER_new shall return NULL on any error that occurs.] */
@@ -21,7 +21,7 @@ BUFFER_HANDLE BUFFER_new(void)
         temp->buffer = NULL;
         temp->size = 0;
     }
-    return (BUFFER_HANDLE)temp;
+    return (MQTT_BUFFER*)temp;
 }
 
 static int BUFFER_safemalloc(BUFFER* handleptr, size_t size)
@@ -47,7 +47,7 @@ static int BUFFER_safemalloc(BUFFER* handleptr, size_t size)
     return result;
 }
 
-BUFFER_HANDLE BUFFER_create(const unsigned char* source, size_t size)
+MQTT_BUFFER* BUFFER_create(const unsigned char* source, size_t size)
 {
     BUFFER* result;
     /*Codes_SRS_BUFFER_02_001: [If source is NULL then BUFFER_create shall return NULL.]*/
@@ -69,7 +69,6 @@ BUFFER_HANDLE BUFFER_create(const unsigned char* source, size_t size)
             /* Codes_SRS_BUFFER_02_005: [If size parameter is 0 then 1 byte of memory shall be allocated yet size of the buffer shall be set to 0.]*/
             if (BUFFER_safemalloc(result, size) != 0)
             {
-                LogError("unable to BUFFER_safemalloc ");
                 free(result);
                 result = NULL;
             }
@@ -80,19 +79,19 @@ BUFFER_HANDLE BUFFER_create(const unsigned char* source, size_t size)
             }
         }
     }
-    return (BUFFER_HANDLE)result;
+    return (MQTT_BUFFER*)result;
 }
 
-/* Codes_SRS_BUFFER_07_003: [BUFFER_delete shall delete the data associated with the BUFFER_HANDLE along with the Buffer.] */
-void BUFFER_delete(BUFFER_HANDLE handle)
+/* Codes_SRS_BUFFER_07_003: [BUFFER_delete shall delete the data associated with the MQTT_BUFFER* along with the Buffer.] */
+void BUFFER_delete(MQTT_BUFFER* handle)
 {
-    /* Codes_SRS_BUFFER_07_004: [BUFFER_delete shall not delete any BUFFER_HANDLE that is NULL.] */
+    /* Codes_SRS_BUFFER_07_004: [BUFFER_delete shall not delete any MQTT_BUFFER* that is NULL.] */
     if (handle != NULL)
     {
         BUFFER* b = (BUFFER*)handle;
         if (b->buffer != NULL)
         {
-            /* Codes_SRS_BUFFER_07_003: [BUFFER_delete shall delete the data associated with the BUFFER_HANDLE along with the Buffer.] */
+            /* Codes_SRS_BUFFER_07_003: [BUFFER_delete shall delete the data associated with the MQTT_BUFFER* along with the Buffer.] */
             free(b->buffer);
         }
         free(b);
@@ -102,7 +101,7 @@ void BUFFER_delete(BUFFER_HANDLE handle)
 /*return 0 if the buffer was copied*/
 /*else return different than zero*/
 /* Codes_SRS_BUFFER_07_008: [BUFFER_build allocates size_t bytes, copies the unsigned char* into the buffer and returns zero on success.] */
-int BUFFER_build(BUFFER_HANDLE b, const unsigned char* source, size_t size)
+int BUFFER_build(MQTT_BUFFER* b, const unsigned char* source, size_t size)
 {
     int result;
     if (b == NULL)
@@ -145,8 +144,8 @@ int BUFFER_build(BUFFER_HANDLE b, const unsigned char* source, size_t size)
 
 /*return 0 if the buffer was pre-build(that is, had its space allocated)*/
 /*else return different than zero*/
-/* Codes_SRS_BUFFER_07_005: [BUFFER_pre_build allocates size_t bytes of BUFFER_HANDLE and returns zero on success.] */
-int BUFFER_pre_build(BUFFER_HANDLE handle, size_t size)
+/* Codes_SRS_BUFFER_07_005: [BUFFER_pre_build allocates size_t bytes of MQTT_BUFFER* and returns zero on success.] */
+int BUFFER_pre_build(MQTT_BUFFER* handle, size_t size)
 {
     int result;
     if (handle == NULL)
@@ -184,8 +183,8 @@ int BUFFER_pre_build(BUFFER_HANDLE handle, size_t size)
     return result;
 }
 
-/* Codes_SRS_BUFFER_07_019: [BUFFER_content shall return the data contained within the BUFFER_HANDLE.] */
-int BUFFER_content(BUFFER_HANDLE handle, const unsigned char** content)
+/* Codes_SRS_BUFFER_07_019: [BUFFER_content shall return the data contained within the MQTT_BUFFER*.] */
+int BUFFER_content(MQTT_BUFFER* handle, const unsigned char** content)
 {
     int result;
     if ((handle == NULL) || (content == NULL))
@@ -203,13 +202,13 @@ int BUFFER_content(BUFFER_HANDLE handle, const unsigned char** content)
 }
 
 /*return 0 if everything went ok and whatever was built in the buffer was unbuilt*/
-/* Codes_SRS_BUFFER_07_012: [BUFFER_unbuild shall clear the underlying unsigned char* data associated with the BUFFER_HANDLE this will return zero on success.] */
-extern int BUFFER_unbuild(BUFFER_HANDLE handle)
+/* Codes_SRS_BUFFER_07_012: [BUFFER_unbuild shall clear the underlying unsigned char* data associated with the MQTT_BUFFER* this will return zero on success.] */
+extern int BUFFER_unbuild(MQTT_BUFFER* handle)
 {
     int result;
     if (handle == NULL)
     {
-        /* Codes_SRS_BUFFER_07_014: [BUFFER_unbuild shall return a nonzero value if BUFFER_HANDLE is NULL.] */
+        /* Codes_SRS_BUFFER_07_014: [BUFFER_unbuild shall return a nonzero value if MQTT_BUFFER* is NULL.] */
         result = __FAILURE__;
     }
     else
@@ -224,15 +223,15 @@ extern int BUFFER_unbuild(BUFFER_HANDLE handle)
         }
         else
         {
-            /* Codes_SRS_BUFFER_07_015: [BUFFER_unbuild shall return a nonzero value if the unsigned char* referenced by BUFFER_HANDLE is NULL.] */
+            /* Codes_SRS_BUFFER_07_015: [BUFFER_unbuild shall return a nonzero value if the unsigned char* referenced by MQTT_BUFFER* is NULL.] */
             result = __FAILURE__;
         }
     }
     return result;
 }
 
-/* Codes_SRS_BUFFER_07_016: [BUFFER_enlarge shall increase the size of the unsigned char* referenced by BUFFER_HANDLE.] */
-int BUFFER_enlarge(BUFFER_HANDLE handle, size_t enlargeSize)
+/* Codes_SRS_BUFFER_07_016: [BUFFER_enlarge shall increase the size of the unsigned char* referenced by MQTT_BUFFER*.] */
+int BUFFER_enlarge(MQTT_BUFFER* handle, size_t enlargeSize)
 {
     int result;
     if (handle == NULL)
@@ -265,7 +264,7 @@ int BUFFER_enlarge(BUFFER_HANDLE handle, size_t enlargeSize)
 }
 
 /* Codes_SRS_BUFFER_07_021: [BUFFER_size shall place the size of the associated buffer in the size variable and return zero on success.] */
-int BUFFER_size(BUFFER_HANDLE handle, size_t* size)
+int BUFFER_size(MQTT_BUFFER* handle, size_t* size)
 {
     int result;
     if ((handle == NULL) || (size == NULL))
@@ -283,7 +282,7 @@ int BUFFER_size(BUFFER_HANDLE handle, size_t* size)
 }
 
 /* Codes_SRS_BUFFER_07_024: [BUFFER_append concatenates b2 onto b1 without modifying b2 and shall return zero on success.] */
-int BUFFER_append(BUFFER_HANDLE b1, const void *buffer, size_t size)
+int BUFFER_append(MQTT_BUFFER* b1, const void *buffer, size_t size)
 {
     int result;
     if ((b1 == NULL) || (b1->buffer == buffer))
@@ -324,7 +323,7 @@ int BUFFER_append(BUFFER_HANDLE b1, const void *buffer, size_t size)
     return result;
 }
 
-int BUFFER_prepend(BUFFER_HANDLE b1, const void *buffer, size_t size)
+int BUFFER_prepend(MQTT_BUFFER* b1, const void *buffer, size_t size)
 {
     int result;
     if ((b1 == NULL) || (b1->buffer == buffer))
@@ -369,7 +368,7 @@ int BUFFER_prepend(BUFFER_HANDLE b1, const void *buffer, size_t size)
 
 
 /* Codes_SRS_BUFFER_07_025: [BUFFER_u_char shall return a pointer to the underlying unsigned char*.] */
-unsigned char* BUFFER_u_char(BUFFER_HANDLE handle)
+unsigned char* BUFFER_u_char(MQTT_BUFFER* handle)
 {
     BUFFER* handleData = (BUFFER*)handle;
     unsigned char* result;
@@ -387,7 +386,7 @@ unsigned char* BUFFER_u_char(BUFFER_HANDLE handle)
 }
 
 /* Codes_SRS_BUFFER_07_027: [BUFFER_length shall return the size of the underlying buffer.] */
-size_t BUFFER_length(BUFFER_HANDLE handle)
+size_t BUFFER_length(MQTT_BUFFER* handle)
 {
     size_t result;
     if (handle == NULL)
@@ -403,9 +402,9 @@ size_t BUFFER_length(BUFFER_HANDLE handle)
     return result;
 }
 
-BUFFER_HANDLE BUFFER_clone(BUFFER_HANDLE handle)
+MQTT_BUFFER* BUFFER_clone(MQTT_BUFFER* handle)
 {
-    BUFFER_HANDLE result;
+    MQTT_BUFFER* result;
     if (handle == NULL)
     {
         result = NULL;
@@ -424,7 +423,7 @@ BUFFER_HANDLE BUFFER_clone(BUFFER_HANDLE handle)
             {
                 (void)memcpy(b->buffer, suppliedBuff->buffer, suppliedBuff->size);
                 b->size = suppliedBuff->size;
-                result = (BUFFER_HANDLE)b;
+                result = (MQTT_BUFFER*)b;
             }
         }
         else

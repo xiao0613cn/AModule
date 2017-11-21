@@ -191,7 +191,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="ffmpeg/include;./"
+				AdditionalIncludeDirectories="ffmpeg/include;./win32"
 				PreprocessorDefinitions="WIN32;_DEBUG;AMODULE_API_EXPORTS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -266,7 +266,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="ffmpeg/include;./"
+				AdditionalIncludeDirectories="ffmpeg/include;./win32"
 				PreprocessorDefinitions="WIN32;NDEBUG;AMODULE_API_EXPORTS;LIBPSUTIL_EXPORTS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -405,34 +405,6 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath=".\iot\buffer.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
 				RelativePath=".\crypto\crc.c"
 				>
 				<FileConfiguration
@@ -511,62 +483,6 @@
 			<File
 				RelativePath=".\PVDClient\md5.cpp"
 				>
-			</File>
-			<File
-				RelativePath=".\iot\mqtt_codec.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\iot\mqtt_message.c"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_DLL|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="0"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\PVDClient\PVDClient.cpp"
@@ -791,11 +707,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\bswap.h"
+				RelativePath=".\ffmpeg\libavutil\bswap.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\bswap.h"
+				RelativePath=".\crypto\bswap.h"
 				>
 			</File>
 			<File
@@ -804,10 +720,6 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\buffer.h"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\buffer_.h"
 				>
 			</File>
 			<File
@@ -827,11 +739,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\crc.h"
+				RelativePath=".\crypto\crc.h"
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\crc.h"
+				RelativePath=".\ffmpeg\libavutil\crc.h"
 				>
 			</File>
 			<File
@@ -903,11 +815,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\intreadwrite.h"
+				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\intreadwrite.h"
+				RelativePath=".\crypto\intreadwrite.h"
 				>
 			</File>
 			<File
@@ -960,22 +872,6 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\mem.h"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\mqtt_codec.h"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\mqtt_message.h"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\MQTTClient.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\mqttconst.h"
 				>
 			</File>
 			<File
@@ -1043,11 +939,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\sha.h"
+				RelativePath=".\ffmpeg\libavutil\sha.h"
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavutil\sha.h"
+				RelativePath=".\crypto\sha.h"
 				>
 			</File>
 			<File
@@ -1088,10 +984,6 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\timestamp.h"
-				>
-			</File>
-			<File
-				RelativePath=".\iot\umock_c_prod.h"
 				>
 			</File>
 			<File

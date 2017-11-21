@@ -1,14 +1,15 @@
-#include "stdafx.h"
-#include "base/AModule_API.h"
+#include "../stdafx.h"
+#include "../base/AModule_API.h"
 #ifdef _WIN32
 #pragma comment(lib, "..\\bin\\AModule.lib")
 #endif
-#include "base/spinlock.h"
-#include "ecs/AEntity.h"
-#include "ecs/AEvent.h"
-#include "ecs/ASystem.h"
-#include "ecs/AInOutComponent.h"
-#include "ecs/AClientSystem.h"
+#include "../base/spinlock.h"
+#include "../ecs/AEntity.h"
+#include "../ecs/AEvent.h"
+#include "../ecs/ASystem.h"
+#include "../ecs/AInOutComponent.h"
+#include "../ecs/AClientSystem.h"
+#include "../iot/MQTTComponent.h"
 #include "test.h"
 
 
@@ -73,7 +74,7 @@ CU_TEST(test_echo_client)
 	fscanf(stdin, "%d", &thread_num);
 	if (thread_num == 0) thread_num = 10;
 
-	echo_info *ei = gomake2(echo_info, thread_num);
+	echo_info *ei = goarrary(echo_info, thread_num);
 	for (int ix = 0; ix < thread_num; ++ix) {
 		pthread_create(&ei[ix].tid, NULL, &echo_thread, &ei[ix]);
 	}
@@ -97,7 +98,8 @@ CU_TEST(test_echo_client)
 CU_TEST(test_service)
 {
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "tcp_server: { port: 4444, io: async_tcp, " //io: io_dump { 
+	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: io_openssl { io: async_tcp, "
+		"certi_file: 'D:\\\\self.crt', key_file: 'D:\\\\self.key' }, }, "
 		"is_async: 1, services: { EchoService, HttpService, }, background: 1 }", -1);
 
 	AService *tcp_server = NULL;
@@ -186,6 +188,11 @@ static int on_event(const char *name, bool preproc, void *p)
 	AClientComponent *c = (AClientComponent*)p;
 	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
 		name, c->_object->_module->module_name, c->_object, c, preproc);
+
+	MqttComponent *mqtt; c->_other(&mqtt);
+	if (mqtt != NULL) {
+		TRACE("this is a mqtt event...\n");
+	}
 	return 1;
 }
 CU_TEST(test_pvd)
@@ -248,6 +255,7 @@ int main()
 {
 	dlload(NULL, "io_openssl", FALSE);
 	dlload(NULL, "service_http", FALSE);
+	dlload(NULL, "mqtt_client", FALSE);
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 
