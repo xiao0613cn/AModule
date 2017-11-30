@@ -57,7 +57,7 @@ strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
 
 static inline char*
 strcpy_sz(char *dest, size_t size, const char *src) {
-	return strncpy_sz(dest, size, src, -1);
+	return strncpy_sz(dest, size, src, 0xffffffff);
 }
 
 #ifdef __cplusplus
@@ -86,6 +86,7 @@ strnchr(const char *str, int val, size_t len) {
 }
 
 #define tm_fmt      "%04d-%02d-%02d %02d:%02d:%02d"
+#define tm_sfmt     "%04d%02d%02d%02d%02d%02d"
 #define tm_args(t)  \
 	(t)->tm_year+1900, (t)->tm_mon+1, (t)->tm_mday, \
 	(t)->tm_hour, (t)->tm_min, (t)->tm_sec
@@ -119,6 +120,23 @@ strndup(const char *src, int len) {
 	return str;
 }
 
+static inline char*
+strreplace(char *str, int size, const char *param, const char *value) {
+	char *ptr = strstr(str, param);
+	if (ptr == NULL)
+		return NULL;
+
+	int slen = strlen(str);
+	int plen = strlen(param);
+	int vlen = strlen(value);
+	if (size > slen+1-plen+vlen)
+		size = slen+1-plen+vlen;
+
+	memmove(ptr+vlen, ptr+plen, size-1-(ptr-str)-vlen);
+	memcpy(ptr, value, vlen);
+	str[size-1] = '\0';
+	return ptr;
+}
 
 
 

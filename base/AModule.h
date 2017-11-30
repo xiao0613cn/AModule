@@ -90,7 +90,7 @@ struct AObject {
 #endif
 };
 
-struct ACreateParam {
+typedef struct ACreateParam {
 	AObject  *parent;
 	AOption  *option;
 	AModule  *module;
@@ -98,11 +98,13 @@ struct ACreateParam {
 	const char *module_name;
 	int       ex_size;
 
+#ifdef __cplusplus
 	ACreateParam(AObject *p, AOption *o, AModule *m, const char *cn, const char *mn, int ex) {
 		parent = p; option = o; module = m;
 		class_name = cn; module_name = mn; ex_size = ex;
 	}
-};
+#endif
+} ACreateParam;
 
 AMODULE_API int
 AObjectCreate(AObject **object, ACreateParam *p);
@@ -111,76 +113,5 @@ AMODULE_API void
 AObjectFree(AObject *object);
 
 
-
-#if 0
-typedef enum AObject_Status {
-	AObject_Invalid = 0,
-	AObject_Opening,
-	AObject_Opened,
-	AObject_Abort,
-	AObject_Closing,
-	AObject_Closed,
-} AObject_Status;
-
-static inline const char*
-StatusName(AObject_Status status)
-{
-	switch (status)
-	{
-	case AObject_Invalid: return "invalid";
-	case AObject_Opening: return "opening";
-	case AObject_Opened:  return "opened";
-	case AObject_Abort:   return "abort";
-	case AObject_Closing: return "closing";
-	case AObject_Closed:  return "closed";
-	default: return "unknown";
-	}
-}
-
-
-enum ObjKV_Types {
-	ObjKV_string = 0,
-	ObjKV_char   = 1,
-	ObjKV_int8   = 8*sizeof(int8_t),
-	ObjKV_int16  = 8*sizeof(int16_t),
-	ObjKV_int32  = 8*sizeof(int32_t),
-	ObjKV_int64  = 8*sizeof(int64_t),
-	ObjKV_object = 256,
-	ObjKV_get,  // int get(AObject *obj, void *ptr, int len);
-	ObjKV_set,  // int set(AObject *obj, const void *ptr, int len);
-};
-
-typedef struct ObjKV {
-	const char *name;
-	int         offset;
-	ObjKV_Types type;
-	int         size;
-	union {
-	int64_t     defnum;
-	const char *defstr;
-	};
-} ObjKV;
-
-#define ObjKV_T(type, member, kv, def) \
-	{ #member, offsetof(type, member), kv, sizeof(((type*)0)->member), {(int64_t)def} },
-
-#define ObjKV_S(type, member, defstr) \
-	ObjKV_T(type, member, ObjKV_string, defstr)
-
-#define ObjKV_N(type, member, defnum) \
-	ObjKV_T(type, member, (ObjKV_Types)(8*sizeof(((type*)0)->member)), defnum)
-
-#define ObjKV_O(type, member, defstr) \
-	ObjKV_T(type, member, ObjKV_object, defstr)
-
-AMODULE_API int
-AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt);
-
-AMODULE_API int
-AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip_unfound);
-
-AMODULE_API int
-AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map);
-#endif
 
 #endif

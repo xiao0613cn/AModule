@@ -197,19 +197,19 @@ static int work_thread_begin(int max_timewait)
 	}
 #endif
 	AThread *&pool = work_thread[0];
-	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+	for (unsigned int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadBegin(&work_thread[ix], pool, max_timewait);
 	}
 	return 1;
 }
 static int work_thread_end(void)
 {
-	for (int ix = 0; ix < _countof(work_thread); ++ix) {
+	for (unsigned int ix = 0; ix < _countof(work_thread); ++ix) {
 		AThreadAbort(work_thread[ix]);
 	}
-	for (int ix = _countof(work_thread)-1; ix >= 0; --ix) {
-		AThreadEnd(work_thread[ix]);
-		work_thread[ix] = NULL;
+	for (unsigned int ix = 0; ix < _countof(work_thread); ++ix) {
+		AThreadEnd(work_thread[_countof(work_thread)-1-ix]);
+		work_thread[_countof(work_thread)-1-ix] = NULL;
 	}
 	return 1;
 }
@@ -422,7 +422,7 @@ AThreadBind(AThread *at, AOperator *asop, uint32_t event)
 		if (at == NULL) {
 			at = work_thread[0];
 
-			for (int ix = 1; ix < _countof(work_thread); ++ix) {
+			for (unsigned int ix = 1; ix < _countof(work_thread); ++ix) {
 				if (work_thread[ix]->bind_count < at->bind_count)
 					at = work_thread[ix];
 			}

@@ -38,7 +38,10 @@ struct AEntity : public AObject {
 		_com_count = 0;
 	}
 	void exit() {
-		assert(_com_list.empty());
+		while (!_com_list.empty()) {
+			AComponent *c = list_pop_front(&_com_list, AComponent, _entity_node);
+			c->_object->release();
+		}
 		assert(RB_EMPTY_NODE(&_manager_node));
 	}
 	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }

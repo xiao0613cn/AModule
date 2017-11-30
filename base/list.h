@@ -24,7 +24,7 @@
  * using the generic single-entry routines.
  */
 
-struct list_head {
+typedef struct list_head {
 	struct list_head *next, *prev;
 
 #ifdef __cplusplus
@@ -43,7 +43,7 @@ struct list_head {
 // item function
 	void leave();
 #endif
-};
+} list_head;
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 

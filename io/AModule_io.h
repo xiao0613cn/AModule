@@ -125,9 +125,16 @@ struct AService : public AObject {
 		_svc_option = NULL; _peer_module = NULL;
 		start = NULL; stop = NULL; run = NULL; abort = NULL;
 	}
-};
 #define list_for_AService(pos, service) \
 	list_for_each2(pos, &(service)->_children_list, AService, _brother_entry)
+
+	void _abort(AObject *peer) {
+		if (abort) abort(this, peer);
+		list_for_AService(svc, this) {
+			svc->_abort(peer);
+		}
+	}
+};
 
 AMODULE_API int
 AServiceStart(AService *service, AOption *option, BOOL create_chains);

@@ -15,13 +15,17 @@ struct HttpMsg {
 	uint32_t&      body_pos() { return _parser.nread; }
 	int64_t&       body_len() { return *(int64_t*)&_parser.content_length; }
 
-	void     reset_head()                  { set(str_t(), str_t()); }
-	void     reset_body()                  { if (_body_buf) _body_buf->reset(); body_pos() = 0; body_len() = 0; }
-	str_t    get_url()                     { return _head_get(this, ""); }
-	int      set_url(str_t value)          { return _head_set(this, str_t("",0), value); }
-	str_t    at(int ix, str_t *value)      { return _head_at(this, ix, value); }
-	str_t    get(const char *field)        { return _head_get(this, field); }
-	int      set(str_t field, str_t value) { return _head_set(this, field, value); }
+	str_t get_url()                     { return _head_get(this, ""); }
+	int   set_url(str_t value)          { return _head_set(this, str_t("",0), value); }
+	str_t at(int ix, str_t *value)      { return _head_at(this, ix, value); }
+	str_t get(const char *field)        { return _head_get(this, field); }
+	int   set(str_t field, str_t value) { return _head_set(this, field, value); }
+
+	void  reset_head()                  { set(str_t(), str_t()); }
+	void  set_body(ARefsBuf *p, uint32_t pos, int64_t len) {
+		release_s(_body_buf); _body_buf = p; if (p) p->addref();
+		body_pos() = pos; body_len() = len;
+	}
 };
 
 enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };

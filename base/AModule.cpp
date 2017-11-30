@@ -60,11 +60,62 @@ AModuleRegister(AModule *module)
 	return result;
 }
 
+#ifdef _WIN32
+#include <DbgHelp.h>
+#pragma comment(lib, "DbgHelp.lib")
+
+static LPTOP_LEVEL_EXCEPTION_FILTER next_except_filter;
+
+static LONG WINAPI except_filter(EXCEPTION_POINTERS *except_ptr)
+{
+	TCHAR path[MAX_PATH];
+	GetModuleFileName(NULL, path, MAX_PATH);
+
+	TCHAR exe_name[64];
+	TCHAR *tstr = _tcsrchr(path, _T('\\'));
+	if (tstr == NULL) {
+		return next_except_filter ? next_except_filter(except_ptr)
+			: EXCEPTION_EXECUTE_HANDLER;
+	}
+
+	_tcscpy_s(exe_name, tstr+1);
+	time_t cur_time = time(NULL);
+	struct tm *cur_tm = localtime(&cur_time);
+	_stprintf(tstr, _T("\\logs\\%s_")_T(tm_sfmt)_T(".dmp"), exe_name, tm_args(cur_tm));
+
+	HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, NULL,
+		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);  
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		TRACE("create dump file failed...\n");
+		return next_except_filter ? next_except_filter(except_ptr)
+			: EXCEPTION_EXECUTE_HANDLER;
+	}
+
+	MINIDUMP_EXCEPTION_INFORMATION except_info;
+	except_info.ExceptionPointers = except_ptr;
+	except_info.ThreadId = GetCurrentThreadId();
+	except_info.ClientPointers = TRUE;
+	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(),
+		hFile, MiniDumpWithDataSegs, &except_info, NULL, NULL);  
+	CloseHandle(hFile);
+
+	return next_except_filter ? next_except_filter(except_ptr)
+		: EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
 AMODULE_API int
 AModuleInit(AOption *option)
 {
 	if_not(g_option, option, release_s);
-	BOOL first = !g_inited; g_inited = TRUE;
+	BOOL first = !g_inited;
+if (!g_inited) {
+		g_inited = TRUE;
+#ifdef _WIN32
+		next_except_filter = SetUnhandledExceptionFilter(&except_filter);
+#endif
+	}
 
 	list_for_all_AModule(module)
 	{
@@ -320,77 +371,3 @@ dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
 	return module;
 }
 
-#if 0
-AMODULE_API int
-AObjectSetKVOpt(AObject *object, const ObjKV *kv, AOption *opt)
-{
-	if (kv->type == ObjKV_string) {
-		strcpy_sz((char*)object+kv->offset, kv->size, opt?opt->value:kv->defstr);
-		return 1;
-	}
-	if (kv->type == ObjKV_char) {
-		*((char*)object+kv->offset) = opt?opt->value[0]:kv->defstr[0];
-		return 1;
-	}
-	if (kv->type == ObjKV_object) {
-		//return (AObjectCreate((AObject**)((char*)object+kv->offset), object, opt, kv->defstr) >= 0);
-		AObject *child = *(AObject**)((char*)object+kv->offset);
-		if ((child == NULL) && (opt == NULL))
-			return 0;
-		if (child == NULL) {
-			if (AObjectCreate(&child, object, opt, kv->defstr) < 0)
-				return 0;
-			*(AObject**)((char*)object+kv->offset) = child;
-			if (opt == NULL)
-				return 1;
-		} else {
-			if (opt == NULL)
-				return 0;
-		}
-
-		int count = 0;
-		/*AOption *child_opt;
-		list_for_each_entry(child_opt, &opt->children_list, AOption, brother_entry)
-		{
-			if (AObjectSetOpt(child, child_opt, child->module->kv_map) > 0)
-				++count;
-		}*/
-		return count;
-	}
-
-	int64_t v = opt ? _atoi64(opt->value) : kv->defnum;
-	switch (kv->type)
-	{
-	case ObjKV_int8:   *(int8_t*)((char*)object+kv->offset) = (int8_t)v; break;
-	case ObjKV_int16:  *(int16_t*)((char*)object+kv->offset) = (int16_t)v; break;
-	case ObjKV_int32:  *(int32_t*)((char*)object+kv->offset) = (int32_t)v; break;
-	case ObjKV_int64:  *(int64_t*)((char*)object+kv->offset) = v; break;
-	default: return 0;
-	}
-	return 1;
-}
-
-AMODULE_API int
-AObjectSetKVMap(AObject *object, const ObjKV *kv_map, AOption *option, BOOL skip_unfound)
-{
-	int count = 0;
-	for (const ObjKV *kv = kv_map; kv->name != NULL; ++kv)
-	{
-		AOption *opt = AOptionFind(option, kv->name);
-		if (opt != NULL || !skip_unfound)
-			count += AObjectSetKVOpt(object, kv, opt);
-	}
-	return count;
-}
-
-AMODULE_API int
-AObjectSetOpt(AObject *object, AOption *opt, const ObjKV *kv_map)
-{
-	for (const ObjKV *kv = kv_map; kv->name != NULL; ++kv)
-	{
-		if (strcmp(opt->name, kv->name) == 0)
-			return AObjectSetKVOpt(object, kv, opt) ? 1 : -ENOENT;
-	}
-	return 0;
-}
-#endif
