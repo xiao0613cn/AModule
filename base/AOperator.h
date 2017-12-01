@@ -60,7 +60,7 @@ struct AOperator {
 	};
 #ifdef __cplusplus
 	void timer() {
-		memset(this, 0, sizeof(*this));
+		z_set(*this);
 		RB_CLEAR_NODE(&ao_tree);
 		INIT_LIST_HEAD(&ao_list);
 	}
@@ -93,7 +93,7 @@ int AsopDoneT(AOperator *asop, int result) {
 
 static inline void
 AOperatorTimeinit(AOperator *asop) {
-	memset(asop, 0, sizeof(*asop));
+	z_set(*asop);
 	RB_CLEAR_NODE(&asop->ao_tree);
 	INIT_LIST_HEAD(&asop->ao_list);
 }

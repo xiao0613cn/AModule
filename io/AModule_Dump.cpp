@@ -49,7 +49,7 @@ static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 
 	pthread_mutex_init(&dump->req_mutex, NULL);
 	INIT_LIST_HEAD(&dump->req_list);
-	memset(dump->req_cache, 0, sizeof(dump->req_cache));
+	z_set(dump->req_cache);
 	return 1;
 }
 

@@ -12,12 +12,12 @@ struct AComponent {
 	AObject    *_object;
 	list_head   _entity_node;
 
-	void init(const char *n, int i = 0) {
+	void init(AObject *o, const char *n, int i = 0) {
 		_name = n; _index = i;
-		_object = NULL; _entity_node.init();
+		_object = o; _entity_node.init();
 	}
 	bool valid() {
-		return ((_object != NULL) && !_entity_node.empty());
+		return !_entity_node.empty();
 	}
 	template <typename TComponent>
 	TComponent* _other(TComponent **c, int com_index = -1) {
@@ -40,6 +40,7 @@ struct AEntity : public AObject {
 	void exit() {
 		while (!_com_list.empty()) {
 			AComponent *c = list_pop_front(&_com_list, AComponent, _entity_node);
+			assert(c->_object != this);
 			c->_object->release();
 		}
 		assert(RB_EMPTY_NODE(&_manager_node));
@@ -47,11 +48,10 @@ struct AEntity : public AObject {
 	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }
 
 	bool _push(AComponent *c) {
-		bool valid = ((c->_object == NULL) && c->_entity_node.empty());
+		bool valid = c->_entity_node.empty();
 		if (valid) {
 			//c->_self->addref();
 			//this->_self->addref();
-			c->_object = this;
 			_com_list.push_back(&c->_entity_node);
 			++_com_count;
 		} else {
@@ -61,12 +61,12 @@ struct AEntity : public AObject {
 	}
 	template <typename TComponent>
 	void _init_push(TComponent *c, int i = 0) {
-		c->init(TComponent::name(), i);
+		c->init(this, TComponent::name(), i);
 		c->init2();
 		_push(c);
 	}
 	bool _pop(AComponent *c) {
-		bool valid = ((c->_object == this) && !c->_entity_node.empty());
+		bool valid = !c->_entity_node.empty();
 		if (valid) {
 			//c->_self->release();
 			c->_entity_node.leave();

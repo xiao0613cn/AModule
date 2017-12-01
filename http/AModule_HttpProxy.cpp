@@ -11,7 +11,7 @@
 static int on_m_begin(http_parser *parser) {
 	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 
-	p->_httpmsg->reset_head();
+	p->_httpmsg->reset();
 	p->_header_block.set(NULL, 0, 0);
 	p->_header_count = 0;
 
@@ -271,8 +271,9 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 	p->init();
 	p->_init_push(&p->_http);
 	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnInput;
-	p->_inbuf = NULL;
 
+	p->_svc = NULL;
+	p->_inbuf = NULL;
 	p->_req = NULL;
 	p->_resp = NULL;
 	return 1;
@@ -283,6 +284,7 @@ static void HttpConnectionRelease(AObject *object)
 	HttpConnection *p = (HttpConnection*)object;
 	if_not2(p->_resp, NULL, delete p->_resp);
 	if_not2(p->_req, NULL, delete p->_req);
+	release_s(p->_svc);
 
 	release_s(p->_inbuf);
 	p->_pop_exit(&p->_http);
@@ -338,7 +340,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	if (p->_resp == NULL) {
 		p->_resp = new HttpMsgImpl();
 	} else {
-		p->_resp->reset_head();
+		p->_resp->set(str_t(), str_t());
 	}
 	p->_resp->_parser = p->_http._parser;
 	p->_resp->_parser.type = HTTP_RESPONSE;
@@ -381,6 +383,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 {
 	HttpConnection *p = (HttpConnection*)object;
+	r_set(p->_svc, svc);
 
 	assert(p->_req == NULL);
 	p->_req = new HttpMsgImpl();

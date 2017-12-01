@@ -76,6 +76,7 @@ enum HttpStatus {
 struct HttpConnection : public AEntity {
 	AInOutComponent _iocom;
 	HttpCompenont _http;
+	AService     *_svc;
 
 	ARefsBuf     *_inbuf;
 	int (*raw_inmsg_done)(AMessage*,int);

@@ -24,8 +24,7 @@ net_getaddrinfo(const char *netaddr, const char *port)
 		strcpy_sz(ipaddr, netaddr);
 	}
 
-	struct addrinfo ai;
-	memset(&ai, 0, sizeof(ai));
+	struct addrinfo ai = { 0 };
 	ai.ai_flags    = 0;
 	ai.ai_family   = AF_UNSPEC;
 	ai.ai_socktype = 0;
@@ -56,11 +55,10 @@ socket_bind(int family, int protocol, unsigned short port)
 	//	return INVALID_SOCKET;
 	//}
 
-	sockaddr_in addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
+	sockaddr_in addr = { 0 };
+	addr.sin_family      = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(port);
+	addr.sin_port        = htons(port);
 
 	result = bind(sock, (const sockaddr*)&addr, sizeof(sockaddr_in));
 	if (result != 0) {
@@ -136,8 +134,7 @@ tcp_nonblock(SOCKET sock, u_long nonblocking)
 AMODULE_API int
 iocp_connect(SOCKET sock, const struct sockaddr *name, int namelen, WSAOVERLAPPED *ovlp)
 {
-	SOCKADDR_IN addr;
-	memset(&addr, 0, sizeof(addr));
+	SOCKADDR_IN addr = { 0 };
 	addr.sin_family      = name->sa_family;
 	addr.sin_port        = htons(0);
 	addr.sin_addr.s_addr = htonl(ADDR_ANY);

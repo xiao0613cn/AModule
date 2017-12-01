@@ -5,6 +5,7 @@ extern "C" {
 };
 
 struct HttpMsg {
+	void        (*_reset)(HttpMsg *p);
 	http_parser   _parser;
 	int           _head_num;
 	str_t       (*_head_at)(HttpMsg *p, int ix, str_t *value);
@@ -15,16 +16,14 @@ struct HttpMsg {
 	uint32_t&      body_pos() { return _parser.nread; }
 	int64_t&       body_len() { return *(int64_t*)&_parser.content_length; }
 
+	void  reset() { _reset(this); }
 	str_t get_url()                     { return _head_get(this, ""); }
 	int   set_url(str_t value)          { return _head_set(this, str_t("",0), value); }
 	str_t at(int ix, str_t *value)      { return _head_at(this, ix, value); }
 	str_t get(const char *field)        { return _head_get(this, field); }
 	int   set(str_t field, str_t value) { return _head_set(this, field, value); }
-
-	void  reset_head()                  { set(str_t(), str_t()); }
 	void  set_body(ARefsBuf *p, uint32_t pos, int64_t len) {
-		release_s(_body_buf); _body_buf = p; if (p) p->addref();
-		body_pos() = pos; body_len() = len;
+		r_set(_body_buf, p); body_pos() = pos; body_len() = len;
 	}
 };
 
@@ -42,15 +41,24 @@ struct HttpMsgImpl : public HttpMsg {
 	void     *_user;
 
 	HttpMsgImpl() {
-		memset(&_parser, 0, sizeof(_parser));
+		_reset = &reset_;
+		http_parser_init(&_parser, HTTP_BOTH, 0);
 		_head_num = 0;
 		_head_at = &head_at;
 		_head_get = &head_get;
 		_head_set = &head_set;
 		_body_buf = NULL;
+		_user = NULL;
 	}
 	~HttpMsgImpl() {
 		release_s(_body_buf);
+	}
+	static void reset_(HttpMsg *p) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		http_parser_init(&me->_parser, HTTP_BOTH, me->_parser.data);
+		me->_head_num = 0;
+		me->_headers.clear();
+		release_s(me->_body_buf);
 	}
 	static str_t head_at(HttpMsg *p, int ix, str_t *value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
@@ -83,12 +91,22 @@ struct HttpMsgImpl : public HttpMsg {
 			if ((strncmp(it->first.c_str(), field.str, field.len) != 0)
 			 || (it->first.c_str()[field.len] != '\0'))
 				continue;
-			it->second = std::string(value.str,value.len);
-			return me->_headers.size();
+
+			if (value.str == NULL) {
+				me->_headers.erase(it);
+				me->_head_num = me->_headers.size();
+			} else {
+				it->second = std::string(value.str,value.len);
+			}
+			return me->_head_num;
 		}
-		me->_headers.push_back(HeaderItem(
-			std::string(field.str,field.len), std::string(value.str,value.len)));
-		return me->_head_num = me->_headers.size();
+		if (value.str != NULL) {
+			me->_headers.push_back(HeaderItem(
+				std::string(field.str, field.len),
+				std::string(value.str, value.len)));
+			me->_head_num = me->_headers.size();
+		}
+		return me->_head_num;
 	}
 };
 #endif
