@@ -5,8 +5,18 @@ extern "C" {
 };
 
 struct HttpMsg {
+	enum KVTypes {
+		KV_Header = 0,
+		KV_UrlParam,
+		KV_PostParam,
+		KV_Cookie,
+	};
 	void        (*_reset)(HttpMsg *p);
 	http_parser   _parser;
+	int         (*_kv_num)(HttpMsg *p, int type);
+	str_t       (*_kv_at)(HttpMsg *p, int type, int ix, str_t *value);
+	str_t       (*_kv_get)(HttpMsg *p, int type, const char *field);
+	int         (*_kv_set)(HttpMsg *p, int type, str_t field, str_t value);
 	int           _head_num;
 	str_t       (*_head_at)(HttpMsg *p, int ix, str_t *value);
 	str_t       (*_head_get)(HttpMsg *p, const char *field);

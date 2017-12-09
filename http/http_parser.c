@@ -2166,14 +2166,14 @@ http_parser_settings_init(http_parser_settings *settings)
 }
 
 const char *
-http_errno_name(enum http_errno err) {
-  assert(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
+http_errno_name(/*enum http_errno*/unsigned int err) {
+  assert(err < ARRAY_SIZE(http_strerror_tab));
   return http_strerror_tab[err].name;
 }
 
 const char *
-http_errno_description(enum http_errno err) {
-  assert(((size_t) err) < ARRAY_SIZE(http_strerror_tab));
+http_errno_description(/*enum http_errno*/unsigned int err) {
+  assert(err < ARRAY_SIZE(http_strerror_tab));
   return http_strerror_tab[err].description;
 }
 

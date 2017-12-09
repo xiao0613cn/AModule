@@ -124,7 +124,7 @@ int HttpCompenont::on_iocom_output(AInOutComponent *c, int result) {
 
 	if (p->_parser.http_errno != HPE_OK) {
 		TRACE("http_parser_error(%d) = %s.\n",
-			p->_parser.http_errno, http_parser_error(&p->_parser));
+			p->_parser.http_errno, http_errno_description(p->_parser.http_errno));
 		return p->on_httpmsg(p, -AMsgType_Private|p->_parser.http_errno);
 	}
 	p->_parsed_len += result;
@@ -243,10 +243,22 @@ static int HttpInputDone(AMessage *msg, int result)
 	return result;
 }
 
+static int HttpSvcResp(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
+	result = HttpInputStatus(p, msg, p->_resp, result);
+	if (result != 0) {
+		msg->init();
+		msg->done2(result);
+	}
+	return result;
+}
+
 static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _iocom);
 	assert(c->_inmsg.done == &AInOutComponent::_inmsg_done);
+
 	switch (msg->type)
 	{
 	case AMsgType_Unknown:
@@ -255,6 +267,14 @@ static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 		return c->_io->input(&c->_inmsg);
 
 	case httpMsgType_HttpMsg:
+		if (msg == &c->_outmsg) {
+			assert(msg->data == (char*)p->_resp);
+			p->raw_outmsg_done = msg->done;
+			msg->init();
+			msg->done = &HttpSvcResp;
+			return HttpInputStatus(p, msg, (HttpMsg*)msg->data, 1);
+		}
+
 		p->raw_inmsg_done = c->_inmsg.done;
 		c->_inmsg.init();
 		c->_inmsg.done = &HttpInputDone;
@@ -292,12 +312,21 @@ static void HttpConnectionRelease(AObject *object)
 	p->exit();
 }
 
+static const str_t HttpMethodStrs[] = {
+#define XX(num, name, string)  str_t(#string, sizeof(#string)-1),
+	HTTP_METHOD_MAP(XX)
+#undef XX
+	str_t()
+};
+
 static int HttpProbe(AObject *other, AMessage *msg, AOption *option)
 {
 	if (msg->size < 4)
 		return -1;
-	if (strncmp_sz(msg->data, "GET ") == 0) {
-		return strstr(msg->data, "HTTP/") ? 90 : 40;
+	for (const str_t *m = HttpMethodStrs; m->str != NULL; ++m) {
+		if ((msg->size > m->len) && (msg->data[m->len] == ' ')
+		 && (strncmp(msg->data, m->str, m->len) == 0))
+			return 60;
 	}
 	return 0;
 }
@@ -313,17 +342,6 @@ AModule HttpConnectionModule = {
 };
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
-static int HttpSendResp(AMessage *msg, int result)
-{
-	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
-	result = HttpInputStatus(p, msg, p->_resp, result);
-	if (result != 0) {
-		msg->init();
-		msg->done2(result);
-	}
-	return result;
-}
-
 #define set_sz(field, value)  set(str_t(field,sizeof(field)-1), str_t(value, sizeof(value)-1))
 
 static int HttpOnRecvMsg(HttpCompenont *c, int result)
@@ -337,16 +355,17 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		TRACE("invalid http type: %d.\n", p->_req->_parser.type);
 		return -EINVAL;
 	}
-	if (p->_resp == NULL) {
-		p->_resp = new HttpMsgImpl();
-	} else {
-		p->_resp->set(str_t(), str_t());
-	}
+	p->_resp->set(str_t(), str_t());
 	p->_resp->_parser = p->_http._parser;
 	p->_resp->_parser.type = HTTP_RESPONSE;
 	if (p->_resp->_body_buf) p->_resp->_body_buf->reset();
 	p->_resp->body_pos() = 0;
 	p->_resp->body_len() = 0;
+
+	AService *svc = AServiceProbe(p->_svc, p, NULL);
+	if (svc != NULL) {
+		return svc->run(svc, p, svc->_svc_option);
+	}
 
 	FILE *fp = fopen(p->_req->get_url().str+1, "rb");
 	if (fp != NULL) {
@@ -374,7 +393,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 
 	p->raw_outmsg_done = p->_iocom._outmsg.done;
 	p->_iocom._outmsg.init();
-	p->_iocom._outmsg.done = &HttpSendResp;
+	p->_iocom._outmsg.done = &HttpSvcResp;
 
 	result = HttpInputStatus(p, &p->_iocom._outmsg, p->_resp, 1);
 	return result; // continue recv next request
@@ -385,8 +404,8 @@ static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 	HttpConnection *p = (HttpConnection*)object;
 	r_set(p->_svc, svc);
 
-	assert(p->_req == NULL);
-	p->_req = new HttpMsgImpl();
+	if (!p->_req) p->_req = new HttpMsgImpl();
+	if (!p->_resp) p->_resp = new HttpMsgImpl();
 
 	return p->_http.try_output(&p->_iocom, p->_req, &HttpOnRecvMsg);
 }

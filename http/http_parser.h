@@ -339,10 +339,10 @@ int http_should_keep_alive(const http_parser *parser);
 const char *http_method_str(unsigned int m);
 
 /* Return a string name of the given error */
-const char *http_errno_name(enum http_errno err);
+const char *http_errno_name(/*enum http_errno*/unsigned int err);
 
 /* Return a string description of the given error */
-const char *http_errno_description(enum http_errno err);
+const char *http_errno_description(/*enum http_errno*/unsigned int err);
 
 /* Initialize all http_parser_url members to 0 */
 void http_parser_url_init(struct http_parser_url *u);
@@ -359,16 +359,6 @@ void http_parser_pause(http_parser *parser, int paused);
 int http_body_is_final(const http_parser *parser);
 
 //////////////////////////////////////////////////////////////////////////
-static __inline const char *
-http_parser_error(const http_parser *parser) {
-	return http_errno_name((enum http_errno)parser->http_errno);
-}
-
-static __inline const char *
-http_parser_method(const http_parser *parser) {
-	return http_method_str((enum http_method)parser->method);
-}
-
 int http_header_is_complete(const http_parser *parser);
 int http_next_chunk_is_incoming(const http_parser *parser);
 

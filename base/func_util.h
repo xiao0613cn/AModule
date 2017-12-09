@@ -14,10 +14,16 @@
 #define release_s(ptr)              if_not2(ptr, NULL, (ptr)->release())
 #define closesocket_s(sock)         if_not2(sock, INVALID_SOCKET, closesocket(sock));
 
-#define r_set(dest, src)            if (dest) (dest)->release(); dest = src; if (src) (src)->addref();
+#define r_set(dest, src) \
+	do { \
+		if (dest) (dest)->release(); \
+		dest = src; \
+		if (src) (src)->addref(); \
+	} while (0)
 
 template <typename Type>
-static inline Type& z_set(Type &stru) {
+inline Type&
+z_set(Type &stru) {
 	memset(&stru, 0, sizeof(stru));
 	return stru;
 }

@@ -286,12 +286,11 @@ int main()
 	sm.clear_sub(&sm);
 
 	getchar();
+	AThreadEnd(NULL);
+	AModuleExit();
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif
-	AThreadEnd(NULL);
-	AModuleExit();
-
 	em.exit();
 	pthread_mutex_destroy(&sm._mutex); //sm.exit();
 	return 0;
