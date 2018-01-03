@@ -31,13 +31,13 @@ static void DumpRelease(AObject *object)
 	while (!list_empty(&dump->req_list)) {
 		DumpReq *req = list_pop_front(&dump->req_list, DumpReq, entry);
 		if (!dump->single_file) {
-			if_not(req->file, NULL, fclose);
+			reset_s(req->file, NULL, fclose);
 		}
 		free(req);
 	}
 	pthread_mutex_destroy(&dump->req_mutex);
 
-	if_not(dump->file, NULL, fclose);
+	reset_s(dump->file, NULL, fclose);
 	release_s(dump->io);
 }
 
@@ -49,7 +49,7 @@ static int DumpCreate(AObject **object, AObject *parent, AOption *option)
 
 	pthread_mutex_init(&dump->req_mutex, NULL);
 	INIT_LIST_HEAD(&dump->req_list);
-	z_set(dump->req_cache);
+	memzero(dump->req_cache);
 	return 1;
 }
 
@@ -118,7 +118,7 @@ static int Dump_init(DumpObject *dump, AOption *msg_opt)
 	dump->single_file = msg_opt->getInt("single_file", FALSE);
 
 	if (dump->single_file && (dump->file_name[0] != '\0')) {
-		if_not(dump->file, NULL, fclose);
+		reset_s(dump->file, NULL, fclose);
 
 		dump->file = fopen(dump->file_name, "ba+");
 		if (dump->file == NULL) {

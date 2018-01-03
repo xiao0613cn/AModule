@@ -2,7 +2,7 @@
 #define _FUNC_UTIL_H_
 
 
-#define if_not2(ptr, invalid, func) \
+#define reset_nif(ptr, invalid, func) \
 	do { \
 		if ((ptr) != invalid) { \
 			func; \
@@ -10,50 +10,39 @@
 		} \
 	} while (0)
 
-#define if_not(ptr, invalid, func)  if_not2(ptr, invalid, func(ptr));
-#define release_s(ptr)              if_not2(ptr, NULL, (ptr)->release())
-#define closesocket_s(sock)         if_not2(sock, INVALID_SOCKET, closesocket(sock));
+#define reset_s(ptr, invalid, func) reset_nif(ptr, invalid, func(ptr))
+#define release_s(ptr)              reset_nif(ptr, NULL, (ptr)->release())
+#define closesocket_s(sock)         reset_nif(sock, INVALID_SOCKET, closesocket(sock));
 
-#define r_set(dest, src) \
-	do { \
-		if (dest) (dest)->release(); \
-		dest = src; \
-		if (src) (src)->addref(); \
-	} while (0)
+template <typename Type> inline Type&
+addref_set(Type &dest, Type src) {
+	if (dest != src) {
+		if (dest) dest->release();
+		dest = src;
+		if (src) src->addref();
+	}
+	return dest;
+}
 
-template <typename Type>
-inline Type&
-z_set(Type &stru) {
+template <typename Type> inline Type&
+memzero(Type &stru) {
 	memset(&stru, 0, sizeof(stru));
 	return stru;
 }
-/*
-template <typename TObject>
-struct ARefsPtr {
-	TObject *_this;
 
-	TObject* init(TObject *p = NULL) { return _this = p; }
-	TObject* operator->() { return _this; }
-	operator TObject*() { return _this; }
-
-	TObject* operator=(TObject *p) {
-		if (_this != NULL) _this->release();
-		_this = p;
-		return _this;
-	}
-	TObject* operator=(ARefsPtr<TObject> &other) {
-		if (_this != NULL) _this->release();
-		_this = other._this;
-		if (_this != NULL) _this->addref();
-		return _this;
-	}
-};
-*/
 
 #define goarrary(type, count) (type*)calloc(count, sizeof(type))
 #define gomake(type)          (type*)malloc(sizeof(type))
 
 
+/* godefer():
+	FILE *fp = fopen(path);
+	if (fp == NULL)
+		return;
+	godefer(FILE*, fp, fclose(fp));
+	......
+	fread, fwrite......
+*/
 #define defer_struct(name, type, member, close) \
 struct name { \
 	type member; \

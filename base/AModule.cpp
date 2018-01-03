@@ -109,7 +109,7 @@ static LONG WINAPI except_filter(EXCEPTION_POINTERS *except_ptr)
 AMODULE_API int
 AModuleInit(AOption *option)
 {
-	if_not(g_option, option, release_s);
+	reset_s(g_option, option, release_s);
 	BOOL first = !g_inited;
 if (!g_inited) {
 		g_inited = TRUE;

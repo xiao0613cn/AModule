@@ -390,7 +390,7 @@ static int SSLClose(AObject *object, AMessage *msg)
 	if (msg == NULL)
 		return sc->io->shutdown();
 
-	if_not(sc->ssl, NULL, SSL_free);
+	reset_s(sc->ssl, NULL, SSL_free);
 	return sc->io->close(msg);
 }
 
@@ -406,9 +406,9 @@ static int SSLCreate(AObject **object, AObject *parent, AOption *option)
 static void SSLRelease(AObject *object)
 {
 	SSL_IO *sc = (SSL_IO*)object;
-	if_not(sc->ssl_ctx, NULL, SSL_CTX_free);
-	if_not(sc->ssl, NULL, SSL_free);
-	if_not(sc->outbuf, NULL, BUF_MEM_free);
+	reset_s(sc->ssl_ctx, NULL, SSL_CTX_free);
+	reset_s(sc->ssl, NULL, SSL_free);
+	reset_s(sc->outbuf, NULL, BUF_MEM_free);
 	release_s(sc->io);
 }
 
@@ -472,7 +472,7 @@ static int SSLSvcCreate(AObject **svc_data, AObject *parent, AOption *option)
 static void SSLSvcRelease(AObject *svc_data)
 {
 	SSLSvcData *ssl_svc = (SSLSvcData*)svc_data;
-	if_not(ssl_svc->ssl_ctx, NULL, SSL_CTX_free);
+	reset_s(ssl_svc->ssl_ctx, NULL, SSL_CTX_free);
 	release_s(ssl_svc->io_svc_data);
 }
 

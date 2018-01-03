@@ -97,7 +97,7 @@ struct ARefsBlock {
 		_entry.init();
 	}
 	void   set(ASlice<Item> *p, int bgn, int len) {
-		r_set(_buf, p); _len = len;
+		addref_set(_buf, p); _len = len;
 		_ptr = (p ? p->_data+bgn : 0);
 	}
 };

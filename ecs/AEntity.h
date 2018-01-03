@@ -82,8 +82,7 @@ struct AEntity : public AObject {
 		c->exit2();
 	}
 	AComponent* _get(const char *com_name, int com_index = -1) {
-		AComponent *c;
-		list_for_each_entry(c, &_com_list, AComponent, _entity_node) {
+		list_for_each2(c, &_com_list, AComponent, _entity_node) {
 			if ((strcasecmp(c->_name, com_name) == 0)
 			 && (com_index == -1 || com_index == c->_index)) {
 				//c->_self->addref();
@@ -202,7 +201,7 @@ struct AComponent2 : public AObject, public AComponent {
 	}
 	void exit() {
 		assert(_entity_node.empty());
-		if_not2(_entity, NULL, _entity->_self->release());
+		reset_nif(_entity, NULL, _entity->_self->release());
 	}
 };
 

@@ -33,7 +33,7 @@ struct HttpMsg {
 	str_t get(const char *field)        { return _head_get(this, field); }
 	int   set(str_t field, str_t value) { return _head_set(this, field, value); }
 	void  set_body(ARefsBuf *p, uint32_t pos, int64_t len) {
-		r_set(_body_buf, p); body_pos() = pos; body_len() = len;
+		addref_set(_body_buf, p); body_pos() = pos; body_len() = len;
 	}
 };
 

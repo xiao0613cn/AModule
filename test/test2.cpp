@@ -98,8 +98,7 @@ CU_TEST(test_echo_client)
 CU_TEST(test_service)
 {
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: io_openssl { io: async_tcp, "
-		"certi_file: 'D:\\\\self.crt', key_file: 'D:\\\\self.key' }, }, "
+	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: async_tcp, }, "
 		"is_async: 1, services: { EchoService, HttpService, }, background: 1 }", -1);
 
 	AService *tcp_server = NULL;
@@ -154,7 +153,7 @@ int c_asop_done(AOperator *asop, int result)
 CU_TEST(test_client)
 {
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "async_tcp:{address:192.168.40.17,port:4444}", -1);
+	AOptionDecode(&opt, "async_tcp:{address:127.0.0.1,port:4444}", -1);
 	opt->refcount = 1;
 
 	int count = 5000;
@@ -163,7 +162,6 @@ CU_TEST(test_client)
 	char buf[412];
 	fgets(buf, sizeof(buf), stdin);
 	fgets(buf, sizeof(buf), stdin);
-	if (count == 0) count = 5000;
 
 	for (int ix = 0; ix < count; ++ix) {
 		client_t *c = gomake(client_t);
@@ -276,10 +274,10 @@ int main()
 	TRACE("press enter for end..............................\n");
 	getchar();
 
-	if_not2(sm._all_services, NULL, {
+	reset_nif(sm._all_services, NULL, {
 		TRACE("AServiceStop():..............................\n");
 		AServiceStop(sm._all_services, TRUE);
-		release_s(sm._all_services);
+		sm._all_services->release();
 	});
 	sm.stop_checkall(&sm);
 	sm.clear_allsys(true);

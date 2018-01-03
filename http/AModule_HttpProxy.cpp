@@ -302,8 +302,8 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 static void HttpConnectionRelease(AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
-	if_not2(p->_resp, NULL, delete p->_resp);
-	if_not2(p->_req, NULL, delete p->_req);
+	reset_nif(p->_resp, NULL, delete p->_resp);
+	reset_nif(p->_req, NULL, delete p->_req);
 	release_s(p->_svc);
 
 	release_s(p->_inbuf);
@@ -388,7 +388,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		p->_resp->_parser.status_code = 200;
 		p->_resp->set_sz("", "OK");
 	}
-	if_not2(fp, NULL, fclose(fp));
+	reset_s(fp, NULL, fclose);
 	p->_resp->set_sz("Content-Type", "text/html");
 
 	p->raw_outmsg_done = p->_iocom._outmsg.done;
@@ -402,7 +402,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 {
 	HttpConnection *p = (HttpConnection*)object;
-	r_set(p->_svc, svc);
+	addref_set(p->_svc, svc);
 
 	if (!p->_req) p->_req = new HttpMsgImpl();
 	if (!p->_resp) p->_resp = new HttpMsgImpl();

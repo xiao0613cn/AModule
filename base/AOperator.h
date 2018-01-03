@@ -24,7 +24,10 @@ AThreadBind(AThread *at, HANDLE file);
 AMODULE_API int
 AThreadBind(AThread *at, AOperator *asop, uint32_t event);
 
-#define AThreadUnbind(asop)  AThreadBind(NULL, asop, 0)
+static inline int
+AThreadUnbind(AOperator *asop) {
+	return AThreadBind(NULL, asop, 0);
+}
 #endif
 
 AMODULE_API AThread*
@@ -60,7 +63,7 @@ struct AOperator {
 	};
 #ifdef __cplusplus
 	void timer() {
-		z_set(*this);
+		memzero(*this);
 		RB_CLEAR_NODE(&ao_tree);
 		INIT_LIST_HEAD(&ao_list);
 	}
@@ -83,6 +86,7 @@ struct AOperator {
 	}
 #endif
 };
+
 template <typename AType, size_t offset, int(AType::*run)(int)>
 int AsopDoneT(AOperator *asop, int result) {
 	AType *p = (AType*)((char*)asop - offset);
@@ -90,23 +94,6 @@ int AsopDoneT(AOperator *asop, int result) {
 }
 #define AsopDone(type, member, run) \
 	AsopDoneT<type, offsetof(type,member), &type::run>
-
-static inline void
-AOperatorTimeinit(AOperator *asop) {
-	z_set(*asop);
-	RB_CLEAR_NODE(&asop->ao_tree);
-	INIT_LIST_HEAD(&asop->ao_list);
-}
-
-static inline int
-AOperatorTimewait(AOperator *asop, AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
-	if ((timeout != 0) && (timeout != INFINITE)) {
-		timeout += GetTickCount();
-		if ((timeout == 0) || (timeout == INFINITE))
-			timeout += 2;
-	}
-	return AOperatorPost(asop, at, timeout, wakeup);
-}
 
 
 

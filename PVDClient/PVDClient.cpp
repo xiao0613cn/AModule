@@ -165,7 +165,7 @@ int PVDClient::open(int result)
 		open_prepare(pvdnet_syn_login, NET_SDVR_LOGIN, sizeof(STRUCT_SDVR_LOGUSER));
 	{
 		STRUCT_SDVR_LOGUSER *login = (STRUCT_SDVR_LOGUSER*)(_heart_msg.data+sizeof(pvdnet_head));
-		z_set(*login);
+		memzero(*login);
 
 		strcpy_sz(login->szUserName, _user);
 		MD5_enc(_md5id, (uint8_t*)_pwd, strlen(_pwd), (uint8_t*)login->szPassWord);

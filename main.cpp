@@ -484,7 +484,7 @@ int proactive_done(AMessage *msg, int result)
 
 	if (rm->reqix == 4) {
 		TRACE("proactive close done = %d.\n", result);
-		AOperatorTimewait(&rm->op, NULL, 15*1000);
+		rm->op.delay(NULL, 15*1000);
 		return result;
 	}
 
@@ -542,7 +542,7 @@ void test_proactive(AOption *option, bool reset_option)
 			rm->op.callback = &proactive_wait;
 			rm->pvd = p;
 
-			result = AOperatorTimewait(&rm->op, NULL, delay+ix*duration);
+			result = rm->op.delay(NULL, delay+ix*duration);
 		}
 		AOptionGet2(&option->children_list, "create", str)[0] = '\0';
 		AOptionGet2(&option->children_list, "first_delay", str)[0] = '\0';

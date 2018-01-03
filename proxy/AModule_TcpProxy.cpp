@@ -167,7 +167,7 @@ static void* TCPServerProcess(void *p)
 	SOCKET sock;
 
 	for (;;) {
-		z_set(addr);
+		memzero(addr);
 		addrlen = sizeof(addr);
 
 		sock = accept(server->sock, &addr, &addrlen);
@@ -339,7 +339,7 @@ static int TCPServerStart(AService *service, AOption *option)
 	}
 
 	result = AThreadBind(NULL, (HANDLE)server->sock);
-	z_set(server->sysio).done = &TCPServerAcceptExDone;
+	memzero(server->sysio).done = &TCPServerAcceptExDone;
 
 	result = TCPServerDoAcceptEx(server);
 	if (result < 0) {

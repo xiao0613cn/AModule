@@ -39,8 +39,8 @@ static int AsyncTcpCreate(AObject **object, AObject *parent, AOption *option)
 	AsyncTcp *tcp = (AsyncTcp*)*object;
 	tcp->sock = INVALID_SOCKET;
 
-	z_set(tcp->send_ovlp).tcp = tcp;
-	z_set(tcp->recv_ovlp).tcp = tcp;
+	memzero(tcp->send_ovlp).tcp = tcp;
+	memzero(tcp->recv_ovlp).tcp = tcp;
 	return 1;
 }
 

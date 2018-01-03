@@ -118,7 +118,7 @@ struct ASystemManager : public ASystemManagerMethod {
 			_event_manager = NULL;
 			*(ASystemManagerMethod*)this = *m;
 		} else {
-			z_set(*this);
+			memzero(*this);
 		}
 	}
 	void _regist(AEntity *e) {

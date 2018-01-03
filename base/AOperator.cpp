@@ -246,9 +246,9 @@ AThreadBegin(AThread **p, AThread *pool, int max_timewait)
 
 	if ((at->private_signal() == -1) || (at->public_signal() == -1)) {
 		close(at->epoll);
-		if_not(at->private_signal(), -1, close);
+		reset_s(at->private_signal(), -1, close);
 		if (pool == NULL)
-			if_not(at->public_signal(), -1, close);
+			reset_s(at->public_signal(), -1, close);
 		free(at);
 		return -EFAULT;
 	}
