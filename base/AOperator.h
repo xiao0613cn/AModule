@@ -43,20 +43,20 @@ AOperatorSignal(AOperator *asop, AThread *at, BOOL wakeup_or_cancel);
 
 struct AOperator {
 	int  (*done)(AOperator *asop, int result);
+	AThread *ao_thread;
 
-	AThread         *ao_thread;
 	union {
 	struct {         // post timer or runnable
-	DWORD            ao_tick;
-	struct rb_node   ao_tree;
-	struct list_head ao_list;
+		DWORD     ao_tick;
+		rb_node   ao_tree;
+		list_head ao_list;
 	};
 #ifdef _WIN32            // win32 IOCP
 	OVERLAPPED       ao_ovlp;
 #else
 	struct {         // linux epoll
-	int              ao_fd;
-	uint32_t         ao_events;
+		int      ao_fd;
+		uint32_t ao_events;
 	};
 #endif
 	void            *ao_user[4];
@@ -65,7 +65,7 @@ struct AOperator {
 	void timer() {
 		memzero(*this);
 		RB_CLEAR_NODE(&ao_tree);
-		INIT_LIST_HEAD(&ao_list);
+		ao_list.init();
 	}
 	int delay(AThread *at, DWORD timeout, BOOL wakeup = TRUE) {
 		if ((timeout != 0) && (timeout != INFINITE)) {
@@ -87,14 +87,20 @@ struct AOperator {
 #endif
 };
 
-template <typename AType, size_t offset, int(AType::*run)(int)>
-int AsopDoneT(AOperator *asop, int result) {
+template <typename AType, size_t offset, int(AType::*run)(int)> int
+AsopDoneTCpp(AOperator *asop, int result) {
 	AType *p = (AType*)((char*)asop - offset);
 	return (p->*run)(result);
 }
-#define AsopDone(type, member, run) \
-	AsopDoneT<type, offsetof(type,member), &type::run>
+#define AsopDoneCpp(type, member, run) \
+        AsopDoneTCpp<type, offsetof(type,member), &type::run>
 
-
+template <typename AType, size_t offset, int(run)(AType*,int)> int
+AsopDoneTC(AOperator *asop, int result) {
+	AType *p = (AType*)((char*)asop - offset);
+	return run(p, result);
+}
+#define AsopDoneC(type, member, run) \
+        AsopDoneTC<type, offsetof(type,member), run>
 
 #endif

@@ -127,7 +127,7 @@ static int Dump_init(DumpObject *dump, AOption *msg_opt)
 	}
 
 	if (dump->io == NULL) {
-		AOption *io_opt = AOptionFind(msg_opt, "io");
+		AOption *io_opt = msg_opt->find("io");
 		int result = AObject::create(&dump->io, dump, io_opt, NULL);
 		if (result < 0) {
 			TRACE("require option: \"io\"\n");
@@ -155,7 +155,7 @@ static int DumpOpen(AObject *object, AMessage *msg)
 		return -ENOMEM;
 
 	req->msg.init(msg_opt->find("io"));
-	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
+	req->msg.done = &MsgProxyC(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
 	result = dump->io->open(&req->msg);
@@ -188,7 +188,7 @@ static int DumpRequest(AObject *object, int reqix, AMessage *msg)
 		return dump->io->request(reqix, msg);
 
 	req->msg.init(msg);
-	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
+	req->msg.done = &MsgProxyC(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
 	int result = dump->io->request(reqix, &req->msg);
@@ -225,7 +225,7 @@ static int DumpSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOpt
 		return -ENOMEM;
 
 	req->msg.init(msg);
-	req->msg.done = &TObjectDone(DumpReq, msg, from, OnDumpRequest);
+	req->msg.done = &MsgProxyC(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
 	result = dump->io->m()->svc_accept(dump->io, &req->msg, svc_data, svc_opt->find("io"));

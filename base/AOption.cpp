@@ -362,7 +362,7 @@ _next:
 		}
 
 		if (current != option) {
-			current = list_entry(current->brother_entry.next, AOption, brother_entry);
+			current = current->next();
 			write_sn(",", 1);
 			continue;
 		}

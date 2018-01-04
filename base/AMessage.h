@@ -1,9 +1,9 @@
 #ifndef _AMESSAGE_H_
 #define _AMESSAGE_H_
 
+typedef struct AMessage AMessage;
 
-enum AMsgTypes
-{
+enum AMsgTypes {
 	AMsgType_Unknown = 0,
 	AMsgType_Handle,   /* data = void*,    size = 0 */
 	AMsgType_Option,   /* data = AOption*, size = 0 */
@@ -17,34 +17,53 @@ enum AMsgTypes
 	AMsgType_Private = 0x20000000, /* module defined */
 };
 
-typedef struct AMessage AMessage;
-struct AMessage
-{
+struct AMessage {
 	int     type;
 	int     size;
 	char   *data;
 	int   (*done)(AMessage *msg, int result);
-	struct list_head entry;
+	list_head entry;
 
 #ifdef __cplusplus
-	void  init(int t = 0, const void *p = 0, int n = 0) { type = t; size = n; data = (char*)p; }
+	void  init(int t=0, const void*p=0, int n=0) { type=t; size=n; data=(char*)p; }
 	void  init(HANDLE handle)          { init(AMsgType_Handle, handle, 0); }
 	void  init(struct AOption *option) { init(AMsgType_Option, option, 0); }
 	void  init(struct AObject *object) { init(AMsgType_Object, object, 0); }
 	void  init(struct AModule *module) { init(AMsgType_Module, module, 0); }
 	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
 	int   done2(int result)            { return done(this, result); }
+#endif
 };
-template <typename AType, size_t offset, int(AType::*run)(int)>
-int MsgDoneT(AMessage *msg, int result) {
+
+template <typename AType, size_t offset, int(AType::*run)(int)> int
+MsgDoneTCpp(AMessage *msg, int result) {
 	AType *p = (AType*)((char*)msg - offset);
 	return (p->*run)(result);
 }
-#define MsgDone(type, member, run) \
-	MsgDoneT<type, offsetof(type,member), &type::run>
-#else
-};
-#endif
+#define MsgDoneCpp(type, member, run) \
+        MsgDoneTCpp<type, offsetof(type,member), &type::run>
+
+template <typename AType, size_t offset, int(run)(AType*,int)> int
+MsgDoneTC(AMessage *msg, int result) {
+	AType *p = (AType*)((char*)msg - offset);
+	return run(p, result);
+}
+#define MsgDoneC(type, member, run) \
+        MsgDoneTC<type, offsetof(type,member), &run>
+
+template <typename AType, size_t offset_msg, size_t offset_from, int(run)(AType*,int)> int
+MsgProxyTC(AMessage *msg, int result) {
+	AType *p = (AType*)((char*)msg - offset_msg);
+	result = run(p, result);
+
+	if (result != 0) {
+		msg = *(AMessage**)((char*)p + offset_from);
+		result = msg->done(msg, result);
+	}
+	return result;
+}
+#define MsgProxyC(type, msg, from, run) \
+        MsgProxyTC<type, offsetof(type,msg), offsetof(type,from), run>
 
 #if 0
 // util function
@@ -139,10 +158,7 @@ static inline void
 ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 {
 	AMsgInit(&rm->msg, AMsgType_RefsMsg, rm, 0);
-	release_s(rm->buf);
-	rm->buf = buf;
-	if (buf != NULL) buf->addref();
-
+	addref_set(rm->buf, buf);
 	rm->pos = offset;
 	rm->type = type;
 	rm->size = size;

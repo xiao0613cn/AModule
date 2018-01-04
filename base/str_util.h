@@ -2,11 +2,11 @@
 #define _STR_UTIL_H_
 
 struct str_t {
-	const char *str;
+	char *str;
 	int   len;
 #ifdef __cplusplus
 	str_t(const char *p = NULL, int n = 0) {
-		str = p; len = n;
+		str = (char*)p; len = n;
 		if (len < 0) len = strlen(str);
 	}
 #endif
@@ -36,9 +36,9 @@ struct str_t {
 #define _atoi64  atoll
 #endif
 
-#endif //_WIN32
+#endif //!_WIN32
 
-#define strncmp_sz(ptr, c_str)   strncmp(ptr, c_str, sizeof(c_str)-1)
+#define strncmp_sz(ptr, c_str)      strncmp(ptr, c_str, sizeof(c_str)-1)
 #define strncasecmp_sz(ptr, c_str)  strncasecmp(ptr, c_str, sizeof(c_str)-1)
 
 
@@ -47,8 +47,7 @@ strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
 	if (src == NULL) {
 		dest[0] = '\0';
 	} else {
-		if (len > size-1)
-			len = size-1;
+		if (len > size-1) len = size-1;
 		strncpy(dest, src, len);
 		dest[len] = '\0';
 	}
@@ -57,18 +56,16 @@ strncpy_sz(char *dest, size_t size, const char *src, size_t len) {
 
 static inline char*
 strcpy_sz(char *dest, size_t size, const char *src) {
-	return strncpy_sz(dest, size, src, 0xffffffff);
+	return strncpy_sz(dest, size, src, INFINITE);
 }
 
 #ifdef __cplusplus
-template <size_t size>
-inline char*
+template <size_t size> char*
 strncpy_sz(char (&dest)[size], const char *src, size_t len) {
 	return strncpy_sz(dest, size, src, len);
 }
 
-template <size_t size>
-inline char*
+template <size_t size> char*
 strcpy_sz(char (&dest)[size], const char *src) {
 	return strcpy_sz(dest, size, src);
 }
@@ -129,8 +126,11 @@ strreplace(char *str, int size, const char *param, const char *value) {
 	int slen = strlen(str);
 	int plen = strlen(param);
 	int vlen = strlen(value);
+
 	if (size > slen+1-plen+vlen)
 		size = slen+1-plen+vlen;
+	else
+		vlen = size-slen-1+plen;
 
 	memmove(ptr+vlen, ptr+plen, size-1-(ptr-str)-vlen);
 	memcpy(ptr, value, vlen);

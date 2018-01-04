@@ -286,7 +286,7 @@ static int SSLOpen(AObject *object, AMessage *msg)
 		return result;
 
 	sc->input.msg.init(io_opt);
-	sc->input.msg.done = &TObjectDone(SSL_IO, input.msg, input.from, SSLOpenStatus);
+	sc->input.msg.done = &MsgProxyC(SSL_IO, input.msg, input.from, SSLOpenStatus);
 	sc->input.from = msg;
 
 	sc->state = S_init;
@@ -366,7 +366,7 @@ static int SSLRequest(AObject *object, int reqix, AMessage *msg)
 
 	case Aio_Output:
 		sc->output.msg.init();
-		sc->output.msg.done = &TObjectDone(SSL_IO, output.msg, output.from, SSLOutputStatus);
+		sc->output.msg.done = &MsgProxyC(SSL_IO, output.msg, output.from, SSLOutputStatus);
 		sc->output.from = msg;
 		return SSLOutputStatus(sc, 1);
 
@@ -486,7 +486,7 @@ static int SSLSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOpti
 		return result;
 
 	sc->input.msg.init(msg);
-	sc->input.msg.done = &TObjectDone(SSL_IO, input.msg, input.from, SSLOpenStatus);
+	sc->input.msg.done = &MsgProxyC(SSL_IO, input.msg, input.from, SSLOpenStatus);
 	sc->input.from = msg;
 
 	sc->state = S_init;

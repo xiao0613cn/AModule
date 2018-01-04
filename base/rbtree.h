@@ -100,7 +100,7 @@ static inline struct page * rb_insert_page_cache(struct inode * inode,
 #else
 #define EXTERN_C     extern
 #endif
-#endif //EXTERN_C
+#endif //!EXTERN_C
 
 #ifdef _WIN32
 #if !defined(__cplusplus) && !defined(inline)

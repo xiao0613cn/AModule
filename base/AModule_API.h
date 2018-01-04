@@ -7,7 +7,7 @@
 #else
 #define EXTERN_C     extern
 #endif
-#endif //EXTERN_C
+#endif //!EXTERN_C
 
 #if defined(AMODULE_API_EXPORTS)
 #define AMODULE_API  EXTERN_C __declspec(dllexport)
@@ -27,7 +27,7 @@
 #pragma warning(disable: 4201) // 使用了非标准扩展 : 无名称的结构/联合
 #pragma warning(disable: 4505) // 未引用的本地函数已移除
 #pragma warning(disable: 4512) // 未能生成赋值运算符
-#else
+#else //_WIN32
 //#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
@@ -37,7 +37,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
-#endif
+#endif //!_WIN32
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -64,23 +64,6 @@
 AMODULE_API void*
 dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name);
 
-
-#ifdef __cplusplus
-template <typename TObject, size_t offset_msg, size_t offset_from, int OnMsgDone(TObject*,int)>
-int TObjectMsgDone(AMessage *msg, int result)
-{
-	TObject *p = (TObject*)((char*)msg - offset_msg);
-	result = OnMsgDone(p, result);
-
-	if (result != 0) {
-		msg = *(AMessage**)((char*)p + offset_from);
-		result = msg->done(msg, result);
-	}
-	return result;
-}
-#define TObjectDone(type, msg, from, done) \
-	TObjectMsgDone<type, offsetof(type, msg), offsetof(type, from), done>
-#endif
 
 #define async_begin(status, result) \
 	while (result > 0) { \

@@ -14,8 +14,8 @@
 #define release_s(ptr)              reset_nif(ptr, NULL, (ptr)->release())
 #define closesocket_s(sock)         reset_nif(sock, INVALID_SOCKET, closesocket(sock));
 
-template <typename Type> inline Type&
-addref_set(Type &dest, Type src) {
+template <typename AType> AType&
+addref_set(AType &dest, AType src) {
 	if (dest != src) {
 		if (dest) dest->release();
 		dest = src;
@@ -24,8 +24,8 @@ addref_set(Type &dest, Type src) {
 	return dest;
 }
 
-template <typename Type> inline Type&
-memzero(Type &stru) {
+template <typename AType> AType&
+memzero(AType &stru) {
 	memset(&stru, 0, sizeof(stru));
 	return stru;
 }
@@ -67,9 +67,8 @@ struct name { \
 	defer_inline(auto_close_, __LINE__, type, member, close) member
 
 
-template <typename type_t>
-static inline int find_ix(type_t *array, type_t end, type_t test)
-{
+template <typename AType> int
+find_ix(AType *array, AType end, AType test) {
 	for (int ix = 0; array[ix] != end; ++ix) {
 		if (array[ix] == test)
 			return ix;
@@ -77,10 +76,9 @@ static inline int find_ix(type_t *array, type_t end, type_t test)
 	return -1;
 }
 
-template <typename type_t>
-static inline int find_ix0(type_t *array, type_t end, type_t test)
-{
-	return (array ? find_ix<type_t>(array, end, test) : 0);
+template <typename AType> int
+find_ix0(AType *array, AType end, AType test) {
+	return (array ? find_ix<AType>(array, end, test) : 0);
 }
 
 

@@ -1,6 +1,7 @@
 #ifndef _AOPTION_H_
 #define _AOPTION_H_
 
+typedef struct AOption AOption;
 
 //////////////////////////////////////////////////////////////////////////
 // same as cJSON ??
@@ -17,8 +18,6 @@ enum AOption_Types {
 	AOption_Object,
 };
 
-typedef struct AOption AOption;
-
 AMODULE_API AOption*
 AOptionCreate(AOption *parent, const char *name = NULL, const char *value = NULL);
 
@@ -34,25 +33,39 @@ AOptionFind3(AOption *parent, const char *name, const char *value);
 AMODULE_API AOption*
 AOptionClone(AOption *option, AOption *parent);
 
+
 struct AOption {
-	char        name[32];
-	char        value[144];
-	int         name_len;
-	int         value_len;
+	char      name[32];
+	char      value[144];
+	int       name_len;
+	int       value_len;
 
 	AOption_Types type;
 	union {
-	int64_t     value_i64;
-	double      value_dbl;
-	long        refcount;
-	char       *extend;
+	int64_t   value_i64;
+	double    value_dbl;
+	long      refcount;
+	char     *extend;
 	};
 
-	struct list_head children_list;
-	struct list_head brother_entry;
-	struct AOption  *parent;
+	list_head children_list;
+	list_head brother_entry;
+	AOption  *parent;
 
 #ifdef __cplusplus
+	// self
+	long addref()  { return InterlockedAdd(&refcount, 1); }
+	void delref()  { if (InterlockedAdd(&refcount, -1) == 0) release(); }
+	long release() { AOptionRelease(this); return 0; }
+	int  vfmt(const char *fmt, ...) {
+		va_list ap; va_start(ap, fmt);
+		value_len = vsnprintf(value, sizeof(value), fmt, ap);
+		va_end(ap);
+		return value_len;
+	}
+	AOption* first() { return list_entry(children_list.next, AOption, brother_entry); }
+	AOption* next()  { return list_entry(brother_entry.next, AOption, brother_entry); }
+	void     clear() { while (!children_list.empty()) { AOptionRelease(first()); } }
 	// child
 	AOption* set(const char *child_name, const char *child_value) {
 		return AOptionCreate(this, child_name, child_value);
@@ -84,33 +97,12 @@ struct AOption {
 	int getInt(const char *child_name, int def_value) {
 		return (int)getI64(child_name, def_value);
 	}
-	double getNum(const char *child_name, double def_value) {
+	double getDbl(const char *child_name, double def_value) {
 		AOption *child = find(child_name);
 		if ((child == NULL) || (child->value[0] == '\0'))
 			return def_value;
 		return strtod(child->value, NULL);
 	}
-	AOption* first() {
-		return list_first_entry(&children_list, AOption, brother_entry);
-	}
-
-	// self
-	long addref() { return InterlockedAdd(&refcount, 1); }
-	void delref() { if (InterlockedAdd(&refcount, -1) == 0) release(); }
-	long release() { AOptionRelease(this); return 0; }
-
-	int  sfmt(const char *fmt, ...) {
-		va_list ap; va_start(ap, fmt);
-		value_len = vsnprintf(value, sizeof(value), fmt, ap);
-		va_end(ap);
-		return value_len;
-	}
-	void clear() {
-		while (!children_list.empty()) {
-			AOptionRelease(first());
-		}
-	}
-
 #endif
 };
 

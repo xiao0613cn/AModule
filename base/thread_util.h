@@ -113,7 +113,7 @@ static inline int
 pthread_cond_destroy(pthread_cond_t *cond) {
 	return !CloseHandle(*cond);
 }
-#endif //PTHREAD_H
+#endif //!PTHREAD_H
 
 static inline DWORD
 WaitEvent(HANDLE ev, DWORD ms) {
@@ -162,7 +162,7 @@ pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, unsigned lo
 
 	return pthread_cond_timedwait_monotonic_np(cond, mutex, &ts);
 }
-#else
+#else //HAVE_PTHREAD_COND_TIMEDWAIT_RELATIVE
 static inline int
 pthread_cond_init_mono(pthread_cond_t *cond, int broadcast) {
 	pthread_condattr_t attr;
@@ -188,7 +188,8 @@ pthread_cond_wait_mono(pthread_cond_t *cond, pthread_mutex_t *mutex, unsigned lo
 
 	return pthread_cond_timedwait(cond, mutex, &ts);
 }
-#endif
+#endif //!HAVE_PTHREAD_COND_TIMEDWAIT_RELATIVE
+
 #ifndef ANDROID
 static inline pid_t
 gettid() {
@@ -318,9 +319,9 @@ pthread_post(void *arg, void*(*func)(void*)) {
 }
 
 #ifdef __cplusplus
-template <typename object_t, void(object_t::*run)()>
-void* pthread_object_run(void *p) {
-	(((object_t*)p)->*run)();
+template <typename AType, void(AType::*run)()> void*
+pthread_object_run(void *p) {
+	(((AType*)p)->*run)();
 	return NULL;
 }
 

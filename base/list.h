@@ -218,22 +218,22 @@ inline bool       list_head::empty() { return !!list_empty(this); }
 inline bool       list_head::is_last(list_head *entry) { return !!list_is_last(entry, this); }
 inline void       list_head::push_front(list_head *entry) { list_add(entry, this); }
 inline void       list_head::push_back(list_head *entry) { list_add_tail(entry, this); }
-inline list_head* list_head::pop_front() { list_head *entry = next; entry->leave(); return entry; }
-inline list_head* list_head::pop_back() { list_head *entry = prev; entry->leave(); return entry; }
+inline list_head* list_head::pop_front() { list_head *entry = this->next; entry->leave(); return entry; }
+inline list_head* list_head::pop_back() { list_head *entry = this->prev; entry->leave(); return entry; }
 inline void       list_head::move_front(list_head *entry) { list_move(entry, this); }
 inline void       list_head::move_back(list_head *entry) { list_move_tail(entry, this); }
 // item function
 inline void       list_head::leave() { list_del_init(this); }
 
-template <typename type_t>
+template <typename AType>
 struct list_node : public list_head {
 #ifdef _DEBUG
-	type_t *self;
+	AType *self;
 #endif
-	void  init(type_t *p) {
+	void  init(AType *p) {
 		list_head::init();
 #ifdef _DEBUG
-		self = p;
+		this->self = p;
 #endif
 	}
 };

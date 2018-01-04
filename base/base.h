@@ -101,8 +101,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	int outpos = snprintf(outbuf, sizeof(outbuf),
 		tm_fmt" %4d | %s():\t", tm_args(tm), l, f);
 
-	va_list ap;
-	va_start(ap, fmt);
+	va_list ap; va_start(ap, fmt);
 	outpos += vsnprintf(outbuf+outpos, sizeof(outbuf)-outpos, fmt, ap);
 	va_end(ap);
 
@@ -115,7 +114,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	return outpos;
 }
 #define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
-#endif //TRACE
+#endif //!TRACE
 
 #ifdef _DEBUG
 #include <assert.h>
@@ -127,7 +126,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 #ifndef TRACE2
 #define TRACE2(fmt, ...)  (void)(0)
 #endif
-#endif //_DEBUG
+#endif //!_DEBUG
 
 
 #endif

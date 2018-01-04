@@ -51,8 +51,7 @@ struct ASlice {
 		push(count);
 	}
 	int   strfmt(const char *fmt, ...) {
-		va_list ap;
-		va_start(ap, fmt);
+		va_list ap; va_start(ap, fmt);
 		int len = vsnprintf(next(), left(), fmt, ap);
 		va_end(ap);
 		push(len);
@@ -93,7 +92,7 @@ struct ARefsBlock {
 	list_head _entry;
 
 	void   init() {
-		_buf = 0; _ptr = 0; _len = 0;
+		_buf = NULL; _ptr = NULL; _len = 0;
 		_entry.init();
 	}
 	void   set(ASlice<Item> *p, int bgn, int len) {
