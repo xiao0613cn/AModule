@@ -65,7 +65,7 @@ struct AOption {
 	}
 	AOption* first() { return list_entry(children_list.next, AOption, brother_entry); }
 	AOption* next()  { return list_entry(brother_entry.next, AOption, brother_entry); }
-	void     clear() { while (!children_list.empty()) { AOptionRelease(first()); } }
+
 	// child
 	AOption* set(const char *child_name, const char *child_value) {
 		return AOptionCreate(this, child_name, child_value);

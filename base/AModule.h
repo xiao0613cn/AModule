@@ -15,10 +15,10 @@ struct AModule {
 	void  (*release)(AObject *object);
 	int   (*probe)(AObject *other, AMessage *msg, AOption *option);
 
-	long volatile    object_count;
-	long             global_index;
-	struct list_head global_entry;
-	struct list_head class_entry;
+	long      object_count;
+	long      global_index;
+	list_head global_entry;
+	list_head class_entry;
 };
 
 AMODULE_API int
@@ -63,8 +63,8 @@ struct AObject {
 			this->_release(this);
 		return result;
 	}
-	template <typename TObject>
-	static int create(TObject **object, AObject *parent, AOption *option, const char *default_module) {
+	template <typename AType>
+	static int create(AType **object, AObject *parent, AOption *option, const char *default_module) {
 		ACreateParam param(parent, option, NULL, NULL, default_module, 0);
 		if (option == NULL) {
 		} else if (option->value[0] != '\0') {
@@ -75,16 +75,16 @@ struct AObject {
 		}
 		return AObjectCreate((AObject**)object, &param);
 	}
-	template <typename TObject>
-	static int create2(TObject **object, AObject *parent, AOption *option, AModule *module) {
+	template <typename AType>
+	static int create2(AType **object, AObject *parent, AOption *option, AModule *module) {
 		ACreateParam param(parent, option, module, NULL, NULL, 0);
 		return AObjectCreate((AObject**)object, &param);
 	}
-	template <typename TObject>
-	static int from(TObject **object, AObject *parent, AOption *p_opt, const char *def_mn) {
-		AOption *o_opt = p_opt->find(TObject::class_name());
-		ACreateParam param(parent, o_opt, NULL, TObject::class_name(),
-			(o_opt && o_opt->value[0]) ? o_opt->value : def_mn, 0);
+	template <typename AType>
+	static int from(AType **object, AObject *parent, AOption *p_opt, const char *default_module) {
+		AOption *o_opt = p_opt->find(AType::class_name());
+		ACreateParam param(parent, o_opt, NULL, AType::class_name(),
+			(o_opt && o_opt->value[0]) ? o_opt->value : default_module, 0);
 		return AObjectCreate((AObject**)object, &param);
 	}
 #endif

@@ -10,6 +10,7 @@ struct HttpMsg {
 		KV_UrlParam,
 		KV_PostParam,
 		KV_Cookie,
+		KV_MaxTypes
 	};
 	void        (*_reset)(HttpMsg *p);
 	http_parser   _parser;
@@ -51,26 +52,35 @@ struct HttpMsgImpl : public HttpMsg {
 	void     *_user;
 
 	HttpMsgImpl() {
-		_reset = &reset_;
+		_reset = &_reset_;
 		http_parser_init(&_parser, HTTP_BOTH, 0);
-		_head_num = 0;
-		_head_at = &head_at;
-		_head_get = &head_get;
-		_head_set = &head_set;
+		_kv_num = &_kv_num_;
+		_kv_at = &_kv_at_;
+		_kv_get = &_kv_get_;
+		_kv_set = &_kv_set_;
 		_body_buf = NULL;
 		_user = NULL;
 	}
 	~HttpMsgImpl() {
 		release_s(_body_buf);
 	}
-	static void reset_(HttpMsg *p) {
+	static void _reset_(HttpMsg *p) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		http_parser_init(&me->_parser, HTTP_BOTH, me->_parser.data);
 		me->_head_num = 0;
 		me->_headers.clear();
 		release_s(me->_body_buf);
 	}
-	static str_t head_at(HttpMsg *p, int ix, str_t *value) {
+	static int _kv_num_(HttpMsg *p, int type) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		KVVec *kvv;
+		switch (type) {
+		case KV_Header: kvv = &me->_headers; break;
+		case KV_UrlParam: kvv = &me->_urlparams; break;
+		default: return -1;
+		}
+	}
+	static str_t _kv_at_(HttpMsg *p, int ix, str_t *value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		HeaderVec::iterator it = me->_headers.begin() + ix;
 		if (value != NULL) {
@@ -79,7 +89,7 @@ struct HttpMsgImpl : public HttpMsg {
 		}
 		return str_t(it->first.c_str(), it->first.length());
 	}
-	static str_t head_get(HttpMsg *p, const char *field) {
+	static str_t _kv_get_(HttpMsg *p, const char *field) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		for (HeaderVec::iterator it = me->_headers.begin();
 			it != me->_headers.end(); ++it)
@@ -89,7 +99,7 @@ struct HttpMsgImpl : public HttpMsg {
 		}
 		return str_t();
 	}
-	static int head_set(HttpMsg *p, str_t field, str_t value) {
+	static int _kv_set_(HttpMsg *p, str_t field, str_t value) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		if (field.str == NULL) {
 			me->_headers.clear();

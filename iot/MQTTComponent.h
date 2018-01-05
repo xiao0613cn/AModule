@@ -33,7 +33,7 @@ struct MqttComponent : public AComponent {
 			msg->init(ioMsgType_Block, msg->buf.buffer, msg->buf.size);
 		do_post(this, msg);
 	}
-	void  (*do_post)(MqttComponent *c, AMessage *msg); // => _iocom.do_post()
+	void  (*do_post)(MqttComponent *c, AMessage *msg); // => AInOutComponent.do_post()
 
 	MQTTCODEC_INSTANCE _codec;
 	void init2() {

@@ -106,8 +106,8 @@ int MQTTClient::open(int result)
 		MQTT_BUFFER buf = { 0 };
 		if (mqtt_codec_connect(&buf, &login_opt) == NULL)
 			return -EINVAL;
-
 		_client._tick_heart = login_opt.keepAliveInterval*1000;
+
 		_status = LoginSend;
 		_heart_msg.init(ioMsgType_Block, buf.buffer, buf.size);
 		result = _iocom._io->input(&_heart_msg);

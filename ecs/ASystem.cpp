@@ -221,8 +221,7 @@ static void clear_sub(ASystemManager *sm)
 	sm->_event_manager->unlock();
 }
 
-ASystemManagerDefaultModule SysMngModule = {
-{
+ASystemManagerDefaultModule SysMngModule = { {
 	ASystemManagerDefaultModule::name(),
 	ASystemManagerDefaultModule::name(),
 	0, NULL, NULL,

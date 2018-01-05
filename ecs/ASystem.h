@@ -73,11 +73,11 @@ struct ASystemManagerMethod {
 };
 
 struct ASystemManagerDefaultModule {
-	static const char* name() { return "ASystemManagerDefaultModule"; }
-	static ASystemManagerDefaultModule* get() { return (ASystemManagerDefaultModule*)AModuleFind(name(), name()); }
-
 	AModule module;
 	ASystemManagerMethod methods;
+
+	static const char* name() { return "ASystemManagerDefaultModule"; }
+	static ASystemManagerDefaultModule* get() { return (ASystemManagerDefaultModule*)AModuleFind(name(), name()); }
 };
 
 struct ASystemManager : public ASystemManagerMethod {

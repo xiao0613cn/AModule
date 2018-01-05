@@ -196,7 +196,7 @@ static int encode(ARefsBuf *&buf, HttpMsg *hm) {
 	return buf->len();
 }
 
-static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
+static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
 {
 	while (result > 0) {
 		if (msg->data == NULL) { // do input header
@@ -230,14 +230,14 @@ static int HttpInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int re
 	return result;
 }
 
-static int HttpInputDone(AMessage *msg, int result)
+static int HttpMsgInputDone(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
 
 	msg = list_first_entry(&p->_iocom._queue, AMessage, entry);
 	assert(msg->type == httpMsgType_HttpMsg);
 
-	result = HttpInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
+	result = HttpMsgInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
 	if (result != 0)
 		result = p->_iocom._inmsg.done2(result);
 	return result;
@@ -246,7 +246,7 @@ static int HttpInputDone(AMessage *msg, int result)
 static int HttpSvcResp(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
-	result = HttpInputStatus(p, msg, p->_resp, result);
+	result = HttpMsgInputStatus(p, msg, p->_resp, result);
 	if (result != 0) {
 		msg->init();
 		msg->done2(result);
@@ -254,7 +254,7 @@ static int HttpSvcResp(AMessage *msg, int result)
 	return result;
 }
 
-static int HttpConnInput(AInOutComponent *c, AMessage *msg)
+static int HttpConnectionInput(AInOutComponent *c, AMessage *msg)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _iocom);
 	assert(c->_inmsg.done == &AInOutComponent::_inmsg_done);
@@ -272,13 +272,13 @@ static int HttpConnInput(AInOutComponent *c, AMessage *msg)
 			p->raw_outmsg_done = msg->done;
 			msg->init();
 			msg->done = &HttpSvcResp;
-			return HttpInputStatus(p, msg, (HttpMsg*)msg->data, 1);
+			return HttpMsgInputStatus(p, msg, (HttpMsg*)msg->data, 1);
 		}
 
 		p->raw_inmsg_done = c->_inmsg.done;
 		c->_inmsg.init();
-		c->_inmsg.done = &HttpInputDone;
-		return HttpInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
+		c->_inmsg.done = &HttpMsgInputDone;
+		return HttpMsgInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
 
 	default: assert(0);
 		return -EINVAL;
@@ -290,7 +290,7 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 	HttpConnection *p = (HttpConnection*)*object;
 	p->init();
 	p->_init_push(&p->_http);
-	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnInput;
+	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnectionInput;
 
 	p->_svc = NULL;
 	p->_inbuf = NULL;
@@ -395,7 +395,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	p->_iocom._outmsg.init();
 	p->_iocom._outmsg.done = &HttpSvcResp;
 
-	result = HttpInputStatus(p, &p->_iocom._outmsg, p->_resp, 1);
+	result = HttpMsgInputStatus(p, &p->_iocom._outmsg, p->_resp, 1);
 	return result; // continue recv next request
 }
 

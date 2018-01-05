@@ -10,14 +10,14 @@ struct AComponent {
 	const char *_name;
 	long        _index;
 	AObject    *_object;
-	list_head   _entity_node;
+	list_head   _entry;
 
 	void init(AObject *o, const char *n, int i = 0) {
 		_name = n; _index = i;
-		_object = o; _entity_node.init();
+		_object = o; _entry.init();
 	}
 	bool valid() {
-		return !_entity_node.empty();
+		return !_entry.empty();
 	}
 	template <typename TComponent>
 	TComponent* _other(TComponent **c, int com_index = -1) {
@@ -39,7 +39,7 @@ struct AEntity : public AObject {
 	}
 	void exit() {
 		while (!_com_list.empty()) {
-			AComponent *c = list_pop_front(&_com_list, AComponent, _entity_node);
+			AComponent *c = list_pop_front(&_com_list, AComponent, _entry);
 			assert(c->_object != this);
 			c->_object->release();
 		}
@@ -48,11 +48,11 @@ struct AEntity : public AObject {
 	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }
 
 	bool _push(AComponent *c) {
-		bool valid = c->_entity_node.empty();
+		bool valid = c->_entry.empty();
 		if (valid) {
 			//c->_self->addref();
 			//this->_self->addref();
-			_com_list.push_back(&c->_entity_node);
+			_com_list.push_back(&c->_entry);
 			++_com_count;
 		} else {
 			assert(0);
@@ -66,10 +66,10 @@ struct AEntity : public AObject {
 		_push(c);
 	}
 	bool _pop(AComponent *c) {
-		bool valid = !c->_entity_node.empty();
+		bool valid = !c->_entry.empty();
 		if (valid) {
 			//c->_self->release();
-			c->_entity_node.leave();
+			c->_entry.leave();
 			--_com_count;
 		} else {
 			assert(0);
@@ -82,7 +82,7 @@ struct AEntity : public AObject {
 		c->exit2();
 	}
 	AComponent* _get(const char *com_name, int com_index = -1) {
-		list_for_each2(c, &_com_list, AComponent, _entity_node) {
+		list_for_each2(c, &_com_list, AComponent, _entry) {
 			if ((strcasecmp(c->_name, com_name) == 0)
 			 && (com_index == -1 || com_index == c->_index)) {
 				//c->_self->addref();
@@ -151,7 +151,7 @@ struct AEntityManager {
 		struct rb_node *node = rb_next(&cur->_manager_node);
 		return (node ? rb_entry(node, AEntity, _manager_node) : NULL);
 	}
-	int  _next_each(AEntity *cur, int(*func)(AEntity *e, void *p), void *p) {
+	int  _next_each(AEntity *cur, int(*func)(AEntity*,void*), void *p) {
 		int result = 0;
 		cur = _upper(cur);
 		while (cur != NULL) {
@@ -174,7 +174,7 @@ struct AEntityManager {
 	TComponent* _next_com(AEntity *cur, int com_index = -1 ) {
 		return _next_com(cur, TComponent::name(), com_index);
 	}
-	int  _next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent *c, void *p), void *p, int com_index = -1) {
+	int  _next_each_com(AEntity *cur, const char *com_name, int(*func)(AComponent*,void*), void *p, int com_index = -1) {
 		int result = 0;
 		cur = _upper(cur);
 		while (cur != NULL) {
@@ -200,7 +200,7 @@ struct AComponent2 : public AObject, public AComponent {
 		AComponent::init(this, n, i);
 	}
 	void exit() {
-		assert(_entity_node.empty());
+		assert(_entry.empty());
 		reset_nif(_entity, NULL, _entity->_self->release());
 	}
 };

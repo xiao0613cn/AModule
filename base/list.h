@@ -29,19 +29,19 @@ typedef struct list_head {
 
 #ifdef __cplusplus
 // list function
-	void init();
-	bool empty();
-	bool is_last(list_head *entry);
-	void push_front(list_head *entry);
-	void push_back(list_head *entry);
+	void       init();
+	bool       empty();
+	bool       is_last(list_head *entry);
+	void       push_front(list_head *entry);
+	void       push_back(list_head *entry);
 	list_head* pop_front();
 	list_head* pop_back();
 	list_head* front();
 	list_head* back();
-	void move_front(list_head *entry);
-	void move_back(list_head *entry);
+	void       move_front(list_head *entry);
+	void       move_back(list_head *entry);
 // item function
-	void leave();
+	void       leave();
 #endif
 } list_head;
 

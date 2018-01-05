@@ -68,10 +68,9 @@ struct AInOutComponent : public AComponent {
 		c->unlock();
 		if (!first)
 			return;
+		//assert(c->_inmsg.done == &_inmsg_done);
 
 		c->_object->addref();
-		assert(c->_inmsg.done == &_inmsg_done);
-
 		int result = c->do_input(c, msg);
 		if (result != 0)
 			c->_inmsg.done2(result);
@@ -112,9 +111,9 @@ struct AInOutComponent : public AComponent {
 			}
 		}
 	}
-	void _input_begin(void  (*post_end)(AInOutComponent *c, int result)) {
+	void _input_begin(void(*post_end)(AInOutComponent*,int)) {
 		lock();
-		assert(_queue.empty());
+		assert(_queue.empty() && (on_post_end == NULL));
 		_abort = false;
 		on_post_end = post_end;
 		unlock();

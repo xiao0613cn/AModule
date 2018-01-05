@@ -6,9 +6,11 @@
 AMODULE_API void
 AOptionExit(AOption *option)
 {
-	option->clear();
-	if (!list_empty(&option->brother_entry)) {
-		list_del_init(&option->brother_entry);
+	while (!option->children_list.empty()) {
+		AOptionRelease(option->first());
+	}
+	if (!option->brother_entry.empty()) {
+		option->brother_entry.leave();
 	}
 }
 
@@ -30,13 +32,13 @@ AOptionInit(AOption *option, AOption *parent)
 	option->type = AOption_Any;
 	option->value_i64 = 0;
 	option->extend = NULL;
-	INIT_LIST_HEAD(&option->children_list);
+	option->children_list.init();
 
 	option->parent = parent;
 	if (parent != NULL) {
-		list_add_tail(&option->brother_entry, &parent->children_list);
+		parent->children_list.push_back(&option->brother_entry);
 	} else {
-		INIT_LIST_HEAD(&option->brother_entry);
+		option->brother_entry.init();
 	}
 }
 
@@ -160,8 +162,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 
 		switch (*sep)
 		{
-		case '{':
-		case '[':
+		case '{': case '[':
 			if (sep != name) {
 				AOptionEndKeyOrValue(current, keysep);
 			}
@@ -182,8 +183,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 			name = sep+1;
 			break;
 
-		case '}':
-		case ']':
+		case '}': case ']':
 			if (sep != name) {
 				AOptionEndKeyOrValue(current, keysep);
 			}
@@ -194,7 +194,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 
 			if ((current->name[0] == '\0')
 			 && (current->type == AOption_Any)
-			 && list_empty(&current->children_list)) {
+			 && current->children_list.empty()) {
 				AOption *empty_option = current;
 				current = current->parent;
 				AOptionRelease(empty_option);
@@ -228,9 +228,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 			name = sep+1;
 			break;
 
-		case '"':
-		case '\'':
-		case '`':
+		case '"': case '\'': case '`':
 			if (ident == '\0') {
 				ident = *sep;
 				if ((keysep == 1) && (current->type == AOption_Any))
@@ -239,12 +237,8 @@ AOptionDecode(AOption **option, const char *name, int len)
 				assert(ident == *sep);
 				ident = '\0';
 			}
-		case ' ':
-		case '\t':
-		case '\n':
-		case '\r':
-		case ':':
-		case '=':
+		case ' ': case '\t': case '\n':
+		case '\r': case ':': case '=':
 		case '#':
 			if (sep != name) {
 				AOptionEndKeyOrValue(current, keysep);
@@ -268,7 +262,7 @@ _return:
 }
 
 AMODULE_API int
-AOptionEncode(AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len))
+AOptionEncode(AOption *option, void *p, int(*write_cb)(void*,const char*,int))
 {
 #define write_sn(s, n) \
 	ret = write_cb(p, s, n); \
@@ -350,7 +344,7 @@ AOptionEncode(AOption *option, void *p, int(*write_cb)(void *p, const char *str,
 		write_sn("}", 1);
 _next:
 		if ((current != option)
-		 && list_is_last(&current->brother_entry, &current->parent->children_list))
+		 && current->parent->children_list.is_last(&current->brother_entry))
 		{
 			current = current->parent;
 			if ((current->type == AOption_Array) || (current->value[0] == '[')) {

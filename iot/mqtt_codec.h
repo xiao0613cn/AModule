@@ -43,9 +43,9 @@ typedef struct MQTTCODEC_INSTANCE {
 #ifdef __cplusplus
 };
 
-template <typename TObject, void(TObject::*cb)(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag)>
+template <typename AType, void(AType::*cb)(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag)>
 void mqtt_packet_callback(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag) {
-	(((TObject*)context)->*cb)(packet, flags, headerData, packetTag);
+	(((AType*)context)->*cb)(packet, flags, headerData, packetTag);
 }
 
 extern "C" {

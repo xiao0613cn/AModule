@@ -16,29 +16,7 @@ enum AModule_ioRequest {
 	Aiosync_NotifyBack   = 0x04000000,
 	Aiosync_NotifyDispath = 0x05000000,
 };
-/*
-static inline int
-ioInput(AObject *io, AMessage *msg) {
-	return io->request(Aio_Input, msg);
-}
 
-static inline int
-ioOutput(AObject *io, AMessage *msg) {
-	return io->request(Aio_Output, msg);
-}
-
-static inline int
-ioOutput(AObject *io, AMessage *msg, void *data, int size, int type = AMsgType_Unknown) {
-	AMsgInit(msg, type, data, size);
-	return io->request(Aio_Output, msg);
-}
-
-static inline int
-ioOutput(AObject *io, AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown) {
-	AMsgInit(msg, type, buf->next(), buf->left());
-	return io->request(Aio_Output, msg);
-}
-*/
 enum { ioMsgType_Block = (AMsgType_Class|0) };
 #define ioMsgType_isBlock(type)   ((type) & (AMsgType_Class|AMsgType_Private))
 
@@ -62,7 +40,7 @@ struct IOModule {
 
 struct IOObject : public AObject {
 	static const char* class_name() { return "io"; }
-	IOModule* m() { return container_of(_module, IOModule, module); }
+	IOModule* m() { return container_of(this->_module, IOModule, module); }
 
 	int open(AMessage *msg)   { return m()->open(this, msg); }
 	int getopt(AOption *opt)  { return m()->getopt(this, opt); }
@@ -73,16 +51,18 @@ struct IOObject : public AObject {
 	int close(AMessage *msg)  { return m()->close(this, msg); }
 
 	int input(AMessage *msg)  { return request(Aio_Input, msg); }
+	int output(AMessage *msg) { return request(Aio_Output, msg); }
+
+#ifdef _BUF_UTIL_H_
 	int input(AMessage *msg, ARefsBuf *buf, int type = ioMsgType_Block) {
 		msg->init(type, buf->ptr(), buf->len());
 		return input(msg);
 	}
-
-	int output(AMessage *msg) { return request(Aio_Output, msg); }
 	int output(AMessage *msg, ARefsBuf *buf, int type = AMsgType_Unknown) {
 		msg->init(type, buf->next(), buf->left());
 		return output(msg);
 	}
+#endif
 };
 //>>>>>>>>>> C Style >>>>>>>>>>
 
