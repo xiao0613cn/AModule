@@ -120,7 +120,7 @@ int c_msg_done(AMessage *msg, int result)
 {
 	client_t *c = container_of(msg, client_t, msg);
 
-	if (msg->type == AMsgType_Option) {
+	if (msg->type == AMsgType_AOption) {
 		((AOption*)msg->data)->delref();
 	}
 

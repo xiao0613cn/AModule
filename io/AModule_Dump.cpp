@@ -139,7 +139,7 @@ static int Dump_init(DumpObject *dump, AOption *msg_opt)
 
 static int DumpOpen(AObject *object, AMessage *msg)
 {
-	if ((msg->type != AMsgType_Option)
+	if ((msg->type != AMsgType_AOption)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;

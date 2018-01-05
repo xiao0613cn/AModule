@@ -32,7 +32,7 @@ static int TCPOpen(AObject *object, AMessage *msg)
 		return 1;
 	}
 
-	if ((msg->type != AMsgType_Option)
+	if ((msg->type != AMsgType_AOption)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;

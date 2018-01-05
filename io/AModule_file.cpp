@@ -23,7 +23,7 @@ static int FileCreate(AObject **object, AObject *parent, AOption *option)
 static int FileOpen(AObject *object, AMessage *msg)
 {
 	FileObject *fo = (FileObject*)object;
-	if ((msg->type != AMsgType_Option)
+	if ((msg->type != AMsgType_AOption)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;

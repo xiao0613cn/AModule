@@ -89,6 +89,7 @@ static int AsyncTcpOpenDone(AOperator *asop, int result)
 static int AsyncOvlpProc(AsyncTcp *tcp, AsyncOvlp *ovlp)
 {
 	int result;
+	AMessage *msg = ovlp->from;
 _retry:
 	result = InterlockedCompareExchange(&ovlp->status, op_none, op_signal);
 	if (result == op_error)
@@ -96,21 +97,21 @@ _retry:
 
 	if ((result == op_signal) || (ovlp->perform_count != ovlp->signal_count)) {
 		if (ovlp == &tcp->send_ovlp) {
-			result = send(tcp->sock, ovlp->from->data+ovlp->pos, ovlp->from->size-ovlp->pos, MSG_NOSIGNAL);
+			result = send(tcp->sock, msg->data+ovlp->pos, msg->size-ovlp->pos, MSG_NOSIGNAL);
 		} else {
-			result = recv(tcp->sock, ovlp->from->data+ovlp->pos, ovlp->from->size-ovlp->pos, 0);
+			result = recv(tcp->sock, msg->data+ovlp->pos, msg->size-ovlp->pos, 0);
 		}
 		if (result == 0)
 			return -EIO;
 
 		if (result > 0) {
 			ovlp->pos += result;
-			if (ovlp->pos == ovlp->from->size)
+			if (ovlp->pos == msg->size)
 				return ovlp->pos;
 
 			ovlp->perform_count += 1;
-			if (!ioMsgType_isBlock(ovlp->from->type)) {
-				ovlp->from->size = ovlp->pos;
+			if (!ioMsgType_isBlock(msg->type)) {
+				msg->size = ovlp->pos;
 				return ovlp->pos;
 			}
 		} else {
@@ -121,16 +122,16 @@ _retry:
 				TRACE2("tcp(%d): %s(%d-%d), size(%d), pos(%d), result = %d, errno = %d.\n",
 					tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 					ovlp->perform_count, ovlp->signal_count,
-					ovlp->from->size, ovlp->pos, result, errno);
+					msg->size, ovlp->pos, result, errno);
 				return -EIO;
 			}
 			//ovlp->perform_count += 1;
 		}
-	} else if (ovlp->perform_count != ovlp->signal_count) {
+	} else if (ovlp->perform_count == ovlp->signal_count) {
 		TRACE2("tcp(%d): skip %s(%d-%d), size(%d), pos(%d), errno = %d.\n",
 			tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 			ovlp->perform_count, ovlp->signal_count,
-			ovlp->from->size, ovlp->pos, errno);
+			msg->size, ovlp->pos, errno);
 	}
 
 	result = InterlockedCompareExchange(&ovlp->status, op_pending, op_none);
@@ -142,7 +143,7 @@ _retry:
 	TRACE2("tcp(%d): %s(%d-%d), size(%d), pos(%d), retry again, errno = %d.\n",
 		tcp->sock, (ovlp==&tcp->send_ovlp)?"send":"recv",
 		ovlp->perform_count, ovlp->signal_count,
-		ovlp->from->size, ovlp->pos, errno);
+		msg->size, ovlp->pos, errno);
 	goto _retry;
 }
 
@@ -318,7 +319,7 @@ static int AsyncTcpOpen(AObject *object, AMessage *msg)
 		return AsyncTcpBind(tcp, NULL);
 	}
 
-	if ((msg->type != AMsgType_Option)
+	if ((msg->type != AMsgType_AOption)
 	 || (msg->data == NULL)
 	 || (msg->size != 0))
 		return -EINVAL;

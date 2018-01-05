@@ -87,15 +87,13 @@ typedef ASlice<char> ARefsBuf;
 template <typename Item = char>
 struct ARefsBlock {
 	ASlice<Item> *_buf;
-	Item*  _ptr;
-	int    _len;
-	list_head _entry;
+	Item         *_ptr;
+	int           _len;
 
-	void   init() {
+	void init() {
 		_buf = NULL; _ptr = NULL; _len = 0;
-		_entry.init();
 	}
-	void   set(ASlice<Item> *p, int bgn, int len) {
+	void set(ASlice<Item> *p, int bgn, int len) {
 		addref_set(_buf, p); _len = len;
 		_ptr = (p ? p->_data+bgn : 0);
 	}

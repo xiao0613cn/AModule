@@ -5,14 +5,14 @@ typedef struct AMessage AMessage;
 
 enum AMsgTypes {
 	AMsgType_Unknown = 0,
-	AMsgType_Handle,   /* data = void*,    size = 0 */
-	AMsgType_Option,   /* data = AOption*, size = 0 */
-	AMsgType_Object,   /* data = AObject*, size = 0 */
-	AMsgType_Module,   /* data = AModule*, size = 0 */
-	AMsgType_OtherMsg, /* data = AMessage*, size = 0 */
-	AMsgType_InOutMsg, /* data = AInOutMsg*, size = 0 */
-	AMsgType_RefsBuf,  /* data = ARefsBuf*, size = 0 */
-	AMsgType_RefsBlock,/* data = ARefsBlock*, size = 0 */
+	AMsgType_Handle,    /* data = void*,    size = 0 */
+	AMsgType_AOption,   /* data = AOption*, size = 0 */
+	AMsgType_AObject,   /* data = AObject*, size = 0 */
+	AMsgType_AModule,   /* data = AModule*, size = 0 */
+	AMsgType_OtherMsg,  /* data = AMessage*, size = 0 */
+	AMsgType_InOutMsg,  /* data = AInOutMsg*, size = 0 */
+	AMsgType_ARefsBuf,  /* data = ARefsBuf*, size = 0 */
+	AMsgType_ARefsBlock,/* data = ARefsBlock*, size = 0 */
 	AMsgType_Class   = 0x10000000, /* class defined */
 	AMsgType_Private = 0x20000000, /* module defined */
 };
@@ -27,9 +27,9 @@ struct AMessage {
 #ifdef __cplusplus
 	void  init(int t=0, const void*p=0, int n=0) { type=t; size=n; data=(char*)p; }
 	void  init(HANDLE handle)          { init(AMsgType_Handle, handle, 0); }
-	void  init(struct AOption *option) { init(AMsgType_Option, option, 0); }
-	void  init(struct AObject *object) { init(AMsgType_Object, object, 0); }
-	void  init(struct AModule *module) { init(AMsgType_Module, module, 0); }
+	void  init(struct AOption *option) { init(AMsgType_AOption, option, 0); }
+	void  init(struct AObject *object) { init(AMsgType_AObject, object, 0); }
+	void  init(struct AModule *module) { init(AMsgType_AModule, module, 0); }
 	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
 	int   done2(int result)            { return done(this, result); }
 #endif

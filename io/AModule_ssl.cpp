@@ -265,7 +265,7 @@ static int SSLOpenStatus(SSL_IO *sc, int result)
 static int SSLOpen(AObject *object, AMessage *msg)
 {
 	SSL_IO *sc = (SSL_IO*)object;
-	if (msg->type != AMsgType_Option)
+	if (msg->type != AMsgType_AOption)
 		return -EINVAL;
 
 	AOption *option = (AOption*)msg->data;
