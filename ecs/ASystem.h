@@ -42,12 +42,12 @@ struct ASystem {
 		AModule *m = AModuleFind(class_name(), sys_name);
 		return m ? container_of(m, ASystem, module) : NULL;
 	}
-	void _exec(Result *r) {
+	int _exec(Result *r) {
 		switch (r->status)
 		{
-		case Runnable: exec_run(r, 0); break;
-		case Aborting: exec_abort(r); break;
-		default: assert(0); break;
+		case Runnable: return exec_run(r, 0);
+		case Aborting: return exec_abort(r);
+		default: assert(0); return -EINVAL;
 		}
 	}
 };
@@ -55,21 +55,27 @@ struct ASystem {
 #define list_for_allsys(pos, allsys) \
 	list_for_each2(pos, &(allsys)->module.class_entry, ASystem, module.class_entry)
 
-typedef int (*ASelfFunc)(const char *name, bool preproc, void *user);
+typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
 
 struct ASystemManagerMethod {
 	int  (*start_checkall)(ASystemManager *sm);
 	void (*stop_checkall)(ASystemManager *sm);
-	int  (*check_by_allsys)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
-	int  (*check_by_entities)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
+	int  (*check_allsys)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
+	int  (*check_entities)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
 	int  (*_check_one)(ASystemManager *sm, list_head *exec_list, AEntity *e, DWORD cur_tick);
 
-	bool (*_subscribe)(ASystemManager *sm, AReceiver *r);
-	bool (*_unsubscribe)(ASystemManager *sm, AReceiver *r);
-	int  (*emit_event)(ASystemManager *sm, const char *name, void *p);
-	int  (*emit_event2)(ASystemManager *sm, int index, void *p);
-	AReceiver* (*_sub_self)(ASystemManager *sm, const char *name, bool preproc, void *user, ASelfFunc f);
+	// event by name
+	bool (*_sub_by_name)(ASystemManager *sm, AReceiver *r);
+	bool (*_unsub_by_name)(ASystemManager *sm, AReceiver *r);
+	int  (*emit_by_name)(ASystemManager *sm, const char *name, void *p);
+	AReceiver* (*_sub_self)(ASystemManager *sm, const char *name, bool preproc, void *self, ASelfEventFunc f);
 	void (*clear_sub)(ASystemManager *sm);
+
+	// event by index
+	bool (*_sub_by_index)(ASystemManager *sm, AReceiver *r);
+	bool (*_unsub_by_index)(ASystemManager *sm, AReceiver *r);
+	int  (*emit_by_index)(ASystemManager *sm, int index, void *p);
+	void (*clear_sub2)(ASystemManager *sm);
 };
 
 struct ASystemManagerDefaultModule {
@@ -85,17 +91,12 @@ struct ASystemManager : public ASystemManagerMethod {
 	AThread         *_thr_systems;
 	AOperator        _asop_systems; // single operator execute
 	DWORD            _tick_systems;
-	bool             _idle_check_entities;
+	bool             _check_entities_when_idle;
 	pthread_mutex_t  _mutex;
 	void   lock()   { pthread_mutex_lock(&_mutex); }
 	void   unlock() { pthread_mutex_unlock(&_mutex); }
 
 	AEntityManager  *_all_entities;
-	AThread         *_thr_entities;
-	AOperator        _asop_entities; // multiple operator execute
-	DWORD            _tick_entities;
-	AEntity         *_last_entity;
-
 	AService        *_all_services;
 	AEventManager   *_event_manager;
 
@@ -105,15 +106,10 @@ struct ASystemManager : public ASystemManagerMethod {
 			_thr_systems = NULL;
 			_asop_systems.timer();
 			_tick_systems = 1000;
-			_idle_check_entities = false;
+			_check_entities_when_idle = false;
 			pthread_mutex_init(&_mutex, NULL);
 
 			_all_entities = NULL;
-			_thr_entities = NULL;
-			_asop_entities.timer();
-			_tick_entities = 1000;
-			_last_entity = NULL;
-
 			_all_services = NULL;
 			_event_manager = NULL;
 			*(ASystemManagerMethod*)this = *m;

@@ -41,6 +41,7 @@ struct MqttComponent : public AComponent {
 	void init2() {
 		on_msg = NULL; _user = NULL; do_post = NULL;
 		mqtt_codec_init(&_codec, NULL, NULL);
+		memzero(_login);
 	}
 	void exit2() {
 		mqtt_codec_exit(&_codec);

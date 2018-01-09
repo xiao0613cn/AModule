@@ -4,7 +4,7 @@
 
 typedef struct AEntity AEntity;
 typedef struct AComponent AComponent;
-typedef struct AEntityManager AEntityManager, EM;
+typedef struct AEntityManager AEntityManager;
 
 struct AComponent {
 	const char *_name;
@@ -27,13 +27,13 @@ struct AComponent {
 
 struct AEntity : public AObject {
 	AEntityManager *_manager;
-	struct rb_node  _manager_node;
+	struct rb_node  _map_node;
 	list_head       _com_list;
 	int             _com_count;
 
 	void init() {
 		_manager = NULL;
-		RB_CLEAR_NODE(&_manager_node);
+		RB_CLEAR_NODE(&_map_node);
 		_com_list.init();
 		_com_count = 0;
 	}
@@ -43,9 +43,9 @@ struct AEntity : public AObject {
 			assert(c->_object != this);
 			c->_object->release();
 		}
-		assert(RB_EMPTY_NODE(&_manager_node));
+		assert(RB_EMPTY_NODE(&_map_node));
 	}
-	bool valid() { return !RB_EMPTY_NODE(&_manager_node); }
+	bool valid() { return !RB_EMPTY_NODE(&_map_node); }
 
 	bool _push(AComponent *c) {
 		bool valid = c->_entry.empty();
@@ -104,10 +104,22 @@ struct AEntityManager {
 	int              _entity_count;
 	pthread_mutex_t  _mutex;
 
+	// for ASystemManager execute
+	struct ASystemManager *_sysmng;
+	AThread         *_thr_entities;
+	AOperator        _asop_entities; // multiple operator execute
+	DWORD            _tick_entities;
+	AEntity         *_last_entity;
+
 	void init() {
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;
 		pthread_mutex_init(&_mutex, NULL);
+		_sysmng = NULL;
+		_thr_entities = NULL;
+		_asop_entities.timer();
+		_tick_entities = 1000;
+		_last_entity = NULL;
 	}
 	void exit() {
 		assert(RB_EMPTY_ROOT(&_entity_map));
@@ -117,7 +129,7 @@ struct AEntityManager {
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 
 	bool _push(AEntity *e) {
-		bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_manager_node));
+		bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_map_node));
 		if (valid)
 			valid = (rb_insert_AEntity(&_entity_map, e, e) == NULL);
 		if (valid) {
@@ -132,8 +144,8 @@ struct AEntityManager {
 	bool _pop(AEntity *e) {
 		bool valid = e->valid();
 		if (valid) {
-			rb_erase(&e->_manager_node, &_entity_map);
-			RB_CLEAR_NODE(&e->_manager_node);
+			rb_erase(&e->_map_node, &_entity_map);
+			RB_CLEAR_NODE(&e->_map_node);
 			--_entity_count;
 		} else {
 			assert(0);
@@ -143,13 +155,13 @@ struct AEntityManager {
 	}
 	AEntity* _upper(AEntity *cur) {
 		if (RB_EMPTY_ROOT(&_entity_map)) return NULL;
-		else if (cur == NULL)            return rb_first_entry(&_entity_map, AEntity, _manager_node);
+		else if (cur == NULL)            return rb_first_entry(&_entity_map, AEntity, _map_node);
 		else                             return rb_upper_AEntity(&_entity_map, cur);
 	}
 	AEntity* _next(AEntity *cur) {
 		assert(cur->valid());
-		struct rb_node *node = rb_next(&cur->_manager_node);
-		return (node ? rb_entry(node, AEntity, _manager_node) : NULL);
+		struct rb_node *node = rb_next(&cur->_map_node);
+		return (node ? rb_entry(node, AEntity, _map_node) : NULL);
 	}
 	int  _next_each(AEntity *cur, int(*func)(AEntity*,void*), void *p) {
 		int result = 0;

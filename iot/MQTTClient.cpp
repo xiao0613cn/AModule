@@ -92,21 +92,20 @@ int MQTTClient::open(int result)
 			return result;
 
 		AOption *client_opt = _options->find("mqtt_client_options");
-		MQTT_CLIENT_OPTIONS login_opt = { 0 };
-		login_opt.clientId = client_opt->getStr("clientId", "");
-		login_opt.willTopic = client_opt->getStr("willTopic", NULL);
-		login_opt.willMessage = client_opt->getStr("willMessage", NULL);
-		login_opt.username = client_opt->getStr("username", NULL);
-		login_opt.password = client_opt->getStr("password", NULL);
-		login_opt.keepAliveInterval = (uint16_t)client_opt->getInt("keepAliveInterval", 10);
-		login_opt.messageRetain = !!client_opt->getInt("messageRetain", false);
-		login_opt.useCleanSession = !!client_opt->getInt("useCleanSession", true);
-		login_opt.qualityOfServiceValue = (QOS_VALUE)client_opt->getInt("qos", DELIVER_AT_MOST_ONCE);
+		_mqtt._login.clientId = client_opt->getStr("clientId", "");
+		_mqtt._login.willTopic = client_opt->getStr("willTopic", NULL);
+		_mqtt._login.willMessage = client_opt->getStr("willMessage", NULL);
+		_mqtt._login.username = client_opt->getStr("username", NULL);
+		_mqtt._login.password = client_opt->getStr("password", NULL);
+		_mqtt._login.keepAliveInterval = (uint16_t)client_opt->getInt("keepAliveInterval", 10);
+		_mqtt._login.messageRetain = !!client_opt->getInt("messageRetain", false);
+		_mqtt._login.useCleanSession = !!client_opt->getInt("useCleanSession", true);
+		_mqtt._login.qualityOfServiceValue = (QOS_VALUE)client_opt->getInt("qos", DELIVER_AT_MOST_ONCE);
 
 		MQTT_BUFFER buf = { 0 };
-		if (mqtt_codec_connect(&buf, &login_opt) == NULL)
+		if (mqtt_codec_connect(&buf, &_mqtt._login) == NULL)
 			return -EINVAL;
-		_client._tick_heart = login_opt.keepAliveInterval*1000;
+		_client._tick_heart = _mqtt._login.keepAliveInterval*1000;
 
 		_status = LoginSend;
 		_heart_msg.init(ioMsgType_Block, buf.buffer, buf.size);

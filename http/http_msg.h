@@ -18,10 +18,6 @@ struct HttpMsg {
 	str_t       (*_kv_at)(HttpMsg *p, int type, int ix, str_t *value);
 	str_t       (*_kv_get)(HttpMsg *p, int type, const char *field);
 	int         (*_kv_set)(HttpMsg *p, int type, str_t field, str_t value);
-	int           _head_num;
-	str_t       (*_head_at)(HttpMsg *p, int ix, str_t *value);
-	str_t       (*_head_get)(HttpMsg *p, const char *field);
-	int         (*_head_set)(HttpMsg *p, str_t field, str_t value);
 	ARefsBuf     *_body_buf;
 	char*          body_ptr() { return _body_buf->_data + _parser.nread; }
 	uint32_t&      body_pos() { return _parser.nread; }
@@ -42,14 +38,12 @@ enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };
 
 
 #if defined(_USE_HTTP_MSG_IMPL_) && (_USE_HTTP_MSG_IMPL_ != 0)
-#include <vector>
-#include <string>
+#include <map>
 
 struct HttpMsgImpl : public HttpMsg {
-	typedef std::pair<std::string, std::string> HeaderItem;
-	typedef std::vector<HeaderItem> HeaderVec;
-	HeaderVec _headers;
-	void     *_user;
+	typedef std::map<std::string, std::string> KVMap;
+	KVMap  _headers;
+	void  *_user;
 
 	HttpMsgImpl() {
 		_reset = &_reset_;
