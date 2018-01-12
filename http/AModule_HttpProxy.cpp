@@ -37,9 +37,9 @@ static int on_h_field(http_parser *parser, const char *at, size_t length) {
 
 	if (p->_value_len != 0) {
 		if (++p->_header_count == 1) {
-			p->_httpmsg->set_url(p->_value());
+			p->_httpmsg->uri_set(p->_value(), 1);
 		} else {
-			p->_httpmsg->set(p->_field(), p->_value());
+			p->_httpmsg->header_set(p->_field(), p->_value());
 		}
 		p->_field_pos = p->_field_len = 0;
 		p->_value_pos = p->_value_len = 0;
@@ -64,7 +64,7 @@ static int on_h_done(http_parser *parser) {
 	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
 	if (p->_value_len != 0) {
 		p->_header_count++;
-		p->_httpmsg->set(p->_field(), p->_value());
+		p->_httpmsg->header_set(p->_field(), p->_value());
 	}
 	assert(p->_header_block._buf == NULL);
 	p->_header_block.set(p->outbuf(), p->outbuf()->_bgn, p->_parser.nread);
@@ -156,7 +156,7 @@ int HttpCompenont::on_iocom_output(AInOutComponent *c, int result) {
 	c->_outbuf->pop(p->_parsed_len);
 	p->_parsed_len = 0;
 
-	assert(p->_httpmsg->_head_num == p->_header_count);
+	assert(p->_httpmsg->header_num()+1 == p->_header_count);
 	p->_httpmsg->_parser = p->_parser;
 	p->_httpmsg->set_body(c->_outbuf, p->_body_pos, p->_body_len);
 
@@ -164,10 +164,10 @@ int HttpCompenont::on_iocom_output(AInOutComponent *c, int result) {
 }
 
 static int encode(ARefsBuf *&buf, HttpMsg *hm) {
-	str_t v;
+	str_t f, v;
 	int result = 20;
-	for (int ix = 0; ix < hm->_head_num; ++ix) {
-		result += hm->at(ix, &v).len;
+	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
+		result += f.len;
 		result += v.len + 6;
 	}
 	if (hm->body_len() > 0)
@@ -177,7 +177,7 @@ static int encode(ARefsBuf *&buf, HttpMsg *hm) {
 	if (result < 0)
 		return result;
 
-	v = hm->get_url();
+	v = hm->uri_get(1);
 	if (hm->_parser.type == HTTP_REQUEST) {
 		buf->strfmt("%s %.*s HTTP/%d.%d\r\n", http_method_str(hm->_parser.method),
 			v.len, v.str, hm->_parser.http_major, hm->_parser.http_minor);
@@ -188,8 +188,8 @@ static int encode(ARefsBuf *&buf, HttpMsg *hm) {
 	if (hm->body_len() > 0) {
 		buf->strfmt("Content-Length: %lld\r\n", hm->body_len());
 	}
-	for (int ix = 1; ix < hm->_head_num; ++ix) {
-		str_t f = hm->at(ix, &v);
+	f.str = NULL;
+	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		buf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
 	}
 	buf->strfmt("\r\n");
@@ -342,7 +342,6 @@ AModule HttpConnectionModule = {
 };
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
-#define set_sz(field, value)  set(str_t(field,sizeof(field)-1), str_t(value, sizeof(value)-1))
 
 static int HttpOnRecvMsg(HttpCompenont *c, int result)
 {
@@ -355,7 +354,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		TRACE("invalid http type: %d.\n", p->_req->_parser.type);
 		return -EINVAL;
 	}
-	p->_resp->set(str_t(), str_t());
+	p->_resp->header_clear();
 	p->_resp->_parser = p->_http._parser;
 	p->_resp->_parser.type = HTTP_RESPONSE;
 	if (p->_resp->_body_buf) p->_resp->_body_buf->reset();
@@ -367,7 +366,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 		return svc->run(svc, p, svc->_svc_option);
 	}
 
-	FILE *fp = fopen(p->_req->get_url().str+1, "rb");
+	FILE *fp = fopen(p->_req->uri_get(1).str+1, "rb");
 	if (fp != NULL) {
 		fseek(fp, 0, SEEK_END);
 		p->_resp->body_len() = ftell(fp);
@@ -376,20 +375,20 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 
 	if (p->_resp->body_len() <= 0) {
 		p->_resp->_parser.status_code = 404;
-		p->_resp->set_sz("", "File Invalid");
+		p->_resp->uri_set(str_sz("File Invalid"), 1);
 	} else if (ARefsBuf::reserve(p->_resp->_body_buf, p->_resp->body_len(), recv_bufsiz) < 0) {
 		p->_resp->_parser.status_code = 501;
-		p->_resp->set_sz("", "Out Of Memory");
+		p->_resp->uri_set(str_sz("Out Of Memory"), 1);
 	} else if (fread(p->_resp->_body_buf->next(), p->_resp->body_len(), 1, fp) != 1) {
 		p->_resp->_parser.status_code = 502;
-		p->_resp->set_sz("", "Read File Error");
+		p->_resp->uri_set(str_sz("Read File Error"), 1);
 	} else {
 		p->_resp->_body_buf->push(p->_resp->body_len());
 		p->_resp->_parser.status_code = 200;
-		p->_resp->set_sz("", "OK");
+		p->_resp->uri_set(str_sz("OK"), 1);
 	}
 	reset_s(fp, NULL, fclose);
-	p->_resp->set_sz("Content-Type", "text/html");
+	p->_resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
 
 	p->raw_outmsg_done = p->_iocom._outmsg.done;
 	p->_iocom._outmsg.init();

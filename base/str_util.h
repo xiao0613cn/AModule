@@ -9,6 +9,7 @@ struct str_t {
 		str = (char*)p; len = n;
 		if (len < 0) len = strlen(str);
 	}
+#define str_sz(s) str_t(s, sizeof(s)-1)
 #endif
 };
 
