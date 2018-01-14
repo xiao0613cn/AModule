@@ -164,9 +164,9 @@ struct APool {
 		}
 	}
 
-	int  total_left()          { return _item_left; }
-	void push_back(Item &item) { push(&item, 1); }
-	void push(Item *item, int count) {
+	int  total_left()                { return _item_left; }
+	void push_back(const Item &item) { push(&item, 1); }
+	void push(const Item *item, int count) {
 		reserve(count);
 		while (count > 0) {
 			int num = min(count, _slice_push->left());
@@ -214,5 +214,7 @@ struct APool {
 	}
 };
 
+typedef ASlice<void*> APtrSlice;
+typedef APool<void*> APtrPool;
 
 #endif

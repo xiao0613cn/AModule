@@ -7,7 +7,7 @@ AMODULE_API void
 AOptionExit(AOption *option)
 {
 	while (!option->children_list.empty()) {
-		AOptionRelease(option->first());
+		option->first()->release();
 	}
 	if (!option->brother_entry.empty()) {
 		option->brother_entry.leave();
@@ -197,7 +197,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 			 && current->children_list.empty()) {
 				AOption *empty_option = current;
 				current = current->parent;
-				AOptionRelease(empty_option);
+				empty_option->release();
 			} else {
 				current = current->parent;
 			}
@@ -256,8 +256,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 		}
 	}
 _return:
-	AOptionRelease(*option);
-	*option = NULL;
+	release_s(*option);
 	return result;
 }
 
@@ -452,7 +451,7 @@ AOptionClone(AOption *option, AOption *parent)
 	{
 		AOption *child = AOptionClone(pos, current);
 		if (child == NULL) {
-			AOptionRelease(current);
+			current->release();
 			return NULL;
 		}
 	}

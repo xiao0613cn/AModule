@@ -112,12 +112,13 @@ struct AReceiver2 : public AReceiver {
 static int on_self_event(AReceiver *r, void *p, bool preproc)
 {
 	AReceiver2 *r2 = (AReceiver2*)r;
-	if (r2->_self != p)
-		return -1;
+	if (preproc) {
+		return (r2->_self != p) ? -1 : 1;
+	}
 	return r2->_func(r2->_name, preproc, p);
 }
 
-static AReceiver* _sub_self(ASystemManager *sm, const char *name, bool preproc, void *self, ASelfEventFunc f)
+static AReceiver* _sub_self(ASystemManager *sm, const char *name, bool oneshot, void *self, ASelfEventFunc f)
 {
 	if (sm->_event_manager == NULL)
 		return NULL;
@@ -126,7 +127,7 @@ static AReceiver* _sub_self(ASystemManager *sm, const char *name, bool preproc, 
 	r2->AReceiver::init(NULL, &free);
 	r2->on_event = &on_self_event;
 
-	r2->_name = name; r2->_oneshot = false; r2->_preproc = preproc;
+	r2->_name = name; r2->_oneshot = oneshot; r2->_preproc = true;
 	r2->_self = self; r2->_func = f;
 	sm->_event_manager->_sub_by_name(r2);
 	return r2;

@@ -68,7 +68,7 @@ struct ASystemManagerMethod {
 	bool (*_sub_by_name)(ASystemManager *sm, AReceiver *r);
 	bool (*_unsub_by_name)(ASystemManager *sm, AReceiver *r);
 	int  (*emit_by_name)(ASystemManager *sm, const char *name, void *p);
-	AReceiver* (*_sub_self)(ASystemManager *sm, const char *name, bool preproc, void *self, ASelfEventFunc f);
+	AReceiver* (*_sub_self)(ASystemManager *sm, const char *name, bool oneshot, void *self, ASelfEventFunc f);
 	void (*clear_sub)(ASystemManager *sm);
 
 	// event by index

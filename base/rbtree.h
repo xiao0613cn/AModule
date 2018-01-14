@@ -274,6 +274,69 @@ type* rb_lower_##type(struct rb_root *root, keytype key) \
 	return it; \
 }
 
+#ifdef __cplusplus
+/*
+struct rb_helper {
+	typedef xxx RootType;
+	static rb_root* map_root(RootType *r) {}
+	static int&     map_count(RootType *r) {}
+
+	typedef xxx DataType;
+	static rb_root*& p_root(DataType *p) {}
+	static rb_node*  p_node(DataType *p) {}
+
+	static DataType* p_entry(rb_node *node) {
+		return (DataType*)rb_entry(node, xxx);
+	}
+	static DataType* insert(RootType *r, DataType *p) {
+		return rb_insert_xxx(r, p, key);
+	}
+	static DataType* upper(RootType *r, DataType *p) {
+		return rb_upper_xxx(r, key);
+	}
+};
+*/
+template <typename helper> bool
+rb_push(typename helper::RootType *root, typename helper::DataType *p) {
+	bool valid = ((helper::p_root(p) == NULL) && RB_EMPTY_NODE(helper::p_node(p)));
+	if (valid)
+		valid = (helper::insert(root, p) == NULL);
+	if (valid) {
+		helper::p_root(p) = root;
+		++helper::map_count(root);
+	} else {
+#ifdef assert
+		assert(0);
+#endif
+	}
+	return valid;
+}
+
+template <typename helper> bool
+rb_pop(typename helper::RootType *root, typename helper::DataType *p) {
+	bool valid = ((helper::p_root(p) == root) && !RB_EMPTY_NODE(helper::p_node(p)));
+	if (valid) {
+		rb_erase(helper::p_node(p), helper::map_root(root));
+		RB_CLEAR_NODE(helper::p_node(p));
+		--helper::map_count(root);
+	} else {
+#ifdef assert
+		assert(0);
+#endif
+	}
+	return valid;
+}
+
+template <typename helper> typename helper::DataType*
+rb_upper(typename helper::RootType *root, typename helper::DataType *cur) {
+		if (RB_EMPTY_ROOT(helper::map_root(root)))
+			return NULL;
+		if (cur == NULL)
+			return helper::p_entry(rb_first(helper::map_root(root)));
+		return helper::upper(root, cur);
+}
+#endif
+
 #ifdef _WIN32
 #pragma warning(default: 4311) // “类型转换”: 从“rb_node *”到“unsigned long”的指针截断
 #pragma warning(default: 4312) // “类型转换”: 从“unsigned long”转换到更大的“rb_node *”

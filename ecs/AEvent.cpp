@@ -4,20 +4,27 @@
 
 
 // event by name
-static inline int ARecvCmpName(const char *name, AReceiver *r) {
+typedef struct AReceiver ARecvByName;
+static inline int ARecvCmpName(const char *name, ARecvByName *r) {
 	return strcmp(name, r->_name);
 }
-rb_tree_define(AReceiver, _map_node, const char*, ARecvCmpName)
+rb_tree_define(ARecvByName, _map_node, const char*, ARecvCmpName)
 struct HelperByName {
 	typedef const char* KeyType;
 	static KeyType key(AReceiver *r) {
 		return r->_name;
 	}
-	static AReceiver* find(rb_root *map, KeyType name) {
-		return rb_find_AReceiver(map, name);
+	static rb_root& map(AEventManager *em) {
+		return em->_name_map;
 	}
-	static AReceiver* insert(rb_root *map, AReceiver *r, KeyType name) {
-		return rb_insert_AReceiver(map, r, name);
+	static long& count(AEventManager *em) {
+		return em->_name_count;
+	}
+	static AReceiver* find(AEventManager *em, KeyType name) {
+		return rb_find_ARecvByName(&em->_name_map, name);
+	}
+	static AReceiver* insert(AEventManager *em, AReceiver *r) {
+		return rb_insert_ARecvByName(&em->_name_map, r, r->_name);
 	}
 };
 
@@ -32,27 +39,32 @@ struct HelperByIndex {
 	static KeyType key(AReceiver *r) {
 		return r->_index;
 	}
-	static AReceiver* find(rb_root *map, KeyType index) {
-		return rb_find_ARecvByIndex(map, index);
+	static rb_root& map(AEventManager *em) {
+		return em->_index_map;
 	}
-	static AReceiver* insert(rb_root *map, AReceiver *r, KeyType index) {
-		return rb_insert_ARecvByIndex(map, r, index);
+	static long& count(AEventManager *em) {
+		return em->_index_count;
+	}
+	static AReceiver* find(AEventManager *em, KeyType index) {
+		return rb_find_ARecvByIndex(&em->_index_map, index);
+	}
+	static AReceiver* insert(AEventManager *em, AReceiver *r) {
+		return rb_insert_ARecvByIndex(&em->_index_map, r, r->_index);
 	}
 };
 
 //
 template <typename helper>
-static bool _subscribe(AEventManager *em, AReceiver *r, rb_root &map, long &count)
+static bool _subscribe(AEventManager *em, AReceiver *r)
 {
 	bool valid = ((r->_manager == NULL)
-	           && RB_EMPTY_NODE(&r->_map_node)
-	           && r->_recv_list.empty());
+	           && RB_EMPTY_NODE(&r->_map_node) && r->_recv_list.empty());
 	if (valid) {
-		AReceiver *first = helper::insert(&map, r, helper::key(r));
+		AReceiver *first = helper::insert(em, r);
 		if (first != NULL)
 			first->_recv_list.push_back(&r->_recv_list);
 		r->_manager = em;
-		count ++;
+		helper::count(em) ++;
 		//r->_self->addref();
 	} else {
 		assert(0);
@@ -61,10 +73,10 @@ static bool _subscribe(AEventManager *em, AReceiver *r, rb_root &map, long &coun
 }
 
 bool AEventManager::_sub_by_name(AReceiver *r) {
-	return _subscribe<HelperByName>(this, r, _recv_map, _recv_count);
+	return _subscribe<HelperByName>(this, r);
 }
 bool AEventManager::_sub_by_index(AReceiver *r) {
-	return _subscribe<HelperByIndex>(this, r, _recv_map2, _recv_count2);
+	return _subscribe<HelperByIndex>(this, r);
 }
 
 
@@ -90,62 +102,58 @@ static void _erase(AReceiver *first, AReceiver *r, rb_root &map, long &count)
 }
 
 template <typename helper>
-static bool _unsubscribe(AEventManager *em, AReceiver *r, rb_root &map, long &count)
+static bool _unsubscribe(AEventManager *em, AReceiver *r)
 {
-	bool valid = ((r->_manager == em) && (!RB_EMPTY_NODE(&r->_map_node) || !r->_recv_list.empty()));
+	bool valid = ((r->_manager == em)
+	           && (!RB_EMPTY_NODE(&r->_map_node) || !r->_recv_list.empty()));
 	if (!valid) {
 		assert(0);
 		return false;
 	}
 
-	AReceiver *first = helper::find(&map, helper::key(r));
+	AReceiver *first = helper::find(em, helper::key(r));
 	if (first == NULL) {
 		assert(0);
 		return false;
 	}
-	_erase(first, r, map, count);
+	_erase(first, r, helper::map(em), helper::count(em));
 	//r->_self->release();
 	return valid;
 }
 
 bool AEventManager::_unsub_by_name(AReceiver *r) {
-	return _unsubscribe<HelperByName>(this, r, _recv_map, _recv_count);
+	return _unsubscribe<HelperByName>(this, r);
 }
 bool AEventManager::_unsub_by_index(AReceiver *r) {
-	return _unsubscribe<HelperByIndex>(this, r, _recv_map2, _recv_count2);
+	return _unsubscribe<HelperByIndex>(this, r);
 }
 
-typedef APool<AReceiver*> ARecvPool;
 
 template <typename helper>
-static int emit_event(AEventManager *em, typename helper::KeyType key, void *p, rb_root &map, long &count)
+static int emit_event(AEventManager *em, typename helper::KeyType key, void *p)
 {
-	ARecvPool recvers; recvers.init(128);
+	APtrPool recvers; recvers.init(128);
 
 	em->lock();
-	AReceiver *first = helper::find(&map, key);
+	AReceiver *first = helper::find(em, key);
 	if (first == NULL) {
 		em->unlock();
 		return 0;
 	}
 
-	if (!em->_free_recvers.empty()) {
-		ARecvSlice *slice = list_first_entry(&em->_free_recvers, ARecvSlice, _node);
+	if (!em->_free_ptrslice.empty()) {
+		APtrSlice *slice = list_first_entry(&em->_free_ptrslice, APtrSlice, _node);
 		recvers._join(slice);
 	}
 
-	AReceiver *r = NULL;
-	if (!first->_recv_list.empty())
-		r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
-	while (r != NULL)
+	AReceiver *r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
+	while (&r->_recv_list != &first->_recv_list)
 	{
-		AReceiver *next = NULL;
-		if (!first->_recv_list.is_last(&r->_recv_list))
-			next = list_entry(r->_recv_list.next, AReceiver, _recv_list);
+		AReceiver *next = list_entry(r->_recv_list.next, AReceiver, _recv_list);
 
 		if (!r->_preproc || (r->on_event(r, p, true) >= 0)) {
 			if (r->_oneshot)
-				_erase(first, r, map, count);
+				_erase(first, r, helper::map(em), helper::count(em));
 			else
 				r->addref();
 			recvers.push_back(r);
@@ -155,7 +163,7 @@ static int emit_event(AEventManager *em, typename helper::KeyType key, void *p, 
 
 	if (!first->_preproc || (first->on_event(first, p, true) >= 0)) {
 		if (first->_oneshot)
-			_erase(first, first, map, count);
+			_erase(first, first, helper::map(em), helper::count(em));
 		else
 			first->addref();
 		recvers.push_back(first);
@@ -163,22 +171,22 @@ static int emit_event(AEventManager *em, typename helper::KeyType key, void *p, 
 	em->unlock();
 
 	list_head free_list; free_list.init();
-	int recver_count = recvers.total_count();
+	int recver_count = recvers._item_count;
 
-	while (recvers.total_count() != 0) {
-		AReceiver *r = recvers.front();
+	while (recvers._item_count != 0) {
+		AReceiver *r = (AReceiver*)recvers.front();
 		r->on_event(r, p, false);
 		r->release();
 
-		recvers.pop_front(1, em->_recycle_recvers ? &free_list : NULL);
+		recvers.pop_front(1, em->_reuse_ptrslice ? &free_list : NULL);
 	}
 
-	if (em->_recycle_recvers && (!free_list.empty() || !recvers._slice_list.empty())) {
+	if (em->_reuse_ptrslice && (!free_list.empty() || !recvers._slice_list.empty())) {
 		recvers.reset();
 
 		em->lock();
-		list_splice_init(&recvers._slice_list, &em->_free_recvers);
-		list_splice_init(&free_list, &em->_free_recvers);
+		list_splice_init(&recvers._slice_list, &em->_free_ptrslice);
+		list_splice_init(&free_list, &em->_free_ptrslice);
 		em->unlock();
 	} else {
 		recvers.exit();
@@ -187,10 +195,10 @@ static int emit_event(AEventManager *em, typename helper::KeyType key, void *p, 
 }
 
 int AEventManager::emit_by_name(const char *name, void *p) {
-	return emit_event<HelperByName>(this, name, p, _recv_map, _recv_count);
+	return emit_event<HelperByName>(this, name, p);
 }
-int AEventManager::emit_by_index(int index, void *p) {
-	return emit_event<HelperByIndex>(this, index, p, _recv_map2, _recv_count2);
+int AEventManager::emit_by_index(int64_t index, void *p) {
+	return emit_event<HelperByIndex>(this, index, p);
 }
 
 
@@ -199,8 +207,6 @@ static void clear_sub_map(AEventManager *em, rb_root &map, long &count)
 	struct list_head recvers; recvers.init();
 
 	em->lock();
-	list_splice_init(&em->_free_recvers, &recvers);
-
 	while (!RB_EMPTY_ROOT(&map)) {
 		AReceiver *first = rb_first_entry(&map, AReceiver, _map_node);
 
@@ -214,12 +220,15 @@ static void clear_sub_map(AEventManager *em, rb_root &map, long &count)
 	}
 	em->unlock();
 
-	ARecvSlice::_clear(recvers);
+	while (!recvers.empty()) {
+		AReceiver *r = list_pop_front(&recvers, AReceiver, _recv_list);
+		r->release();
+	}
 }
 
 void AEventManager::clear_sub() {
-	return clear_sub_map(this, _recv_map, _recv_count);
+	return clear_sub_map(this, _name_map, _name_count);
 }
 void AEventManager::clear_sub2() {
-	return clear_sub_map(this, _recv_map2, _recv_count2);
+	return clear_sub_map(this, _index_map, _index_count);
 }

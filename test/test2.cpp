@@ -239,7 +239,9 @@ CU_TEST(test_mqtt)
 	AClientComponent *c; mqtt->_get(&c);
 	sm._event_manager->lock();
 	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
+	sm._sub_self(&sm, "on_client_opened", false, c, &on_event);
 	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
+	sm._sub_self(&sm, "on_client_closed", false, c, &on_event);
 	sm._event_manager->unlock();
 
 	sm.lock();

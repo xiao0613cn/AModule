@@ -3,7 +3,6 @@
 #include "../base/AModule_API.h"
 
 typedef struct AReceiver AReceiver;
-typedef ASlice<AReceiver*> ARecvSlice;
 typedef struct AEventManager AEventManager;
 
 typedef int  (*AEventFunc)(AReceiver *r, void *p, bool preproc);
@@ -33,28 +32,28 @@ struct AReceiver : public AObject {
 
 
 struct AEventManager {
-	struct rb_root   _recv_map;
-	long             _recv_count;
-	struct rb_root   _recv_map2;
-	long             _recv_count2;
+	struct rb_root   _name_map;
+	long             _name_count;
+	struct rb_root   _index_map;
+	long             _index_count;
 	pthread_mutex_t  _mutex;
 	void lock() { pthread_mutex_lock(&_mutex); }
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 
-	struct list_head _free_recvers;
-	bool             _recycle_recvers;
+	struct list_head _free_ptrslice;
+	bool             _reuse_ptrslice;
 
 	void init() {
-		INIT_RB_ROOT(&_recv_map); _recv_count = 0;
-		INIT_RB_ROOT(&_recv_map2); _recv_count2 = 0;
+		INIT_RB_ROOT(&_name_map); _name_count = 0;
+		INIT_RB_ROOT(&_index_map); _index_count = 0;
 		pthread_mutex_init(&_mutex, NULL);
-		_free_recvers.init();
-		_recycle_recvers = true;
+		_free_ptrslice.init();
+		_reuse_ptrslice = true;
 	}
 	void exit() {
-		assert(RB_EMPTY_ROOT(&_recv_map));
-		assert(RB_EMPTY_ROOT(&_recv_map2));
-		assert(_free_recvers.empty());
+		assert(RB_EMPTY_ROOT(&_name_map));
+		assert(RB_EMPTY_ROOT(&_index_map));
+		assert(_free_ptrslice.empty());
 		pthread_mutex_destroy(&_mutex);
 	}
 	// event by name
@@ -66,7 +65,7 @@ struct AEventManager {
 	// event by index
 	bool _sub_by_index(AReceiver *r);
 	bool _unsub_by_index(AReceiver *r);
-	int  emit_by_index(int index, void *p);
+	int  emit_by_index(int64_t index, void *p);
 	void clear_sub2();
 };
 
