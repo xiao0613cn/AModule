@@ -55,7 +55,7 @@ struct HelperByIndex {
 
 //
 template <typename helper>
-static bool _subscribe(AEventManager *em, AReceiver *r)
+static bool EM_subscribe(AEventManager *em, AReceiver *r)
 {
 	bool valid = ((r->_manager == NULL)
 	           && RB_EMPTY_NODE(&r->_map_node) && r->_recv_list.empty());
@@ -71,14 +71,6 @@ static bool _subscribe(AEventManager *em, AReceiver *r)
 	}
 	return valid;
 }
-
-bool AEventManager::_sub_by_name(AReceiver *r) {
-	return _subscribe<HelperByName>(this, r);
-}
-bool AEventManager::_sub_by_index(AReceiver *r) {
-	return _subscribe<HelperByIndex>(this, r);
-}
-
 
 static void _erase(AReceiver *first, AReceiver *r, rb_root &map, long &count)
 {
@@ -102,7 +94,7 @@ static void _erase(AReceiver *first, AReceiver *r, rb_root &map, long &count)
 }
 
 template <typename helper>
-static bool _unsubscribe(AEventManager *em, AReceiver *r)
+static bool EM_unsubscribe(AEventManager *em, AReceiver *r)
 {
 	bool valid = ((r->_manager == em)
 	           && (!RB_EMPTY_NODE(&r->_map_node) || !r->_recv_list.empty()));
@@ -121,16 +113,8 @@ static bool _unsubscribe(AEventManager *em, AReceiver *r)
 	return valid;
 }
 
-bool AEventManager::_unsub_by_name(AReceiver *r) {
-	return _unsubscribe<HelperByName>(this, r);
-}
-bool AEventManager::_unsub_by_index(AReceiver *r) {
-	return _unsubscribe<HelperByIndex>(this, r);
-}
-
-
 template <typename helper>
-static int emit_event(AEventManager *em, typename helper::KeyType key, void *p)
+static int EM_emit_event(AEventManager *em, typename helper::KeyType key, void *p)
 {
 	APtrPool recvers; recvers.init(128);
 
@@ -194,28 +178,21 @@ static int emit_event(AEventManager *em, typename helper::KeyType key, void *p)
 	return recver_count;
 }
 
-int AEventManager::emit_by_name(const char *name, void *p) {
-	return emit_event<HelperByName>(this, name, p);
-}
-int AEventManager::emit_by_index(int64_t index, void *p) {
-	return emit_event<HelperByIndex>(this, index, p);
-}
-
-
-static void clear_sub_map(AEventManager *em, rb_root &map, long &count)
+template <typename helper>
+static void EM_clear_sub_map(AEventManager *em)
 {
 	struct list_head recvers; recvers.init();
 
 	em->lock();
-	while (!RB_EMPTY_ROOT(&map)) {
-		AReceiver *first = rb_first_entry(&map, AReceiver, _map_node);
+	while (!RB_EMPTY_ROOT(&helper::map(em))) {
+		AReceiver *first = rb_first_entry(&helper::map(em), AReceiver, _map_node);
 
 		while (!first->_recv_list.empty()) {
 			AReceiver *r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
-			_erase(first, r, map, count);
+			_erase(first, r, helper::map(em), helper::count(em));
 			recvers.push_back(&r->_recv_list);
 		}
-		_erase(first, first, map, count);
+		_erase(first, first, helper::map(em), helper::count(em));
 		recvers.push_back(&first->_recv_list);
 	}
 	em->unlock();
@@ -226,9 +203,45 @@ static void clear_sub_map(AEventManager *em, rb_root &map, long &count)
 	}
 }
 
-void AEventManager::clear_sub() {
-	return clear_sub_map(this, _name_map, _name_count);
+struct AReceiver2 : public AReceiver {
+	void     *_self;
+	ASelfEventFunc _func;
+};
+
+static int on_self_event(AReceiver *r, void *p, bool preproc)
+{
+	AReceiver2 *r2 = (AReceiver2*)r;
+	if (r2->_self != p)
+		return -1;
+	return r2->_func(r2->_name, preproc, p);
 }
-void AEventManager::clear_sub2() {
-	return clear_sub_map(this, _index_map, _index_count);
+
+static AReceiver* EM_sub_self(AEventManager *em, const char *name, void *self, ASelfEventFunc f)
+{
+	AReceiver2 *r2 = gomake(AReceiver2);
+	r2->AReceiver::init(NULL, &free);
+	r2->on_event = &on_self_event;
+
+	r2->_name = name; r2->_oneshot = false; r2->_preproc = true;
+	r2->_self = self; r2->_func = f;
+	em->_sub_by_name(em, r2);
+	return r2;
 }
+
+AEventManagerDefaultModule EventMngModule = { {
+	AEventManagerDefaultModule::name(),
+	AEventManagerDefaultModule::name(),
+	0, NULL, NULL,
+}, {
+	&EM_subscribe<HelperByName>,
+	&EM_unsubscribe<HelperByName>,
+	&EM_emit_event<HelperByName>,
+	&EM_clear_sub_map<HelperByName>,
+	&EM_sub_self,
+
+	&EM_subscribe<HelperByIndex>,
+	&EM_unsubscribe<HelperByIndex>,
+	&EM_emit_event<HelperByIndex>,
+	&EM_clear_sub_map<HelperByIndex>,
+} };
+static int reg_mng = AModuleRegister(&EventMngModule.module);

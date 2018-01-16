@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
-#include "AEntity.h"
+#include "AEvent.h"
 #include "AClientSystem.h"
 
 
@@ -122,7 +122,7 @@ static int client_run(ASystem::Result *r, int result)
 		if (result > 0) {
 			c->_main_tick = GetTickCount();
 			c->_status = AClientComponent::Opened;
-			r->manager->emit_by_name(r->manager, "on_client_opened", c);
+			r->manager->emit_by_name("on_client_opened", c);
 
 			c->_last_opened = true;
 			if (c->_open_heart) {
@@ -160,7 +160,7 @@ static int client_run(ASystem::Result *r, int result)
 			return 0;
 
 	case AClientComponent::Closed:
-		r->manager->emit_by_name(r->manager, "on_client_closed", c);
+		r->manager->emit_by_name("on_client_closed", c);
 		c->_last_opened = false;
 		break;
 

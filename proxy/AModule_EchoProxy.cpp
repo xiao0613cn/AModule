@@ -92,10 +92,11 @@ static int EchoServiceCreate(AObject **object, AObject *parent, AOption *option)
 static void EchoServiceRelease(AObject *object)
 {
 	AService *service = (AService*)object;
+	service->exit();
 }
 
 AModule EchoServiceModule = {
-	"AService",
+	AService::class_name(),
 	"EchoService",
 	sizeof(AService),
 	NULL, NULL,

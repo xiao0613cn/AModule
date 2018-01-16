@@ -3,24 +3,24 @@
 #include "AModule_io.h"
 
 
-AMODULE_API int
+static int
 AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 {
 	assert(!service->_running);
-	if (service->_save_option) {
-		assert(service->_svc_option == NULL);
-		service->_svc_option = AOptionClone(option, NULL);
-		if (service->_svc_option == NULL)
-			return -ENOMEM;
-		option = service->_svc_option;
-	} else {
-		service->_svc_option = option;
+	if (service->_svc_option == NULL) {
+		if (service->_save_option) {
+			service->_svc_option = AOptionClone(option, NULL);
+			if (service->_svc_option == NULL)
+				return -ENOMEM;
+			option = service->_svc_option;
+		} else {
+			service->_svc_option = option;
+		}
 	}
 
-	if (create_chains) {
-		AOption *services_list = option->find("services");
-	if (services_list != NULL)
-		list_for_AOption(svc_opt, services_list)
+	AOption *services_opt = option->find("services");
+	if (create_chains && (services_opt != NULL)) {
+		list_for_AOption(svc_opt, services_opt)
 	{
 		AService *svc = NULL;
 		int result = AObject::create(&svc, service, svc_opt, NULL);
@@ -28,8 +28,6 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 			TRACE("service(%s,%s) create()= %d.\n", svc_opt->name, svc_opt->value, result);
 			continue;
 		}
-		svc->_sysmng = service->_sysmng;
-		svc->_parent = service;
 
 		if ((svc->_peer_module != NULL)
 		 && (strcasecmp(svc->_peer_module->class_name, "AEntity") != 0)) {
@@ -37,17 +35,29 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 				svc_opt->name, svc_opt->value,
 				svc->_peer_module->class_name, svc->_peer_module->module_name);
 		}
-		result = AServicePreStartChains(svc, svc_opt, create_chains);
-		if (result < 0) {
-			release_s(svc);
-			continue;
-		}
 		service->_children_list.push_back(&svc->_brother_entry);
 	} }
 
 	if (service->_require_child && service->_children_list.empty()) {
 		TRACE("service(%s) require children list.\n", service->_module->module_name);
 		return -EINVAL;
+	}
+	list_for_AService(svc, service) {
+		AOption *svc_opt = NULL;
+		if (services_opt != NULL) {
+			svc_opt = services_opt->find(svc->_module->module_name);
+			if (svc_opt == NULL)
+				svc_opt = AOptionFind3(services_opt, svc->_module->class_name, svc->_module->module_name);
+		}
+
+		svc->_sysmng = service->_sysmng;
+		if (svc->_parent == NULL) {
+			svc->_parent = service; service->addref();
+		}
+
+		int result = AServicePreStartChains(svc, svc_opt, create_chains);
+		if (result < 0)
+			return result;
 	}
 
 	int result = 0;
@@ -58,7 +68,7 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 	return result;
 }
 
-AMODULE_API int
+static int
 AServicePostStartChains(AService *service)
 {
 	assert(service->_running);
@@ -94,7 +104,7 @@ AServiceStop(AService *service, BOOL clean_chains)
 	service->_running = FALSE;
 	if (service->stop != NULL)
 		service->stop(service);
-	if (clean_chains)
+	if (clean_chains) {
 		while (!service->_children_list.empty())
 		{
 			AService *svc = list_first_entry(&service->_children_list, AService, _brother_entry);
@@ -102,10 +112,11 @@ AServiceStop(AService *service, BOOL clean_chains)
 			svc->_brother_entry.leave();
 			release_s(svc);
 		}
-	else list_for_AService(svc, service)
-		{
+	} else {
+		list_for_AService(svc, service) {
 			AServiceStop(svc, clean_chains);
 		}
+	}
 }
 
 AMODULE_API AService*
@@ -125,4 +136,23 @@ AServiceProbe(AService *server, AObject *object, AMessage *msg)
 		}
 	}
 	return service;
+}
+
+AMODULE_API AService*
+AServiceFind(AService *server, const char *svc_name, BOOL find_in_chains)
+{
+	if (strcasecmp(server->_module->module_name, svc_name) == 0)
+		return server;
+	list_for_AService(svc, server)
+	{
+		if (find_in_chains) {
+			AService *s = AServiceFind(svc, svc_name, find_in_chains);
+			if (s != NULL)
+				return s;
+		} else {
+			if (strcasecmp(svc->_module->module_name, svc_name) == 0)
+				return svc;
+		}
+	}
+	return NULL;
 }

@@ -105,6 +105,10 @@ struct AService : public AObject {
 		_svc_option = NULL; _peer_module = NULL;
 		start = NULL; stop = NULL; run = NULL; abort = NULL;
 	}
+	void exit() {
+		release_s(_parent);
+		if (_save_option) release_s(_svc_option);
+	}
 #define list_for_AService(pos, service) \
 	list_for_each2(pos, &(service)->_children_list, AService, _brother_entry)
 
@@ -124,5 +128,8 @@ AServiceStop(AService *service, BOOL clean_chains);
 
 AMODULE_API AService*
 AServiceProbe(AService *server, AObject *object, AMessage *msg);
+
+AMODULE_API AService*
+AServiceFind(AService *server, const char *svc_name, BOOL find_in_chains);
 
 #endif

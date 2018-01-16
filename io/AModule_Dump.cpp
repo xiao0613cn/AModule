@@ -127,8 +127,7 @@ static int Dump_init(DumpObject *dump, AOption *msg_opt)
 	}
 
 	if (dump->io == NULL) {
-		AOption *io_opt = msg_opt->find("io");
-		int result = AObject::create(&dump->io, dump, io_opt, NULL);
+		int result = AObject::from(&dump->io, dump, msg_opt, NULL);
 		if (result < 0) {
 			TRACE("require option: \"io\"\n");
 			return result;

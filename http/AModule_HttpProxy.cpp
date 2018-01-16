@@ -343,7 +343,7 @@ AModule HttpConnectionModule = {
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
 
-static int HttpOnRecvMsg(HttpCompenont *c, int result)
+static int HttpSvcRecvMsg(HttpCompenont *c, int result)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _http);
 	if (result < 0) {
@@ -398,7 +398,7 @@ static int HttpOnRecvMsg(HttpCompenont *c, int result)
 	return result; // continue recv next request
 }
 
-static int HttpConnRun(AService *svc, AObject *object, AOption *option)
+static int HttpSvcRun(AService *svc, AObject *object, AOption *option)
 {
 	HttpConnection *p = (HttpConnection*)object;
 	addref_set(p->_svc, svc);
@@ -406,7 +406,7 @@ static int HttpConnRun(AService *svc, AObject *object, AOption *option)
 	if (!p->_req) p->_req = new HttpMsgImpl();
 	if (!p->_resp) p->_resp = new HttpMsgImpl();
 
-	return p->_http.try_output(&p->_iocom, p->_req, &HttpOnRecvMsg);
+	return p->_http.try_output(&p->_iocom, p->_req, &HttpSvcRecvMsg);
 }
 
 static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
@@ -414,17 +414,23 @@ static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
 	AService *svc = (AService*)*object;
 	svc->init();
 	svc->_peer_module = &HttpConnectionModule;
-	svc->run = &HttpConnRun;
+	svc->run = &HttpSvcRun;
 	return 1;
 }
 
+static void HttpServiceRelease(AObject *object)
+{
+	AService *svc = (AService*)object;
+	svc->exit();
+}
+
 AModule HttpServiceModule = {
-	"AService",
+	AService::class_name(),
 	"HttpService",
 	sizeof(AService),
 	NULL, NULL,
 	&HttpServiceCreate,
-	NULL,
+	&HttpServiceRelease,
 	&HttpProbe,
 };
 static int reg_svc = AModuleRegister(&HttpServiceModule);

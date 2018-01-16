@@ -252,25 +252,25 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 
 //////////////////////////////////////////////////////////////////////////
 AMODULE_API int
-AObjectCreate(AObject **object, ACreateParam *p)
+AObjectCreate(AObject **object, ACreateParam *param)
 {
 	*object = NULL;
-	if (p->module == NULL) {
-		p->module = AModuleFind(p->class_name, p->module_name);
-		if (p->module == NULL)
+	if (param->module == NULL) {
+		param->module = AModuleFind(param->class_name, param->module_name);
+		if (param->module == NULL)
 			return -EINVAL;
 	}
 
-	if (p->module->object_size > 0) {
-		*object = (AObject*)malloc(p->module->object_size + p->ex_size);
+	if (param->module->object_size > 0) {
+		*object = (AObject*)malloc(param->module->object_size + param->ex_size);
 		if (*object == NULL)
 			return -ENOMEM;
 
-		InterlockedAdd(&p->module->object_count, 1);
-		(*object)->init(p->module, &AObjectFree);
+		InterlockedAdd(&param->module->object_count, 1);
+		(*object)->init(param->module, &AObjectFree);
 	}
 
-	int result = p->module->create(object, p->parent, p->option);
+	int result = param->module->create(object, param->parent, param->option);
 	if (result < 0)
 		release_s(*object);
 	return result;

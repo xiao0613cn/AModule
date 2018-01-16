@@ -107,7 +107,7 @@ typedef struct ACreateParam {
 } ACreateParam;
 
 AMODULE_API int
-AObjectCreate(AObject **object, ACreateParam *p);
+AObjectCreate(AObject **object, ACreateParam *param);
 
 AMODULE_API void
 AObjectFree(AObject *object);

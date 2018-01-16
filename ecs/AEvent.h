@@ -30,8 +30,34 @@ struct AReceiver : public AObject {
 	}
 };
 
+typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
 
-struct AEventManager {
+struct AEventManagerMethod {
+	// event by name
+	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);
+	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r);
+	int  (*emit_by_name)(AEventManager *em, const char *name, void *p);
+	void (*clear_sub)(AEventManager *em);
+	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f);
+
+	// event by index
+	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);
+	bool (*_unsub_by_index)(AEventManager *em, AReceiver *r);
+	int  (*emit_by_index)(AEventManager *em, int64_t index, void *p);
+	void (*clear_sub2)(AEventManager *em);
+};
+
+struct AEventManagerDefaultModule {
+	AModule module;
+	AEventManagerMethod method;
+
+	static const char* name() { return "AEventManagerDefaultModule"; }
+	static AEventManagerDefaultModule* get() {
+		return (AEventManagerDefaultModule*)AModuleFind(name(), name());
+	}
+};
+
+struct AEventManager : public AEventManagerMethod {
 	struct rb_root   _name_map;
 	long             _name_count;
 	struct rb_root   _index_map;
@@ -43,7 +69,11 @@ struct AEventManager {
 	struct list_head _free_ptrslice;
 	bool             _reuse_ptrslice;
 
-	void init() {
+	void init(AEventManagerMethod *m = NULL) {
+		if (m == NULL)
+			m = &AEventManagerDefaultModule::get()->method;
+		*(AEventManagerMethod*)this = *m;
+
 		INIT_RB_ROOT(&_name_map); _name_count = 0;
 		INIT_RB_ROOT(&_index_map); _index_count = 0;
 		pthread_mutex_init(&_mutex, NULL);
@@ -53,20 +83,9 @@ struct AEventManager {
 	void exit() {
 		assert(RB_EMPTY_ROOT(&_name_map));
 		assert(RB_EMPTY_ROOT(&_index_map));
-		assert(_free_ptrslice.empty());
+		APtrSlice::_clear(_free_ptrslice);
 		pthread_mutex_destroy(&_mutex);
 	}
-	// event by name
-	bool _sub_by_name(AReceiver *r);
-	bool _unsub_by_name(AReceiver *r);
-	int  emit_by_name(const char *name, void *p);
-	void clear_sub();
-
-	// event by index
-	bool _sub_by_index(AReceiver *r);
-	bool _unsub_by_index(AReceiver *r);
-	int  emit_by_index(int64_t index, void *p);
-	void clear_sub2();
 };
 
 

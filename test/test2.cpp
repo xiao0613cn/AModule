@@ -214,12 +214,13 @@ CU_TEST(test_pvd)
 	opt->release();
 
 	AClientComponent *c; e->_get(&c);
-	sm._event_manager->lock();
-	sm._sub_self(&sm, "on_client_opened", false, c, &on_event);
-	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", false, c, &on_event);
-	sm._event_manager->unlock();
+	AEventManager *em = sm._event_manager;
+	em->lock();
+	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
+	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
+	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = true;
+	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
+	em->unlock();
 
 	sm.lock();
 	sm._regist(e); e->release();
@@ -237,12 +238,13 @@ CU_TEST(test_mqtt)
 	opt->release();
 
 	AClientComponent *c; mqtt->_get(&c);
-	sm._event_manager->lock();
-	sm._sub_self(&sm, "on_client_opened", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_opened", false, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", true, c, &on_event);
-	sm._sub_self(&sm, "on_client_closed", false, c, &on_event);
-	sm._event_manager->unlock();
+	AEventManager *em = sm._event_manager;
+	em->lock();
+	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
+	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
+	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = true;
+	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
+	em->unlock();
 
 	sm.lock();
 	sm._regist(mqtt); mqtt->release();
@@ -259,7 +261,7 @@ int main()
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 
-	sm.init(&ASystemManagerDefaultModule::get()->methods);
+	sm.init();
 	AEventManager em; em.init();
 
 	sm._event_manager = &em;
@@ -283,15 +285,15 @@ int main()
 	});
 	sm.stop_checkall(&sm);
 	sm.clear_allsys(true);
-	sm.clear_sub(&sm);
+	em.clear_sub(&em);
 
 	getchar();
 	AThreadEnd(NULL);
 	AModuleExit();
+	em.exit();
+	sm.exit();
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif
-	em.exit();
-	pthread_mutex_destroy(&sm._mutex); //sm.exit();
 	return 0;
 }

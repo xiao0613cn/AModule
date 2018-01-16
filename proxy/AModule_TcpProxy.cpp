@@ -397,17 +397,16 @@ static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 static void TCPServerRelease(AObject *object)
 {
 	TCPServer *server = (TCPServer*)object;
-	AServiceStop(server, TRUE);
-	release_s(server->_svc_option);
 	closesocket_s(server->sock);
 	release_s(server->io_svc_data);
 #ifdef _WIN32
 	release_s(server->prepare);
 #endif
+	server->exit();
 }
 
 AModule TCPServerModule = {
-	"AService",
+	AService::class_name(),
 	"tcp_server",
 	sizeof(TCPServer),
 	NULL, NULL,

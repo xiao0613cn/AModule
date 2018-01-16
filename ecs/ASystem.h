@@ -55,35 +55,23 @@ struct ASystem {
 #define list_for_allsys(pos, allsys) \
 	list_for_each2(pos, &(allsys)->module.class_entry, ASystem, module.class_entry)
 
-typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
 
 struct ASystemManagerMethod {
 	int  (*start_checkall)(ASystemManager *sm);
 	void (*stop_checkall)(ASystemManager *sm);
 	int  (*check_allsys)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
-	int  (*check_entities)(ASystemManager *sm, list_head *exec_list, DWORD cur_tick);
+	int  (*check_entities)(ASystemManager *sm, AEntityManager *em, list_head *exec_list, DWORD cur_tick);
 	int  (*_check_one)(ASystemManager *sm, list_head *exec_list, AEntity *e, DWORD cur_tick);
-
-	// event by name
-	bool (*_sub_by_name)(ASystemManager *sm, AReceiver *r);
-	bool (*_unsub_by_name)(ASystemManager *sm, AReceiver *r);
-	int  (*emit_by_name)(ASystemManager *sm, const char *name, void *p);
-	AReceiver* (*_sub_self)(ASystemManager *sm, const char *name, bool oneshot, void *self, ASelfEventFunc f);
-	void (*clear_sub)(ASystemManager *sm);
-
-	// event by index
-	bool (*_sub_by_index)(ASystemManager *sm, AReceiver *r);
-	bool (*_unsub_by_index)(ASystemManager *sm, AReceiver *r);
-	int  (*emit_by_index)(ASystemManager *sm, int index, void *p);
-	void (*clear_sub2)(ASystemManager *sm);
 };
 
 struct ASystemManagerDefaultModule {
 	AModule module;
-	ASystemManagerMethod methods;
+	ASystemManagerMethod method;
 
 	static const char* name() { return "ASystemManagerDefaultModule"; }
-	static ASystemManagerDefaultModule* get() { return (ASystemManagerDefaultModule*)AModuleFind(name(), name()); }
+	static ASystemManagerDefaultModule* get() {
+		return (ASystemManagerDefaultModule*)AModuleFind(name(), name());
+	}
 };
 
 struct ASystemManager : public ASystemManagerMethod {
@@ -100,22 +88,24 @@ struct ASystemManager : public ASystemManagerMethod {
 	AService        *_all_services;
 	AEventManager   *_event_manager;
 
-	void init(ASystemManagerMethod *m) {
-		if (m != NULL) {
-			_all_systems = ASystem::find(NULL);
-			_thr_systems = NULL;
-			_asop_systems.timer();
-			_tick_systems = 1000;
-			_check_entities_when_idle = false;
-			pthread_mutex_init(&_mutex, NULL);
+	void init(ASystemManagerMethod *m = NULL) {
+		if (m == NULL)
+			m = &ASystemManagerDefaultModule::get()->method;
+		*(ASystemManagerMethod*)this = *m;
 
-			_all_entities = NULL;
-			_all_services = NULL;
-			_event_manager = NULL;
-			*(ASystemManagerMethod*)this = *m;
-		} else {
-			memzero(*this);
-		}
+		_all_systems = ASystem::find(NULL);
+		_thr_systems = NULL;
+		_asop_systems.timer();
+		_tick_systems = 1000;
+		_check_entities_when_idle = false;
+		pthread_mutex_init(&_mutex, NULL);
+
+		_all_entities = NULL;
+		_all_services = NULL;
+		_event_manager = NULL;
+	}
+	void exit() {
+		pthread_mutex_destroy(&_mutex);
 	}
 	void _regist(AEntity *e) {
 		_all_systems->regist ? _all_systems->regist(e) : 0;
@@ -144,6 +134,13 @@ struct ASystemManager : public ASystemManagerMethod {
 		}
 		unlock();
 	}
+#ifdef _AEVENT_H_
+	int emit_by_name(const char *name, void *p) {
+		if (_event_manager == NULL)
+			return -EINVAL;
+		return _event_manager->emit_by_name(_event_manager, name, p);
+	}
+#endif
 };
 
 #endif
