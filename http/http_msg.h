@@ -19,9 +19,6 @@ struct HttpMsg {
 	int         (*_kv_set)(HttpMsg *p, int type, str_t field, str_t value);
 	str_t       (*_kv_next)(HttpMsg *p, int type, str_t cur_field, str_t *next_value);
 	ARefsBuf     *_body_buf;
-	char*          body_ptr() { return _body_buf->_data + _parser.nread; }
-	uint32_t&      body_pos() { return _parser.nread; }
-	int64_t&       body_len() { return *(int64_t*)&_parser.content_length; }
 
 	void  reset() { _reset(this); }
 	str_t uri_get(int isRaw) { return _kv_get(this, KV_UriInfo, str_t(isRaw?"1":"0",1)); }
@@ -42,7 +39,10 @@ struct HttpMsg {
 	int   cookie_num() { return _kv_num(this, KV_Cookie); }
 	int   cookie_clear() { return _kv_set(this, KV_Cookie, str_t(), str_t()); }
 
-	void  set_body(ARefsBuf *p, uint32_t pos, int64_t len) {
+	char*     body_ptr() { return _body_buf->_data + _parser.nread; }
+	uint32_t& body_pos() { return _parser.nread; }
+	int64_t&  body_len() { return *(int64_t*)&_parser.content_length; }
+	void      body_set(ARefsBuf *p, uint32_t pos, int64_t len) {
 		addref_set(_body_buf, p); body_pos() = pos; body_len() = len;
 	}
 };

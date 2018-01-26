@@ -97,11 +97,33 @@ static int EM_upper_each_com(AEntityManager *em, AEntity *cur, const char *com_n
 	return result;
 }
 
+extern struct EM_m {
+	AModule module;
+	union {
+		AEntityManagerMethod method;
+		AEntityManager manager;
+	};
+} EM_default;
 
-AEntityManagerDefaultModule EntityMngModule = { {
-	AEntityManagerDefaultModule::name(),
-	AEntityManagerDefaultModule::name(),
-	0, NULL, NULL,
+static int EM_init(AOption *global_option, AOption *module_option, BOOL first)
+{
+	if (first) {
+		EM_default.manager.init(&EM_default.method);
+	}
+	return 1;
+}
+
+static void EM_exit(int inited)
+{
+	if (inited > 0) {
+		EM_default.manager.exit();
+	}
+}
+
+static EM_m EM_default = { {
+	AEntityManager::name(),
+	AEntityManager::name(),
+	0, &EM_init, &EM_exit,
 }, {
 	&EM_push,
 	&EM_pop,
@@ -112,4 +134,4 @@ AEntityManagerDefaultModule EntityMngModule = { {
 	&EM_upper_each,
 	&EM_upper_each_com,
 } };
-static int reg_mng = AModuleRegister(&EntityMngModule.module);
+static int reg_mng = AModuleRegister(&EM_default.module);

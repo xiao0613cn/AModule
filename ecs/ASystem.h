@@ -28,12 +28,12 @@ struct ASystem {
 		ASystemManager *manager;
 	};
 
-	int    (*regist)(AEntity *e);
-	int    (*unregist)(AEntity *e);
-	int    (*clear_all)(bool abort);
+	int    (*_regist)(AEntity *e);
+	int    (*_unregist)(AEntity *e);
+	int    (*_clear_all)(bool abort);
 
-	int    (*check_all)(list_head *results, DWORD cur_tick);
-	Result* (*check_one)(AEntity *e, DWORD cur_tick);
+	int    (*_check_all)(list_head *results, DWORD cur_tick);
+	Result* (*_check_one)(AEntity *e, DWORD cur_tick);
 
 	int    (*exec_run)(Result *r, int result);
 	int    (*exec_abort)(Result *r);
@@ -64,17 +64,10 @@ struct ASystemManagerMethod {
 	int  (*_check_one)(ASystemManager *sm, list_head *exec_list, AEntity *e, DWORD cur_tick);
 };
 
-struct ASystemManagerDefaultModule {
-	AModule module;
-	ASystemManagerMethod method;
-
-	static const char* name() { return "ASystemManagerDefaultModule"; }
-	static ASystemManagerDefaultModule* get() {
-		return (ASystemManagerDefaultModule*)AModuleFind(name(), name());
-	}
-};
-
 struct ASystemManager : public ASystemManagerMethod {
+	static const char* name() { return "ASystemManagerDefaultModule"; }
+	static ASystemManager* get() { return AModule::singleton_data<ASystemManager>(); }
+
 	ASystem         *_all_systems;
 	AThread         *_thr_systems;
 	AOperator        _asop_systems; // single operator execute
@@ -88,10 +81,9 @@ struct ASystemManager : public ASystemManagerMethod {
 	AService        *_all_services;
 	AEventManager   *_event_manager;
 
-	void init(ASystemManagerMethod *m = NULL) {
-		if (m == NULL)
-			m = &ASystemManagerDefaultModule::get()->method;
-		*(ASystemManagerMethod*)this = *m;
+	void init(ASystemManagerMethod *m) {
+		if (m != this)
+			*(ASystemManagerMethod*)this = *m;
 
 		_all_systems = ASystem::find(NULL);
 		_thr_systems = NULL;
@@ -108,15 +100,15 @@ struct ASystemManager : public ASystemManagerMethod {
 		pthread_mutex_destroy(&_mutex);
 	}
 	void _regist(AEntity *e) {
-		_all_systems->regist ? _all_systems->regist(e) : 0;
+		_all_systems->_regist ? _all_systems->_regist(e) : 0;
 		list_for_allsys(s, _all_systems) {
-			s->regist ? s->regist(e) : 0;
+			s->_regist ? s->_regist(e) : 0;
 		}
 	}
 	void _unregist(AEntity *e) {
-		_all_systems->unregist ? _all_systems->unregist(e) : 0;
+		_all_systems->_unregist ? _all_systems->_unregist(e) : 0;
 		list_for_allsys(s, _all_systems) {
-			s->unregist ? s->unregist(e) : 0;
+			s->_unregist ? s->_unregist(e) : 0;
 		}
 	}
 	void _exec_results(list_head &results) {
@@ -126,14 +118,18 @@ struct ASystemManager : public ASystemManagerMethod {
 			r->system->_exec(r);
 		}
 	}
+#ifdef _AENTITY_H_
 	void clear_allsys(bool abort) {
 		lock();
-		_all_systems->clear_all ? _all_systems->clear_all(abort) : 0;
+		if (_all_entities) _all_entities->lock();
+		_all_systems->_clear_all ? _all_systems->_clear_all(abort) : 0;
 		list_for_allsys(s, _all_systems) {
-			s->clear_all ? s->clear_all(abort) : 0;
+			s->_clear_all ? s->_clear_all(abort) : 0;
 		}
+		if (_all_entities) _all_entities->unlock();
 		unlock();
 	}
+#endif
 #ifdef _AEVENT_H_
 	int emit_by_name(const char *name, void *p) {
 		if (_event_manager == NULL)

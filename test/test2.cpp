@@ -13,8 +13,6 @@
 #include "test.h"
 
 
-ASystemManager sm;
-
 CuSuite *all_test_suites = CuSuiteNew();
 
 #if defined TEST_ECHO_CLIENT
@@ -103,8 +101,10 @@ CU_TEST(test_service)
 
 	AService *tcp_server = NULL;
 	AObject::create(&tcp_server, NULL, opt, NULL);
-	tcp_server->_sysmng = &sm;
-	sm._all_services = tcp_server;
+
+	ASystemManager *sm = ASystemManager::get();
+	tcp_server->_sysmng = sm;
+	sm->_all_services = tcp_server;
 
 	AServiceStart(tcp_server, opt, TRUE);
 	opt->release();
@@ -124,7 +124,8 @@ int c_msg_done(AMessage *msg, int result)
 		((AOption*)msg->data)->delref();
 	}
 
-	if (sm._all_services == NULL) {
+	ASystemManager *sm = ASystemManager::get();
+	if (sm->_all_services == NULL) {
 		result = -EINTR;
 	} else if (c->data[0] == '\0') {
 		c->msg.init(ioMsgType_Block, c->data, sprintf(c->data, "%s", "echo1234567890abcdefghijklmnopqrstuvwxyz"
@@ -212,9 +213,10 @@ CU_TEST(test_pvd)
 	AEntity *e = NULL;
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
-
 	AClientComponent *c; e->_get(&c);
-	AEventManager *em = sm._event_manager;
+
+	ASystemManager *sm = ASystemManager::get();
+	AEventManager *em = sm->_event_manager;
 	em->lock();
 	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
 	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
@@ -222,9 +224,9 @@ CU_TEST(test_pvd)
 	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
 	em->unlock();
 
-	sm.lock();
-	sm._regist(e); e->release();
-	sm.unlock();
+	sm->lock();
+	sm->_regist(e); e->release();
+	sm->unlock();
 }
 CU_TEST(test_mqtt)
 {
@@ -238,7 +240,8 @@ CU_TEST(test_mqtt)
 	opt->release();
 
 	AClientComponent *c; mqtt->_get(&c);
-	AEventManager *em = sm._event_manager;
+	ASystemManager *sm = ASystemManager::get();
+	AEventManager *em = sm->_event_manager;
 	em->lock();
 	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
 	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
@@ -246,9 +249,9 @@ CU_TEST(test_mqtt)
 	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
 	em->unlock();
 
-	sm.lock();
-	sm._regist(mqtt); mqtt->release();
-	sm.unlock();
+	sm->lock();
+	sm->_regist(mqtt); mqtt->release();
+	sm->unlock();
 }
 
 #endif
@@ -261,11 +264,8 @@ int main()
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 
-	sm.init();
-	AEventManager em; em.init();
-
-	sm._event_manager = &em;
-	sm.start_checkall(&sm);
+	ASystemManager *sm = ASystemManager::get();
+	sm->start_checkall(sm);
 
 	CuString *output = CuStringNew();
 	CuSuiteRun(all_test_suites);
@@ -278,20 +278,20 @@ int main()
 	TRACE("press enter for end..............................\n");
 	getchar();
 
-	reset_nif(sm._all_services, NULL, {
+	reset_nif(sm->_all_services, NULL, {
 		TRACE("AServiceStop():..............................\n");
-		AServiceStop(sm._all_services, TRUE);
-		sm._all_services->release();
+		AServiceStop(sm->_all_services, TRUE);
+		sm->_all_services->release();
 	});
-	sm.stop_checkall(&sm);
-	sm.clear_allsys(true);
+	sm->stop_checkall(sm);
+	sm->clear_allsys(true);
 	em.clear_sub(&em);
 
 	getchar();
 	AThreadEnd(NULL);
 	AModuleExit();
 	em.exit();
-	sm.exit();
+	sm->exit();
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif

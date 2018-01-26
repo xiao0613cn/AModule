@@ -19,6 +19,13 @@ struct AModule {
 	long      global_index;
 	list_head global_entry;
 	list_head class_entry;
+
+	template <typename ASingleton>
+	static ASingleton* singleton_data() {
+		static ASingleton *s_m = (ASingleton*)(AModuleFind(
+			ASingleton::name(), ASingleton::name()) + 1);
+		return s_m;
+	}
 };
 
 AMODULE_API int

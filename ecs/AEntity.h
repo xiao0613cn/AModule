@@ -8,7 +8,7 @@ typedef struct AEntityManager AEntityManager;
 
 struct AComponent {
 	const char *_name;
-	long        _index;
+	int         _index;
 	AObject    *_object;
 	list_head   _entry;
 
@@ -109,17 +109,10 @@ struct AEntityManagerMethod {
 	                               int(*func)(AComponent*,void*), void *p, int com_index);
 };
 
-struct AEntityManagerDefaultModule {
-	AModule module;
-	AEntityManagerMethod method;
-
-	static const char* name() { return "AEntityManagerDefaultModule"; }
-	static AEntityManagerDefaultModule* get() {
-		return (AEntityManagerDefaultModule*)AModuleFind(name(), name());
-	}
-};
-
 struct AEntityManager : public AEntityManagerMethod {
+	static const char* name() { return "AEntityManagerDefaultModule"; }
+	static AEntityManager* get() { return AModule::singleton_data<AEntityManager>(); }
+
 	struct rb_root   _entity_map;
 	int              _entity_count;
 	pthread_mutex_t  _mutex;
@@ -131,10 +124,9 @@ struct AEntityManager : public AEntityManagerMethod {
 	DWORD            _tick_entities;
 	AEntity         *_last_entity;
 
-	void init(AEntityManagerMethod *m = NULL) {
-		if (m == NULL)
-			m = &AEntityManagerDefaultModule::get()->method;
-		*(AEntityManagerMethod*)this = *m;
+	void init(AEntityManagerMethod *m) {
+		if (m != this)
+			*(AEntityManagerMethod*)this = *m;
 
 		INIT_RB_ROOT(&_entity_map);
 		_entity_count = 0;

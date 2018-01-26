@@ -3,6 +3,12 @@
 #include "AModule_io.h"
 
 
+AMODULE_API int
+AServiceCreateChains(AService **svc, AService *parent, AOption *option, BOOL create_chains)
+{
+	return -1;
+}
+
 static int
 AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 {

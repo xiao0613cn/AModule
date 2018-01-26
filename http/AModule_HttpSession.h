@@ -61,7 +61,7 @@ struct HttpCompenont : public AComponent {
 	struct com_module {
 		AModule module;
 		int (*on_iocom_output)(AInOutComponent *c, int result);
-		int (*encode)(ARefsBuf *&buf, HttpMsg *hm);
+		int (*encode_headers)(ARefsBuf *&buf, HttpMsg *hm);
 		int (*input)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
 	};
 };

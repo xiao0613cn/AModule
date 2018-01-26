@@ -158,12 +158,12 @@ int HttpCompenont::on_iocom_output(AInOutComponent *c, int result) {
 
 	assert(p->_httpmsg->header_num()+1 == p->_header_count);
 	p->_httpmsg->_parser = p->_parser;
-	p->_httpmsg->set_body(c->_outbuf, p->_body_pos, p->_body_len);
+	p->_httpmsg->body_set(c->_outbuf, p->_body_pos, p->_body_len);
 
 	return p->on_httpmsg(p, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
 }
 
-static int encode(ARefsBuf *&buf, HttpMsg *hm) {
+static int encode_headers(ARefsBuf *&buf, HttpMsg *hm) {
 	str_t f, v;
 	int result = 20;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
@@ -202,7 +202,7 @@ static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int
 		if (msg->data == NULL) { // do input header
 			assert(msg->done != &AInOutComponent::_inmsg_done
 			    && msg->done != &AInOutComponent::_outmsg_done);
-			result = encode(p->_inbuf, hm);
+			result = encode_headers(p->_inbuf, hm);
 			if (result < 0)
 				break;
 
@@ -354,12 +354,16 @@ static int HttpSvcRecvMsg(HttpCompenont *c, int result)
 		TRACE("invalid http type: %d.\n", p->_req->_parser.type);
 		return -EINVAL;
 	}
-	p->_resp->header_clear();
-	p->_resp->_parser = p->_http._parser;
-	p->_resp->_parser.type = HTTP_RESPONSE;
-	if (p->_resp->_body_buf) p->_resp->_body_buf->reset();
-	p->_resp->body_pos() = 0;
-	p->_resp->body_len() = 0;
+	{
+		ARefsBuf *tmp = p->_resp->_body_buf;
+		if (tmp) tmp->reset();
+		p->_resp->_body_buf = NULL;
+
+		p->_resp->reset();
+		p->_resp->_parser = p->_http._parser;
+		p->_resp->_parser.type = HTTP_RESPONSE;
+		p->_resp->_body_buf = tmp;
+	}
 
 	AService *svc = AServiceProbe(p->_svc, p, NULL);
 	if (svc != NULL) {

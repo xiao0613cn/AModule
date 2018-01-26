@@ -111,7 +111,7 @@ AModuleInit(AOption *option)
 {
 	reset_s(g_option, option, release_s);
 	BOOL first = !g_inited;
-if (!g_inited) {
+	if (!g_inited) {
 		g_inited = TRUE;
 #ifdef _WIN32
 		next_except_filter = SetUnhandledExceptionFilter(&except_filter);

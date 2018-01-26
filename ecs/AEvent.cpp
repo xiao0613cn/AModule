@@ -17,7 +17,7 @@ struct HelperByName {
 	static rb_root& map(AEventManager *em) {
 		return em->_name_map;
 	}
-	static long& count(AEventManager *em) {
+	static int& count(AEventManager *em) {
 		return em->_name_count;
 	}
 	static AReceiver* find(AEventManager *em, KeyType name) {
@@ -42,7 +42,7 @@ struct HelperByIndex {
 	static rb_root& map(AEventManager *em) {
 		return em->_index_map;
 	}
-	static long& count(AEventManager *em) {
+	static int& count(AEventManager *em) {
 		return em->_index_count;
 	}
 	static AReceiver* find(AEventManager *em, KeyType index) {
@@ -72,7 +72,7 @@ static bool EM_subscribe(AEventManager *em, AReceiver *r)
 	return valid;
 }
 
-static void _erase(AReceiver *first, AReceiver *r, rb_root &map, long &count)
+static void _erase(AReceiver *first, AReceiver *r, rb_root &map, int &count)
 {
 	if (first != r) {
 		assert(!first->_recv_list.empty());
@@ -228,10 +228,33 @@ static AReceiver* EM_sub_self(AEventManager *em, const char *name, void *self, A
 	return r2;
 }
 
-AEventManagerDefaultModule EventMngModule = { {
-	AEventManagerDefaultModule::name(),
-	AEventManagerDefaultModule::name(),
-	0, NULL, NULL,
+extern struct EM_m {
+	AModule module;
+	union {
+		AEventManagerMethod method;
+		AEventManager manager;
+	};
+} EM_default;
+
+static int EM_init(AOption *global_option, AOption *module_option, BOOL first)
+{
+	if (first) {
+		EM_default.manager.init(&EM_default.method);
+	}
+	return 1;
+}
+
+static void EM_exit(int inited)
+{
+	if (inited > 0) {
+		EM_default.manager.exit();
+	}
+}
+
+static EM_m EM_default = { {
+	AEventManager::name(),
+	AEventManager::name(),
+	0, &EM_init, &EM_exit,
 }, {
 	&EM_subscribe<HelperByName>,
 	&EM_unsubscribe<HelperByName>,
@@ -244,4 +267,4 @@ AEventManagerDefaultModule EventMngModule = { {
 	&EM_emit_event<HelperByIndex>,
 	&EM_clear_sub_map<HelperByIndex>,
 } };
-static int reg_mng = AModuleRegister(&EventMngModule.module);
+static int reg_mng = AModuleRegister(&EM_default.module);

@@ -47,21 +47,14 @@ struct AEventManagerMethod {
 	void (*clear_sub2)(AEventManager *em);
 };
 
-struct AEventManagerDefaultModule {
-	AModule module;
-	AEventManagerMethod method;
-
-	static const char* name() { return "AEventManagerDefaultModule"; }
-	static AEventManagerDefaultModule* get() {
-		return (AEventManagerDefaultModule*)AModuleFind(name(), name());
-	}
-};
-
 struct AEventManager : public AEventManagerMethod {
+	static const char* name() { return "AEventManagerDefaultModule"; }
+	static AEventManager* get() { return AModule::singleton_data<AEventManager>(); }
+
 	struct rb_root   _name_map;
-	long             _name_count;
+	int              _name_count;
 	struct rb_root   _index_map;
-	long             _index_count;
+	int              _index_count;
 	pthread_mutex_t  _mutex;
 	void lock() { pthread_mutex_lock(&_mutex); }
 	void unlock() { pthread_mutex_unlock(&_mutex); }
@@ -69,10 +62,9 @@ struct AEventManager : public AEventManagerMethod {
 	struct list_head _free_ptrslice;
 	bool             _reuse_ptrslice;
 
-	void init(AEventManagerMethod *m = NULL) {
-		if (m == NULL)
-			m = &AEventManagerDefaultModule::get()->method;
-		*(AEventManagerMethod*)this = *m;
+	void init(AEventManagerMethod *m) {
+		if (m != this)
+			*(AEventManagerMethod*)this = *m;
 
 		INIT_RB_ROOT(&_name_map); _name_count = 0;
 		INIT_RB_ROOT(&_index_map); _index_count = 0;

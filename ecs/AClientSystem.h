@@ -33,12 +33,12 @@ struct AClientComponent : public AComponent {
 	enum Status   _status;
 	DWORD         _main_tick;
 	bool volatile _main_abort;
-	bool  valid() { return ((_status == Opened) && !_main_abort); }
+	bool valid() { return ((_status == Opened) && !_main_abort); }
 
 	bool          _last_opened;
 	enum Heart    _check_heart;
 	long volatile _busy_count;
-	long  use(int count) { return InterlockedAdd(&_busy_count, count); }
+	long use(int count) { return InterlockedAdd(&_busy_count, count); }
 
 	list_head       _sys_node;
 	ASystem::Result _run_result;
@@ -54,10 +54,10 @@ struct AClientComponent : public AComponent {
 	int (*close)(AClientComponent *c);
 
 	void init2() {
-		_tick_reopen = 30*1000; _tick_heart = 10*1000; _tick_abort = 20*1000;
-		_owner_thread = false;  _open_heart = true;    _auto_reopen = true;
-		_status = Invalid;      _main_tick = 0;        _main_abort = false;
-		_last_opened = false; _check_heart = HeartNone; _busy_count = 0;
+		_tick_reopen  = 30*1000; _tick_heart  = 10*1000;   _tick_abort  = 20*1000;
+		_owner_thread = false;   _open_heart  = true;      _auto_reopen = true;
+		_status       = Invalid; _main_tick   = 0;         _main_abort  = false;
+		_last_opened  = false;   _check_heart = HeartNone; _busy_count  = 0;
 		_sys_node.init(); _run_result.status = _abort_result.status = ASystem::NotNeed;
 
 		// set by implement module

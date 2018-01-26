@@ -12,7 +12,7 @@ static int SM_check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DW
 		return 0;
 	}
 
-	ASystem::Result *r = sm->_all_systems->check_one ? sm->_all_systems->check_one(e, cur_tick) : NULL;
+	ASystem::Result *r = sm->_all_systems->_check_one ? sm->_all_systems->_check_one(e, cur_tick) : NULL;
 	if (r != NULL) {
 		r->system = sm->_all_systems;
 		exec_list->push_back(&r->node);
@@ -20,7 +20,7 @@ static int SM_check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DW
 	}
 
 	list_for_allsys(s, sm->_all_systems) {
-		r = s->check_one ? s->check_one(e, cur_tick) : NULL;
+		r = s->_check_one ? s->_check_one(e, cur_tick) : NULL;
 		if (r != NULL) {
 			r->system = s;
 			exec_list->push_back(&r->node);
@@ -54,11 +54,13 @@ static int SM_check_allsys(ASystemManager *sm, list_head *exec_list, DWORD cur_t
 	}
 
 	sm->lock();
-	int count = sm->_all_systems->check_all ? sm->_all_systems->check_all(exec_list, cur_tick) : 0;
+	if (sm->_all_entities) sm->_all_entities->lock();
+	int count = sm->_all_systems->_check_all ? sm->_all_systems->_check_all(exec_list, cur_tick) : 0;
 
 	list_for_allsys(s, sm->_all_systems) {
-		count += s->check_all ? s->check_all(exec_list, cur_tick) : 0;
+		count += s->_check_all ? s->_check_all(exec_list, cur_tick) : 0;
 	}
+	if (sm->_all_entities) sm->_all_entities->unlock();
 	sm->unlock();
 	return count;
 }
@@ -135,9 +137,34 @@ static void SM_stop_checkall(ASystemManager *sm)
 		Sleep(20);
 }
 
-ASystemManagerDefaultModule SysMngModule = { {
-	ASystemManagerDefaultModule::name(),
-	ASystemManagerDefaultModule::name(),
+extern struct SM_m {
+	AModule module;
+	union {
+		ASystemManagerMethod method;
+		ASystemManager manager;
+	};
+} SM_default;
+
+static int SM_init(AOption *global_option, AOption *module_option, BOOL first)
+{
+	if (first) {
+		SM_default.manager.init(&SM_default.method);
+		SM_default.manager._all_entities = AEntityManager::get();
+		SM_default.manager._event_manager = AEventManager::get();
+	}
+	return 1;
+}
+
+static void SM_exit(int inited)
+{
+	if (inited > 0) {
+		SM_default.manager.exit();
+	}
+}
+
+static SM_m SM_default = { {
+	ASystemManager::name(),
+	ASystemManager::name(),
 	0, NULL, NULL,
 }, {
 	&SM_start_checkall,
@@ -146,4 +173,4 @@ ASystemManagerDefaultModule SysMngModule = { {
 	&SM_check_entities,
 	&SM_check_one,
 } };
-static int reg_sys = AModuleRegister(&SysMngModule.module);
+static int reg_sys = AModuleRegister(&SM_default.module);
