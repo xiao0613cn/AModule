@@ -32,6 +32,13 @@ struct AMessage {
 	void  init(struct AModule *module) { init(AMsgType_AModule, module, 0); }
 	void  init(AMessage *msg)          { init(msg->type, msg->data, msg->size); }
 	int   done2(int result)            { return done(this, result); }
+
+	static AMessage* first(list_head &list) {
+		return list_first_entry(&list, AMessage, entry);
+	}
+	AMessage* next() {
+		return list_entry(entry.next, AMessage, entry);
+	}
 #endif
 };
 
@@ -158,7 +165,7 @@ static inline void
 ARefsMsgInit(ARefsMsg *rm, int type, ARefsBuf *buf, int offset, int size)
 {
 	AMsgInit(&rm->msg, AMsgType_RefsMsg, rm, 0);
-	addref_set(rm->buf, buf);
+	addref_s(rm->buf, buf);
 	rm->pos = offset;
 	rm->type = type;
 	rm->size = size;

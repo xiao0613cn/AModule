@@ -165,7 +165,7 @@ static void SM_exit(int inited)
 static SM_m SM_default = { {
 	ASystemManager::name(),
 	ASystemManager::name(),
-	0, NULL, NULL,
+	0, &SM_init, &SM_exit,
 }, {
 	&SM_start_checkall,
 	&SM_stop_checkall,

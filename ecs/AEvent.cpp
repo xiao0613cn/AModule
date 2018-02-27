@@ -86,7 +86,7 @@ static void _erase(AReceiver *first, AReceiver *r, rb_root &map, int &count)
 		RB_CLEAR_NODE(&first->_map_node);
 	}
 	else {
-		r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
+		r = AReceiver::first(first->_recv_list);
 		rb_replace_node(&first->_map_node, &r->_map_node, &map);
 		first->_recv_list.leave();
 	}
@@ -126,14 +126,14 @@ static int EM_emit_event(AEventManager *em, typename helper::KeyType key, void *
 	}
 
 	if (!em->_free_ptrslice.empty()) {
-		APtrSlice *slice = list_first_entry(&em->_free_ptrslice, APtrSlice, _node);
+		APtrPool::Slice *slice = APtrPool::_first(em->_free_ptrslice);
 		recvers._join(slice);
 	}
 
-	AReceiver *r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
+	AReceiver *r = AReceiver::first(first->_recv_list);
 	while (&r->_recv_list != &first->_recv_list)
 	{
-		AReceiver *next = list_entry(r->_recv_list.next, AReceiver, _recv_list);
+		AReceiver *next = r->next();
 
 		if (!r->_preproc || (r->on_event(r, p, true) >= 0)) {
 			if (r->_oneshot)
@@ -179,7 +179,7 @@ static int EM_emit_event(AEventManager *em, typename helper::KeyType key, void *
 }
 
 template <typename helper>
-static void EM_clear_sub_map(AEventManager *em)
+static int EM_clear_sub_map(AEventManager *em)
 {
 	struct list_head recvers; recvers.init();
 
@@ -188,7 +188,7 @@ static void EM_clear_sub_map(AEventManager *em)
 		AReceiver *first = rb_first_entry(&helper::map(em), AReceiver, _map_node);
 
 		while (!first->_recv_list.empty()) {
-			AReceiver *r = list_first_entry(&first->_recv_list, AReceiver, _recv_list);
+			AReceiver *r = AReceiver::first(first->_recv_list);
 			_erase(first, r, helper::map(em), helper::count(em));
 			recvers.push_back(&r->_recv_list);
 		}
@@ -197,10 +197,14 @@ static void EM_clear_sub_map(AEventManager *em)
 	}
 	em->unlock();
 
+	int count = 0;
 	while (!recvers.empty()) {
-		AReceiver *r = list_pop_front(&recvers, AReceiver, _recv_list);
+		AReceiver *r = AReceiver::first(recvers);
+		r->_recv_list.leave();
 		r->release();
+		count ++;
 	}
+	return count;
 }
 
 struct AReceiver2 : public AReceiver {

@@ -199,13 +199,13 @@ CU_TEST(test_pvd)
 	//return;
 	const char *opt_str =
 		"PVDClient: {"
-		"io: async_tcp {"
-		"address: 192.168.40.86,"
-		"port: 8101,"
-		"timeout: 5,"
-		"},"
-		"username: admin,"
-		"password: 888888,"
+			"io: async_tcp {"
+				"address: 192.168.40.86,"
+				"port: 8101,"
+				"timeout: 5,"
+			"},"
+			"username: admin,"
+			"password: 888888,"
 		"}";
 	AOption *opt = NULL;
 	int result = AOptionDecode(&opt, opt_str, -1);
@@ -285,13 +285,11 @@ int main()
 	});
 	sm->stop_checkall(sm);
 	sm->clear_allsys(true);
-	em.clear_sub(&em);
+	sm->_event_manager->clear_sub();
 
 	getchar();
 	AThreadEnd(NULL);
 	AModuleExit();
-	em.exit();
-	sm->exit();
 #if defined(_WIN32) && defined(_DEBUG)
 	_CrtDumpMemoryLeaks();
 #endif

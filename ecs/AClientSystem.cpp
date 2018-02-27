@@ -70,7 +70,7 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		c->_main_tick = cur_tick;
 		c->_main_abort = false;
 		return NULL;
-		//c->_entity->_pop(c);
+		//c->_object->_pop(c);
 		//if (!c->_sys_node.empty())
 		//	c->_sys_node.leave();
 		//break;

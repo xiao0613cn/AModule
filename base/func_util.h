@@ -15,7 +15,7 @@
 #define closesocket_s(sock)         reset_nif(sock, INVALID_SOCKET, closesocket(sock));
 
 template <typename AType> AType&
-addref_set(AType &dest, AType src) {
+addref_s(AType &dest, AType src) {
 	if (dest != src) {
 		if (dest) dest->release();
 		dest = src;

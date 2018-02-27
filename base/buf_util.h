@@ -6,29 +6,24 @@ template <typename Item>
 struct ASlice {
 	typedef ASlice<Item> Slice;
 
-	long    _refs;
+	long volatile _refs;
 	int     _size;
 	void  (*_free)(void*);
-	void   *_user;
 	int     _bgn;
 	int     _end;
-	list_head _node;
-	Item    _data[1];
+	Item    _data[0];
 
 	static Slice* create(int count, void*(*alloc_func)(size_t)=NULL, void(*free_func)(void*)=NULL) {
 		if (alloc_func == NULL) alloc_func = &malloc;
 		if (free_func == NULL) free_func = &free;
 
-		Slice *slice = (Slice*)alloc_func(sizeof(Slice) + sizeof(Item)*(count-1));
-		if (slice != NULL) {
-			slice->_refs = 1;
-			slice->_size = count;
-			slice->_free = free_func;
-			slice->_user = NULL;
-			slice->reset();
-			slice->_node.init();
-		}
+		Slice *slice = (Slice*)alloc_func(sizeof(Slice) + sizeof(Item)*count);
+		if (slice != NULL)
+			slice->init(count, free_func);
 		return slice;
+	}
+	void  init(int count, void(*free_func)(void*)) {
+		_refs = 1; _size = count; _free = free_func; reset();
 	}
 	long  addref() { return InterlockedAdd(&_refs, 1); }
 	long  release() {
@@ -74,12 +69,6 @@ struct ASlice {
 		slice = s2;
 		return 1;
 	}
-	static void _clear(list_head &list) {
-		while (!list.empty()) {
-			Slice *slice = list_pop_front(&list, Slice, _node);
-			slice->release();
-		}
-	}
 };
 
 typedef ASlice<char> ARefsBuf;
@@ -89,24 +78,35 @@ struct ARefsBlock {
 	ASlice<Item> *_buf;
 	Item         *_ptr;
 	int           _len;
+	list_head     _node;
 
 	void init() {
-		_buf = NULL; _ptr = NULL; _len = 0;
+		_buf = NULL; _ptr = NULL; _len = 0; _node.init();
 	}
 	void set(ASlice<Item> *p, int bgn, int len) {
-		addref_set(_buf, p); _len = len;
-		_ptr = (p ? p->_data+bgn : 0);
+		addref_s(_buf, p); _len = len;
+		_ptr = (p ? p->_data+bgn : NULL);
+	}
+	static ARefsBlock<Item>* first(list_head &list) {
+		return list_first_entry(&list, ARefsBlock<Item>, _node);
+	}
+	ARefsBlock<Item>* next() {
+		return list_entry(_node.next, ARefsBlock<Item>, _node);
 	}
 };
 
+
 template<typename Item>
 struct APool {
-	typedef ASlice<Item> Slice;
+	struct Slice {
+		list_head _node;
+		ASlice<Item> _slice;
+	};
 	typedef APool<Item> Pool;
 
 	list_head _slice_list;
 	Slice    *_slice_push;
-	Slice    *_slice_pop() { return list_first_entry(&_slice_list, Slice, _node); }
+	Slice    *_slice_pop() { return _first(_slice_list); }
 	int       _slice_count;
 	int       _chunk_size;
 	int       _item_count;
@@ -121,11 +121,17 @@ struct APool {
 		_item_left = 0;
 	}
 	void exit() {
-		Slice::_clear(_slice_list);
+		Pool::_clear(_slice_list);
+	}
+	static void free_slice(void *p) {
+		Slice *slice = (Slice*)((char*)p - offsetof(Slice, _slice));
+		free(slice);
 	}
 	void reserve(int count) {
 		while (count > _item_left) {
-			Slice *slice = Slice::create(_chunk_size);
+			Slice *slice = (Slice*)malloc(sizeof(Slice) + sizeof(Item)*_chunk_size);
+			slice->_node.init();
+			slice->_slice.init(_chunk_size, &free_slice);
 			_join(slice);
 		}
 	}
@@ -134,11 +140,11 @@ struct APool {
 			_slice_list.push_back(&slice->_node);
 		else
 			_slice_list.move_back(&slice->_node);
-		if ((_slice_push == NULL) && (slice->left() != 0))
+		if ((_slice_push == NULL) && (slice->_slice.left() != 0))
 			_slice_push = slice;
 		_slice_count ++;
-		_item_count += slice->len();
-		_item_left += slice->left();
+		_item_count += slice->_slice.len();
+		_item_left += slice->_slice.left();
 	}
 	void join(Pool &other) {
 		while (!other._slice_list.empty()) {
@@ -150,16 +156,16 @@ struct APool {
 	void reset() {
 		if (_item_count != 0) {
 			list_for_each2(slice, &_slice_list, Slice, _node) {
-				_item_left += slice->_bgn;
-				slice->reset();
+				_item_left += slice->_slice._bgn;
+				slice->_slice.reset();
 			}
 			if (!_slice_list.empty())
 				_slice_push = _slice_pop();
 			_item_count = 0;
 		}
 		else if (_slice_push != NULL) {
-			_item_left += _slice_push->_bgn;
-			_slice_push->reset();
+			_item_left += _slice_push->_slice._bgn;
+			_slice_push->_slice.reset();
 			assert(_slice_push == _slice_pop());
 		}
 	}
@@ -169,8 +175,8 @@ struct APool {
 	void push(const Item *item, int count) {
 		reserve(count);
 		while (count > 0) {
-			int num = min(count, _slice_push->left());
-			_slice_push->mempush(item, num);
+			int num = min(count, _slice_push->_slice.left());
+			_slice_push->_slice.mempush(item, num);
 			_move_push();
 			_item_count += num; _item_left -= num;
 			item += num; count -= num;
@@ -178,17 +184,17 @@ struct APool {
 	}
 
 	int   total_count() { return _item_count; }
-	Item& front()       { return *_slice_pop()->ptr(); }
+	Item& front()       { return *_slice_pop()->_slice.ptr(); }
 	void  pop_front(int count = 1, list_head *free_list = NULL) {
 		Slice *slice = _slice_pop();
-		assert(count <= slice->len());
-		slice->pop(count);
+		assert(count <= slice->_slice.len());
+		slice->_slice.pop(count);
 		_item_count -= count;
 		_move_pop(slice, free_list);
 	}
 //protected:
 	void _move_push() {
-		while (_slice_push->left() == 0) {
+		while (_slice_push->_slice.left() == 0) {
 			if (_slice_list.is_last(&_slice_push->_node)) {
 				_slice_push = NULL;
 				return;
@@ -197,24 +203,33 @@ struct APool {
 		}
 	}
 	void _move_pop(Slice *slice, list_head *free_list) {
-		if (slice->len() == 0) {
+		if (slice->_slice.len() == 0) {
 			if (slice == _slice_push) {
-				assert(_slice_push->left() != 0);
+				assert(_slice_push->_slice.left() != 0);
 				return;
 			}
 			if (free_list == NULL) {
 				slice->_node.leave();
-				slice->release();
+				slice->_slice.release();
 			} else {
-				slice->reset();
+				slice->_slice.reset();
 				free_list->move_back(&slice->_node);
 			}
 			_slice_count --;
 		}
 	}
+// helper
+	static Slice* _first(list_head &list) {
+		return list_first_entry(&list, Slice, _node);
+	}
+	static void _clear(list_head &list) {
+		while (!list.empty()) {
+			Slice *slice = list_pop_front(&list, Slice, _node);
+			slice->_slice.release();
+		}
+	}
 };
 
-typedef ASlice<void*> APtrSlice;
 typedef APool<void*> APtrPool;
 
 #endif

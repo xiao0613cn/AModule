@@ -68,7 +68,7 @@ struct IOObject : public AObject {
 
 //<<<<<<<<<< C++ Style <<<<<<<<<<
 struct IOObject2 : public AObject {
-	static const char* name() { return "io"; }
+	static const char* class_name() { return "io"; }
 
 	virtual int open(AMessage *msg) = NULL;
 	virtual int input(AMessage *msg) = NULL;
@@ -95,7 +95,7 @@ struct AService : public AObject {
 	AModule *_peer_module;
 	int    (*start)(AService *service, AOption *option);
 	void   (*stop)(AService *service);
-	int    (*run)(AService *service, AObject *peer, AOption *option);
+	int    (*run)(AService *service, AObject *peer);
 	int    (*abort)(AService *service, AObject *peer);
 
 	void init() {

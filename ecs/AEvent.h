@@ -28,6 +28,12 @@ struct AReceiver : public AObject {
 		_recv_list.init();
 		_user = NULL;
 	}
+	static AReceiver* first(list_head &list) {
+		return list_first_entry(&list, AReceiver, _recv_list);
+	}
+	AReceiver* next() {
+		return list_entry(_recv_list.next, AReceiver, _recv_list);
+	}
 };
 
 typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
@@ -37,14 +43,14 @@ struct AEventManagerMethod {
 	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);
 	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r);
 	int  (*emit_by_name)(AEventManager *em, const char *name, void *p);
-	void (*clear_sub)(AEventManager *em);
+	int  (*clear_sub_by_name)(AEventManager *em);
 	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f);
 
 	// event by index
 	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);
 	bool (*_unsub_by_index)(AEventManager *em, AReceiver *r);
 	int  (*emit_by_index)(AEventManager *em, int64_t index, void *p);
-	void (*clear_sub2)(AEventManager *em);
+	int  (*clear_sub_by_index)(AEventManager *em);
 };
 
 struct AEventManager : public AEventManagerMethod {
@@ -75,8 +81,11 @@ struct AEventManager : public AEventManagerMethod {
 	void exit() {
 		assert(RB_EMPTY_ROOT(&_name_map));
 		assert(RB_EMPTY_ROOT(&_index_map));
-		APtrSlice::_clear(_free_ptrslice);
+		APtrPool::_clear(_free_ptrslice);
 		pthread_mutex_destroy(&_mutex);
+	}
+	int clear_sub() {
+		return clear_sub_by_name(this) + clear_sub_by_index(this);
 	}
 };
 

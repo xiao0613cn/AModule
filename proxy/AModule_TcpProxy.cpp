@@ -113,7 +113,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		release_s(c->_outbuf); c->_outbuf = buf;
 		release_s(client->server);
 
-		service->run(service, e, service->_svc_option);
+		service->run(service, e);
 		e->release();
 		return 1;
 	}
@@ -356,7 +356,7 @@ static void TCPServerStop(AService *service)
 	closesocket_s(server->sock);
 }
 
-static int TCPServerRun(AService *service, AObject *peer, AOption *option)
+static int TCPServerRun(AService *service, AObject *peer)
 {
 	TCPServer *server = (TCPServer*)service;
 	if (peer->_module != server->_peer_module) {

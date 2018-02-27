@@ -367,7 +367,7 @@ static int HttpSvcRecvMsg(HttpCompenont *c, int result)
 
 	AService *svc = AServiceProbe(p->_svc, p, NULL);
 	if (svc != NULL) {
-		return svc->run(svc, p, svc->_svc_option);
+		return svc->run(svc, p);
 	}
 
 	FILE *fp = fopen(p->_req->uri_get(1).str+1, "rb");
@@ -402,10 +402,10 @@ static int HttpSvcRecvMsg(HttpCompenont *c, int result)
 	return result; // continue recv next request
 }
 
-static int HttpSvcRun(AService *svc, AObject *object, AOption *option)
+static int HttpSvcRun(AService *svc, AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
-	addref_set(p->_svc, svc);
+	addref_s(p->_svc, svc);
 
 	if (!p->_req) p->_req = new HttpMsgImpl();
 	if (!p->_resp) p->_resp = new HttpMsgImpl();

@@ -162,7 +162,7 @@ struct AComponent2 : public AObject, public AComponent {
 	}
 	void exit() {
 		assert(_entry.empty());
-		reset_nif(_entity, NULL, _entity->_self->release());
+		reset_nif(_object, NULL, _object->_self->release());
 	}
 };
 #endif

@@ -43,7 +43,7 @@ struct HttpMsg {
 	uint32_t& body_pos() { return _parser.nread; }
 	int64_t&  body_len() { return *(int64_t*)&_parser.content_length; }
 	void      body_set(ARefsBuf *p, uint32_t pos, int64_t len) {
-		addref_set(_body_buf, p); body_pos() = pos; body_len() = len;
+		addref_s(_body_buf, p); body_pos() = pos; body_len() = len;
 	}
 };
 

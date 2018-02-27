@@ -56,7 +56,7 @@ static int EchoMsgRun(AMessage *msg, int result)
 	return result;
 }
 
-static int EchoRun(AService *service, AObject *object, AOption *option)
+static int EchoRun(AService *service, AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
 	echo->_iocom._inmsg.init();
