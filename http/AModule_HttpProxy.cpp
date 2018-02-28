@@ -1,6 +1,7 @@
 #include "../stdafx.h"
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
+#include "../ecs/ASystem.h"
 #define _USE_HTTP_MSG_IMPL_ 1
 #include "AModule_HttpSession.h"
 
@@ -8,233 +9,13 @@
 #pragma comment(lib, "../bin/AModule.lib")
 #endif
 
-static int on_m_begin(http_parser *parser) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
+extern int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
 
-	p->_httpmsg->reset();
-	p->_header_block.set(NULL, 0, 0);
-	p->_header_count = 0;
-
-	p->_field_pos = p->_field_len = 0;
-	p->_value_pos = p->_value_len = 0;
-	p->_body_pos = p->_body_len = 0;
-	return 0;
-}
-static int on_url_or_status(http_parser *parser, const char *at, size_t length) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
-
-	if (p->_field_len == 0) {
-		p->_field_pos = p->_value_pos = (at - p->outbuf()->ptr());
-	}
-	p->_field_len += length;
-	p->_value_len += length;
-	return 0;
-}
-static int on_h_field(http_parser *parser, const char *at, size_t length) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
-
-	if (p->_value_len != 0) {
-		if (++p->_header_count == 1) {
-			p->_httpmsg->uri_set(p->_value(), 1);
-		} else {
-			p->_httpmsg->header_set(p->_field(), p->_value());
-		}
-		p->_field_pos = p->_field_len = 0;
-		p->_value_pos = p->_value_len = 0;
-	}
-
-	if (p->_field_len == 0)
-		p->_field_pos = (at - p->outbuf()->ptr());
-	p->_field_len += length;
-	return 0;
-}
-static int on_h_value(http_parser *parser, const char *at, size_t length) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
-
-	assert(p->_field_len != 0);
-	if (p->_value_len == 0)
-		p->_value_pos = (at - p->outbuf()->ptr());
-	p->_value_len += length;
-	return 0;
-}
-static int on_h_done(http_parser *parser) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	if (p->_value_len != 0) {
-		p->_header_count++;
-		p->_httpmsg->header_set(p->_field(), p->_value());
-	}
-	assert(p->_header_block._buf == NULL);
-	p->_header_block.set(p->outbuf(), p->outbuf()->_bgn, p->_parser.nread);
-	return 0;
-}
-static int on_body(http_parser *parser, const char *at, size_t length) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
-
-	if (p->_body_len == 0)
-		p->_body_pos = (at - p->outbuf()->ptr());
-	p->_body_len += length;
-	return 0;
-}
-static int on_m_done(http_parser *parser) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	http_parser_pause(parser, TRUE);
-	return 0;
-}
-static int on_chunk_header(http_parser *parser) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	TRACE("chunk header, body = %lld.\n", parser->content_length);
-	return 0;
-}
-static int on_chunk_complete(http_parser *parser) {
-	HttpCompenont *p = container_of(parser, HttpCompenont, _parser);
-	if (p->_body_len != 0)
-		http_parser_pause(parser, TRUE);
-	else
-		; // last chunk size = 0
-	return 0;
-}
-static const struct http_parser_settings cb_sets = {
-	&on_m_begin,
-	&on_url_or_status,
-	&on_url_or_status,
-	&on_h_field,
-	&on_h_value,
-	&on_h_done,
-	&on_body,
-	&on_m_done,
-	&on_chunk_header,
-	&on_chunk_complete
-};
-int HttpCompenont::on_iocom_output(AInOutComponent *c, int result) {
-	HttpCompenont *p = (HttpCompenont*)c->_outuser;
-	if (result < 0)
-		return p->on_httpmsg(p, result);
-
-	p->_parser.data = c->_outbuf;
-	if (p->p_left() == 0)
-		return 1; // need more data
-
-	result = http_parser_execute(&p->_parser, &cb_sets, p->p_next(), p->p_left());
-	if (p->_parser.http_errno == HPE_PAUSED)
-		http_parser_pause(&p->_parser, FALSE);
-
-	if (p->_parser.http_errno != HPE_OK) {
-		TRACE("http_parser_error(%d) = %s.\n",
-			p->_parser.http_errno, http_errno_description(p->_parser.http_errno));
-		return p->on_httpmsg(p, -AMsgType_Private|p->_parser.http_errno);
-	}
-	p->_parsed_len += result;
-
-	result = http_next_chunk_is_incoming(&p->_parser);
-	if (result == 0) {
-		// new buffer
-		assert(p->p_left() == 0);
-		int reserve = 0;
-		if (!http_header_is_complete(&p->_parser)) {
-			reserve = send_bufsiz;
-		}
-		else if (p->_body_len < max_body_size) {
-			if (p->_body_len == 0)
-				p->_body_pos = p->_parsed_len;
-			c->_outbuf->pop(p->_body_pos);
-			p->_parsed_len -= p->_body_pos;
-			p->_body_pos = 0;
-			reserve = min(p->_parser.content_length, max_body_size-p->_body_len);
-		}
-		if (reserve != 0) { // need more data
-			result = ARefsBuf::reserve(c->_outbuf, reserve, recv_bufsiz);
-			TRACE2("resize buffer size = %d, left = %d, reserve = %d, result = %d.\n",
-				c->_outbuf->len(), c->_outbuf->left(), reserve, result);
-			return (result >= 0) ? 1 : p->on_httpmsg(p, result);
-		}
-	}
-	p->_body_pos += c->_outbuf->_bgn;
-	c->_outbuf->pop(p->_parsed_len);
-	p->_parsed_len = 0;
-
-	assert(p->_httpmsg->header_num()+1 == p->_header_count);
-	p->_httpmsg->_parser = p->_parser;
-	p->_httpmsg->body_set(c->_outbuf, p->_body_pos, p->_body_len);
-
-	return p->on_httpmsg(p, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
-}
-
-static int encode_headers(ARefsBuf *&buf, HttpMsg *hm) {
-	str_t f, v;
-	int result = 20;
-	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
-		result += f.len;
-		result += v.len + 6;
-	}
-	if (hm->body_len() > 0)
-		result += 64;
-
-	result = ARefsBuf::reserve(buf, result, send_bufsiz);
-	if (result < 0)
-		return result;
-
-	v = hm->uri_get(1);
-	if (hm->_parser.type == HTTP_REQUEST) {
-		buf->strfmt("%s %.*s HTTP/%d.%d\r\n", http_method_str(hm->_parser.method),
-			v.len, v.str, hm->_parser.http_major, hm->_parser.http_minor);
-	} else {
-		buf->strfmt("HTTP/%d.%d %d %.*s\r\n", hm->_parser.http_major, hm->_parser.http_minor,
-			hm->_parser.status_code, v.len, v.str);
-	}
-	if (hm->body_len() > 0) {
-		buf->strfmt("Content-Length: %lld\r\n", hm->body_len());
-	}
-	f.str = NULL;
-	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
-		buf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
-	}
-	buf->strfmt("\r\n");
-	return buf->len();
-}
-
-static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
-{
-	while (result > 0) {
-		if (msg->data == NULL) { // do input header
-			assert(msg->done != &AInOutComponent::_inmsg_done
-			    && msg->done != &AInOutComponent::_outmsg_done);
-			result = encode_headers(p->_inbuf, hm);
-			if (result < 0)
-				break;
-
-			msg->init(ioMsgType_Block, p->_inbuf->ptr(), p->_inbuf->len());
-			result = p->_iocom._io->input(msg);
-			continue;
-		}
-		if (msg->data == p->_inbuf->ptr()) { // do input body
-			assert(msg->size == p->_inbuf->len());
-
-			p->_inbuf->reset();
-			msg->init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
-
-			if (msg->size > 0) {
-				result = p->_iocom._io->input(msg);
-				continue;
-			}
-		}
-		assert(msg->data == hm->body_ptr());
-		assert(msg->size == hm->body_len());
-		break; // input done
-	}
-	if (result != 0)
-		msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
-	return result;
-}
-
-static int HttpMsgInputDone(AMessage *msg, int result)
+static int HttpConnectionInputDone(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
 
-	msg = list_first_entry(&p->_iocom._queue, AMessage, entry);
+	msg = AMessage::first(p->_iocom._queue);
 	assert(msg->type == httpMsgType_HttpMsg);
 
 	result = HttpMsgInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
@@ -243,7 +24,7 @@ static int HttpMsgInputDone(AMessage *msg, int result)
 	return result;
 }
 
-static int HttpSvcResp(AMessage *msg, int result)
+static int HttpSvcRespDone(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
 	result = HttpMsgInputStatus(p, msg, p->_resp, result);
@@ -257,8 +38,15 @@ static int HttpSvcResp(AMessage *msg, int result)
 static int HttpConnectionInput(AInOutComponent *c, AMessage *msg)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _iocom);
-	assert(c->_inmsg.done == &AInOutComponent::_inmsg_done);
+	if (msg == &c->_outmsg) {
+		//assert(msg->data == (char*)p->_resp);
+		p->raw_outmsg_done = msg->done;
+		msg->init();
+		msg->done = &HttpSvcRespDone;
+		return HttpMsgInputStatus(p, msg, p->_resp, 1);
+	}
 
+	//assert(c->_inmsg.done == AModule::find<AInOutModule>(c->name(), c->name())->inmsg_done);
 	switch (msg->type)
 	{
 	case AMsgType_Unknown:
@@ -267,17 +55,9 @@ static int HttpConnectionInput(AInOutComponent *c, AMessage *msg)
 		return c->_io->input(&c->_inmsg);
 
 	case httpMsgType_HttpMsg:
-		if (msg == &c->_outmsg) {
-			assert(msg->data == (char*)p->_resp);
-			p->raw_outmsg_done = msg->done;
-			msg->init();
-			msg->done = &HttpSvcResp;
-			return HttpMsgInputStatus(p, msg, (HttpMsg*)msg->data, 1);
-		}
-
 		p->raw_inmsg_done = c->_inmsg.done;
 		c->_inmsg.init();
-		c->_inmsg.done = &HttpMsgInputDone;
+		c->_inmsg.done = &HttpConnectionInputDone;
 		return HttpMsgInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
 
 	default: assert(0);
@@ -343,63 +123,69 @@ AModule HttpConnectionModule = {
 static int reg_conn = AModuleRegister(&HttpConnectionModule);
 
 
-static int HttpSvcRecvMsg(HttpCompenont *c, int result)
+static int HttpSvcHandleMsg(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 {
-	HttpConnection *p = container_of(c, HttpConnection, _http);
-	if (result < 0) {
-		TRACE("http connection down, result = %d.\n", result);
-		return result;
-	}
-	if (p->_req->_parser.type != HTTP_REQUEST) {
-		TRACE("invalid http type: %d.\n", p->_req->_parser.type);
+	if (req->_parser.type != HTTP_REQUEST) {
+		TRACE("invalid http type: %d.\n", req->_parser.type);
 		return -EINVAL;
 	}
-	{
-		ARefsBuf *tmp = p->_resp->_body_buf;
-		if (tmp) tmp->reset();
-		p->_resp->_body_buf = NULL;
-
-		p->_resp->reset();
-		p->_resp->_parser = p->_http._parser;
-		p->_resp->_parser.type = HTTP_RESPONSE;
-		p->_resp->_body_buf = tmp;
-	}
+	resp->reset();
+	resp->_parser = p->_http._parser;
+	resp->_parser.type = HTTP_RESPONSE;
 
 	AService *svc = AServiceProbe(p->_svc, p, NULL);
 	if (svc != NULL) {
 		return svc->run(svc, p);
 	}
 
-	FILE *fp = fopen(p->_req->uri_get(1).str+1, "rb");
+	assert(p->_inbuf->len() == 0);
+	int body_len = 0;
+
+	FILE *fp = fopen(req->uri_get(1).str+1, "rb");
 	if (fp != NULL) {
 		fseek(fp, 0, SEEK_END);
-		p->_resp->body_len() = ftell(fp);
+		body_len = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
 	}
 
-	if (p->_resp->body_len() <= 0) {
-		p->_resp->_parser.status_code = 404;
-		p->_resp->uri_set(str_sz("File Invalid"), 1);
-	} else if (ARefsBuf::reserve(p->_resp->_body_buf, p->_resp->body_len(), recv_bufsiz) < 0) {
-		p->_resp->_parser.status_code = 501;
-		p->_resp->uri_set(str_sz("Out Of Memory"), 1);
-	} else if (fread(p->_resp->_body_buf->next(), p->_resp->body_len(), 1, fp) != 1) {
-		p->_resp->_parser.status_code = 502;
-		p->_resp->uri_set(str_sz("Read File Error"), 1);
+	if (body_len <= 0) {
+		resp->_parser.status_code = 404;
+		resp->uri_set(str_sz("File Invalid"), 1);
+	} else if (ARefsBuf::reserve(p->_inbuf, body_len, recv_bufsiz) < 0) {
+		resp->_parser.status_code = 501;
+		resp->uri_set(str_sz("Out Of Memory"), 1);
+	} else if (fread(p->_inbuf->next(), body_len, 1, fp) != 1) {
+		resp->_parser.status_code = 502;
+		resp->uri_set(str_sz("Read File Error"), 1);
 	} else {
-		p->_resp->_body_buf->push(p->_resp->body_len());
-		p->_resp->_parser.status_code = 200;
-		p->_resp->uri_set(str_sz("OK"), 1);
+		p->_inbuf->push(body_len);
+		resp->body_set(p->_inbuf, p->_inbuf->_bgn, p->_inbuf->len());
+		p->_inbuf->pop(p->_inbuf->len());
+
+		resp->_parser.status_code = 200;
+		resp->uri_set(str_sz("OK"), 1);
 	}
 	reset_s(fp, NULL, fclose);
-	p->_resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
+	resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
 
-	p->raw_outmsg_done = p->_iocom._outmsg.done;
-	p->_iocom._outmsg.init();
-	p->_iocom._outmsg.done = &HttpSvcResp;
+	return p->_iocom.do_input(&p->_iocom, &p->_iocom._outmsg);
+}
 
-	result = HttpMsgInputStatus(p, &p->_iocom._outmsg, p->_resp, 1);
-	return result; // continue recv next request
+static int HttpSvcRecvMsg(HttpParserCompenont *c, int result)
+{
+	HttpConnection *p = container_of(c, HttpConnection, _http);
+	if (result >= 0)
+		result = HttpSvcHandleMsg(p, p->_req, p->_resp);
+	if (result < 0) {
+		TRACE("http connection down, result = %d.\n", result);
+		if (!RB_EMPTY_NODE(&p->_map_node)) {
+			AEntityManager *em = p->_svc->_sysmng->_all_entities;
+			em->lock();
+			em->_pop(em, p);
+			em->unlock();
+		}
+	}
+	return result;
 }
 
 static int HttpSvcRun(AService *svc, AObject *object)
@@ -407,22 +193,45 @@ static int HttpSvcRun(AService *svc, AObject *object)
 	HttpConnection *p = (HttpConnection*)object;
 	addref_s(p->_svc, svc);
 
-	if (!p->_req) p->_req = new HttpMsgImpl();
-	if (!p->_resp) p->_resp = new HttpMsgImpl();
+	AEntityManager *em = svc->_sysmng->_all_entities;
+	em->lock();
+	em->_push(em, p);
+	em->unlock();
+
+	ARefsBuf::reserve(p->_inbuf, 512, recv_bufsiz);
+	if (p->_req == NULL) p->_req = new HttpMsgImpl();
+	if (p->_resp == NULL) p->_resp = new HttpMsgImpl();
 
 	return p->_http.try_output(&p->_iocom, p->_req, &HttpSvcRecvMsg);
 }
 
-static int HttpServiceCreate(AObject **object, AObject *parent, AOption *option)
+static void HttpSvcStop(AService *svc)
+{
+	AEntityManager *em = svc->_sysmng->_all_entities;
+	HttpConnection *p = NULL;
+	em->lock();
+	AComponent *c = em->_upper_com(em, p, HttpParserCompenont::name(), -1);
+	while (c != NULL) {
+		p = container_of(c, HttpConnection, _http);
+		c = em->_next_com(em, p, HttpParserCompenont::name(), -1);
+
+		p->_iocom._io->shutdown();
+		em->_pop(em, p);
+	}
+	em->unlock();
+}
+
+static int HttpSvcCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *svc = (AService*)*object;
 	svc->init();
 	svc->_peer_module = &HttpConnectionModule;
+	svc->stop = &HttpSvcStop;
 	svc->run = &HttpSvcRun;
 	return 1;
 }
 
-static void HttpServiceRelease(AObject *object)
+static void HttpSvcRelease(AObject *object)
 {
 	AService *svc = (AService*)object;
 	svc->exit();
@@ -433,8 +242,8 @@ AModule HttpServiceModule = {
 	"HttpService",
 	sizeof(AService),
 	NULL, NULL,
-	&HttpServiceCreate,
-	&HttpServiceRelease,
+	&HttpSvcCreate,
+	&HttpSvcRelease,
 	&HttpProbe,
 };
 static int reg_svc = AModuleRegister(&HttpServiceModule);

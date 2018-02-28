@@ -14,13 +14,25 @@
 #define release_s(ptr)              reset_nif(ptr, NULL, (ptr)->release())
 #define closesocket_s(sock)         reset_nif(sock, INVALID_SOCKET, closesocket(sock));
 
-template <typename AType> AType&
-addref_s(AType &dest, AType src) {
+template <typename AType> AType*
+addref_s(AType *&dest, AType *src) {
 	if (dest != src) {
 		if (dest) dest->release();
 		dest = src;
 		if (src) src->addref();
 	}
+	return dest;
+}
+
+template <typename AType, typename AMutex> AType*
+lockref_s(AMutex &mutex, AType *src) {
+	AType *dest = NULL;
+	mutex.lock();
+	if (src != NULL) {
+		src->addref();
+		dest = src;
+	}
+	mutex.unlock();
 	return dest;
 }
 

@@ -7,20 +7,27 @@
 
 #define send_bufsiz     2*1024
 #define recv_bufsiz     64*1024
-#define max_body_size   16*1024*1024
 
-struct HttpCompenont : public AComponent {
-	static const char* name() { return "HttpCompenont"; }
+struct HttpParserModule {
+	AModule module;
+	int (*iocom_output)(AInOutComponent *c, int result);
+	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
+
+	HttpMsg* (*hm_create)();
+	void     (*hm_release)(HttpMsg *hm);
+	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
+	int      (*hm_decode)(struct HttpParserCompenont *p, ARefsBuf *&buf);
+};
+
+struct HttpParserCompenont : public AComponent {
+	static const char* name() { return "HttpParserCompenont"; }
 
 	HttpMsg    *_httpmsg;
-	int       (*on_httpmsg)(HttpCompenont *c, int result);
+	int     (*on_httpmsg)(HttpParserCompenont *c, int result);
+	int         _max_body_size;
 
 	http_parser _parser;
 	int         _parsed_len;
-	ARefsBuf   *outbuf() { return (ARefsBuf*)_parser.data; }
-	char*       p_next() { return outbuf()->ptr() + _parsed_len; }
-	int         p_left() { return outbuf()->len() - _parsed_len; }
-
 	ARefsBlock<>_header_block;
 	int         _header_count;
 	int         _field_pos;
@@ -33,6 +40,7 @@ struct HttpCompenont : public AComponent {
 	void init2() {
 		_httpmsg = NULL;
 		on_httpmsg = NULL;
+		_max_body_size = 16*1024*1024;
 
 		http_parser_init(&_parser, HTTP_BOTH, NULL);
 		_parsed_len = 0;
@@ -45,37 +53,27 @@ struct HttpCompenont : public AComponent {
 	void exit2() {
 		_header_block.set(NULL, 0, 0);
 	}
-	int try_output(AInOutComponent *c, HttpMsg *hm, int (*on)(HttpCompenont*,int)) {
-		_httpmsg = hm; on_httpmsg = on;
-		_body_pos = _body_len = 0;
+	int try_output(AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
+		_httpmsg = hm; on_httpmsg = done;
 
-		assert((c->on_output == NULL) || (c->on_output == &on_iocom_output));
-		c->on_output = &on_iocom_output;
+		HttpParserModule *m = AModule::find<HttpParserModule>(name(), name());
+		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
+		c->on_output = m->iocom_output;
 		c->_outuser = this;
 		return c->_output_cycle(512, send_bufsiz);
 	}
 	//////////////////////////////////////////////////////////////////////////
-	str_t _field() { return str_t(outbuf()->ptr() + _field_pos, _field_len); }
-	str_t _value() { return str_t(outbuf()->ptr() + _value_pos, _value_len); }
-	static int on_iocom_output(AInOutComponent *c, int result);
-	struct com_module {
-		AModule module;
-		int (*on_iocom_output)(AInOutComponent *c, int result);
-		int (*encode_headers)(ARefsBuf *&buf, HttpMsg *hm);
-		int (*input)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
-	};
+	ARefsBuf *outbuf() { return (ARefsBuf*)_parser.data; }
+	char*     p_next() { return outbuf()->ptr() + _parsed_len; }
+	int       p_left() { return outbuf()->len() - _parsed_len; }
+	str_t     _field() { return str_t(outbuf()->ptr() + _field_pos, _field_len); }
+	str_t     _value() { return str_t(outbuf()->ptr() + _value_pos, _value_len); }
 };
 
-enum HttpStatus {
-	s_recv_header = 0,
-	s_recv_body,
-	s_send_header,
-	s_send_body,
-};
 
 struct HttpConnection : public AEntity {
 	AInOutComponent _iocom;
-	HttpCompenont _http;
+	HttpParserCompenont _http;
 	AService     *_svc;
 
 	ARefsBuf     *_inbuf;

@@ -101,12 +101,14 @@ struct AEntityManagerMethod {
 	int         (*_push)(AEntityManager *em, AEntity *e);
 	int         (*_pop)(AEntityManager *em, AEntity *e);
 	AEntity*    (*_find)(AEntityManager *em, void *key);
-	AEntity*    (*_upper)(AEntityManager *em, AEntity *cur);
+	AEntity*    (*_upper)(AEntityManager *em, void *key);
 	AEntity*    (*_next)(AEntityManager *em, AEntity *cur);
-	AComponent* (*_upper_com)(AEntityManager *em, AEntity *cur, const char *com_name, int com_index);
-	int         (*_upper_each)(AEntityManager *em, AEntity *cur, int(*func)(AEntity*,void*), void *p);
-	int         (*_upper_each_com)(AEntityManager *em, AEntity *cur, const char *com_name,
+	AComponent* (*_upper_com)(AEntityManager *em, void *key, const char *com_name, int com_index);
+	AComponent* (*_next_com)(AEntityManager *em, AEntity *cur, const char *com_name, int com_index);
+	int         (*_upper_each)(AEntityManager *em, void *key, int(*func)(AEntity*,void*), void *p);
+	int         (*_upper_each_com)(AEntityManager *em, void *key, const char *com_name,
 	                               int(*func)(AComponent*,void*), void *p, int com_index);
+	void        (*_clear)(AEntityManager *em);
 };
 
 struct AEntityManager : public AEntityManagerMethod {
@@ -144,10 +146,6 @@ struct AEntityManager : public AEntityManagerMethod {
 	void lock() { pthread_mutex_lock(&_mutex); }
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 
-	template <typename TComponent>
-	TComponent* _next_com(AEntity *cur, int com_index = -1 ) {
-		return _upper_com(this, cur, TComponent::name(), com_index);
-	}
 	template <typename TComponent>
 	int _next_each_com(AEntity *cur, int(*func)(TComponent*,void*), void *p, int com_index = -1) {
 		return _upper_each_com(this, cur, TComponent::name(), (int(*)(AComponent*,void*))func, com_index);

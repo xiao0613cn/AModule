@@ -314,7 +314,7 @@ dlopen(const char *filename, int flag) {
 #define DLL_BIN_NAME  "so"
 #endif //!_WIN32
 
-static long dlload_tid = 0;
+static long volatile dlload_tid = 0;
 
 AMODULE_API void*
 dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)

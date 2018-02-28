@@ -173,6 +173,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AModule_HttpSession.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\http\http_parser.c"
 				>
 				<FileConfiguration

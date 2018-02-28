@@ -194,6 +194,7 @@ static int on_event(const char *name, bool preproc, void *p)
 	}
 	return 1;
 }
+#if 1
 CU_TEST(test_pvd)
 {
 	//return;
@@ -224,6 +225,11 @@ CU_TEST(test_pvd)
 	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
 	em->unlock();
 
+	AEntityManager *etm = sm->_all_entities;
+	etm->lock();
+	etm->_push(etm, e);
+	etm->unlock();
+
 	sm->lock();
 	sm->_regist(e); e->release();
 	sm->unlock();
@@ -249,11 +255,16 @@ CU_TEST(test_mqtt)
 	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
 	em->unlock();
 
+	AEntityManager *etm = sm->_all_entities;
+	etm->lock();
+	etm->_push(etm, mqtt);
+	etm->unlock();
+
 	sm->lock();
 	sm->_regist(mqtt); mqtt->release();
 	sm->unlock();
 }
-
+#endif
 #endif
 
 int main()
@@ -286,6 +297,7 @@ int main()
 	sm->stop_checkall(sm);
 	sm->clear_allsys(true);
 	sm->_event_manager->clear_sub();
+	sm->_all_entities->_clear(sm->_all_entities);
 
 	getchar();
 	AThreadEnd(NULL);

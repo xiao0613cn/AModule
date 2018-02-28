@@ -15,8 +15,8 @@ struct AModule {
 	void  (*release)(AObject *object);
 	int   (*probe)(AObject *other, AMessage *msg, AOption *option);
 
-	long      object_count;
-	long      global_index;
+	long volatile object_count;
+	long volatile global_index;
 	list_head global_entry;
 	list_head class_entry;
 
@@ -24,6 +24,11 @@ struct AModule {
 	static ASingleton* singleton_data() {
 		static ASingleton *s_m = (ASingleton*)(AModuleFind(
 			ASingleton::name(), ASingleton::name()) + 1);
+		return s_m;
+	}
+	template <typename TModule>
+	static TModule* find(const char *class_name, const char *module_name) {
+		static TModule *s_m = (TModule*)AModuleFind(class_name, module_name);
 		return s_m;
 	}
 };
