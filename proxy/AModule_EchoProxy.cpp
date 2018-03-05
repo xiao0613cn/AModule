@@ -22,9 +22,9 @@ static void EchoRelease(AObject *object)
 	echo->exit();
 }
 
-static int EchoProbe(AObject *object, AMessage *msg, AOption *option)
+static int EchoProbe(AObject *object, AObject *other, AMessage *msg)
 {
-	if (msg->size < 4)
+	if ((msg == NULL) || (msg->size < 4))
 		return -1;
 	return ((strncasecmp_sz(msg->data, "echo") == 0) ? 80 : -1);
 }

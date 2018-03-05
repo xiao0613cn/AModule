@@ -13,12 +13,12 @@ struct AModule {
 
 	int   (*create)(AObject **object, AObject *parent, AOption *option);
 	void  (*release)(AObject *object);
-	int   (*probe)(AObject *other, AMessage *msg, AOption *option);
+	int   (*probe)(AObject *object, AObject *other, AMessage *msg);
 
 	long volatile object_count;
 	long volatile global_index;
-	list_head global_entry;
-	list_head class_entry;
+	list_head     global_entry;
+	list_head     class_entry;
 
 	template <typename ASingleton>
 	static ASingleton* singleton_data() {
@@ -52,7 +52,7 @@ AMODULE_API AModule*
 AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param);
 
 AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option);
+AModuleProbe(const char *class_name, AObject *object, AObject *other, AMessage *msg);
 
 ///////////////////////////////////////////////////////////////////////////////
 struct AObject {

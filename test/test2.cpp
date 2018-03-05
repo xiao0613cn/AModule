@@ -96,8 +96,9 @@ CU_TEST(test_echo_client)
 CU_TEST(test_service)
 {
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: async_tcp, }, "
-		"is_async: 1, services: { EchoService, HttpService, }, background: 1 }", -1);
+	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: tcp, }, "
+		"is_async: 0, services: { EchoService: {}, "
+		"HttpService: { services: { HttpFileService } }, }, background: 1 }", -1);
 
 	AService *tcp_server = NULL;
 	AObject::create(&tcp_server, NULL, opt, NULL);

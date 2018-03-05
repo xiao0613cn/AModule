@@ -16,7 +16,7 @@ static int  AModuleInitNull(AOption *global_option, AOption *module_option, int 
 static void AModuleExitNull(int inited) { }
 static int  AModuleCreateNull(AObject **object, AObject *parent, AOption *option) { return -ENOSYS; }
 static void AModuleReleaseNull(AObject *object) { }
-static int  AObjectProbeNull(AObject *other, AMessage *msg, AOption *option) { return -ENOSYS; }
+static int  AObjectProbeNull(AObject *object, AObject *other, AMessage *msg) { return -ENOSYS; }
 
 AMODULE_API int
 AModuleRegister(AModule *module)
@@ -218,7 +218,7 @@ AModuleEnum(const char *class_name, int(*comp)(void*,AModule*), void *param)
 }
 
 AMODULE_API AModule*
-AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *option)
+AModuleProbe(const char *class_name, AObject *object, AObject *other, AMessage *msg)
 {
 	AModule *module = NULL;
 	int score = 0;
@@ -229,7 +229,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 		if ((class_name != NULL) && (strcasecmp(class_name, pos->class_name) != 0))
 			continue;
 
-		ret = pos->probe(other, msg, option);
+		ret = pos->probe(object, other, msg);
 		if (ret > score) {
 			score = ret;
 			module = pos;
@@ -239,7 +239,7 @@ AModuleProbe(const char *class_name, AObject *other, AMessage *msg, AOption *opt
 			continue;
 		list_for_class_module(class_pos, pos)
 		{
-			ret = class_pos->probe(other, msg, option);
+			ret = class_pos->probe(object, other, msg);
 			if (ret > score) {
 				score = ret;
 				module = class_pos;

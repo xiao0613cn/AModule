@@ -8,7 +8,7 @@
 #define send_bufsiz     2*1024
 #define recv_bufsiz     64*1024
 
-struct HttpParserModule {
+struct HttpConnectionModule {
 	AModule module;
 	int (*iocom_output)(AInOutComponent *c, int result);
 	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
@@ -16,7 +16,7 @@ struct HttpParserModule {
 	HttpMsg* (*hm_create)();
 	void     (*hm_release)(HttpMsg *hm);
 	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
-	int      (*hm_decode)(struct HttpParserCompenont *p, ARefsBuf *&buf);
+	int      (*hm_decode)(struct HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&buf);
 };
 
 struct HttpParserCompenont : public AComponent {
@@ -56,7 +56,7 @@ struct HttpParserCompenont : public AComponent {
 	int try_output(AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = done;
 
-		HttpParserModule *m = AModule::find<HttpParserModule>(name(), name());
+		HttpConnectionModule *m = AModule::find<HttpConnectionModule>("AEntity", "HttpConnection");
 		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
 		c->on_output = m->iocom_output;
 		c->_outuser = this;
@@ -79,9 +79,16 @@ struct HttpConnection : public AEntity {
 	ARefsBuf     *_inbuf;
 	int (*raw_inmsg_done)(AMessage*,int);
 
-	struct HttpMsgImpl  *_req;
-	struct HttpMsgImpl  *_resp;
+	HttpMsg  *_req;
+	HttpMsg  *_resp;
 	int (*raw_outmsg_done)(AMessage*,int);
+
+	HttpConnectionModule* m() {
+		return (HttpConnectionModule*)_module;
+	}
+	int svc_resp() {
+		return _iocom.do_input(&_iocom, &_iocom._outmsg);
+	}
 };
 
 #if 0

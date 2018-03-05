@@ -132,9 +132,9 @@ AServiceProbe(AService *server, AObject *object, AMessage *msg)
 	int score = -1;
 	list_for_AService(svc, server)
 	{
-		int result = svc->_module->probe(object, msg, svc->_svc_option);
+		int result = svc->_module->probe(svc, object, msg);
 		if ((result < 0) && (svc->_peer_module != NULL)) {
-			result = svc->_peer_module->probe(object, msg, svc->_svc_option);
+			result = svc->_peer_module->probe(NULL, object, msg);
 		}
 		if (result > score) {
 			service = svc;

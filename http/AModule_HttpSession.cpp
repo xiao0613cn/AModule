@@ -105,19 +105,23 @@ static const struct http_parser_settings cb_sets = {
 	&on_chunk_complete
 };
 
-static int hm_decode(HttpParserCompenont *p, ARefsBuf *&_outbuf) {
+// 0: need more data
+// <0: error
+// >0: p->_httpmsg valid
+static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
+	p->_httpmsg = hm;
 	p->_parser.data = _outbuf;
 	if (p->p_left() == 0)
-		return 1; // need more data
+		return 0;
 
 	int result = http_parser_execute(&p->_parser, &cb_sets, p->p_next(), p->p_left());
 	if (p->_parser.http_errno == HPE_PAUSED)
 		http_parser_pause(&p->_parser, FALSE);
 
 	if (p->_parser.http_errno != HPE_OK) {
-		TRACE("http_parser_error(%d) = %s.\n",
-			p->_parser.http_errno, http_errno_description(p->_parser.http_errno));
-		return p->on_httpmsg(p, -AMsgType_Private|p->_parser.http_errno);
+		TRACE("http_parser_error(%d) = %s.\n", p->_parser.http_errno,
+			http_errno_description(p->_parser.http_errno));
+		return -AMsgType_Private|p->_parser.http_errno;
 	}
 	p->_parsed_len += result;
 
@@ -141,26 +145,29 @@ static int hm_decode(HttpParserCompenont *p, ARefsBuf *&_outbuf) {
 			result = ARefsBuf::reserve(_outbuf, reserve, recv_bufsiz);
 			TRACE2("resize buffer size = %d, left = %d, reserve = %d, result = %d.\n",
 				_outbuf->len(), _outbuf->left(), reserve, result);
-			return (result >= 0) ? 1 : p->on_httpmsg(p, result);
+			return (result < 0) ? result : 0;
 		}
 	}
 	p->_body_pos += _outbuf->_bgn;
 	_outbuf->pop(p->_parsed_len);
 	p->_parsed_len = 0;
 
-	assert(p->_httpmsg->header_num()+1 == p->_header_count);
-	p->_httpmsg->_parser = p->_parser;
-	p->_httpmsg->body_set(_outbuf, p->_body_pos, p->_body_len);
-
-	return p->on_httpmsg(p, 1); // return httpMsgType_HttpMsg; > AMsgType_Class
+	assert(hm->header_num()+1 == p->_header_count);
+	hm->_parser = p->_parser;
+	hm->body_set(_outbuf, p->_body_pos, p->_body_len);
+	return 1;
 }
 
 static int iocom_output(AInOutComponent *c, int result) {
 	HttpParserCompenont *p = (HttpParserCompenont*)c->_outuser;
-	if (result < 0)
-		return p->on_httpmsg(p, result);
+	if (result >= 0)
+		result = hm_decode(p, p->_httpmsg, c->_outbuf);
 
-	return hm_decode(p, c->_outbuf);
+	if (result != 0)
+		result = p->on_httpmsg(p, result);
+	else
+		result = 1; // continue for c->_output_cycle().
+	return result;
 }
 
 static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
@@ -196,7 +203,7 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	return buf->len();
 }
 
-extern int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
+static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result)
 {
 	while (result > 0) {
 		if (msg->data == NULL) { // do input header
@@ -230,17 +237,205 @@ extern int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int
 	return result;
 }
 
+#include <string>
+#include <map>
+
+struct HttpMsgImpl : public HttpMsg {
+	typedef std::map<std::string, std::string> KVMap;
+	KVMap   _maps[KV_MaxTypes];
+
+	HttpMsgImpl() {
+		_reset = &_reset_;
+		http_parser_init(&_parser, HTTP_BOTH, NULL);
+		_kv_num = &_kv_num_;
+		_kv_get = &_kv_get_;
+		_kv_set = &_kv_set_;
+		_kv_next = &_kv_next_;
+		_body_buf = NULL;
+	}
+	~HttpMsgImpl() {
+		release_s(_body_buf);
+	}
+	static void _reset_(HttpMsg *p) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		http_parser_init(&me->_parser, HTTP_BOTH, me->_parser.data);
+
+		for (int type = 0; type < KV_MaxTypes; ++type) {
+			me->_maps[type].clear();
+		}
+		release_s(me->_body_buf);
+	}
+	static int _kv_num_(HttpMsg *p, int type) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		if (type < 0 || type >= KV_MaxTypes)
+			return -1;
+
+		return me->_maps[type].size();
+	}
+	static str_t _kv_next_(HttpMsg *p, int type, str_t f, str_t *v) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		if (type < 0 || type >= KV_MaxTypes)
+			return str_t();
+
+		KVMap::iterator it;
+		if (f.str == NULL) {
+			it = me->_maps[type].begin();
+		} else {
+			it = me->_maps[type].find(std::string(f.str, f.len));
+			if (it == me->_maps[type].end())
+				return str_t();
+			++it;
+		}
+		if (it == me->_maps[type].end())
+			return str_t();
+
+		if (v != NULL) {
+			v->str = (char*)it->second.c_str();
+			v->len = it->second.length();
+		}
+		return str_t(it->first.c_str(), it->first.length());
+	}
+	static str_t _kv_get_(HttpMsg *p, int type, str_t f) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		if (type < 0 || type >= KV_MaxTypes)
+			return str_t();
+
+		KVMap::iterator it = me->_maps[type].find(std::string(f.str, f.len));
+		if (it == me->_maps[type].end())
+			return str_t();
+
+		return str_t(it->second.c_str(), it->second.length());
+	}
+	static int _kv_set_(HttpMsg *p, int type, str_t f, str_t v) {
+		HttpMsgImpl *me = (HttpMsgImpl*)p;
+		if (type < 0 || type >= KV_MaxTypes)
+			return -1;
+
+		if (f.str == NULL) {
+			me->_maps[type].clear();
+		} else if (v.str == NULL) {
+			me->_maps[type].erase(std::string(f.str, f.len));
+		} else {
+			me->_maps[type][std::string(f.str, f.len)] = std::string(v.str, v.len);
+		}
+		return me->_maps[type].size();
+	}
+};
 static HttpMsg* hm_create() {
-	return new HttpMsgImpl();
+	return new HttpMsgImpl;
 }
 static void hm_release(HttpMsg *hm) {
 	delete (HttpMsgImpl*)hm;
 }
 
-HttpParserModule HPM = { {
-	HttpParserCompenont::name(),
-	HttpParserCompenont::name(),
-	0, NULL, NULL,
+static int HttpConnectionInputDone(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
+
+	msg = AMessage::first(p->_iocom._queue);
+	assert(msg->type == httpMsgType_HttpMsg);
+
+	result = HttpMsgInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
+	if (result != 0)
+		result = p->_iocom._inmsg.done2(result);
+	return result;
+}
+
+static int HttpSvcRespDone(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
+	result = HttpMsgInputStatus(p, msg, p->_resp, result);
+	if (result != 0) {
+		msg->init();
+		msg->done2(result);
+	}
+	return result;
+}
+
+static int HttpConnectionInput(AInOutComponent *c, AMessage *msg)
+{
+	HttpConnection *p = container_of(c, HttpConnection, _iocom);
+	if (msg == &c->_outmsg) {
+		//assert(msg->data == (char*)p->_resp);
+		p->raw_outmsg_done = msg->done;
+		msg->init();
+		msg->done = &HttpSvcRespDone;
+		return HttpMsgInputStatus(p, msg, p->_resp, 1);
+	}
+
+	//assert(c->_inmsg.done == AModule::find<AInOutModule>(c->name(), c->name())->inmsg_done);
+	switch (msg->type)
+	{
+	case AMsgType_Unknown:
+	case ioMsgType_Block:
+		c->_inmsg.init(msg);
+		return c->_io->input(&c->_inmsg);
+
+	case httpMsgType_HttpMsg:
+		p->raw_inmsg_done = c->_inmsg.done;
+		c->_inmsg.init();
+		c->_inmsg.done = &HttpConnectionInputDone;
+		return HttpMsgInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
+
+	default: assert(0);
+		return -EINVAL;
+	}
+}
+
+static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *option)
+{
+	HttpConnection *p = (HttpConnection*)*object;
+	p->init();
+	p->_init_push(&p->_http);
+	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnectionInput;
+
+	p->_svc = NULL;
+	p->_inbuf = NULL;
+	p->_req = NULL;
+	p->_resp = NULL;
+	return 1;
+}
+
+static void HttpConnectionRelease(AObject *object)
+{
+	HttpConnection *p = (HttpConnection*)object;
+	reset_s(p->_resp, NULL, hm_release);
+	reset_nif(p->_req, NULL, hm_release);
+	release_s(p->_svc);
+
+	release_s(p->_inbuf);
+	p->_pop_exit(&p->_http);
+	p->_pop_exit(&p->_iocom);
+	p->exit();
+}
+
+static const str_t HttpMethodStrs[] = {
+#define XX(num, name, string)  str_t(#string, sizeof(#string)-1),
+	HTTP_METHOD_MAP(XX)
+#undef XX
+	str_t()
+};
+
+static int HttpProbe(AObject *object, AObject *other, AMessage *msg)
+{
+	if ((msg == NULL) || (msg->size < 4))
+		return -1;
+	for (const str_t *m = HttpMethodStrs; m->str != NULL; ++m) {
+		if ((msg->size > m->len) && (msg->data[m->len] == ' ')
+		 && (strncmp(msg->data, m->str, m->len) == 0))
+			return 60;
+	}
+	return 0;
+}
+
+HttpConnectionModule HCM = { {
+	"AEntity",
+	"HttpConnection",
+	sizeof(HttpConnection),
+	NULL, NULL,
+	&HttpConnectionCreate,
+	&HttpConnectionRelease,
+	&HttpProbe,
 },
 	&iocom_output,
 	&HttpMsgInputStatus,
@@ -249,4 +444,4 @@ HttpParserModule HPM = { {
 	&hm_encode,
 	&hm_decode,
 };
-static int reg_hpm = AModuleRegister(&HPM.module);
+static int reg_conn = AModuleRegister(&HCM.module);

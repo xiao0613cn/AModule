@@ -2,128 +2,15 @@
 #include "../base/AModule_API.h"
 #include "../io/AModule_io.h"
 #include "../ecs/ASystem.h"
-#define _USE_HTTP_MSG_IMPL_ 1
 #include "AModule_HttpSession.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "../bin/AModule.lib")
 #endif
 
-extern int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
+extern HttpConnectionModule HCM;
 
-static int HttpConnectionInputDone(AMessage *msg, int result)
-{
-	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
-
-	msg = AMessage::first(p->_iocom._queue);
-	assert(msg->type == httpMsgType_HttpMsg);
-
-	result = HttpMsgInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
-	if (result != 0)
-		result = p->_iocom._inmsg.done2(result);
-	return result;
-}
-
-static int HttpSvcRespDone(AMessage *msg, int result)
-{
-	HttpConnection *p = container_of(msg, HttpConnection, _iocom._outmsg);
-	result = HttpMsgInputStatus(p, msg, p->_resp, result);
-	if (result != 0) {
-		msg->init();
-		msg->done2(result);
-	}
-	return result;
-}
-
-static int HttpConnectionInput(AInOutComponent *c, AMessage *msg)
-{
-	HttpConnection *p = container_of(c, HttpConnection, _iocom);
-	if (msg == &c->_outmsg) {
-		//assert(msg->data == (char*)p->_resp);
-		p->raw_outmsg_done = msg->done;
-		msg->init();
-		msg->done = &HttpSvcRespDone;
-		return HttpMsgInputStatus(p, msg, p->_resp, 1);
-	}
-
-	//assert(c->_inmsg.done == AModule::find<AInOutModule>(c->name(), c->name())->inmsg_done);
-	switch (msg->type)
-	{
-	case AMsgType_Unknown:
-	case ioMsgType_Block:
-		c->_inmsg.init(msg);
-		return c->_io->input(&c->_inmsg);
-
-	case httpMsgType_HttpMsg:
-		p->raw_inmsg_done = c->_inmsg.done;
-		c->_inmsg.init();
-		c->_inmsg.done = &HttpConnectionInputDone;
-		return HttpMsgInputStatus(p, &c->_inmsg, (HttpMsg*)msg->data, 1);
-
-	default: assert(0);
-		return -EINVAL;
-	}
-}
-
-static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *option)
-{
-	HttpConnection *p = (HttpConnection*)*object;
-	p->init();
-	p->_init_push(&p->_http);
-	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnectionInput;
-
-	p->_svc = NULL;
-	p->_inbuf = NULL;
-	p->_req = NULL;
-	p->_resp = NULL;
-	return 1;
-}
-
-static void HttpConnectionRelease(AObject *object)
-{
-	HttpConnection *p = (HttpConnection*)object;
-	reset_nif(p->_resp, NULL, delete p->_resp);
-	reset_nif(p->_req, NULL, delete p->_req);
-	release_s(p->_svc);
-
-	release_s(p->_inbuf);
-	p->_pop_exit(&p->_http);
-	p->_pop_exit(&p->_iocom);
-	p->exit();
-}
-
-static const str_t HttpMethodStrs[] = {
-#define XX(num, name, string)  str_t(#string, sizeof(#string)-1),
-	HTTP_METHOD_MAP(XX)
-#undef XX
-	str_t()
-};
-
-static int HttpProbe(AObject *other, AMessage *msg, AOption *option)
-{
-	if (msg->size < 4)
-		return -1;
-	for (const str_t *m = HttpMethodStrs; m->str != NULL; ++m) {
-		if ((msg->size > m->len) && (msg->data[m->len] == ' ')
-		 && (strncmp(msg->data, m->str, m->len) == 0))
-			return 60;
-	}
-	return 0;
-}
-
-AModule HttpConnectionModule = {
-	"AEntity",
-	"HttpConnection",
-	sizeof(HttpConnection),
-	NULL, NULL,
-	&HttpConnectionCreate,
-	&HttpConnectionRelease,
-	&HttpProbe,
-};
-static int reg_conn = AModuleRegister(&HttpConnectionModule);
-
-
-static int HttpSvcHandleMsg(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
+static int HttpSvcHandle(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 {
 	if (req->_parser.type != HTTP_REQUEST) {
 		TRACE("invalid http type: %d.\n", req->_parser.type);
@@ -138,44 +25,16 @@ static int HttpSvcHandleMsg(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 		return svc->run(svc, p);
 	}
 
-	assert(p->_inbuf->len() == 0);
-	int body_len = 0;
-
-	FILE *fp = fopen(req->uri_get(1).str+1, "rb");
-	if (fp != NULL) {
-		fseek(fp, 0, SEEK_END);
-		body_len = ftell(fp);
-		fseek(fp, 0, SEEK_SET);
-	}
-
-	if (body_len <= 0) {
-		resp->_parser.status_code = 404;
-		resp->uri_set(str_sz("File Invalid"), 1);
-	} else if (ARefsBuf::reserve(p->_inbuf, body_len, recv_bufsiz) < 0) {
-		resp->_parser.status_code = 501;
-		resp->uri_set(str_sz("Out Of Memory"), 1);
-	} else if (fread(p->_inbuf->next(), body_len, 1, fp) != 1) {
-		resp->_parser.status_code = 502;
-		resp->uri_set(str_sz("Read File Error"), 1);
-	} else {
-		p->_inbuf->push(body_len);
-		resp->body_set(p->_inbuf, p->_inbuf->_bgn, p->_inbuf->len());
-		p->_inbuf->pop(p->_inbuf->len());
-
-		resp->_parser.status_code = 200;
-		resp->uri_set(str_sz("OK"), 1);
-	}
-	reset_s(fp, NULL, fclose);
-	resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
-
-	return p->_iocom.do_input(&p->_iocom, &p->_iocom._outmsg);
+	resp->_parser.status_code = 400;
+	resp->uri_set(str_sz("Bad Request"), 1);
+	return p->svc_resp();
 }
 
 static int HttpSvcRecvMsg(HttpParserCompenont *c, int result)
 {
 	HttpConnection *p = container_of(c, HttpConnection, _http);
 	if (result >= 0)
-		result = HttpSvcHandleMsg(p, p->_req, p->_resp);
+		result = HttpSvcHandle(p, p->_req, p->_resp);
 	if (result < 0) {
 		TRACE("http connection down, result = %d.\n", result);
 		if (!RB_EMPTY_NODE(&p->_map_node)) {
@@ -194,13 +53,16 @@ static int HttpSvcRun(AService *svc, AObject *object)
 	addref_s(p->_svc, svc);
 
 	AEntityManager *em = svc->_sysmng->_all_entities;
+	p->_iocom._mutex = &em->_mutex;
+	p->_iocom._abort = false;
+
 	em->lock();
 	em->_push(em, p);
 	em->unlock();
 
 	ARefsBuf::reserve(p->_inbuf, 512, recv_bufsiz);
-	if (p->_req == NULL) p->_req = new HttpMsgImpl();
-	if (p->_resp == NULL) p->_resp = new HttpMsgImpl();
+	if (p->_req == NULL) p->_req = HCM.hm_create();
+	if (p->_resp == NULL) p->_resp = HCM.hm_create();
 
 	return p->_http.try_output(&p->_iocom, p->_req, &HttpSvcRecvMsg);
 }
@@ -209,14 +71,17 @@ static void HttpSvcStop(AService *svc)
 {
 	AEntityManager *em = svc->_sysmng->_all_entities;
 	HttpConnection *p = NULL;
+
 	em->lock();
 	AComponent *c = em->_upper_com(em, p, HttpParserCompenont::name(), -1);
 	while (c != NULL) {
 		p = container_of(c, HttpConnection, _http);
 		c = em->_next_com(em, p, HttpParserCompenont::name(), -1);
 
-		p->_iocom._io->shutdown();
-		em->_pop(em, p);
+		if ((p->_module == &HCM.module) && (p->_svc == svc)) {
+			p->_iocom._io->shutdown();
+			em->_pop(em, p);
+		}
 	}
 	em->unlock();
 }
@@ -225,7 +90,7 @@ static int HttpSvcCreate(AObject **object, AObject *parent, AOption *option)
 {
 	AService *svc = (AService*)*object;
 	svc->init();
-	svc->_peer_module = &HttpConnectionModule;
+	svc->_peer_module = &HCM.module;
 	svc->stop = &HttpSvcStop;
 	svc->run = &HttpSvcRun;
 	return 1;
@@ -244,9 +109,87 @@ AModule HttpServiceModule = {
 	NULL, NULL,
 	&HttpSvcCreate,
 	&HttpSvcRelease,
-	&HttpProbe,
+	HCM.module.probe,
 };
 static int reg_svc = AModuleRegister(&HttpServiceModule);
+
+
+//////////////////////////////////////////////////////////////////////////
+// Http File Service
+static int HttpFileSvcRun(AService *hfs, AObject *object)
+{
+	HttpConnection *p = (HttpConnection*)object;
+	HttpMsg *req = p->_req;
+	HttpMsg *resp = p->_resp;
+
+	assert(p->_inbuf->len() == 0);
+	int body_len = 0;
+
+	FILE *fp = fopen(req->uri_get(1).str+1, "rb");
+	if (fp != NULL) {
+		fseek(fp, 0, SEEK_END);
+		body_len = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+	}
+
+	if (body_len <= 0) {
+		resp->_parser.status_code = 404;
+		resp->uri_set(str_sz("File Not Found"), 1);
+	} else if (ARefsBuf::reserve(p->_inbuf, body_len, recv_bufsiz) < 0) {
+		resp->_parser.status_code = 500;
+		resp->uri_set(str_sz("Out Of Memory"), 1);
+	} else if (fread(p->_inbuf->next(), body_len, 1, fp) != 1) {
+		resp->_parser.status_code = 420;
+		resp->uri_set(str_sz("Read File Error"), 1);
+	} else {
+		p->_inbuf->push(body_len);
+		resp->body_set(p->_inbuf, p->_inbuf->_bgn, p->_inbuf->len());
+		p->_inbuf->pop(p->_inbuf->len());
+
+		resp->_parser.status_code = 200;
+		resp->uri_set(str_sz("OK"), 1);
+		resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
+	}
+	reset_s(fp, NULL, fclose);
+
+	return p->svc_resp();
+}
+
+static int HttpFileSvcCreate(AObject **object, AObject *parent, AOption *option)
+{
+	AService *hfs = (AService*)*object;
+	hfs->init();
+	hfs->run = &HttpFileSvcRun;
+	return 1;
+}
+
+static void HttpFileSvcRelease(AObject *object)
+{
+	AService *hfs = (AService*)object;
+	hfs->exit();
+}
+
+static int HttpFileSvcProbe(AObject *object, AObject *other, AMessage *msg)
+{
+	if ((object == NULL) || (other == NULL) || (other->_module != &HCM.module))
+		return -1;
+	AService *hfs = (AService*)object;
+	HttpConnection *p = (HttpConnection*)other;
+	if (hfs->_parent == p->_svc)
+		return 40;
+	return -1;
+}
+
+AModule HttpFileServiceModule = {
+	AService::class_name(),
+	"HttpFileService",
+	sizeof(AService),
+	NULL, NULL,
+	&HttpFileSvcCreate,
+	&HttpFileSvcRelease,
+	&HttpFileSvcProbe,
+};
+static int reg_hfs = AModuleRegister(&HttpFileServiceModule);
 
 #if 0
 static SessionManager sm;

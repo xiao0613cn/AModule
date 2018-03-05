@@ -115,7 +115,7 @@
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="../win32"
 				PreprocessorDefinitions="WIN32;NDEBUG"
-				RuntimeLibrary="0"
+				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				WarningLevel="4"
 				DebugInformationFormat="3"
