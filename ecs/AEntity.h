@@ -8,12 +8,13 @@ typedef struct AEntityManager AEntityManager;
 
 struct AComponent {
 	const char *_name;
-	int         _index;
+	int         _index : 16;
+	unsigned    _dynmng : 1;
 	AObject    *_object;
 	list_head   _entry;
 
 	void init(AObject *o, const char *n, int i = 0) {
-		_name = n; _index = i;
+		_name = n; _index = i; _dynmng = 0;
 		_object = o; _entry.init();
 	}
 	bool valid() {
@@ -37,14 +38,7 @@ struct AEntity : public AObject {
 		_com_list.init();
 		_com_count = 0;
 	}
-	void exit() {
-		while (!_com_list.empty()) {
-			AComponent *c = list_pop_front(&_com_list, AComponent, _entry);
-			assert(c->_object != this);
-			c->_object->release();
-		}
-		assert(RB_EMPTY_NODE(&_map_node));
-	}
+	void exit();
 	bool valid() { return !RB_EMPTY_NODE(&_map_node); }
 
 	bool _push(AComponent *c) {
@@ -103,12 +97,15 @@ struct AEntityManagerMethod {
 	AEntity*    (*_find)(AEntityManager *em, void *key);
 	AEntity*    (*_upper)(AEntityManager *em, void *key);
 	AEntity*    (*_next)(AEntityManager *em, AEntity *cur);
+	int         (*_upper_each)(AEntityManager *em, void *key, int(*func)(AEntity*,void*), void *p);
+	void        (*_clear)(AEntityManager *em);
+
 	AComponent* (*_upper_com)(AEntityManager *em, void *key, const char *com_name, int com_index);
 	AComponent* (*_next_com)(AEntityManager *em, AEntity *cur, const char *com_name, int com_index);
-	int         (*_upper_each)(AEntityManager *em, void *key, int(*func)(AEntity*,void*), void *p);
 	int         (*_upper_each_com)(AEntityManager *em, void *key, const char *com_name,
 	                               int(*func)(AComponent*,void*), void *p, int com_index);
-	void        (*_clear)(AEntityManager *em);
+	AComponent* (*_add_com)(AEntityManager *em, AEntity *e, AModule *com_module);
+	void        (*_del_com)(AEntityManager *em, AEntity *e, AComponent *c);
 };
 
 struct AEntityManager : public AEntityManagerMethod {
@@ -147,10 +144,19 @@ struct AEntityManager : public AEntityManagerMethod {
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 
 	template <typename TComponent>
-	int _next_each_com(AEntity *cur, int(*func)(TComponent*,void*), void *p, int com_index = -1) {
+	int _upper_each_com(AEntity *cur, int(*func)(TComponent*,void*), void *p, int com_index = -1) {
 		return _upper_each_com(this, cur, TComponent::name(), (int(*)(AComponent*,void*))func, com_index);
 	}
 };
+
+inline void AEntity::exit() {
+	while (!_com_list.empty()) {
+		AComponent *c = list_pop_front(&_com_list, AComponent, _entry);
+		assert(c->_dynmng);
+		_manager->_del_com(_manager, this, c);
+	}
+	assert(RB_EMPTY_NODE(&_map_node));
+}
 
 #if 0
 // outside component of entity, has self refcount

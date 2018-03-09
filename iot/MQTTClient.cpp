@@ -10,6 +10,24 @@
 #pragma comment(lib, "../bin/AModule.lib")
 #endif
 
+extern MqttModule MCM;
+
+static int mm_done_free(AMessage *msg, int result)
+{
+	MqttMsg *mm = (MqttMsg*)msg;
+	BUFFER_unbuild(&mm->buf);
+	free(mm);
+	return result;
+}
+
+static MqttMsg* mm_create()
+{
+	MqttMsg *mm = goarrary(MqttMsg, 1);
+	mm->mod = &MCM;
+	mm->done = &mm_done_free;
+	return mm;
+}
+
 struct MQTTClient : public AEntity {
 	enum Status {
 		Invalid = 0,
@@ -91,17 +109,18 @@ int MQTTClient::open(int result)
 		if (result < 0)
 			return result;
 
-		AOption *client_opt = _options->find("mqtt_client_options");
-		_mqtt._login.clientId = client_opt->getStr("clientId", "");
-		_mqtt._login.willTopic = client_opt->getStr("willTopic", NULL);
-		_mqtt._login.willMessage = client_opt->getStr("willMessage", NULL);
-		_mqtt._login.username = client_opt->getStr("username", NULL);
-		_mqtt._login.password = client_opt->getStr("password", NULL);
-		_mqtt._login.keepAliveInterval = (uint16_t)client_opt->getInt("keepAliveInterval", 10);
-		_mqtt._login.messageRetain = !!client_opt->getInt("messageRetain", false);
-		_mqtt._login.useCleanSession = !!client_opt->getInt("useCleanSession", true);
-		_mqtt._login.qualityOfServiceValue = (QOS_VALUE)client_opt->getInt("qos", DELIVER_AT_MOST_ONCE);
-
+		if (_mqtt._login.clientId == NULL) {
+			AOption *client_opt = _options->find("mqtt_client_options");
+			_mqtt._login.clientId = client_opt->getStr("clientId", "");
+			_mqtt._login.willTopic = client_opt->getStr("willTopic", NULL);
+			_mqtt._login.willMessage = client_opt->getStr("willMessage", NULL);
+			_mqtt._login.username = client_opt->getStr("username", NULL);
+			_mqtt._login.password = client_opt->getStr("password", NULL);
+			_mqtt._login.keepAliveInterval = (uint16_t)client_opt->getInt("keepAliveInterval", 10);
+			_mqtt._login.messageRetain = !!client_opt->getInt("messageRetain", false);
+			_mqtt._login.useCleanSession = !!client_opt->getInt("useCleanSession", true);
+			_mqtt._login.qualityOfServiceValue = (QOS_VALUE)client_opt->getInt("qos", DELIVER_AT_MOST_ONCE);
+		}
 		MQTT_BUFFER buf = { 0 };
 		if (mqtt_codec_connect(&buf, &_mqtt._login) == NULL)
 			return -EINVAL;
@@ -161,47 +180,60 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* h
 	TRACE("packet = %x, flags = %x.\n", packet, flags);
 
 	if (packet == CONNACK_TYPE) {
-		CONNECT_ACK *connack = (CONNECT_ACK*)packetTag;
-		if (connack->returnCode == CONNECTION_ACCEPTED)
+		CONNECT_ACK *conn_ack = (CONNECT_ACK*)packetTag;
+		if (conn_ack->returnCode == CONNECTION_ACCEPTED)
 			_status = Opened;
 		else
 			_status = LoginFailed;
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
 		return;
 	}
 	if (packet == PINGRESP_TYPE) {
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
 		return;
 	}
 
 	if (packet == PUBLISH_TYPE) {
 		MQTT_MESSAGE *msg = (MQTT_MESSAGE*)packetTag;
 		// TODO: dispath msg...
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
 
 		if (msg->qosInfo == DELIVER_AT_LEAST_ONCE) {
-			MqttMsg *reply = MqttMsg::create();
+			MqttMsg *reply = mm_create();
 			mqtt_codec_publishAck(&reply->buf, msg->packetId);
 			_mqtt.post(reply);
 		}
 		else if (msg->qosInfo == DELIVER_EXACTLY_ONCE) {
-			MqttMsg *reply = MqttMsg::create();
+			MqttMsg *reply = mm_create();
 			mqtt_codec_publishReceived(&reply->buf, msg->packetId);
 			_mqtt.post(reply);
 		}
 		return;
 	}
+	if (packet == PUBACK_TYPE) {
+		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		return;
+	}
 	if (packet == PUBREC_TYPE) {
 		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
-		MqttMsg *reply = MqttMsg::create();
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+
+		MqttMsg *reply = mm_create();
 		mqtt_codec_publishRelease(&reply->buf, publish_ack->packetId);
 		_mqtt.post(reply);
 		return;
 	}
 	if (packet == PUBREL_TYPE) {
 		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
-		MqttMsg *reply = MqttMsg::create();
+		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+
+		MqttMsg *reply = mm_create();
 		mqtt_codec_publishComplete(&reply->buf, publish_ack->packetId);
 		_mqtt.post(reply);
 		return;
 	}
+	_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
 }
 
 static int MQTTHeartMsgDone(AMessage *msg, int result)
@@ -224,7 +256,7 @@ static int MQTTHeart(AClientComponent *c)
 {
 	MQTTClient *mqtt = container_of(c, MQTTClient, _client);
 #if 0
-	MqttMsg *mm = MqttMsg::create();
+	MqttMsg *mm = mm_create();
 	mm->user = mqtt;
 	mm->done = &MQTTHeartMsgDone;
 	mqtt_codec_ping(&mm->buf);
@@ -309,6 +341,10 @@ static void MQTTPost(MqttComponent *c, AMessage *msg)
 	p->_iocom.post(msg);
 }
 
+static void on_msg_null(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag)
+{
+}
+
 static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 {
 	MQTTClient *mqtt = (MQTTClient*)*object;
@@ -322,6 +358,7 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 	mqtt->_client.abort = &MQTTAbort;
 	mqtt->_client.close = &MQTTClose;
 	mqtt->_iocom.on_output = &MQTTOutput;
+	mqtt->_mqtt.on_msg = &on_msg_null;
 	mqtt->_mqtt.do_post = &MQTTPost;
 	return 1;
 }
@@ -338,13 +375,25 @@ static void MQTTRelease(AObject *object)
 	mqtt->exit();
 }
 
-AModule MQTTClientModule = {
+MqttModule MCM = { {
 	"AEntity",
 	"MQTTClient",
 	sizeof(MQTTClient),
 	NULL, NULL,
 	&MQTTCreate,
 	&MQTTRelease,
+},
+	&mm_create, (void(*)(MqttMsg*))&free,
+
+	&BUFFER_pre_build, &BUFFER_build,
+	&BUFFER_unbuild,
+	&BUFFER_enlarge, &BUFFER_append, &BUFFER_prepend,
+
+	&mqtt_codec_init, &mqtt_codec_exit, &mqtt_codec_bytesReceived,
+	&mqtt_codec_connect, &mqtt_codec_disconnect,
+	&mqtt_codec_publish, &mqtt_codec_publishAck,
+	&mqtt_codec_publishReceived, &mqtt_codec_publishComplete, &mqtt_codec_publishRelease,
+	&mqtt_codec_ping, &mqtt_codec_subscribe, &mqtt_codec_unsubscribe,
 };
 
-static int reg_mqtt = AModuleRegister(&MQTTClientModule);
+static int reg_mqtt = AModuleRegister(&MCM.module);

@@ -53,10 +53,11 @@ struct HttpParserCompenont : public AComponent {
 	void exit2() {
 		_header_block.set(NULL, 0, 0);
 	}
-	int try_output(AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
+	int try_output(HttpConnectionModule *m, AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = done;
+		if (m == NULL)
+			m = AModule::find<HttpConnectionModule>("AEntity", "HttpConnection");
 
-		HttpConnectionModule *m = AModule::find<HttpConnectionModule>("AEntity", "HttpConnection");
 		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
 		c->on_output = m->iocom_output;
 		c->_outuser = this;

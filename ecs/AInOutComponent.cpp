@@ -77,10 +77,10 @@ static int _outmsg_done(AMessage *msg, int result)
 			result = c->on_output(c, result);
 			if (result == 0)
 				return 0;
-		}
-		if ((result < 0) || (result >= AMsgType_Class)) {
-			c->_object->release();
-			return result;
+			if ((result < 0) || (result >= AMsgType_Class)) {
+				c->_object->release();
+				return result;
+			}
 		}
 		result = ARefsBuf::reserve(c->_outbuf, 512, c->_outbuf->_size);
 		if (result >= 0) {

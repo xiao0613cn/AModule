@@ -64,7 +64,7 @@ static int HttpSvcRun(AService *svc, AObject *object)
 	if (p->_req == NULL) p->_req = HCM.hm_create();
 	if (p->_resp == NULL) p->_resp = HCM.hm_create();
 
-	return p->_http.try_output(&p->_iocom, p->_req, &HttpSvcRecvMsg);
+	return p->_http.try_output(&HCM, &p->_iocom, p->_req, &HttpSvcRecvMsg);
 }
 
 static void HttpSvcStop(AService *svc)

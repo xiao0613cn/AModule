@@ -120,6 +120,46 @@ static void EM_clear(AEntityManager *em)
 	}
 }
 
+struct EMComHead {
+	AEntityManager *_manager;
+	AEntity *_entity;
+	AModule *_module;
+};
+
+static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_module)
+{
+	EMComHead *h = (EMComHead*)malloc(sizeof(EMComHead) + com_module->object_size);
+	if (h == NULL)
+		return NULL;
+
+	h->_manager = em;
+	h->_entity = e;
+	h->_module = com_module;
+
+	AComponent *c = (AComponent*)(h + 1);
+	c->init(e, com_module->module_name);
+	c->_dynmng = 1;
+	e->_push(c);
+
+	if (com_module->create != NULL) {
+		int result = com_module->create((AObject**)&c, e, NULL);
+		if (result < 0) {
+			em->_del_com(em, e, c);
+			c = NULL;
+		}
+	}
+	return c;
+}
+
+static void EM_del_com(AEntityManager *em, AEntity *e, AComponent *c)
+{
+	EMComHead *h = (EMComHead*)((char*)c - sizeof(EMComHead));
+	assert(c->_dynmng && (h->_manager == em) && (h->_entity == e));
+
+	h->_module->release((AObject*)c);
+	free(h);
+}
+
 extern struct EM_m {
 	AModule module;
 	union {
@@ -153,10 +193,13 @@ static EM_m EM_default = { {
 	&EM_find,
 	&EM_upper,
 	&EM_next,
+	&EM_upper_each,
+	&EM_clear,
+
 	&EM_upper_com,
 	&EM_next_com,
-	&EM_upper_each,
 	&EM_upper_each_com,
-	&EM_clear,
+	&EM_add_com,
+	&EM_del_com,
 } };
 static int reg_mng = AModuleRegister(&EM_default.module);
