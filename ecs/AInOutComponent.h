@@ -16,6 +16,10 @@ struct AInOutModule {
 
 struct AInOutComponent : public AComponent {
 	static const char* name() { return "AInOutComponent"; }
+	static AInOutModule* Module() {
+		static AInOutModule* s_m = (AInOutModule*)AModuleFind(name(), name());
+		return s_m;
+	}
 
 	// implement by inner...
 	bool volatile    _abort;
@@ -40,7 +44,7 @@ struct AInOutComponent : public AComponent {
 		_io = NULL;
 		_abort = true; _queue.init(); _mutex = NULL;
 
-		AInOutModule *m = AModule::find<AInOutModule>(name(), name());
+		AInOutModule *m = Module();
 		_inmsg.done  = m->inmsg_done;
 		do_post      = m->do_post;
 		do_input     = m->do_input;

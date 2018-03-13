@@ -91,10 +91,25 @@ static int _outmsg_done(AMessage *msg, int result)
 	}
 }
 
+static int iocom_create(AObject **object, AObject *parent, AOption *option)
+{
+	AInOutComponent *c = (AInOutComponent*)*object;
+	c->init2();
+	return 1;
+}
+
+static void iocom_release(AObject *object)
+{
+	AInOutComponent *c = (AInOutComponent*)object;
+	c->exit2();
+}
+
 AInOutModule InOutModule = { {
 	AInOutComponent::name(),
 	AInOutComponent::name(),
-	0, NULL, NULL,
+	sizeof(AInOutComponent), NULL, NULL,
+	&iocom_create,
+	&iocom_release,
 },
 	&_do_post,
 	&_do_input,

@@ -31,6 +31,11 @@ struct AModule {
 		static TModule *s_m = (TModule*)AModuleFind(class_name, module_name);
 		return s_m;
 	}
+	template <typename TModule>
+	static TModule* get() {
+		static TModule *s_m = (TModule*)AModuleFind(TModule::class_name(), TModule::module_name());
+		return s_m;
+	}
 };
 
 AMODULE_API int

@@ -302,6 +302,10 @@
 				RelativePath=".\test2.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\test_add_com.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Í·ÎÄ¼þ"

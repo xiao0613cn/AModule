@@ -141,12 +141,10 @@ static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_modul
 	c->_dynmng = 1;
 	e->_push(c);
 
-	if (com_module->create != NULL) {
-		int result = com_module->create((AObject**)&c, e, NULL);
-		if (result < 0) {
-			em->_del_com(em, e, c);
-			c = NULL;
-		}
+	int result = com_module->create((AObject**)&c, e, NULL);
+	if (result < 0) {
+		em->_del_com(em, e, c);
+		c = NULL;
 	}
 	return c;
 }

@@ -236,9 +236,20 @@ static int check_all(list_head *results, DWORD cur_tick)
 	return count;
 }
 
+static int client_com_create(AObject **object, AObject *parent, AOption *option)
+{
+	AClientComponent *c = (AClientComponent*)*object;
+	c->init2();
+	return 1;
+}
+
 ASystem AClientSystem = { {
 	ASystem::class_name(),
-	"AClientSystem", },
+	"AClientSystem",
+	sizeof(AClientComponent),
+	NULL, NULL,
+	&client_com_create, NULL,
+},
 	&reg_client,
 	&unreg_client,
 	&clear_all,

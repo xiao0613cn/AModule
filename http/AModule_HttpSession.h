@@ -9,6 +9,9 @@
 #define recv_bufsiz     64*1024
 
 struct HttpConnectionModule {
+	static const char* class_name() { return "AEntity"; }
+	static const char* module_name() { return "HttpConnection"; }
+
 	AModule module;
 	int (*iocom_output)(AInOutComponent *c, int result);
 	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
@@ -17,6 +20,8 @@ struct HttpConnectionModule {
 	void     (*hm_release)(HttpMsg *hm);
 	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
 	int      (*hm_decode)(struct HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&buf);
+
+	const str_t *method_str;
 };
 
 struct HttpParserCompenont : public AComponent {
@@ -56,7 +61,7 @@ struct HttpParserCompenont : public AComponent {
 	int try_output(HttpConnectionModule *m, AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = done;
 		if (m == NULL)
-			m = AModule::find<HttpConnectionModule>("AEntity", "HttpConnection");
+			m = AModule::get<HttpConnectionModule>();
 
 		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
 		c->on_output = m->iocom_output;

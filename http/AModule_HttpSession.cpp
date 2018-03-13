@@ -243,6 +243,9 @@ static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int
 struct HttpMsgImpl : public HttpMsg {
 	typedef std::map<std::string, std::string> KVMap;
 	KVMap   _maps[KV_MaxTypes];
+	unsigned _parsed_url : 1;
+	unsigned _parsed_param : 1;
+	unsigned _parsed_cookie : 1;
 
 	HttpMsgImpl() {
 		_reset = &_reset_;
@@ -252,6 +255,7 @@ struct HttpMsgImpl : public HttpMsg {
 		_kv_set = &_kv_set_;
 		_kv_next = &_kv_next_;
 		_body_buf = NULL;
+		_parsed_url = _parsed_param = _parsed_cookie = 0;
 	}
 	~HttpMsgImpl() {
 		release_s(_body_buf);
@@ -264,12 +268,21 @@ struct HttpMsgImpl : public HttpMsg {
 			me->_maps[type].clear();
 		}
 		release_s(me->_body_buf);
+		me->_parsed_url = me->_parsed_param = me->_parsed_cookie = 0;
 	}
 	static int _kv_num_(HttpMsg *p, int type) {
 		HttpMsgImpl *me = (HttpMsgImpl*)p;
 		if (type < 0 || type >= KV_MaxTypes)
 			return -1;
 
+		if ((type == KV_Param) && (me->_parsed_param == 0)) {
+			_url_parse(me);
+			me->_parsed_param = 1;
+		}
+		//if ((type == KV_Cookie) && !_parsed_cookie)) {
+		//	_cookie_parse(me);
+		//	_parsed_cookie = 1;
+		//};
 		return me->_maps[type].size();
 	}
 	static str_t _kv_next_(HttpMsg *p, int type, str_t f, str_t *v) {
@@ -319,6 +332,36 @@ struct HttpMsgImpl : public HttpMsg {
 			me->_maps[type][std::string(f.str, f.len)] = std::string(v.str, v.len);
 		}
 		return me->_maps[type].size();
+	}
+	static int _url_parse(HttpMsgImpl *me) {
+		str_t s = me->uri_get(1);
+		http_parser_url u; http_parser_url_init(&u);
+		if (http_parser_parse_url(s.str, s.len, 1, &u) != 0)
+			return -2;
+
+		if (u.field_set & UF_PATH) {
+			me->uri_set(str_t(s.str+u.field_data[UF_PATH].off, u.field_data[UF_PATH].len), 0);
+		}
+		if (u.field_set & UF_QUERY) {
+			const char *end = s.str + u.field_data[UF_QUERY].off + u.field_data[UF_QUERY].len;
+			str_t f(s.str+u.field_data[UF_QUERY].off, u.field_data[UF_QUERY].len);
+			while (f.len != 0) {
+				const char *sep = strnchr(f.str, '&', f.len);
+				const char *sep2 = NULL;
+				if (sep != NULL)
+					sep2 = strnchr(f.str, '=', sep-f.str);
+				else
+					sep = end;
+				if (sep2 != NULL) {
+					me->param_set(str_t(f.str, sep2-f.str), str_t(sep2+1, sep-sep2-1));
+				} else {
+					me->param_set(str_t(f.str, sep-f.str), str_t());
+				}
+				if (sep == end)
+					break;
+				f = str_t(sep+1, end-sep-1);
+			}
+		}
 	}
 };
 static HttpMsg* hm_create() {
@@ -400,7 +443,7 @@ static void HttpConnectionRelease(AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
 	reset_s(p->_resp, NULL, hm_release);
-	reset_nif(p->_req, NULL, hm_release);
+	reset_s(p->_req, NULL, hm_release);
 	release_s(p->_svc);
 
 	release_s(p->_inbuf);
@@ -429,8 +472,8 @@ static int HttpProbe(AObject *object, AObject *other, AMessage *msg)
 }
 
 HttpConnectionModule HCM = { {
-	"AEntity",
-	"HttpConnection",
+	HttpConnectionModule::class_name(),
+	HttpConnectionModule::module_name(),
 	sizeof(HttpConnection),
 	NULL, NULL,
 	&HttpConnectionCreate,
@@ -443,5 +486,6 @@ HttpConnectionModule HCM = { {
 	&hm_release,
 	&hm_encode,
 	&hm_decode,
+	HttpMethodStrs,
 };
 static int reg_conn = AModuleRegister(&HCM.module);
