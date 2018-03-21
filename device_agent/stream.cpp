@@ -55,13 +55,6 @@ static void SM_exit(int inited)
 	}
 }
 
-static int strm_pkt_null(AStreamComponent *s, AVPacket *pkt)
-{
-	AModule *m = s->_object->_module;
-	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
-	return -ENOSYS;
-}
-
 static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 {
 	AStreamComponent *s = (AStreamComponent*)*object;
@@ -82,12 +75,12 @@ static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 	s->_video_pars.codec_type = s->_audio_pars.codec_type = AVMEDIA_TYPE_UNKNOWN;
 	s->_video_pars.codec_id = s->_audio_pars.codec_id = AV_CODEC_ID_NONE;
 	s->_video_pars.codec_tag = s->_audio_pars.codec_tag = 0;
+	s->_video_extra_size = s->_audio_extra_size = 0;
 
 	s->_plugin_mutex = NULL;
 	s->_plugin_list.init();
 	s->_plugin_count = 0;
-	s->on_recv = SM.on_recv;
-	s->send_to = &strm_pkt_null;
+	s->on_recv = SM.dispatch_avpkt;
 
 	s->_cur_speed = 1.0;
 	s->set_speed = NULL;
@@ -100,28 +93,42 @@ static void strm_com_release(AObject *object)
 {
 	AStreamComponent *s = (AStreamComponent*)object;
 	while (!s->_plugin_list.empty()) {
-		AStreamPluginComponent *p = AStreamPluginComponent::first(s->_plugin_list);
-		p->_plugin_entry.leave();
+		AStreamComponent *p = s->plugin_first();
+		p->_plugin_list.leave();
 
 		p->_object->release();
+		s->_plugin_count--;
 	}
+	assert(s->_plugin_count == 0);
 }
 
-static int strm_com_recv_pkt(AStreamComponent *s, AVPacket *pkt)
+static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 {
 	int count = 0;
 	s->plugin_lock();
 
-	AStreamPluginComponent *p = AStreamPluginComponent::first(s->_plugin_list);
-	while (&p->_plugin_entry != &s->_plugin_list)
+	AStreamComponent *p = s->plugin_first();
+	while (&p->_plugin_list != &s->_plugin_list)
 	{
-		AStreamPluginComponent *next = p->next();
+		AStreamComponent *next = p->plugin_next();
+		if (!p->video_has_keyframe()) {
+			if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
+				p = next;
+				continue;
+			}
+			p->video_has_keyframe() = TRUE;
+		}
 
 		int result = p->on_recv(p, pkt);
 		if (result < 0) {
-			p->_plugin_entry.leave();
+			p->_plugin_list.leave();
 			p->_object->release();
-		} else {
+			s->_plugin_count--;
+		}
+		else if (result == 0) {
+			p->video_has_keyframe() = FALSE;
+		}
+		else {
 			++count;
 		}
 		p = next;
@@ -134,11 +141,37 @@ static AStreamComponent* strm_com_find(AEntityManager *em, const char *stream_ke
 {
 	AStreamComponent *s; em->upper_com(&s, NULL);
 	while (s != NULL) {
-		if (strcmp(s->_stream_key, stream_key) == 0)
+		if ((strcmp(s->_stream_key, stream_key) == 0) && !s->is_plugin())
 			return s;
 		s = em->next_com(s);
 	}
 	return NULL;
+}
+
+static int strm_com_save_pars(AStreamComponent *s, AVCodecParameters *par)
+{
+	AVCodecParameters *dest; int extra_bufsiz;
+	switch (par->codec_type)
+	{
+	case AVMEDIA_TYPE_VIDEO:
+		dest = &s->_video_pars;
+		extra_bufsiz = s->_video_extra_bufsiz;
+		break;
+	case AVMEDIA_TYPE_AUDIO:
+		dest = &s->_audio_pars;
+		extra_bufsiz = s->_audio_extra_bufsiz;
+		break;
+	default: return -1;
+	}
+
+	uint8_t *extra_data = dest->extradata;
+	extra_bufsiz = min(extra_bufsiz, par->extradata_size);
+
+	memcpy(dest, par, sizeof(*par));
+	memcpy(extra_data, par->extradata, extra_bufsiz);
+	dest->extradata = extra_data;
+	dest->extradata_size = extra_bufsiz;
+	return 1;
 }
 
 static void avpkt_init(AVPacket *pkt)
@@ -156,8 +189,8 @@ AStreamModule SM = { {
 	&strm_com_create,
 	&strm_com_release,
 },
-	&strm_com_recv_pkt,
 	&strm_com_find,
+	&strm_com_dispatch_avpkt,
 	&avpkt_init,
 };
 static int reg_sm = AModuleRegister(&SM.module);

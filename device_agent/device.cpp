@@ -18,6 +18,7 @@ static int DM_push(ADeviceComponent *dev, AEventManager *ev)
 
 	old_dev = rb_insert_ADeviceComponent(&DM.dev_map, dev, dev->_dev_id);
 	assert(old_dev == NULL);
+	dev->_object->addref();
 	return 1;
 }
 
@@ -30,6 +31,7 @@ static int DM_pop(ADeviceComponent *dev, AEventManager *ev)
 	RB_CLEAR_NODE(&dev->_devmap_node);
 	if (ev != NULL)
 		ev->emit_by_name(ev, "on_dev_pop", dev);
+	dev->_object->release();
 	return 1;
 }
 
