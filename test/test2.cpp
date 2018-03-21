@@ -1,7 +1,7 @@
 #include "../stdafx.h"
 #include "../base/AModule_API.h"
 #ifdef _WIN32
-#pragma comment(lib, "..\\bin\\AModule.lib")
+#pragma comment(lib, "../bin_win32/AModule.lib")
 #endif
 #include "../base/spinlock.h"
 #include "../ecs/AEntity.h"

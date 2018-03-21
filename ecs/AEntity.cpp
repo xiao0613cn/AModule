@@ -137,7 +137,7 @@ static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_modul
 	h->_module = com_module;
 
 	AComponent *c = (AComponent*)(h + 1);
-	c->init(e, com_module->module_name);
+	c->init(com_module->module_name);
 	c->_dynmng = 1;
 	e->_push(c);
 

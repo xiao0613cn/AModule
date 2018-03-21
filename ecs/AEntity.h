@@ -13,9 +13,9 @@ struct AComponent {
 	AObject    *_object;
 	list_head   _entry;
 
-	void init(AObject *o, const char *n, int i = 0) {
+	void init(const char *n, int i = 0) {
 		_name = n; _index = i; _dynmng = 0;
-		_object = o; _entry.init();
+		_object = NULL; _entry.init();
 	}
 	bool valid() {
 		return !_entry.empty();
@@ -42,10 +42,11 @@ struct AEntity : public AObject {
 	bool valid() { return !RB_EMPTY_NODE(&_map_node); }
 
 	bool _push(AComponent *c) {
-		bool valid = c->_entry.empty();
+		bool valid = ((c->_object == NULL) && c->_entry.empty());
 		if (valid) {
 			//c->_self->addref();
 			//this->_self->addref();
+			c->_object = this;
 			_com_list.push_back(&c->_entry);
 			++_com_count;
 		} else {
@@ -55,12 +56,12 @@ struct AEntity : public AObject {
 	}
 	template <typename TComponent>
 	void _init_push(TComponent *c, int i = 0) {
-		c->init(this, TComponent::name(), i);
+		c->init(TComponent::name(), i);
 		c->init2();
 		_push(c);
 	}
 	bool _pop(AComponent *c) {
-		bool valid = !c->_entry.empty();
+		bool valid = ((c->_object == this) && !c->_entry.empty());
 		if (valid) {
 			//c->_self->release();
 			c->_entry.leave();
@@ -144,8 +145,16 @@ struct AEntityManager : public AEntityManagerMethod {
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 
 	template <typename TComponent>
-	int _upper_each_com(AEntity *cur, int(*func)(TComponent*,void*), void *p, int com_index = -1) {
-		return _upper_each_com(this, cur, TComponent::name(), (int(*)(AComponent*,void*))func, com_index);
+	TComponent* upper_com(TComponent **c, void *key, int com_index = -1) {
+		return *c = (TComponent*)_upper_com(this, key, TComponent::name(), com_index);
+	}
+	template <typename TComponent>
+	TComponent* next_com(TComponent *c, int com_index = -1) {
+		return (TComponent*)_next_com(this, (AEntity*)c->_object, TComponent::name(), com_index);
+	}
+	template <typename TComponent>
+	TComponent* add_com(AEntity *e) {
+		return (TComponent*)_add_com(this, e, (AModule*)TComponent::Module());
 	}
 };
 

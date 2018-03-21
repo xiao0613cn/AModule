@@ -5,7 +5,7 @@
 #include "AModule_HttpSession.h"
 
 #ifdef _WIN32
-#pragma comment(lib, "../bin/AModule.lib")
+#pragma comment(lib, "../bin_win32/AModule.lib")
 #endif
 
 extern HttpConnectionModule HCM;

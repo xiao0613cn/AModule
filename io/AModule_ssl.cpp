@@ -7,7 +7,7 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #ifdef _WIN32
-#pragma comment(lib, "..\\bin\\AModule.lib")
+#pragma comment(lib, "..\\bin_win32\\AModule.lib")
 #pragma comment(lib, "..\\win32\\openssl\\libssl32MT.lib")
 #pragma comment(lib, "..\\win32\\openssl\\libcrypto32MT.lib")
 #endif

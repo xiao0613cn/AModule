@@ -168,7 +168,7 @@
 		</Configuration>
 		<Configuration
 			Name="Debug_DLL|Win32"
-			OutputDirectory="$(SolutionDir)bin"
+			OutputDirectory="$(SolutionDir)bin_$(PlatformName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			CharacterSet="1"
@@ -241,7 +241,7 @@
 		</Configuration>
 		<Configuration
 			Name="Release_DLL|Win32"
-			OutputDirectory="$(SolutionDir)bin"
+			OutputDirectory="$(SolutionDir)bin_$(PlatformName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			CharacterSet="1"
@@ -867,15 +867,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\crypto\md5.h"
-				>
-			</File>
-			<File
 				RelativePath=".\PVDClient\md5.h"
 				>
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libavutil\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\crypto\md5.h"
 				>
 			</File>
 			<File
@@ -1007,10 +1007,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ffmpeg\libavcodec\version.h"
-				>
-			</File>
-			<File
 				RelativePath=".\ffmpeg\libavutil\version.h"
 				>
 			</File>
@@ -1020,6 +1016,10 @@
 			</File>
 			<File
 				RelativePath=".\ffmpeg\libswscale\version.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ffmpeg\libavcodec\version.h"
 				>
 			</File>
 			<File

@@ -7,7 +7,7 @@
 #include "mqtt_message.h"
 #include "MQTTComponent.h"
 #ifdef _WIN32
-#pragma comment(lib, "../bin/AModule.lib")
+#pragma comment(lib, "../bin_win32/AModule.lib")
 #endif
 
 extern MqttModule MCM;

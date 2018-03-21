@@ -1,8 +1,6 @@
 #include "../stdafx.h"
 #include "../base/AModule_API.h"
-#ifdef _WIN32
-#pragma comment(lib, "..\\bin\\AModule.lib")
-#endif
+
 #include "../base/spinlock.h"
 #include "../ecs/AEntity.h"
 #include "../ecs/AEvent.h"
@@ -22,8 +20,8 @@ static int test_com_create(AObject **object, AObject *parent, AOption *option)
 {
 	TestCom *e = (TestCom*)*object;
 	e->init();
-	e->_http.init(e, e->_http.name()); e->_push(&e->_http);
-	e->_mqtt.init(e, e->_mqtt.name()); e->_push(&e->_mqtt);
+	e->_http.init(e->_http.name()); e->_push(&e->_http);
+	e->_mqtt.init(e->_mqtt.name()); e->_push(&e->_mqtt);
 	return 1;
 }
 
@@ -33,6 +31,18 @@ static void test_com_release(AObject *object)
 	e->_pop(&e->_http);
 	e->_pop(&e->_mqtt);
 	e->exit();
+}
+
+static int test_com_open(AClientComponent *c)
+{
+	TestCom *e = (TestCom*)c->_object;
+	return -1;
+}
+
+static int test_com_close(AClientComponent *c)
+{
+	TestCom *e = (TestCom*)c->_object;
+	return -1;
 }
 
 static AModule test_com_module = {
@@ -51,8 +61,11 @@ CU_TEST(test_add_com)
 	AObject::create2(&e, NULL, NULL, &test_com_module);
 
 	AEntityManager *em = AEntityManager::get();
-	em->_add_com(em, e, &AInOutComponent::Module()->module);
-	em->_add_com(em, e, AClientComponent::Module());
+	AInOutComponent *c1 = em->add_com<AInOutComponent>(e);
+	AClientComponent *c2 = em->add_com<AClientComponent>(e);
+	c2->open = &test_com_open;
+	c2->close = &test_com_close;
+	c2->_owner_thread = true;
 
 	em->lock();
 	em->_push(em, e);

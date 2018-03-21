@@ -219,8 +219,8 @@ InterlockedExchange(long volatile *count, long value) {
 
 //////////////////////////////////////////////////////////////////////////
 typedef struct WinEvent {
-	int  signal_state : 1;
-	int  manual_reset : 1;
+	unsigned int    signal_state : 1;
+	unsigned int    manual_reset : 1;
 	pthread_mutex_t mutex;
 	pthread_cond_t  cond;
 } WinEvent;

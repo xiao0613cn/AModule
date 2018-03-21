@@ -27,11 +27,6 @@ struct AModule {
 		return s_m;
 	}
 	template <typename TModule>
-	static TModule* find(const char *class_name, const char *module_name) {
-		static TModule *s_m = (TModule*)AModuleFind(class_name, module_name);
-		return s_m;
-	}
-	template <typename TModule>
 	static TModule* get() {
 		static TModule *s_m = (TModule*)AModuleFind(TModule::class_name(), TModule::module_name());
 		return s_m;

@@ -103,7 +103,7 @@ static ASystem::Result* client_check(AEntity *e, DWORD cur_tick)
 	return check_one(c, cur_tick);
 }
 
-static int client_run(ASystem::Result *r, int result)
+static int client_run_internal(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
 	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
@@ -146,12 +146,13 @@ static int client_run(ASystem::Result *r, int result)
 			c->_main_tick = GetTickCount();
 			assert(c->_check_heart == AClientComponent::HeartCheckDone);
 			c->_check_heart = AClientComponent::HeartNone;
-		} else {
-			c->_main_abort = true;
-			if (c->abort) c->abort(c);
-			c->_status = AClientComponent::Closing;
+			break;
 		}
-		break;
+		c->_main_abort = true;
+		if (c->abort) c->abort(c);
+		c->_status = AClientComponent::Closing;
+		if (c->_busy_count != 1)
+			break;
 
 	case AClientComponent::Closing:
 		c->_status = AClientComponent::Closed;
@@ -170,6 +171,31 @@ static int client_run(ASystem::Result *r, int result)
 	r->status = ASystem::NotNeed;
 	c->use(-1);
 	c->_object->release();
+	return result;
+}
+
+static void* client_run_thread(void *p)
+{
+	ASystem::Result *r = (ASystem::Result*)p;
+	client_run_internal(r, 0);
+	return NULL;
+}
+
+static int client_run(ASystem::Result *r, int result)
+{
+	AClientComponent *c = container_of(r, AClientComponent, _run_result);
+	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
+		c->_object->_module->module_name, c->_object, c->_object->_refcount,
+		c->_status, c->_busy_count, result);
+
+	if (c->_owner_thread
+	 && ((c->_status == AClientComponent::Invalid) || (c->_status == AClientComponent::Closing)))
+	{
+		assert(result == 0);
+		pthread_post(r, &client_run_thread);
+	} else {
+		result = client_run_internal(r, result);
+	}
 	return result;
 }
 
@@ -236,16 +262,33 @@ static int check_all(list_head *results, DWORD cur_tick)
 	return count;
 }
 
+static int client_com_null(AClientComponent *c)
+{
+	AModule *m = c->_object->_module;
+	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
+	return -ENOSYS;
+}
+
 static int client_com_create(AObject **object, AObject *parent, AOption *option)
 {
 	AClientComponent *c = (AClientComponent*)*object;
 	c->init2();
+	c->_tick_reopen = option->getInt("tick_reopen", c->_tick_reopen);
+	c->_tick_heart = option->getInt("tick_heart", c->_tick_heart);
+	c->_tick_abort = option->getInt("tick_abort", c->_tick_abort);
+	c->_owner_thread = !!option->getInt("owner_thread", c->_owner_thread);
+	c->_open_heart = !!option->getInt("open_heart", c->_open_heart);
+	c->_auto_reopen = !!option->getInt("auto_reopen", c->_auto_reopen);
+	c->open = &client_com_null;
+	c->heart = &client_com_null;
+	c->abort = &client_com_null;
+	c->close = &client_com_null;
 	return 1;
 }
 
 ASystem AClientSystem = { {
 	ASystem::class_name(),
-	"AClientSystem",
+	AClientComponent::name(),
 	sizeof(AClientComponent),
 	NULL, NULL,
 	&client_com_create, NULL,
