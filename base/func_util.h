@@ -43,6 +43,10 @@ memzero(AType &stru) {
 }
 
 
+#ifndef feq
+#define feq(a, b)  (fabs(a-b) < 0.000001)
+#endif
+
 #define goarrary(type, count) (type*)calloc(count, sizeof(type))
 #define gomake(type)          (type*)malloc(sizeof(type))
 

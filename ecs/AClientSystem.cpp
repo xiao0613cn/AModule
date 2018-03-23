@@ -97,8 +97,8 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 
 static ASystem::Result* client_check(AEntity *e, DWORD cur_tick)
 {
-	AClientComponent *c; e->_get(&c);
-	if (c == NULL)
+	AClientComponent *c;
+	if (e->get(&c) == NULL)
 		return NULL; //NotNeed;
 	return check_one(c, cur_tick);
 }
@@ -184,10 +184,6 @@ static void* client_run_thread(void *p)
 static int client_run(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
-	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
-		c->_object->_module->module_name, c->_object, c->_object->_refcount,
-		c->_status, c->_busy_count, result);
-
 	if (c->_owner_thread
 	 && ((c->_status == AClientComponent::Invalid) || (c->_status == AClientComponent::Closing)))
 	{
@@ -217,8 +213,8 @@ static LIST_HEAD(g_com_list);
 
 static int reg_client(AEntity *e)
 {
-	AClientComponent *c; e->_get(&c);
-	if ((c == NULL) || !c->_sys_node.empty())
+	AClientComponent *c;
+	if ((e->get(&c) == NULL) || !c->_sys_node.empty())
 		return 0;
 	c->_object->addref();
 	g_com_list.push_back(&c->_sys_node);
@@ -227,8 +223,8 @@ static int reg_client(AEntity *e)
 
 static int unreg_client(AEntity *e)
 {
-	AClientComponent *c; e->_get(&c);
-	if ((c == NULL) || c->_sys_node.empty())
+	AClientComponent *c;
+	if ((e->get(&c) == NULL) || c->_sys_node.empty())
 		return 0;
 	c->_sys_node.leave();
 	c->_object->release();
@@ -273,12 +269,14 @@ static int client_com_create(AObject **object, AObject *parent, AOption *option)
 {
 	AClientComponent *c = (AClientComponent*)*object;
 	c->init2();
-	c->_tick_reopen = option->getInt("tick_reopen", c->_tick_reopen);
-	c->_tick_heart = option->getInt("tick_heart", c->_tick_heart);
-	c->_tick_abort = option->getInt("tick_abort", c->_tick_abort);
-	c->_owner_thread = !!option->getInt("owner_thread", c->_owner_thread);
-	c->_open_heart = !!option->getInt("open_heart", c->_open_heart);
-	c->_auto_reopen = !!option->getInt("auto_reopen", c->_auto_reopen);
+	if (option != NULL) {
+		c->_tick_reopen = option->getInt("tick_reopen", c->_tick_reopen);
+		c->_tick_heart = option->getInt("tick_heart", c->_tick_heart);
+		c->_tick_abort = option->getInt("tick_abort", c->_tick_abort);
+		c->_owner_thread = !!option->getInt("owner_thread", c->_owner_thread);
+		c->_open_heart = !!option->getInt("open_heart", c->_open_heart);
+		c->_auto_reopen = !!option->getInt("auto_reopen", c->_auto_reopen);
+	}
 	c->open = &client_com_null;
 	c->heart = &client_com_null;
 	c->abort = &client_com_null;

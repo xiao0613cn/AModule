@@ -189,8 +189,8 @@ static int on_event(const char *name, bool preproc, void *p)
 	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
 		name, c->_object->_module->module_name, c->_object, c, preproc);
 
-	MqttComponent *mqtt; c->_other(&mqtt);
-	if (mqtt != NULL) {
+	MqttComponent *mqtt;
+	if (c->other(&mqtt) != NULL) {
 		TRACE("this is a mqtt event...\n");
 	}
 	return 1;
@@ -215,7 +215,7 @@ CU_TEST(test_pvd)
 	AEntity *e = NULL;
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
-	AClientComponent *c; e->_get(&c);
+	AClientComponent *c; e->get(&c);
 
 	ASystemManager *sm = ASystemManager::get();
 	AEventManager *em = sm->_event_manager;
@@ -246,7 +246,7 @@ CU_TEST(test_mqtt)
 	int result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
 
-	AClientComponent *c; mqtt->_get(&c);
+	AClientComponent *c; mqtt->get(&c);
 	ASystemManager *sm = ASystemManager::get();
 	AEventManager *em = sm->_event_manager;
 	em->lock();
@@ -273,6 +273,7 @@ int main()
 	dlload(NULL, "io_openssl", FALSE);
 	dlload(NULL, "service_http", FALSE);
 	dlload(NULL, "mqtt_client", FALSE);
+	dlload(NULL, "device_agent", FALSE);
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 

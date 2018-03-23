@@ -42,15 +42,15 @@ struct AEventManagerMethod {
 	// event by name
 	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);
 	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r);
-	int  (*emit_by_name)(AEventManager *em, const char *name, void *p);
-	int  (*clear_sub_by_name)(AEventManager *em);
+	int  (*emit_by_name)(AEventManager *em, const char *name, void *p); // include lock(), unlock()
+	int  (*clear_sub_by_name)(AEventManager *em);                       // include lock(), unlock()
 	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f);
 
 	// event by index
 	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);
 	bool (*_unsub_by_index)(AEventManager *em, AReceiver *r);
-	int  (*emit_by_index)(AEventManager *em, int64_t index, void *p);
-	int  (*clear_sub_by_index)(AEventManager *em);
+	int  (*emit_by_index)(AEventManager *em, int64_t index, void *p); // include lock(), unlock()
+	int  (*clear_sub_by_index)(AEventManager *em);                    // include lock(), unlock()
 };
 
 struct AEventManager : public AEventManagerMethod {

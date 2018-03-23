@@ -429,8 +429,8 @@ static int HttpConnectionCreate(AObject **object, AObject *parent, AOption *opti
 {
 	HttpConnection *p = (HttpConnection*)*object;
 	p->init();
-	p->_init_push(&p->_http);
-	p->_init_push(&p->_iocom); p->_iocom.do_input = &HttpConnectionInput;
+	p->init_push(&p->_http);
+	p->init_push(&p->_iocom); p->_iocom.do_input = &HttpConnectionInput;
 
 	p->_svc = NULL;
 	p->_inbuf = NULL;
@@ -447,8 +447,8 @@ static void HttpConnectionRelease(AObject *object)
 	release_s(p->_svc);
 
 	release_s(p->_inbuf);
-	p->_pop_exit(&p->_http);
-	p->_pop_exit(&p->_iocom);
+	p->pop_exit(&p->_http);
+	p->pop_exit(&p->_iocom);
 	p->exit();
 }
 

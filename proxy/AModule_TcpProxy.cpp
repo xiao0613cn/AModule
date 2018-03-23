@@ -107,7 +107,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		if (result < 0)
 			break;
 
-		AInOutComponent *c; e->_get(&c);
+		AInOutComponent *c; e->get(&c);
 		assert(c != NULL);
 		release_s(c->_io); c->_io = client->io; client->io = NULL;
 		release_s(c->_outbuf); c->_outbuf = buf;

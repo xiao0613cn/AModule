@@ -18,8 +18,7 @@ typedef struct WaitQueue
 } WaitQueue;
 
 static inline void
-WQ_Init(WaitQueue *wq)
-{
+WQ_Init(WaitQueue *wq) {
 	wq->count = 0;
 	INIT_LIST_HEAD(&wq->queue);
 	pthread_mutex_init(&wq->mutex, NULL);
@@ -27,16 +26,14 @@ WQ_Init(WaitQueue *wq)
 }
 
 static inline void
-WQ_Uninit(WaitQueue *wq)
-{
+WQ_Uninit(WaitQueue *wq) {
 	assert(list_empty(&wq->queue));
 	pthread_mutex_destroy(&wq->mutex);
 	pthread_cond_destroy(&wq->cond);
 }
 
 static inline BOOL
-WQ_Push(WaitQueue *wq, struct list_head *node, BOOL signal)
-{
+WQ_Push(WaitQueue *wq, struct list_head *node, BOOL signal) {
 	pthread_mutex_lock(&wq->mutex);
 	BOOL first = list_empty(&wq->queue);
 	wq->count++;
@@ -50,8 +47,7 @@ WQ_Push(WaitQueue *wq, struct list_head *node, BOOL signal)
 }
 
 static inline struct list_head*
-WQ_Pop(WaitQueue *wq, DWORD msec)
-{
+WQ_Pop(WaitQueue *wq, DWORD msec) {
 	struct list_head *node = NULL;
 	pthread_mutex_lock(&wq->mutex);
 	if (list_empty(&wq->queue)) {

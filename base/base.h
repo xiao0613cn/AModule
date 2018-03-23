@@ -102,8 +102,14 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 		tm_fmt" %4d | %s():\t", tm_args(tm), l, f);
 
 	va_list ap; va_start(ap, fmt);
-	outpos += vsnprintf(outbuf+outpos, sizeof(outbuf)-outpos, fmt, ap);
+	int len = vsnprintf(outbuf+outpos, sizeof(outbuf)-outpos, fmt, ap);
 	va_end(ap);
+	if (len < 0) {
+		outpos = BUFSIZ-1;
+		outbuf[outpos] = '\0';
+	} else {
+		outpos += len;
+	}
 
 #ifdef _WIN32
 	OutputDebugStringA(outbuf);

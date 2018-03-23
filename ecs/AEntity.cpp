@@ -62,7 +62,7 @@ static AComponent* EM_upper_com(AEntityManager *em, void *key, const char *com_n
 {
 	AEntity *cur = EM_upper(em, key);
 	while (cur != NULL) {
-		AComponent *c = cur->_get(com_name, com_index);
+		AComponent *c = cur->get(com_name, com_index);
 		if (c != NULL) return c;
 		cur = EM_next(em, cur);
 	}
@@ -75,9 +75,8 @@ static AComponent* EM_next_com(AEntityManager *em, AEntity *cur, const char *com
 	struct rb_node *node;
 	while ((node = rb_next(&cur->_map_node)) != NULL) {
 		cur = rb_entry(node, AEntity, _map_node);
-		AComponent *c = cur->_get(com_name, com_index);
+		AComponent *c = cur->get(com_name, com_index);
 		if (c != NULL) return c;
-		cur = cur;
 	}
 	return NULL;
 }
@@ -100,7 +99,7 @@ static int EM_upper_each_com(AEntityManager *em, void *key, const char *com_name
 	int result = 0;
 	AEntity *cur = EM_upper(em, key);
 	while (cur != NULL) {
-		AComponent *c = cur->_get(com_name, com_index);
+		AComponent *c = cur->get(com_name, com_index);
 		if (c != NULL) {
 			result = func(c, p);
 			if (result != 0) break;
@@ -114,9 +113,9 @@ static void EM_clear(AEntityManager *em)
 {
 	AEntity *cur = EM_upper(em, NULL);
 	while (cur != NULL) {
-		AEntity *n = EM_next(em, cur);
+		AEntity *next = EM_next(em, cur);
 		EM_pop(em, cur);
-		cur = n;
+		cur = next;
 	}
 }
 
@@ -139,7 +138,7 @@ static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_modul
 	AComponent *c = (AComponent*)(h + 1);
 	c->init(com_module->module_name);
 	c->_dynmng = 1;
-	e->_push(c);
+	e->push(c);
 
 	int result = com_module->create((AObject**)&c, e, NULL);
 	if (result < 0) {

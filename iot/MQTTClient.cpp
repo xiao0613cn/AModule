@@ -49,12 +49,12 @@ struct MQTTClient : public AEntity {
 
 	void init() {
 		AEntity::init();
-		_init_push(&_client);
-		_init_push(&_iocom);
+		init_push(&_client);
+		init_push(&_iocom);
 		pthread_mutex_init(&_mutex, NULL);
 		_iocom._mutex = &_mutex;
 
-		_init_push(&_mqtt);
+		init_push(&_mqtt);
 		_options = NULL;
 		_status = Invalid;
 	}
@@ -366,11 +366,11 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 static void MQTTRelease(AObject *object)
 {
 	MQTTClient *mqtt = (MQTTClient*)object;
-	mqtt->_pop_exit(&mqtt->_client);
-	mqtt->_pop_exit(&mqtt->_iocom);
+	mqtt->pop_exit(&mqtt->_client);
+	mqtt->pop_exit(&mqtt->_iocom);
 	pthread_mutex_destroy(&mqtt->_mutex);
 
-	mqtt->_pop_exit(&mqtt->_mqtt);
+	mqtt->pop_exit(&mqtt->_mqtt);
 	release_s(mqtt->_options);
 	mqtt->exit();
 }

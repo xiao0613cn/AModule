@@ -58,29 +58,17 @@ static void SM_exit(int inited)
 static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 {
 	AStreamComponent *s = (AStreamComponent*)*object;
-	ADeviceComponent *dev = NULL;
-	if ((parent != NULL) && (strcasecmp(parent->_module->class_name, "AEntity") == 0)) {
-		((AEntity*)parent)->_get(&dev);
-	}
-	if (dev != NULL) {
-		strcpy_sz(s->_dev_id, dev->_dev_id);
-	} else {
-		s->_dev_id[0] = '\0';
-	}
-	s->_chan_id = options->getInt("chan_id", 0);
-	s->_stream_id = options->getInt("stream_id", 1);
+	s->_dev_id[0] = '\0';
+	s->_chan_id = 0;
+	s->_stream_id = 1;
 	s->_stream_key[0] = '\0';
-
-	memzero(s->_video_pars); memzero(s->_audio_pars);
-	s->_video_pars.codec_type = s->_audio_pars.codec_type = AVMEDIA_TYPE_UNKNOWN;
-	s->_video_pars.codec_id = s->_audio_pars.codec_id = AV_CODEC_ID_NONE;
-	s->_video_pars.codec_tag = s->_audio_pars.codec_tag = 0;
-	s->_video_extra_size = s->_audio_extra_size = 0;
+	memzero(s->_infos);
 
 	s->_plugin_mutex = NULL;
 	s->_plugin_list.init();
 	s->_plugin_count = 0;
 	s->on_recv = SM.dispatch_avpkt;
+	s->on_recv_userdata = NULL;
 
 	s->_cur_speed = 1.0;
 	s->set_speed = NULL;
@@ -92,48 +80,40 @@ static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 static void strm_com_release(AObject *object)
 {
 	AStreamComponent *s = (AStreamComponent*)object;
-	while (!s->_plugin_list.empty()) {
-		AStreamComponent *p = s->plugin_first();
-		p->_plugin_list.leave();
-
-		p->_object->release();
-		s->_plugin_count--;
+	for (int ix = 0; ix < AVMEDIA_TYPE_NB; ++ix) {
+		reset_s(s->_infos[ix], NULL, SM.sinfo_free);
 	}
+	assert(s->_plugin_list.empty());
 	assert(s->_plugin_count == 0);
 }
 
 static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 {
 	int count = 0;
-	s->plugin_lock();
-
-	AStreamComponent *p = s->plugin_first();
-	while (&p->_plugin_list != &s->_plugin_list)
+	AStreamPlugin *p = AStreamPlugin::first(s->_plugin_list);
+	while (&p->_plugin_entry != &s->_plugin_list)
 	{
-		AStreamComponent *next = p->plugin_next();
-		if (!p->video_has_keyframe()) {
+		AStreamPlugin *next = p->next();
+		if (!(p->_key_flags & (1<<pkt->stream_index))) {
 			if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
 				p = next;
 				continue;
 			}
-			p->video_has_keyframe() = TRUE;
+			p->_key_flags |= (1<<pkt->stream_index);
 		}
 
 		int result = p->on_recv(p, pkt);
 		if (result < 0) {
-			p->_plugin_list.leave();
-			p->_object->release();
-			s->_plugin_count--;
+			s->plugin_del(p);
 		}
 		else if (result == 0) {
-			p->video_has_keyframe() = FALSE;
+			p->_key_flags &= ~(1<<pkt->stream_index);
 		}
 		else {
 			++count;
 		}
 		p = next;
 	}
-	s->plugin_unlock();
 	return count;
 }
 
@@ -141,36 +121,50 @@ static AStreamComponent* strm_com_find(AEntityManager *em, const char *stream_ke
 {
 	AStreamComponent *s; em->upper_com(&s, NULL);
 	while (s != NULL) {
-		if ((strcmp(s->_stream_key, stream_key) == 0) && !s->is_plugin())
+		if (strcmp(s->_stream_key, stream_key) == 0)
 			return s;
 		s = em->next_com(s);
 	}
 	return NULL;
 }
 
-static int strm_com_save_pars(AStreamComponent *s, AVCodecParameters *par)
+static int sinfo_clone(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz)
 {
-	AVCodecParameters *dest; int extra_bufsiz;
-	switch (par->codec_type)
-	{
-	case AVMEDIA_TYPE_VIDEO:
-		dest = &s->_video_pars;
-		extra_bufsiz = s->_video_extra_bufsiz;
-		break;
-	case AVMEDIA_TYPE_AUDIO:
-		dest = &s->_audio_pars;
-		extra_bufsiz = s->_audio_extra_bufsiz;
-		break;
-	default: return -1;
+	AStreamInfo *p = *dest;
+	if ((p != NULL) && (src != NULL) && (p->extra_bufsiz < src->param.extradata_size)) {
+		SM.sinfo_free(p);
+		p = NULL;
 	}
 
-	uint8_t *extra_data = dest->extradata;
-	extra_bufsiz = min(extra_bufsiz, par->extradata_size);
+	uint8_t *extra_data;
+	if (p == NULL) {
+		if ((src != NULL) && (extra_bufsiz < src->param.extradata_size)) {
+			extra_bufsiz = src->param.extradata_size + AV_INPUT_BUFFER_PADDING_SIZE;
+		}
+		p = (AStreamInfo*)malloc(sizeof(*src) + extra_bufsiz);
+		if (p == NULL) {
+			*dest = NULL;
+			return -ENOMEM;
+		}
+		extra_data = (uint8_t*)(p + 1);
+	} else {
+		extra_data = p->param.extradata;
+		extra_bufsiz = p->extra_bufsiz;
+	}
 
-	memcpy(dest, par, sizeof(*par));
-	memcpy(extra_data, par->extradata, extra_bufsiz);
-	dest->extradata = extra_data;
-	dest->extradata_size = extra_bufsiz;
+	if (src != NULL) {
+		memcpy(p, src, sizeof(*src));
+		memcpy(extra_data, src->param.extradata, src->param.extradata_size);
+	} else {
+		p->param.codec_type = AVMEDIA_TYPE_UNKNOWN;
+		p->param.codec_id = AV_CODEC_ID_NONE;
+		p->param.extradata_size = 0;
+		p->last_pts = AV_NOPTS_VALUE;
+	}
+	p->param.extradata = extra_data;
+	p->extra_bufsiz = extra_bufsiz;
+	p->has_key = 0;
+	*dest = p;
 	return 1;
 }
 
@@ -191,6 +185,8 @@ AStreamModule SM = { {
 },
 	&strm_com_find,
 	&strm_com_dispatch_avpkt,
+	&sinfo_clone,
+	(void (*)(AStreamInfo*))&free,
 	&avpkt_init,
 };
 static int reg_sm = AModuleRegister(&SM.module);

@@ -17,12 +17,9 @@ struct AComponent {
 		_name = n; _index = i; _dynmng = 0;
 		_object = NULL; _entry.init();
 	}
-	bool valid() {
-		return !_entry.empty();
-	}
 	template <typename TComponent>
-	TComponent* _other(TComponent **c, int com_index = -1) {
-		return ((AEntity*)_object)->_get(c, com_index);
+	TComponent* other(TComponent **c, int com_index = -1) {
+		return ((AEntity*)_object)->get(c, com_index);
 	}
 };
 
@@ -33,15 +30,13 @@ struct AEntity : public AObject {
 	int             _com_count;
 
 	void init() {
-		_manager = NULL;
-		RB_CLEAR_NODE(&_map_node);
-		_com_list.init();
-		_com_count = 0;
+		_manager = NULL; RB_CLEAR_NODE(&_map_node);
+		_com_list.init(); _com_count = 0;
 	}
 	void exit();
 	bool valid() { return !RB_EMPTY_NODE(&_map_node); }
 
-	bool _push(AComponent *c) {
+	bool push(AComponent *c) {
 		bool valid = ((c->_object == NULL) && c->_entry.empty());
 		if (valid) {
 			//c->_self->addref();
@@ -55,12 +50,12 @@ struct AEntity : public AObject {
 		return valid;
 	}
 	template <typename TComponent>
-	void _init_push(TComponent *c, int i = 0) {
+	void init_push(TComponent *c, int i = 0) {
 		c->init(TComponent::name(), i);
 		c->init2();
-		_push(c);
+		push(c);
 	}
-	bool _pop(AComponent *c) {
+	bool pop(AComponent *c) {
 		bool valid = ((c->_object == this) && !c->_entry.empty());
 		if (valid) {
 			//c->_self->release();
@@ -72,11 +67,11 @@ struct AEntity : public AObject {
 		return valid;
 	}
 	template <typename TComponent>
-	void _pop_exit(TComponent *c) {
-		_pop(c);
+	void pop_exit(TComponent *c) {
+		pop(c);
 		c->exit2();
 	}
-	AComponent* _get(const char *com_name, int com_index = -1) {
+	AComponent* get(const char *com_name, int com_index = -1) {
 		list_for_each2(c, &_com_list, AComponent, _entry) {
 			if ((strcasecmp(c->_name, com_name) == 0)
 			 && (com_index == -1 || com_index == c->_index)) {
@@ -87,14 +82,14 @@ struct AEntity : public AObject {
 		return NULL;
 	}
 	template <typename TComponent>
-	TComponent* _get(TComponent **c, int com_index = -1) {
-		return *c = (TComponent*)_get(TComponent::name(), com_index);
+	TComponent* get(TComponent **c, int com_index = -1) {
+		return *c = (TComponent*)get(TComponent::name(), com_index);
 	}
 };
 
 struct AEntityManagerMethod {
-	int         (*_push)(AEntityManager *em, AEntity *e);
-	int         (*_pop)(AEntityManager *em, AEntity *e);
+	int         (*_push)(AEntityManager *em, AEntity *e); // include e->addref()
+	int         (*_pop)(AEntityManager *em, AEntity *e);  // include e->release()
 	AEntity*    (*_find)(AEntityManager *em, void *key);
 	AEntity*    (*_upper)(AEntityManager *em, void *key);
 	AEntity*    (*_next)(AEntityManager *em, AEntity *cur);

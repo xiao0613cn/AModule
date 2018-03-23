@@ -20,16 +20,16 @@ static int test_com_create(AObject **object, AObject *parent, AOption *option)
 {
 	TestCom *e = (TestCom*)*object;
 	e->init();
-	e->_http.init(e->_http.name()); e->_push(&e->_http);
-	e->_mqtt.init(e->_mqtt.name()); e->_push(&e->_mqtt);
+	e->_http.init(e->_http.name()); e->push(&e->_http);
+	e->_mqtt.init(e->_mqtt.name()); e->push(&e->_mqtt);
 	return 1;
 }
 
 static void test_com_release(AObject *object)
 {
 	TestCom *e = (TestCom*)object;
-	e->_pop(&e->_http);
-	e->_pop(&e->_mqtt);
+	e->pop(&e->_http);
+	e->pop(&e->_mqtt);
 	e->exit();
 }
 

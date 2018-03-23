@@ -11,14 +11,14 @@ static int EchoCreate(AObject **object, AObject *parent, AOption *option)
 {
 	EchoProxy *echo = (EchoProxy*)*object;
 	echo->init();
-	echo->_init_push(&echo->_iocom);
+	echo->init_push(&echo->_iocom);
 	return 1;
 }
 
 static void EchoRelease(AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
-	echo->_pop_exit(&echo->_iocom);
+	echo->pop_exit(&echo->_iocom);
 	echo->exit();
 }
 

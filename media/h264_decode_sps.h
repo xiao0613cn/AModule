@@ -8,13 +8,12 @@ h264_decode_sps(unsigned char *buf, unsigned int nLen, int &width, int &height);
 #define is_es4_header(buf) ((buf)[0] == 0 && (buf)[1] == 0 && (buf)[2] == 0 && (buf)[3] == 1)
 #define is_es3_header(buf) ((buf)[0] == 0 && (buf)[1] == 0 && (buf)[2] == 1)
 
-#define get_es_type(buf, pos) (buf[pos] & 0x1f)
+#define get_es_type(buf, pos) ((buf)[pos] & 0x1f)
 
-static inline int next_es_header(unsigned char *data, int size, int type)
-{
+static inline int
+next_es_header(unsigned char *data, int size, int type) {
 	assert(is_es4_header(data));
-	for (unsigned char *ptr = data+3, *end = data+size-3; ptr < end; ++ptr)
-	{
+	for (unsigned char *ptr = data+3, *end = data+size-3; ptr < end; ++ptr) {
 		if (is_es4_header(ptr) && ((type == -1) || (get_es_type(ptr, 4) == type)))
 			return (int)(ptr - data);
 	}

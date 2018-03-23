@@ -70,28 +70,28 @@ static void DM_exit(int inited)
 	}
 }
 
-static int devcom_ptz_ctrl(ADeviceComponent *dev, ADeviceComponent::ptz_req *req)
+static int dev_com_ptz_ctrl(ADeviceComponent *dev, ADeviceComponent::ptz_req *req)
 {
 	AModule *m = dev->_object->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
 
-static int devcom_get_rec(ADeviceComponent *dev, ADeviceComponent::rec_req *req)
+static int dev_com_get_rec(ADeviceComponent *dev, ADeviceComponent::rec_req *req)
 {
 	AModule *m = dev->_object->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
 
-static int devcom_exctrl(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp)
+static int dev_com_exctrl(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp)
 {
 	AModule *m = dev->_object->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
 
-static int devcom_create(AObject **object, AObject *parent, AOption *options)
+static int dev_com_create(AObject **object, AObject *parent, AOption *options)
 {
 	ADeviceComponent *dev = (ADeviceComponent*)*object;
 
@@ -103,13 +103,13 @@ static int devcom_create(AObject **object, AObject *parent, AOption *options)
 
 	dev->_chan_count = dev->_sensor_count = dev->_alarmout_count = 0;
 	dev->_private_sn[0] = '\0';
-	dev->ptz_ctrl = &devcom_ptz_ctrl;
-	dev->get_record_list = &devcom_get_rec;
-	dev->extra_ctrl = &devcom_exctrl;
+	dev->ptz_ctrl = &dev_com_ptz_ctrl;
+	dev->get_record_list = &dev_com_get_rec;
+	dev->extra_ctrl = &dev_com_exctrl;
 	return 1;
 }
 
-static ADeviceComponent* devcom_find(AEntityManager *em, const char *devid)
+static ADeviceComponent* dev_com_find(AEntityManager *em, const char *devid)
 {
 	ADeviceComponent *dev; em->upper_com(&dev, NULL);
 	while (dev != NULL) {
@@ -132,6 +132,6 @@ ADeviceModule DM = { {
 	&DM_find,
 	&DM_upper,
 	&DM_next,
-	&devcom_find,
+	&dev_com_find,
 };
 static int reg_dm = AModuleRegister(&DM.module);	

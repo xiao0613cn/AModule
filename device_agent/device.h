@@ -56,8 +56,8 @@ struct ADeviceModule {
 	void lock() { pthread_mutex_lock(&dev_mutex); }
 	void unlock() { pthread_mutex_unlock(&dev_mutex); }
 
-	int      (*_push)(ADeviceComponent *dev, AEventManager *ev);
-	int      (*_pop)(ADeviceComponent *dev, AEventManager *ev);
+	int      (*_push)(ADeviceComponent *dev, AEventManager *ev); // include dev->_object->addref()
+	int      (*_pop)(ADeviceComponent *dev, AEventManager *ev);  // include dev->_object->release()
 	ADeviceComponent* (*_find)(const char *devid);
 	ADeviceComponent* (*_upper)(const char *devid);
 	ADeviceComponent* (*_next)(ADeviceComponent *dev);
