@@ -65,5 +65,14 @@ struct ADeviceModule {
 	ADeviceComponent* (*_find2)(AEntityManager *em, const char *devid);
 };
 
+struct ADeviceImplement {
+	AModule module;
+	// class_name: device
+
+	int   (*ptz_ctrl)(AEntity *e, void *req, void *resp);
+	int   (*get_record_list)(AEntity *e, void *req, void *resp);
+	//int   (*extra_ctrl)(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp);
+};
+
 
 #endif

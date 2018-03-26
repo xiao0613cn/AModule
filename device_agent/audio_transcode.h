@@ -1,14 +1,13 @@
-#ifndef 
-#define 
+#ifndef _AUDIO_TRANSCODE_H_
+#define _AUDIO_TRANSCODE_H_
 #include "stream.h"
 
 
 struct TranscodeModule {
 	AModule module;
-	int (*open)(AComponent *tx, AVCodecParameters *dest, AVCodecParameters *src);
-	int (*get_dest_sinfo)(AComponent *tx, AStreamInfo **sinfo);
-	int (*transcode)(AComponent *tx, AVPacket *dest, AVPacket *src);
-	int (*close)(AComponent *tx);
+	int   (*open)(AComponent *c, AStreamInfo **pinfo, AVCodecParameters *src);
+	int   (*transcode)(AComponent *c, AVPacket *dest, AVPacket *src);
+	void    close(AComponent *c) { module.release((AObject*)c); }
 };
 
 struct FFmpegAudioTranscode : public AComponent {
@@ -19,8 +18,8 @@ struct FFmpegAudioTranscode : public AComponent {
 		return s_m;
 	}
 
-	int   (*on_recv_hook)(AStreamComponent *s, AVPacket *pkt);
-	void   *on_recv_hookdata;
+	//int   (*on_recv_hook)(AStreamComponent *s, AVPacket *pkt);
+	//void   *on_recv_hookdata;
 
 	AVCodecContext *_araw_ctx;
 	AVFrame         _araw_frame;

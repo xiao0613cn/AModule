@@ -4,15 +4,19 @@
 #include "../ecs/AEntity.h"
 extern "C" {
 #ifdef _WIN32
-#pragma warning(disable: 4244)
+#pragma warning(disable: 4244) // 从“int”转换到“uint8_t”，可能丢失数据
 #endif
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
 #ifdef _WIN32
-#pragma warning(default: 4244) // 从“int”转换到“uint8_t”，可能丢失数据
+#pragma warning(default: 4244)
 #endif
 };
+
+// remark:
+//   AVPacket.buf => ARefsBuf*
+//   AVPacket.stream_index => enum AVMediaType
 
 struct AEventManager;
 struct AStreamInfo;
@@ -48,11 +52,6 @@ struct AStreamComponent : public AComponent {
 	struct tm _begin_tm;
 	struct tm _end_tm;
 	float     _cur_speed;
-	int   (*set_speed)(AStreamComponent *s, AOption *opts);
-	int   (*set_pos)(AStreamComponent *s, AOption *opts);
-	int   (*get_pos)(AStreamComponent *s, AOption *opts);
-	//int (*set_pause)(struct TopicProc *proc);
-	//int (*get_pause)(struct TopicProc *proc);
 	/* for playback | download */
 
 	//AEventManager *_plugin_manager;
@@ -73,6 +72,7 @@ struct AStreamPlugin : public AComponent {
 	struct list_head  _plugin_entry;
 	unsigned int      _key_flags;
 	int   (*on_recv)(AStreamPlugin *p, AVPacket *pkt);
+	void   *on_recv_userdata;
 
 	void init2() {
 		_stream = NULL; _plugin_entry.init(); on_recv = NULL;
@@ -99,6 +99,17 @@ struct AStreamModule {
 	int   (*sinfo_clone)(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz);
 	void  (*sinfo_free)(AStreamInfo *info);
 	void  (*avpkt_init)(AVPacket *pkt);
+};
+
+struct AStreamImplement {
+	AModule module;
+	// class_name: live, playback, download
+
+	int   (*set_speed)(AEntity *e, void *req, void *resp);
+	int   (*set_pos)(AEntity *e, void *req, void *resp);
+	int   (*get_pos)(AEntity *e, void *req, void *resp);
+	int   (*set_pause)(AEntity *e, void *req, void *resp);
+	int   (*get_pause)(AEntity *e, void *req, void *resp);
 };
 
 //////////////////////////////////////////////////////////////////////////

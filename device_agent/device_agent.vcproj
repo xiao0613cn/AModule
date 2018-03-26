@@ -177,6 +177,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ffmpeg_transcode.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\base\rbtree.c"
 				>
 			</File>

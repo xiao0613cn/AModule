@@ -135,6 +135,10 @@ static int sinfo_clone(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz)
 		SM.sinfo_free(p);
 		p = NULL;
 	}
+	if ((p != NULL) && (p->extra_bufsiz < extra_bufsiz)) {
+		SM.sinfo_free(p);
+		p = NULL;
+	}
 
 	uint8_t *extra_data;
 	if (p == NULL) {
@@ -156,8 +160,21 @@ static int sinfo_clone(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz)
 		memcpy(p, src, sizeof(*src));
 		memcpy(extra_data, src->param.extradata, src->param.extradata_size);
 	} else {
-		p->param.codec_type = AVMEDIA_TYPE_UNKNOWN;
-		p->param.codec_id = AV_CODEC_ID_NONE;
+		//codec_parameters_reset();
+		p->param.codec_type          = AVMEDIA_TYPE_UNKNOWN;
+		p->param.codec_id            = AV_CODEC_ID_NONE;
+		p->param.format              = -1;
+		p->param.field_order         = AV_FIELD_UNKNOWN;
+		p->param.color_range         = AVCOL_RANGE_UNSPECIFIED;
+		p->param.color_primaries     = AVCOL_PRI_UNSPECIFIED;
+		p->param.color_trc           = AVCOL_TRC_UNSPECIFIED;
+		p->param.color_space         = AVCOL_SPC_UNSPECIFIED;
+		p->param.chroma_location     = AVCHROMA_LOC_UNSPECIFIED;
+		p->param.sample_aspect_ratio.num = 0;
+		p->param.sample_aspect_ratio.den = 1;
+		p->param.profile             = FF_PROFILE_UNKNOWN;
+		p->param.level               = FF_LEVEL_UNKNOWN;
+
 		p->param.extradata_size = 0;
 		p->last_pts = AV_NOPTS_VALUE;
 	}
