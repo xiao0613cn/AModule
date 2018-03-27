@@ -40,15 +40,15 @@ struct IOModule {
 
 struct IOObject : public AObject {
 	static const char* class_name() { return "io"; }
-	IOModule* m() { return container_of(this->_module, IOModule, module); }
+	IOModule* M() { return container_of(this->_module, IOModule, module); }
 
-	int open(AMessage *msg)   { return m()->open(this, msg); }
-	int getopt(AOption *opt)  { return m()->getopt(this, opt); }
-	int setopt(AOption *opt)  { return m()->setopt(this, opt); }
-	int request(int reqix, AMessage *msg) { return m()->request(this, reqix, msg); }
-	int cancel(int reqix, AMessage *msg) { return m()->cancel(this, reqix, msg); }
-	int shutdown()            { return m()->close(this, NULL); }
-	int close(AMessage *msg)  { return m()->close(this, msg); }
+	int open(AMessage *msg)   { return M()->open(this, msg); }
+	int getopt(AOption *opt)  { return M()->getopt(this, opt); }
+	int setopt(AOption *opt)  { return M()->setopt(this, opt); }
+	int request(int reqix, AMessage *msg) { return M()->request(this, reqix, msg); }
+	int cancel(int reqix, AMessage *msg) { return M()->cancel(this, reqix, msg); }
+	int shutdown()            { return M()->close(this, NULL); }
+	int close(AMessage *msg)  { return M()->close(this, msg); }
 
 	int input(AMessage *msg)  { return request(Aio_Input, msg); }
 	int output(AMessage *msg) { return request(Aio_Output, msg); }

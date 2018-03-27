@@ -70,13 +70,18 @@ struct AStreamInfo {
 struct AStreamPlugin : public AComponent {
 	AStreamComponent *_stream;
 	struct list_head  _plugin_entry;
-	unsigned int      _key_flags;
+	unsigned int      _key_flags;   // 1 << pkt->stream_index
+	unsigned int      _media_flags; // 1 << pkt->stream_index
+	unsigned int      _enable_key_ctrl : 1;
+
 	int   (*on_recv)(AStreamPlugin *p, AVPacket *pkt);
 	void   *on_recv_userdata;
 
 	void init2() {
 		_stream = NULL; _plugin_entry.init(); on_recv = NULL;
 		_key_flags = ~(1u<<AVMEDIA_TYPE_VIDEO); // no video key frame
+		_media_flags = -1u;                     // enable all media type
+		_enable_key_ctrl = 1;
 	}
 	static AStreamPlugin* first(list_head &list) {
 		return list_first_entry(&list, AStreamPlugin, _plugin_entry);

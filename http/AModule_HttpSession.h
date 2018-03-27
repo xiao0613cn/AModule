@@ -13,6 +13,8 @@ struct HttpConnectionModule {
 	static const char* module_name() { return "HttpConnection"; }
 
 	AModule module;
+	const str_t *http_method_str;
+
 	int (*iocom_output)(AInOutComponent *c, int result);
 	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
 
@@ -21,7 +23,8 @@ struct HttpConnectionModule {
 	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
 	int      (*hm_decode)(struct HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&buf);
 
-	const str_t *method_str;
+	int (*request)(struct HttpConnection *p, HttpMsg *req, int(*on_resp)
+	              (struct HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result));
 };
 
 struct HttpParserCompenont : public AComponent {
@@ -89,7 +92,7 @@ struct HttpConnection : public AEntity {
 	HttpMsg  *_resp;
 	int (*raw_outmsg_done)(AMessage*,int);
 
-	HttpConnectionModule* m() {
+	HttpConnectionModule* M() {
 		return (HttpConnectionModule*)_module;
 	}
 	int svc_resp() {

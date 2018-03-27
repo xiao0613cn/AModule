@@ -26,7 +26,7 @@ static int HttpSvcHandle(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 	}
 
 	resp->_parser.status_code = 400;
-	resp->uri_set(str_sz("Bad Request"), 1);
+	resp->uri_set(sz_t("Bad Request"), 1);
 	return p->svc_resp();
 }
 
@@ -134,21 +134,21 @@ static int HttpFileSvcRun(AService *hfs, AObject *object)
 
 	if (body_len <= 0) {
 		resp->_parser.status_code = 404;
-		resp->uri_set(str_sz("File Not Found"), 1);
+		resp->uri_set(sz_t("File Not Found"), 1);
 	} else if (ARefsBuf::reserve(p->_inbuf, body_len, recv_bufsiz) < 0) {
 		resp->_parser.status_code = 500;
-		resp->uri_set(str_sz("Out Of Memory"), 1);
+		resp->uri_set(sz_t("Out Of Memory"), 1);
 	} else if (fread(p->_inbuf->next(), body_len, 1, fp) != 1) {
 		resp->_parser.status_code = 420;
-		resp->uri_set(str_sz("Read File Error"), 1);
+		resp->uri_set(sz_t("Read File Error"), 1);
 	} else {
 		p->_inbuf->push(body_len);
 		resp->body_set(p->_inbuf, p->_inbuf->_bgn, p->_inbuf->len());
 		p->_inbuf->pop(p->_inbuf->len());
 
 		resp->_parser.status_code = 200;
-		resp->uri_set(str_sz("OK"), 1);
-		resp->header_set(str_sz("Content-Type"), str_sz("text/html"));
+		resp->uri_set(sz_t("OK"), 1);
+		resp->header_set(sz_t("Content-Type"), sz_t("text/html"));
 	}
 	reset_s(fp, NULL, fclose);
 

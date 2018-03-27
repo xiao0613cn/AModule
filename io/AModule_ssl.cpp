@@ -490,7 +490,7 @@ static int SSLSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOpti
 	sc->input.from = msg;
 
 	sc->state = S_init;
-	result = sc->io->m()->svc_accept(sc->io, &sc->input.msg, ssl_svc->io_svc_data, svc_opt->find("io"));
+	result = sc->io->M()->svc_accept(sc->io, &sc->input.msg, ssl_svc->io_svc_data, svc_opt->find("io"));
 	if (result > 0)
 		result = SSLOpenStatus(sc, result);
 	return result;

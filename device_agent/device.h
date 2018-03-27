@@ -71,7 +71,7 @@ struct ADeviceImplement {
 
 	int   (*ptz_ctrl)(AEntity *e, void *req, void *resp);
 	int   (*get_record_list)(AEntity *e, void *req, void *resp);
-	//int   (*extra_ctrl)(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp);
+	int   (*extra_ctrl)(ADeviceComponent *dev, const char *cmd, void *req, void *resp);
 };
 
 

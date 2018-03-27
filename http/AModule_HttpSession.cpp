@@ -2,6 +2,7 @@
 #define _USE_HTTP_MSG_IMPL_ 1
 #include "AModule_HttpSession.h"
 
+extern HttpConnectionModule HCM;
 
 static int on_m_begin(http_parser *parser) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
@@ -174,11 +175,10 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	str_t f, v;
 	int result = 20;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
-		result += f.len;
-		result += v.len + 6;
+		result += f.len + v.len + 6;
 	}
 	if (hm->body_len() > 0)
-		result += 64;
+		result += 32;
 
 	result = ARefsBuf::reserve(buf, result, send_bufsiz);
 	if (result < 0)
@@ -195,6 +195,7 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	if (hm->body_len() > 0) {
 		buf->strfmt("Content-Length: %lld\r\n", hm->body_len());
 	}
+
 	f.str = NULL;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		buf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
@@ -232,8 +233,6 @@ static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int
 		}
 		break; // input done
 	}
-	if (result != 0)
-		msg->done = ((msg == &p->_iocom._inmsg) ? p->raw_inmsg_done : p->raw_outmsg_done);
 	return result;
 }
 
@@ -379,8 +378,10 @@ static int HttpConnectionInputDone(AMessage *msg, int result)
 	assert(msg->type == httpMsgType_HttpMsg);
 
 	result = HttpMsgInputStatus(p, &p->_iocom._inmsg, (HttpMsg*)msg->data, result);
-	if (result != 0)
+	if (result != 0) {
+		p->_iocom._inmsg.done = p->raw_inmsg_done;
 		result = p->_iocom._inmsg.done2(result);
+	}
 	return result;
 }
 
@@ -390,7 +391,8 @@ static int HttpSvcRespDone(AMessage *msg, int result)
 	result = HttpMsgInputStatus(p, msg, p->_resp, result);
 	if (result != 0) {
 		msg->init();
-		msg->done2(result);
+		msg->done = p->raw_outmsg_done;
+		result = msg->done2(result);
 	}
 	return result;
 }
@@ -471,6 +473,110 @@ static int HttpProbe(AObject *object, AObject *other, AMessage *msg)
 	return 0;
 }
 
+//////////////////////////////////////////////////////////////////////////
+static int HttpReqRecvDone(HttpParserCompenont *c, int result)
+{
+	HttpConnection *p = container_of(c, HttpConnection, _http);
+	int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int) =
+		(int(*)(HttpConnection*,HttpMsg*,HttpMsg*,int))p->raw_outmsg_done;
+
+	result = on_resp(p, p->_req, p->_resp, result);
+	if ((result < 0) || (result >= AMsgType_Class)) {
+		p->_req = NULL;
+		p->release();
+	}
+	return result;
+}
+static int HttpReqSendDone(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
+	result = HCM.input_status(p, msg, p->_req, result);
+
+	if ((result > 0) && (p->_resp == NULL)) {
+		p->_resp = HCM.hm_create();
+		if (p->_resp == NULL)
+			result = -ENOMEM;
+	}
+	if (result > 0) {
+		if (p->_iocom._outbuf == NULL) {
+			addref_s(p->_iocom._outbuf, p->_inbuf);
+		}
+		result = p->_http.try_output(&HCM, &p->_iocom, p->_resp, &HttpReqRecvDone);
+	} else if (result < 0) {
+		result = HttpReqRecvDone(&p->_http, result);
+	}
+	return result;
+}
+static int HttpReqOpenDone(AMessage *msg, int result)
+{
+	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
+	assert(msg->type == AMsgType_AOption);
+	((AOption*)msg->data)->release();
+
+	msg->init();
+	msg->done = &HttpReqSendDone;
+	return HttpReqSendDone(msg, result);
+}
+static int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int))
+{
+	if (p == NULL) {
+		int result = AObject::create2(&p, NULL, NULL, &HCM.module);
+		if (result < 0)
+			return result;
+	}
+	AMessage *msg = &p->_iocom._inmsg;
+	if (p->_iocom._io != NULL) {
+		p->_req = req;
+		p->raw_outmsg_done = (int(*)(AMessage*,int))on_resp;
+
+		msg->init();
+		msg->done = &HttpReqSendDone;
+		msg->done2(1);
+		return 0;
+	}
+
+	str_t host = req->header_get(str_t("Proxy", -1));
+	if (host.str == NULL)
+		host = req->header_get(str_t("Host", -1));
+	if (host.str == NULL)
+		return -EINVAL;
+
+	str_t port(strnchr(host.str, host.len, ':'), 0);
+	if (port.str == NULL) {
+		port.str = "80"; port.len = 2;
+	} else {
+		port.len = int(host.str + host.len - port.str - 1);
+		host.len = int(port.str - host.str);
+		port.str += 1;
+	}
+
+	char opt_str[256];
+	snprintf(opt_str, 256, "{address:'%.*s',port:%.*s}",
+		host.len, host.str, port.len, port.str);
+
+	AOption *io_opt = NULL;
+	int result = AOptionDecode(&io_opt, opt_str, -1);
+	if (result < 0) {
+		p->release();
+		return result;
+	}
+
+	msg->init(io_opt);
+	msg->done = &HttpReqOpenDone;
+	p->_req = req;
+	p->raw_outmsg_done = (int(*)(AMessage*,int))on_resp;
+
+	result = AObject::create(&p->_iocom._io, p, io_opt, "async_tcp");
+	if (result >= 0) {
+		result = p->_iocom._io->open(msg);
+	}
+	if (result != 0) {
+		msg->done2(result);
+		result = 0;
+	}
+	return result;
+}
+
 HttpConnectionModule HCM = { {
 	HttpConnectionModule::class_name(),
 	HttpConnectionModule::module_name(),
@@ -480,12 +586,13 @@ HttpConnectionModule HCM = { {
 	&HttpConnectionRelease,
 	&HttpProbe,
 },
+	HttpMethodStrs,
 	&iocom_output,
 	&HttpMsgInputStatus,
 	&hm_create,
 	&hm_release,
 	&hm_encode,
 	&hm_decode,
-	HttpMethodStrs,
+	&HttpRequest,
 };
 static int reg_conn = AModuleRegister(&HCM.module);

@@ -58,7 +58,15 @@ static void SM_exit(int inited)
 static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 {
 	AStreamComponent *s = (AStreamComponent*)*object;
-	s->_dev_id[0] = '\0';
+	ADeviceComponent *dev = NULL;
+	if (parent != NULL) {
+		((AEntity*)parent)->get(&dev);
+	}
+	if (dev != NULL) {
+		strcpy_sz(s->_dev_id, dev->_dev_id);
+	} else {
+		s->_dev_id[0] = '\0';
+	}
 	s->_chan_id = 0;
 	s->_stream_id = 1;
 	s->_stream_key[0] = '\0';
@@ -70,10 +78,9 @@ static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 	s->on_recv = SM.dispatch_avpkt;
 	s->on_recv_userdata = NULL;
 
+	memzero(s->_begin_tm);
+	memzero(s->_end_tm);
 	s->_cur_speed = 1.0;
-	s->set_speed = NULL;
-	s->set_pos = NULL;
-	s->get_pos = NULL;
 	return 1;
 }
 
@@ -94,7 +101,7 @@ static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 	while (&p->_plugin_entry != &s->_plugin_list)
 	{
 		AStreamPlugin *next = p->next();
-		if (!(p->_key_flags & (1<<pkt->stream_index))) {
+		if (p->_enable_key_ctrl && !(p->_key_flags & (1<<pkt->stream_index))) {
 			if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
 				p = next;
 				continue;
@@ -107,7 +114,9 @@ static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 			s->plugin_del(p);
 		}
 		else if (result == 0) {
-			p->_key_flags &= ~(1<<pkt->stream_index);
+			if (p->_enable_key_ctrl) {
+				p->_key_flags &= ~(1<<pkt->stream_index);
+			}
 		}
 		else {
 			++count;

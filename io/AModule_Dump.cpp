@@ -227,7 +227,7 @@ static int DumpSvcAccept(AObject *object, AMessage *msg, AObject *svc_data, AOpt
 	req->msg.done = &MsgProxyC(DumpReq, msg, from, OnDumpRequest);
 	req->from = msg;
 
-	result = dump->io->m()->svc_accept(dump->io, &req->msg, svc_data, svc_opt->find("io"));
+	result = dump->io->M()->svc_accept(dump->io, &req->msg, svc_data, svc_opt->find("io"));
 	if (result != 0)
 		result = OnDumpRequest(req, result);
 	return result;
