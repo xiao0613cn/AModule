@@ -140,7 +140,7 @@ static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
 			_outbuf->pop(p->_body_pos);
 			p->_parsed_len -= p->_body_pos;
 			p->_body_pos = 0;
-			reserve = min(p->_parser.content_length, p->_max_body_size-p->_body_len);
+			reserve = min((int)p->_parser.content_length, p->_max_body_size-p->_body_len);
 		}
 		if (reserve != 0) { // need more data
 			result = ARefsBuf::reserve(_outbuf, reserve, recv_bufsiz);
@@ -156,6 +156,7 @@ static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
 	assert(hm->header_num()+1 == p->_header_count);
 	hm->_parser = p->_parser;
 	hm->body_set(_outbuf, p->_body_pos, p->_body_len);
+	p->_body_len = 0;
 	return 1;
 }
 
@@ -223,7 +224,7 @@ static int HttpMsgInputStatus(HttpConnection *p, AMessage *msg, HttpMsg *hm, int
 			p->_inbuf->pop(msg->size);
 
 			if (hm->body_len() > 0) {
-				msg->init(ioMsgType_Block, hm->body_ptr(), hm->body_len());
+				msg->init(ioMsgType_Block, hm->body_ptr(), (int)hm->body_len());
 				result = p->_iocom._io->input(msg);
 				continue;
 			}
@@ -336,14 +337,31 @@ struct HttpMsgImpl : public HttpMsg {
 		str_t s = me->uri_get(1);
 		http_parser_url u; http_parser_url_init(&u);
 		if (http_parser_parse_url(s.str, s.len, 1, &u) != 0)
-			return -2;
+			return -1;
 
+		int count = 0;
+		if (u.field_set & UF_SCHEMA) {
+			me->_kv_set(me, KV_UriInfo, sz_t("Schema"), str_t(
+				s.str + u.field_data[UF_SCHEMA].off, u.field_data[UF_SCHEMA].len));
+			count++;
+		}
+		if (u.field_set & UF_HOST) {
+			me->_kv_set(me, KV_UriInfo, sz_t("Host"), str_t(
+				s.str + u.field_data[UF_HOST].off, u.field_data[UF_HOST].len));
+			count++;
+		}
+		if (u.field_set & UF_PORT) {
+			me->_kv_set(me, KV_UriInfo, sz_t("Port"), str_t(
+				s.str + u.field_data[UF_PORT].off, u.field_data[UF_PORT].len));
+			count++;
+		}
 		if (u.field_set & UF_PATH) {
-			me->uri_set(str_t(s.str+u.field_data[UF_PATH].off, u.field_data[UF_PATH].len), 0);
+			me->uri_set(str_t(s.str + u.field_data[UF_PATH].off, u.field_data[UF_PATH].len), 0);
+			count++;
 		}
 		if (u.field_set & UF_QUERY) {
 			const char *end = s.str + u.field_data[UF_QUERY].off + u.field_data[UF_QUERY].len;
-			str_t f(s.str+u.field_data[UF_QUERY].off, u.field_data[UF_QUERY].len);
+			str_t f(s.str + u.field_data[UF_QUERY].off, u.field_data[UF_QUERY].len);
 			while (f.len != 0) {
 				const char *sep = strnchr(f.str, '&', f.len);
 				const char *sep2 = NULL;
@@ -356,11 +374,13 @@ struct HttpMsgImpl : public HttpMsg {
 				} else {
 					me->param_set(str_t(f.str, sep-f.str), str_t());
 				}
+				count++;
 				if (sep == end)
 					break;
 				f = str_t(sep+1, end-sep-1);
 			}
 		}
+		return count;
 	}
 };
 static HttpMsg* hm_create() {
@@ -515,7 +535,7 @@ static int HttpReqOpenDone(AMessage *msg, int result)
 
 	msg->init();
 	msg->done = &HttpReqSendDone;
-	return HttpReqSendDone(msg, result);
+	return msg->done2(result);
 }
 static int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int))
 {
@@ -523,7 +543,10 @@ static int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 		int result = AObject::create2(&p, NULL, NULL, &HCM.module);
 		if (result < 0)
 			return result;
+	} else {
+		p->addref();
 	}
+
 	AMessage *msg = &p->_iocom._inmsg;
 	if (p->_iocom._io != NULL) {
 		p->_req = req;
@@ -578,8 +601,8 @@ static int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 }
 
 HttpConnectionModule HCM = { {
-	HttpConnectionModule::class_name(),
-	HttpConnectionModule::module_name(),
+	"AEntity",
+	"HttpConnection",
 	sizeof(HttpConnection),
 	NULL, NULL,
 	&HttpConnectionCreate,

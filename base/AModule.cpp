@@ -317,7 +317,7 @@ dlopen(const char *filename, int flag) {
 static long volatile dlload_tid = 0;
 
 AMODULE_API void*
-dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
+dlload(const char *relative_path, const char *dll_name/*, BOOL relative_os_name*/)
 {
 	long cur_tid = gettid();
 	long last_tid = 0;
@@ -347,10 +347,10 @@ dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
 	abs_path[len] = '\0';
 
 	if (relative_path != NULL) {
-		if (relative_os_name) {
+		/*if (relative_os_name) {
 			len += snprintf(abs_path+len, sizeof(abs_path)-len,
 				"%s_%s/", relative_path, DLL_BIN_OS);
-		} else {
+		} else*/ {
 			len += snprintf(abs_path+len, sizeof(abs_path)-len,
 				"%s/", relative_path);
 		}
@@ -360,8 +360,12 @@ dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name)
 		"%s%s.%s", DLL_BIN_LIB, dll_name, DLL_BIN_NAME);
 
 	void *module = dlopen(abs_path, RTLD_NOW);
-	if ((module == NULL) && (relative_path != NULL))
+	if ((module == NULL) && (relative_path != NULL)) {
 		module = dlopen(abs_path+len, RTLD_NOW);
+		if (module == NULL) {
+			TRACE("%s, dlopen(%s) failed.\n", dll_name, abs_path);
+		}
+	}
 
 	if (relative_path != NULL) {
 		chdir(cur_path);

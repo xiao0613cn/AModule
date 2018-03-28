@@ -8,25 +8,6 @@
 #define send_bufsiz     2*1024
 #define recv_bufsiz     64*1024
 
-struct HttpConnectionModule {
-	static const char* class_name() { return "AEntity"; }
-	static const char* module_name() { return "HttpConnection"; }
-
-	AModule module;
-	const str_t *http_method_str;
-
-	int (*iocom_output)(AInOutComponent *c, int result);
-	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
-
-	HttpMsg* (*hm_create)();
-	void     (*hm_release)(HttpMsg *hm);
-	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
-	int      (*hm_decode)(struct HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&buf);
-
-	int (*request)(struct HttpConnection *p, HttpMsg *req, int(*on_resp)
-	              (struct HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result));
-};
-
 struct HttpParserCompenont : public AComponent {
 	static const char* name() { return "HttpParserCompenont"; }
 
@@ -64,7 +45,7 @@ struct HttpParserCompenont : public AComponent {
 	int try_output(HttpConnectionModule *m, AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = done;
 		if (m == NULL)
-			m = AModule::get<HttpConnectionModule>();
+			m = HttpConnectionModule::get();
 
 		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
 		c->on_output = m->iocom_output;

@@ -13,7 +13,6 @@ struct AService;
 
 struct ASystem {
 	AModule module;
-	static const char* class_name() { return "ASystem"; }
 
 	enum Status {
 		NotNeed = 0,
@@ -39,7 +38,7 @@ struct ASystem {
 	int    (*exec_abort)(Result *r);
 
 	static ASystem* find(const char *sys_name) {
-		AModule *m = AModuleFind(class_name(), sys_name);
+		AModule *m = AModuleFind("ASystem", sys_name);
 		return m ? container_of(m, ASystem, module) : NULL;
 	}
 	int _exec(Result *r) {

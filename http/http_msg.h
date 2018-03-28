@@ -50,5 +50,22 @@ struct HttpMsg {
 enum { httpMsgType_HttpMsg = (AMsgType_Private|3) };
 
 
+struct HttpConnectionModule {
+	AModule module;
+	AMODULE_GET(HttpConnectionModule ,"AEntity", "HttpConnection")
+
+	const str_t *http_method_str; // end with str_t{ NULL, 0 }
+	int (*iocom_output)(struct AInOutComponent *c, int result);
+	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
+
+	HttpMsg* (*hm_create)();
+	void     (*hm_release)(HttpMsg *hm);
+	int      (*hm_encode)(HttpMsg *hm, ARefsBuf *&buf);
+	int      (*hm_decode)(struct HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&buf);
+
+	int (*request)(struct HttpConnection *p, HttpMsg *req, int(*on_resp)
+		(struct HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result));
+};
+
 
 #endif

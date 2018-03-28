@@ -13,11 +13,7 @@ struct TranscodeModule {
 
 struct FFmpegAudioTranscode : public AComponent {
 	static const char* name() { return "FFmpegAudioTranscode"; }
-	static TranscodeModule* Module() {
-		static TranscodeModule* s_m = (TranscodeModule*)
-			AModuleFind(name(), name());
-		return s_m;
-	}
+	AMODULE_GET(TranscodeModule, name(), name())
 
 	//int   (*on_recv_hook)(AStreamComponent *s, AVPacket *pkt);
 	//void   *on_recv_hookdata;

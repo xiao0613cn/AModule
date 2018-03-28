@@ -285,7 +285,7 @@ static int client_com_create(AObject **object, AObject *parent, AOption *option)
 }
 
 ASystem AClientSystem = { {
-	ASystem::class_name(),
+	"ASystem",
 	AClientComponent::name(),
 	sizeof(AClientComponent),
 	NULL, NULL,

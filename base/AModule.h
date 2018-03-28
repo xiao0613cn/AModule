@@ -26,10 +26,10 @@ struct AModule {
 			ASingleton::name(), ASingleton::name()) + 1);
 		return s_m;
 	}
-	template <typename TModule>
-	static TModule* get() {
-		static TModule *s_m = (TModule*)AModuleFind(TModule::class_name(), TModule::module_name());
-		return s_m;
+#define AMODULE_GET(TModule, class_name, module_name) \
+	static TModule* get() { \
+		static TModule *s_m = (TModule*)AModuleFind(class_name, module_name); \
+		return s_m; \
 	}
 };
 

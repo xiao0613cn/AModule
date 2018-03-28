@@ -149,7 +149,7 @@ struct AEntityManager : public AEntityManagerMethod {
 	}
 	template <typename TComponent>
 	TComponent* add_com(AEntity *e) {
-		return (TComponent*)_add_com(this, e, (AModule*)TComponent::Module());
+		return (TComponent*)_add_com(this, e, (AModule*)TComponent::get());
 	}
 };
 

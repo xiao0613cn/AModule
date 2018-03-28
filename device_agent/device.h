@@ -43,11 +43,7 @@ struct ADeviceComponent : public AComponent {
 
 struct ADeviceModule {
 	AModule module;
-	static ADeviceModule* get() {
-		static ADeviceModule *s_m = (ADeviceModule*)AModuleFind(
-			ADeviceComponent::name(), ADeviceComponent::name());
-		return s_m;
-	}
+	AMODULE_GET(ADeviceModule, ADeviceComponent::name(), ADeviceComponent::name())
 
 	// ADeviceComponent._devmap_node
 	rb_root dev_map;

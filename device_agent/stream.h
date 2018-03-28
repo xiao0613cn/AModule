@@ -78,7 +78,8 @@ struct AStreamPlugin : public AComponent {
 	void   *on_recv_userdata;
 
 	void init2() {
-		_stream = NULL; _plugin_entry.init(); on_recv = NULL;
+		_stream = NULL; _plugin_entry.init();
+		on_recv = NULL; on_recv_userdata = NULL;
 		_key_flags = ~(1u<<AVMEDIA_TYPE_VIDEO); // no video key frame
 		_media_flags = -1u;                     // enable all media type
 		_enable_key_ctrl = 1;
@@ -93,11 +94,7 @@ struct AStreamPlugin : public AComponent {
 
 struct AStreamModule {
 	AModule module;
-	static AStreamModule* get() {
-		static AStreamModule *s_m = (AStreamModule*)AModuleFind(
-			AStreamComponent::name(), AStreamComponent::name());
-		return s_m;
-	}
+	AMODULE_GET(AStreamModule, AStreamComponent::name(), AStreamComponent::name())
 
 	AStreamComponent* (*find)(AEntityManager *em, const char *stream_key);
 	int   (*dispatch_avpkt)(AStreamComponent *c, AVPacket *pkt);

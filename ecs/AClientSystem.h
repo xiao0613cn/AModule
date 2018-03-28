@@ -7,10 +7,7 @@
 
 struct AClientComponent : public AComponent {
 	static const char* name() { return "AClientComponent"; }
-	static AModule* Module() {
-		static AModule* s_m = AModuleFind(ASystem::class_name(), name());
-		return s_m;
-	}
+	AMODULE_GET(AModule, "ASystem", name())
 
 	enum Status {
 		Invalid = 0,

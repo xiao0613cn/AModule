@@ -1,10 +1,12 @@
 #include "../stdafx.h"
 #include "test.h"
-#include "../http/AModule_HttpSession.h"
+#include "../base/AModule_API.h"
+#include "../http/http_msg.h"
 
 static int on_resp(HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result)
 {
-	AModule::get<HttpConnectionModule>()->hm_release(req);
+	if (result < 0)
+		HttpConnectionModule::get()->hm_release(req);
 	TRACE("result = %d.\n", result);
 	if (resp == NULL)
 		return result;
@@ -16,17 +18,23 @@ static int on_resp(HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result)
 
 CU_TEST(test_http)
 {
-	dlload(NULL, "service_http", FALSE);
-	HttpConnectionModule *m = AModule::get<HttpConnectionModule>();
+	dlload(NULL, "service_http");
+	HttpConnectionModule *m = HttpConnectionModule::get();
 	HttpMsg *msg = m->hm_create();
+	//AObject *p = NULL;
+	//AObject::create2(&p, NULL, NULL, &m->module);
+	//p->_http._max_body_size = 64*1024;
 
 	msg->_parser.type = HTTP_REQUEST;
 	msg->_parser.method = HTTP_GET;
-	msg->uri_set(sz_t("/index.html"), 1);
+	msg->_parser.http_major = 1;
+	msg->_parser.http_minor = 1;
+	msg->uri_set(sz_t("/"), 1);
 	msg->header_set(sz_t("Host"), sz_t("www.sina.com.cn"));
 	msg->header_set(sz_t("Accept"), sz_t("*/*"));
 
-	int result = m->request(NULL, msg, on_resp);
+	int result = m->request(NULL/*p*/, msg, on_resp);
+	//p->release();
 	TRACE("http request = %d.\n", result);
 	if (result < 0)
 		m->hm_release(msg);

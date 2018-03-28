@@ -215,6 +215,8 @@ CU_TEST(test_pvd)
 	AEntity *e = NULL;
 	result = AObject::create(&e, NULL, opt, NULL);
 	opt->release();
+	if (e == NULL)
+		return;
 	AClientComponent *c; e->get(&c);
 
 	ASystemManager *sm = ASystemManager::get();
@@ -237,6 +239,7 @@ CU_TEST(test_pvd)
 }
 CU_TEST(test_mqtt)
 {
+	dlload(NULL, "mqtt_client");
 	AOption *opt = NULL;
 	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
 		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
@@ -245,6 +248,8 @@ CU_TEST(test_mqtt)
 	AEntity *mqtt = NULL;
 	int result = AObject::create(&mqtt, NULL, opt, NULL);
 	opt->release();
+	if (mqtt == NULL)
+		return;
 
 	AClientComponent *c; mqtt->get(&c);
 	ASystemManager *sm = ASystemManager::get();
@@ -270,10 +275,8 @@ CU_TEST(test_mqtt)
 
 int main()
 {
-	dlload(NULL, "io_openssl", FALSE);
-	dlload(NULL, "service_http", FALSE);
-	dlload(NULL, "mqtt_client", FALSE);
-	dlload(NULL, "device_agent", FALSE);
+	dlload(NULL, "io_openssl");
+	dlload(NULL, "device_agent");
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
 

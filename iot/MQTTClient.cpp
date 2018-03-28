@@ -10,7 +10,6 @@
 #pragma comment(lib, "../bin_win32/AModule.lib")
 #endif
 
-extern MqttModule MCM;
 
 static int mm_done_free(AMessage *msg, int result)
 {
@@ -23,7 +22,6 @@ static int mm_done_free(AMessage *msg, int result)
 static MqttMsg* mm_create()
 {
 	MqttMsg *mm = goarrary(MqttMsg, 1);
-	mm->mod = &MCM;
 	mm->done = &mm_done_free;
 	return mm;
 }

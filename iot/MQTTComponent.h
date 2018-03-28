@@ -10,6 +10,8 @@ typedef struct MqttMsg MqttMsg;
 
 struct MqttModule {
 	AModule module;
+	AMODULE_GET(MqttModule, "AEntity", "MQTTClient")
+
 	MqttMsg*  (*msg_create)();
 	void      (*msg_release)(MqttMsg *msg);
 
@@ -39,7 +41,6 @@ struct MqttModule {
 struct MqttMsg : public AMessage {
 	MQTT_BUFFER buf;
 	void       *user;
-	MqttModule *mod;
 };
 
 struct MqttComponent : public AComponent {

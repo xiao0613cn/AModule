@@ -62,7 +62,7 @@
 
 
 AMODULE_API void*
-dlload(const char *relative_path, const char *dll_name, BOOL relative_os_name);
+dlload(const char *relative_path, const char *dll_name);
 
 
 #define async_begin(status, result) \

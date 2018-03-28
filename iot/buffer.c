@@ -104,13 +104,8 @@ void BUFFER_delete(MQTT_BUFFER* handle)
 int BUFFER_build(MQTT_BUFFER* b, const unsigned char* source, size_t size)
 {
     int result;
-    if (b == NULL)
-    {
-        /* Codes_SRS_BUFFER_07_009: [BUFFER_build shall return nonzero if handle is NULL ] */
-        result = __FAILURE__;
-    }
     /* Codes_SRS_BUFFER_01_002: [The size argument can be zero, in which case the underlying buffer held by the buffer instance shall be freed.] */
-    else if (size == 0)
+    if (size == 0)
     {
         /* Codes_SRS_BUFFER_01_003: [If size is zero, source can be NULL.] */
         if (b->buffer != NULL) free(b->buffer);
@@ -148,18 +143,6 @@ int BUFFER_build(MQTT_BUFFER* b, const unsigned char* source, size_t size)
 int BUFFER_pre_build(MQTT_BUFFER* handle, size_t size)
 {
     int result;
-    if (handle == NULL)
-    {
-        /* Codes_SRS_BUFFER_07_006: [If handle is NULL or size is 0 then BUFFER_pre_build shall return a nonzero value.] */
-        result = __FAILURE__;
-    }
-    else if (size == 0)
-    {
-        /* Codes_SRS_BUFFER_07_006: [If handle is NULL or size is 0 then BUFFER_pre_build shall return a nonzero value.] */
-        result = __FAILURE__;
-    }
-    else
-    {
         BUFFER* b = (BUFFER*)handle;
         if (b->buffer != NULL)
         {
@@ -168,7 +151,7 @@ int BUFFER_pre_build(MQTT_BUFFER* handle, size_t size)
         }
         else
         {
-            if ((b->buffer = (unsigned char*)malloc(size)) == NULL)
+            if ((b->buffer = (unsigned char*)malloc(size ? size : 1)) == NULL)
             {
                 /* Codes_SRS_BUFFER_07_013: [BUFFER_pre_build shall return nonzero if any error is encountered.] */
                 result = __FAILURE__;
@@ -179,7 +162,6 @@ int BUFFER_pre_build(MQTT_BUFFER* handle, size_t size)
                 result = 0;
             }
         }
-    }
     return result;
 }
 
@@ -206,13 +188,6 @@ int BUFFER_content(MQTT_BUFFER* handle, const unsigned char** content)
 extern int BUFFER_unbuild(MQTT_BUFFER* handle)
 {
     int result;
-    if (handle == NULL)
-    {
-        /* Codes_SRS_BUFFER_07_014: [BUFFER_unbuild shall return a nonzero value if MQTT_BUFFER* is NULL.] */
-        result = __FAILURE__;
-    }
-    else
-    {
         BUFFER* b = (BUFFER*)handle;
         if (b->buffer != NULL)
         {
@@ -226,7 +201,6 @@ extern int BUFFER_unbuild(MQTT_BUFFER* handle)
             /* Codes_SRS_BUFFER_07_015: [BUFFER_unbuild shall return a nonzero value if the unsigned char* referenced by MQTT_BUFFER* is NULL.] */
             result = __FAILURE__;
         }
-    }
     return result;
 }
 
@@ -234,15 +208,10 @@ extern int BUFFER_unbuild(MQTT_BUFFER* handle)
 int BUFFER_enlarge(MQTT_BUFFER* handle, size_t enlargeSize)
 {
     int result;
-    if (handle == NULL)
+    if (enlargeSize == 0)
     {
         /* Codes_SRS_BUFFER_07_017: [BUFFER_enlarge shall return a nonzero result if any parameters are NULL or zero.] */
-        result = __FAILURE__;
-    }
-    else if (enlargeSize == 0)
-    {
-        /* Codes_SRS_BUFFER_07_017: [BUFFER_enlarge shall return a nonzero result if any parameters are NULL or zero.] */
-        result = __FAILURE__;
+        result = 0; // __FAILURE__;
     }
     else
     {
