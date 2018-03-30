@@ -82,7 +82,7 @@ static LONG WINAPI except_filter(EXCEPTION_POINTERS *except_ptr)
 	time_t cur_time = time(NULL);
 	struct tm *cur_tm = localtime(&cur_time);
 	_stprintf_s(tstr, path+_countof(path)-tstr,
-		_T("\\logs\\%s_")_T(tm_sfmt)_T(".dmp"), exe_name, tm_args(cur_tm));
+		_T("\\log\\%s_")_T(tm_sfmt)_T(".dmp"), exe_name, tm_args(cur_tm));
 
 	HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, NULL,
 		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);  
@@ -336,28 +336,15 @@ dlload(const char *relative_path, const char *dll_name/*, BOOL relative_os_name*
 	getcwd(cur_path, sizeof(cur_path));
 
 	char abs_path[BUFSIZ];
-#ifdef _WIN32
-	DWORD len = GetModuleFileNameA(NULL, abs_path, sizeof(abs_path));
-	const char *pos = strrchr(abs_path, '\\');
-#else
-	size_t len = readlink("/proc/self/exe", abs_path, sizeof(abs_path));
-	const char *pos = strrchr(abs_path, '/');
-#endif
-	len = pos - abs_path + 1;
-	abs_path[len] = '\0';
+	getexepath(abs_path, sizeof(abs_path));
 
+	int len = strlen(abs_path);
 	if (relative_path != NULL) {
-		/*if (relative_os_name) {
-			len += snprintf(abs_path+len, sizeof(abs_path)-len,
-				"%s_%s/", relative_path, DLL_BIN_OS);
-		} else*/ {
-			len += snprintf(abs_path+len, sizeof(abs_path)-len,
-				"%s/", relative_path);
-		}
+		len += snprintf(abs_path+len, sizeof(abs_path)-len, "%s/", relative_path);
 		chdir(abs_path);
 	}
-	snprintf(abs_path+len, sizeof(abs_path)-len,
-		"%s%s.%s", DLL_BIN_LIB, dll_name, DLL_BIN_NAME);
+	snprintf(abs_path+len, sizeof(abs_path)-len, "%s%s.%s",
+		DLL_BIN_LIB, dll_name, DLL_BIN_NAME);
 
 	void *module = dlopen(abs_path, RTLD_NOW);
 	if ((module == NULL) && (relative_path != NULL)) {
@@ -376,3 +363,25 @@ dlload(const char *relative_path, const char *dll_name/*, BOOL relative_os_name*
 	return module;
 }
 
+AMODULE_API const char*
+getexepath(char *path, int size)
+{
+	static char exe_path[BUFSIZ] = { 0 };
+	if (exe_path[0] == '\0') {
+#ifdef _WIN32
+		DWORD len = GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+		const char *pos = strrchr(exe_path, '\\');
+#else
+		size_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path));
+		const char *pos = strrchr(exe_path, '/');
+#endif
+		len = pos - exe_path + 1;
+		exe_path[len] = '\0';
+	}
+	if (path != NULL) {
+		strcpy_sz(path, size, exe_path);
+	} else {
+		path = exe_path;
+	}
+	return path;
+}

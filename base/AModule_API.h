@@ -64,25 +64,18 @@
 AMODULE_API void*
 dlload(const char *relative_path, const char *dll_name);
 
+AMODULE_API const char*
+getexepath(char *path, int size);
 
-#define async_begin(status, result) \
-	while (result > 0) { \
-		int local_async_status = (status); \
-		if (local_async_status == 0) { \
-			(status) += 1;
+AMODULE_API int
+ALog(const char *name, const char *func, int line, const char *fmt, va_list ap);
 
-#define async_then(status) \
-			continue; \
-		} \
-		if (--local_async_status == 0) { \
-			(status) += 1;
+static inline int
+ALog2(const char *name, const char *f, int l, const char *fmt, ...) {
+	va_list ap; va_start(ap, fmt);
+	int result = ALog(name, f, l, fmt, ap);
+	va_end(ap); return result;
+}
 
-#define async_end(status, ret) \
-			continue; \
-		} \
-		(status) = 0; \
-		result = ret; \
-		break; \
-	}
 
 #endif

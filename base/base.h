@@ -119,7 +119,7 @@ DTRACE(const char *f, int l, const char *fmt, ...)
 	fputs(outbuf, stdout);
 	return outpos;
 }
-#define TRACE(fmt, ...)  DTRACE(__FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define TRACE(fmt, ...)  ALog2(NULL, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 #endif //!TRACE
 
 #ifdef _DEBUG

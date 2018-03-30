@@ -174,9 +174,13 @@ struct APool {
 		}
 	}
 
-	int  total_left()                { return _item_left; }
 	void push_back(const Item &item) { push(&item, 1); }
 	void push(const Item *item, int count) {
+		if (item == NULL) {
+			_slice_push->_slice.push(count);
+			_item_count += count; _item_left -= count;
+			return;
+		}
 		reserve(count);
 		while (count > 0) {
 			int num = min(count, _slice_push->_slice.left());
@@ -187,8 +191,9 @@ struct APool {
 		}
 	}
 
-	int   total_count() { return _item_count; }
-	Item& front()       { return *_slice_pop()->_slice.ptr(); }
+	Item& front() {
+		return *_slice_pop()->_slice.ptr();
+	}
 	void  pop_front(int count = 1, list_head *free_list = NULL) {
 		Slice *slice = _slice_pop();
 		assert(count <= slice->_slice.len());
@@ -197,7 +202,11 @@ struct APool {
 		_move_pop(slice, free_list);
 	}
 //protected:
-	void _move_push() {
+	void _move_push(bool force = false) {
+		if (force) {
+			_item_left -= _slice_push->_slice.left();
+			_slice_push->_slice._size = _slice_push->_slice._end; // left() = 0
+		}
 		while (_slice_push->_slice.left() == 0) {
 			if (_slice_list.is_last(&_slice_push->_node)) {
 				_slice_push = NULL;

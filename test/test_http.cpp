@@ -1,6 +1,6 @@
 #include "../stdafx.h"
-#include "test.h"
 #include "../base/AModule_API.h"
+#include "test.h"
 #include "../http/http_msg.h"
 
 static int on_resp(HttpConnection *p, HttpMsg *req, HttpMsg *resp, int result)
