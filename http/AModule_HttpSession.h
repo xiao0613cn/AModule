@@ -49,7 +49,7 @@ struct HttpParserCompenont : public AComponent {
 
 		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
 		c->on_output = m->iocom_output;
-		c->_outuser = this;
+		c->on_output_userdata = this;
 		return c->_output_cycle(512, send_bufsiz);
 	}
 	//////////////////////////////////////////////////////////////////////////

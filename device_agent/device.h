@@ -23,22 +23,13 @@ struct ADeviceComponent : public AComponent {
 		int         chan_id;
 		const char *control;
 		AOption    *opts;
-
-		AOption    *resp;
 	};
-	int   (*ptz_ctrl)(ADeviceComponent *dev, ptz_req *req);
-
 	struct rec_req {
 		int        chan_id;
 		struct tm  begin_tm;
 		struct tm  end_tm;
 		AOption   *opts;
-
-		AOption   *resp;
 	};
-	int   (*get_record_list)(ADeviceComponent *dev, rec_req *req);
-
-	int   (*extra_ctrl)(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp);
 };
 
 struct ADeviceModule {

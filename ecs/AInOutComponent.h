@@ -34,7 +34,7 @@ struct AInOutComponent : public AComponent {
 	AMessage  _outmsg;
 	ARefsBuf *_outbuf;
 	int   (*on_output)(AInOutComponent *c, int result);
-	void     *_outuser;
+	void   *on_output_userdata;
 
 	void init2() {
 		// set by inner module
@@ -49,7 +49,7 @@ struct AInOutComponent : public AComponent {
 		_outmsg.done = get()->outmsg_done;
 		_outbuf      = NULL;
 		on_output    = NULL;
-		_outuser     = NULL;
+		on_output_userdata = NULL;
 	}
 	void exit2() {
 		assert(_queue.empty());

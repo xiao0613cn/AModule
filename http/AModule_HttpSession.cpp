@@ -161,7 +161,7 @@ static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
 }
 
 static int iocom_output(AInOutComponent *c, int result) {
-	HttpParserCompenont *p = (HttpParserCompenont*)c->_outuser;
+	HttpParserCompenont *p = (HttpParserCompenont*)c->on_output_userdata;
 	if (result >= 0)
 		result = hm_decode(p, p->_httpmsg, c->_outbuf);
 

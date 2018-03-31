@@ -6,6 +6,7 @@ extern "C" {
 #ifdef _WIN32
 #pragma warning(disable: 4244) // 从“int”转换到“uint8_t”，可能丢失数据
 #endif
+#include "libavutil/avutil.h"
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
@@ -14,16 +15,20 @@ extern "C" {
 #endif
 };
 
-// remark:
-//   AVPacket.buf => ARefsBuf*
-//   AVPacket.stream_index => enum AVMediaType
+// remark: struct AVPacket {
+//   AVBufferRef *buf           => ARefsBuf *buf
+//   int          stream_index  => enum AVMediaType stream_index
+//   int64_t pts, dts, duration => AV_TIME_BASE per second(1/1000000)
+// };
 
 struct AEventManager;
 struct AStreamInfo;
 struct AStreamPlugin;
+struct AStreamModule;
 
 struct AStreamComponent : public AComponent {
 	static const char *name() { return "AStreamComponent"; }
+	AMODULE_GET(AStreamModule, AStreamComponent::name(), AStreamComponent::name())
 
 	char    _dev_id[48];
 	int     _chan_id;
