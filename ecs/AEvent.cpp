@@ -65,7 +65,7 @@ static bool EM_subscribe(AEventManager *em, AReceiver *r)
 			first->_recv_list.push_back(&r->_recv_list);
 		r->_manager = em;
 		helper::count(em) ++;
-		//r->_self->addref();
+		r->addref();
 	} else {
 		assert(0);
 	}
@@ -109,7 +109,7 @@ static bool EM_unsubscribe(AEventManager *em, AReceiver *r)
 		return false;
 	}
 	_erase(first, r, helper::map(em), helper::count(em));
-	//r->_self->release();
+	r->release();
 	return valid;
 }
 

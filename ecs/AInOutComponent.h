@@ -77,7 +77,7 @@ struct AInOutComponent : public AComponent {
 		unlock();
 	}
 	int _output_cycle(int ressiz, int bufsiz) {
-		_object->addref();
+		_entity->addref();
 		int result = ARefsBuf::reserve(_outbuf, ressiz, bufsiz);
 		_outmsg.init();
 		return _outmsg.done2(result);

@@ -123,8 +123,8 @@ struct AStreamImplement {
 // inline function implement
 inline void AStreamComponent::plugin_add(AStreamPlugin *p) {
 	assert((p->_stream == NULL) && p->_plugin_entry.empty());
-	p->_object->addref();
-	p->_stream = this; this->_object->addref();
+	p->_entity->addref();
+	p->_stream = this; this->_entity->addref();
 
 	_plugin_list.push_back(&p->_plugin_entry);
 	++_plugin_count;
@@ -133,7 +133,7 @@ inline void AStreamComponent::plugin_add(AStreamPlugin *p) {
 inline void AStreamComponent::plugin_del(AStreamPlugin *p) {
 	assert((p->_stream == this) && !p->_plugin_entry.empty());
 	p->_plugin_entry.leave();
-	p->_object->release();
+	p->_entity->release();
 	--_plugin_count;
 }
 

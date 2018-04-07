@@ -75,7 +75,7 @@ static void HttpSvcStop(AService *svc)
 	em->lock();
 	AComponent *c = em->_upper_com(em, p, HttpParserCompenont::name(), -1);
 	while (c != NULL) {
-		p = (HttpConnection*)c->_object;
+		p = (HttpConnection*)c->_entity;
 		c = em->_next_com(em, p, HttpParserCompenont::name(), -1);
 
 		if ((p->_module == &HCM.module) && (p->_svc == svc)) {

@@ -12,7 +12,7 @@ static int SM_check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DW
 		return 0;
 	}
 
-	ASystem::Result *r = sm->_all_systems->_check_one ? sm->_all_systems->_check_one(e, cur_tick) : NULL;
+	ASystem::Result *r = sm->_all_systems->_check_one ? sm->_all_systems->_check_one(sm, e, cur_tick) : NULL;
 	if (r != NULL) {
 		r->system = sm->_all_systems;
 		exec_list->push_back(&r->node);
@@ -20,7 +20,7 @@ static int SM_check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DW
 	}
 
 	list_for_allsys(s, sm->_all_systems) {
-		r = s->_check_one ? s->_check_one(e, cur_tick) : NULL;
+		r = s->_check_one ? s->_check_one(sm, e, cur_tick) : NULL;
 		if (r != NULL) {
 			r->system = s;
 			exec_list->push_back(&r->node);
@@ -33,6 +33,7 @@ static int SM_check_one(ASystemManager *sm, list_head *exec_list, AEntity *e, DW
 static int SM_check_entities(ASystemManager *sm, AEntityManager *em, list_head *exec_list, DWORD cur_tick)
 {
 	int result = 0;
+	sm->lock();
 	em->lock();
 	em->_last_entity = em->_upper(em, em->_last_entity);
 	while (em->_last_entity != NULL)
@@ -43,6 +44,7 @@ static int SM_check_entities(ASystemManager *sm, AEntityManager *em, list_head *
 		em->_last_entity = em->_next(em, em->_last_entity);
 	}
 	em->unlock();
+	sm->unlock();
 	return result;
 }
 
@@ -55,10 +57,10 @@ static int SM_check_allsys(ASystemManager *sm, list_head *exec_list, DWORD cur_t
 
 	sm->lock();
 	if (sm->_all_entities) sm->_all_entities->lock();
-	int count = sm->_all_systems->_check_all ? sm->_all_systems->_check_all(exec_list, cur_tick) : 0;
+	int count = sm->_all_systems->_check_all ? sm->_all_systems->_check_all(sm, exec_list, cur_tick) : 0;
 
 	list_for_allsys(s, sm->_all_systems) {
-		count += s->_check_all ? s->_check_all(exec_list, cur_tick) : 0;
+		count += s->_check_all ? s->_check_all(sm, exec_list, cur_tick) : 0;
 	}
 	if (sm->_all_entities) sm->_all_entities->unlock();
 	sm->unlock();

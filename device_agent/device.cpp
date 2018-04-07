@@ -18,7 +18,7 @@ static int DM_push(ADeviceComponent *dev, AEventManager *ev)
 
 	old_dev = rb_insert_ADeviceComponent(&DM.dev_map, dev, dev->_dev_id);
 	assert(old_dev == NULL);
-	dev->_object->addref();
+	dev->_entity->addref();
 	return 1;
 }
 
@@ -31,7 +31,7 @@ static int DM_pop(ADeviceComponent *dev, AEventManager *ev)
 	RB_CLEAR_NODE(&dev->_devmap_node);
 	if (ev != NULL)
 		ev->emit_by_name(ev, "on_dev_pop", dev);
-	dev->_object->release();
+	dev->_entity->release();
 	return 1;
 }
 
@@ -42,6 +42,10 @@ static ADeviceComponent* DM_find(const char *devid)
 
 static ADeviceComponent* DM_upper(const char *devid)
 {
+	if (RB_EMPTY_ROOT(&DM.dev_map))
+		return NULL;
+	if (devid == NULL)
+		return rb_first_entry(&DM.dev_map, ADeviceComponent, _devmap_node);
 	return rb_upper_ADeviceComponent(&DM.dev_map, devid);
 }
 
@@ -72,21 +76,21 @@ static void DM_exit(int inited)
 
 static int dev_com_ptz_ctrl(ADeviceComponent *dev, ADeviceComponent::ptz_req *req)
 {
-	AModule *m = dev->_object->_module;
+	AModule *m = dev->_entity->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
 
 static int dev_com_get_rec(ADeviceComponent *dev, ADeviceComponent::rec_req *req)
 {
-	AModule *m = dev->_object->_module;
+	AModule *m = dev->_entity->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
 
 static int dev_com_exctrl(ADeviceComponent *dev, const char *cmd, AOption *req, AOption *resp)
 {
-	AModule *m = dev->_object->_module;
+	AModule *m = dev->_entity->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }
@@ -103,9 +107,6 @@ static int dev_com_create(AObject **object, AObject *parent, AOption *options)
 
 	dev->_chan_count = dev->_sensor_count = dev->_alarmout_count = 0;
 	dev->_private_sn[0] = '\0';
-	dev->ptz_ctrl = &dev_com_ptz_ctrl;
-	dev->get_record_list = &dev_com_get_rec;
-	dev->extra_ctrl = &dev_com_exctrl;
 	return 1;
 }
 

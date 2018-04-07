@@ -82,7 +82,7 @@ static LONG WINAPI except_filter(EXCEPTION_POINTERS *except_ptr)
 	time_t cur_time = time(NULL);
 	struct tm *cur_tm = localtime(&cur_time);
 	_stprintf_s(tstr, path+_countof(path)-tstr,
-		_T("\\log\\%s_")_T(tm_sfmt)_T(".dmp"), exe_name, tm_args(cur_tm));
+		_T("\\logs\\%s_")_T(tm_sfmt)_T(".dmp"), exe_name, tm_args(cur_tm));
 
 	HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, NULL,
 		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);  

@@ -15,9 +15,6 @@ struct FFmpegAudioTranscode : public AComponent {
 	static const char* name() { return "FFmpegAudioTranscode"; }
 	AMODULE_GET(TranscodeModule, name(), name())
 
-	//int   (*on_recv_hook)(AStreamComponent *s, AVPacket *pkt);
-	//void   *on_recv_hookdata;
-
 	AVCodecContext *_araw_ctx;
 	AVFrame         _araw_frame;
 	ARefsBuf       *_araw_buf[AV_NUM_DATA_POINTERS];

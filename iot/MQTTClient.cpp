@@ -92,8 +92,14 @@ int MQTTClient::open(int result)
 	case Invalid:
 	{
 		AOption *io_opt = _options->find("io");
+		if (io_opt == NULL)
+			io_opt = _options->find("mqtt_client");
+		if (io_opt == NULL)
+			return -EINVAL;
+
 		if (_iocom._io == NULL) {
-			result = AObject::create(&_iocom._io, this, io_opt, "async_tcp");
+			ACreateParam param(this, io_opt, NULL, "io", io_opt->value[0]?io_opt->value:"async_tcp", 0);
+			result = AObjectCreate((AObject**)&_iocom._io, &param);
 			if (result < 0)
 				return result;
 		}
@@ -108,7 +114,7 @@ int MQTTClient::open(int result)
 			return result;
 
 		if (_mqtt._login.clientId == NULL) {
-			AOption *client_opt = _options->find("mqtt_client_options");
+			AOption *client_opt = _options->find("mqtt_client_option");
 			_mqtt._login.clientId = client_opt->getStr("clientId", "");
 			_mqtt._login.willTopic = client_opt->getStr("willTopic", NULL);
 			_mqtt._login.willMessage = client_opt->getStr("willMessage", NULL);
@@ -183,18 +189,18 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* h
 			_status = Opened;
 		else
 			_status = LoginFailed;
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 		return;
 	}
 	if (packet == PINGRESP_TYPE) {
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 		return;
 	}
 
 	if (packet == PUBLISH_TYPE) {
 		MQTT_MESSAGE *msg = (MQTT_MESSAGE*)packetTag;
 		// TODO: dispath msg...
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 
 		if (msg->qosInfo == DELIVER_AT_LEAST_ONCE) {
 			MqttMsg *reply = mm_create();
@@ -210,12 +216,12 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* h
 	}
 	if (packet == PUBACK_TYPE) {
 		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 		return;
 	}
 	if (packet == PUBREC_TYPE) {
 		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 
 		MqttMsg *reply = mm_create();
 		mqtt_codec_publishRelease(&reply->buf, publish_ack->packetId);
@@ -224,14 +230,14 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* h
 	}
 	if (packet == PUBREL_TYPE) {
 		PUBLISH_ACK *publish_ack = (PUBLISH_ACK*)packetTag;
-		_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 
 		MqttMsg *reply = mm_create();
 		mqtt_codec_publishComplete(&reply->buf, publish_ack->packetId);
 		_mqtt.post(reply);
 		return;
 	}
-	_mqtt.on_msg(_mqtt._user, packet, flags, headerData, packetTag);
+	_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 }
 
 static int MQTTHeartMsgDone(AMessage *msg, int result)
@@ -356,6 +362,7 @@ static int MQTTCreate(AObject **object, AObject *parent, AOption *option)
 	mqtt->_client.abort = &MQTTAbort;
 	mqtt->_client.close = &MQTTClose;
 	mqtt->_iocom.on_output = &MQTTOutput;
+
 	mqtt->_mqtt.on_msg = &on_msg_null;
 	mqtt->_mqtt.do_post = &MQTTPost;
 	return 1;

@@ -59,7 +59,7 @@ memzero(AType &stru) {
 	......
 	fread, fwrite......
 */
-#define defer_struct(name, type, member, close) \
+#define godefer_struct(name, type, member, close) \
 struct name { \
 	type member; \
 	name(type v) :member(v) { } \
@@ -68,19 +68,19 @@ struct name { \
 	operator type&() { return member; } \
 }
 
-#define defer_close2(line, type, member, close) \
-	defer_struct(ac_##line##_t, type, member, close) ac_##line(member)
-#define defer_close(line, type, member, close) \
-	defer_close2(line, type, member, close)
+#define godefer_close2(line, type, member, close) \
+	godefer_struct(ac_##line##_t, type, member, close) ac_##line(member)
+#define godefer_close(line, type, member, close) \
+	godefer_close2(line, type, member, close)
 #define godefer(type, member, close) \
-	defer_close(__LINE__, type, member, close)
+	godefer_close(__LINE__, type, member, close)
 
-#define defer_inline2(name, line, type, member, close) \
-	defer_struct(name##line, type, member, close)
-#define defer_inline(name, line, type, member, close) \
-	defer_inline2(name, line, type, member, close)
+#define godefer_inline2(name, line, type, member, close) \
+	godefer_struct(name##line, type, member, close)
+#define godefer_inline(name, line, type, member, close) \
+	godefer_inline2(name, line, type, member, close)
 #define godefer2(type, member, close) \
-	defer_inline(auto_close_, __LINE__, type, member, close) member
+	godefer_inline(auto_close_, __LINE__, type, member, close) member
 
 
 template <typename AType> int

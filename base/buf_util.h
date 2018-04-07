@@ -178,6 +178,7 @@ struct APool {
 	void push(const Item *item, int count) {
 		if (item == NULL) {
 			_slice_push->_slice.push(count);
+			_move_push();
 			_item_count += count; _item_left -= count;
 			return;
 		}
@@ -205,6 +206,12 @@ struct APool {
 	void _move_push(bool force = false) {
 		if (force) {
 			_item_left -= _slice_push->_slice.left();
+			if (_slice_push->_slice.len() == 0) {
+				_slice_push->_node.leave();
+				_slice_push->_slice.release();
+				_slice_push = NULL;
+				return;
+			}
 			_slice_push->_slice._size = _slice_push->_slice._end; // left() = 0
 		}
 		while (_slice_push->_slice.left() == 0) {

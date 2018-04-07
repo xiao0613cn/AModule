@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
 #include "AEntity.h"
+#include "AInOutComponent.h"
 
 static inline int AEntityCmp(void *key, AEntity *data) {
 	if (key == data) return 0;
@@ -109,10 +110,13 @@ static int EM_upper_each_com(AEntityManager *em, void *key, const char *com_name
 	return result;
 }
 
-static void EM_clear(AEntityManager *em)
+static void EM_clear(AEntityManager *em, BOOL iocom_shutdown)
 {
+	AInOutComponent *iocom;
 	AEntity *cur = EM_upper(em, NULL);
 	while (cur != NULL) {
+		if (iocom_shutdown && (cur->get(&iocom) != NULL) && (iocom->_io != NULL))
+			iocom->_io->shutdown();
 		AEntity *next = EM_next(em, cur);
 		EM_pop(em, cur);
 		cur = next;
@@ -125,7 +129,7 @@ struct EMComHead {
 	AModule *_module;
 };
 
-static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_module)
+static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_module, AOption *com_opts)
 {
 	EMComHead *h = (EMComHead*)malloc(sizeof(EMComHead) + com_module->object_size);
 	if (h == NULL)
@@ -136,7 +140,7 @@ static AComponent* EM_add_com(AEntityManager *em, AEntity *e, AModule *com_modul
 	h->_module = com_module;
 
 	AComponent *c = (AComponent*)(h + 1);
-	int result = com_module->create((AObject**)&c, e, NULL);
+	int result = com_module->create((AObject**)&c, e, com_opts);
 	if (result < 0) {
 		em->_del_com(em, e, c);
 		c = NULL;

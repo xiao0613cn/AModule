@@ -25,11 +25,11 @@ static int LogInit()
 
 	INIT_RB_ROOT(&Log._file_map);
 	pthread_mutex_init(&Log._mutex, NULL);
-	//snprintf(Log._path, sizeof(Log._path), "%slog/" getexepath(NULL,0)));
+	//snprintf(Log._path, sizeof(Log._path), "%slogs/" getexepath(NULL,0)));
 	Log._max_count = 3;
 	Log._max_fsize = 4*1024*1024; // 4 MB
 	Log._delay_first = 100;       // 100 milli-sec
-	Log._delay_tick = 10*1000;    // 2 seconds
+	Log._delay_tick = 10*1000;    // 10 seconds
 	Log._delay_count = 3;
 	return 0;
 }
@@ -53,7 +53,7 @@ rb_tree_define(LogFile,	_node, const char*, LogFileCmp)
 static int LogFileOpen(LogFile *lf)
 {
 	char fpath[BUFSIZ];
-	snprintf(fpath, BUFSIZ, "%slog/%s-%d.log", getexepath(NULL,0), lf->_name, lf->_index);
+	snprintf(fpath, BUFSIZ, "%slogs/%s-%d.log", getexepath(NULL,0), lf->_name, lf->_index);
 
 	lf->_fd = open(fpath, O_RDWR|O_CREAT|O_APPEND|O_BINARY, S_IREAD|S_IWRITE);
 	if (lf->_fd == -1)

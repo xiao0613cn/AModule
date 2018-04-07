@@ -187,7 +187,7 @@ static int on_event(const char *name, bool preproc, void *p)
 {
 	AClientComponent *c = (AClientComponent*)p;
 	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
-		name, c->_object->_module->module_name, c->_object, c, preproc);
+		name, c->_entity->_module->module_name, c->_entity, c, preproc);
 
 	MqttComponent *mqtt;
 	if (c->other(&mqtt) != NULL) {
@@ -221,11 +221,12 @@ CU_TEST(test_pvd)
 
 	ASystemManager *sm = ASystemManager::get();
 	AEventManager *em = sm->_event_manager;
+	AReceiver *r;
 	em->lock();
-	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
-	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
-	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = true;
-	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
+	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = true; r->release();
+	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = false; r->release();
+	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = true; r->release();
+	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = false; r->release();
 	em->unlock();
 
 	AEntityManager *etm = sm->_all_entities;
@@ -254,11 +255,12 @@ CU_TEST(test_mqtt)
 	AClientComponent *c; mqtt->get(&c);
 	ASystemManager *sm = ASystemManager::get();
 	AEventManager *em = sm->_event_manager;
+	AReceiver *r;
 	em->lock();
-	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = true;
-	em->_sub_self(em, "on_client_opened", c, &on_event)->_oneshot = false;
-	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = true;
-	em->_sub_self(em, "on_client_closed", c, &on_event)->_oneshot = false;
+	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = true; r->release();
+	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = false; r->release();
+	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = true; r->release();
+	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = false; r->release();
 	em->unlock();
 
 	AEntityManager *etm = sm->_all_entities;
@@ -275,10 +277,10 @@ CU_TEST(test_mqtt)
 
 int main()
 {
-	dlload(NULL, "io_openssl");
-	dlload(NULL, "device_agent");
 	AModuleInit(NULL);
 	AThreadBegin(NULL, NULL, 1000);
+	dlload(NULL, "io_openssl");
+	dlload(NULL, "device_agent");
 
 	ASystemManager *sm = ASystemManager::get();
 	sm->start_checkall(sm);
@@ -302,7 +304,7 @@ int main()
 	sm->stop_checkall(sm);
 	sm->clear_allsys(true);
 	sm->_event_manager->clear_sub();
-	sm->_all_entities->_clear(sm->_all_entities);
+	sm->_all_entities->_clear(sm->_all_entities, TRUE);
 
 	getchar();
 	AThreadEnd(NULL);

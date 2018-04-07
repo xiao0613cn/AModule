@@ -6,6 +6,7 @@ struct AEventManager;
 
 struct ADeviceComponent : public AComponent {
 	static const char* name() { return "ADeviceComponent"; }
+	AMODULE_GET(struct ADeviceModule, name(), name())
 	rb_node _devmap_node;
 
 	char    _dev_id[48];
@@ -61,5 +62,14 @@ struct ADeviceImplement {
 	int   (*extra_ctrl)(ADeviceComponent *dev, const char *cmd, void *req, void *resp);
 };
 
+struct ACaptureComponent : public AComponent {
+	static const char* name() { return "ACaptureComponent"; }
+
+	int       (*on_capture_done)(ACaptureComponent *c);
+	void       *on_capture_userdata;
+	uint8_t    *on_capture_data;
+	int         on_capture_size;
+	const char *on_capture_fmt;
+};
 
 #endif

@@ -22,7 +22,7 @@ struct AClientComponent : public AComponent {
 		HeartCheckDone,
 	};
 
-	// option
+	// options, get | set
 	int     _tick_reopen;
 	int     _tick_heart;
 	int     _tick_abort;
@@ -31,20 +31,20 @@ struct AClientComponent : public AComponent {
 	bool    _auto_reopen;
 
 	// data
-	enum Status   _status;
+	enum Status   _status;     // get only
 	DWORD         _main_tick;
 	bool volatile _main_abort;
 	bool valid() { return ((_status == Opened) && !_main_abort); }
 
 	bool          _last_opened;
-	enum Heart    _check_heart;
+	enum Heart    _check_heart; // get only
 	long volatile _busy_count;
 	long use(int count) { return InterlockedAdd(&_busy_count, count); }
 
-	list_head       _sys_node;
-	ASystem::Result _run_result;
-	ASystem::Result _abort_result;
-	void exec_done(int result) {
+	list_head       _sys_node;     // private
+	ASystem::Result _run_result;   // private
+	ASystem::Result _abort_result; // private
+	void exec_done(int result) {   // private
 		assert(_run_result.status == ASystem::Runnable);
 		_run_result.system->exec_run(&_run_result, result);
 	}
@@ -65,6 +65,17 @@ struct AClientComponent : public AComponent {
 		open = NULL; heart = NULL; abort = NULL; close = NULL;
 	}
 	void exit2() {
+	}
+	const char* status_name() {
+		switch (_status)
+		{
+		case Invalid: return "[Invalid]";
+		case Opening: return "[Opening]";
+		case Opened:  return "[Opened]";
+		case Closing: return "[Closing]";
+		case Closed:  return "[Closed]";
+		default:      return "[Unknown]";
+		}
 	}
 };
 

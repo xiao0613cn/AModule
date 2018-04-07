@@ -11,7 +11,7 @@ struct AReceiver : public AObject {
 	AEventManager *_manager;
 	struct rb_node _map_node;
 	list_head      _recv_list;
-	void          *_user;
+	void          *_userdata;
 
 	union {
 	const char *_name;
@@ -26,7 +26,7 @@ struct AReceiver : public AObject {
 		_manager = NULL;
 		RB_CLEAR_NODE(&_map_node);
 		_recv_list.init();
-		_user = NULL;
+		_userdata = NULL;
 	}
 	static AReceiver* first(list_head &list) {
 		return list_first_entry(&list, AReceiver, _recv_list);
@@ -34,21 +34,24 @@ struct AReceiver : public AObject {
 	AReceiver* next() {
 		return list_entry(_recv_list.next, AReceiver, _recv_list);
 	}
+	bool valid() {
+		return !RB_EMPTY_NODE(&_map_node);
+	}
 };
 
 typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
 
 struct AEventManagerMethod {
 	// event by name
-	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);
-	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r);
+	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);   // include r->addref()
+	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r); // include r->release()
 	int  (*emit_by_name)(AEventManager *em, const char *name, void *p); // include lock(), unlock()
 	int  (*clear_sub_by_name)(AEventManager *em);                       // include lock(), unlock()
-	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f);
+	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f); // include r->addref()
 
 	// event by index
-	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);
-	bool (*_unsub_by_index)(AEventManager *em, AReceiver *r);
+	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);   // include r->addref()
+	bool (*_unsub_by_index)(AEventManager *em, AReceiver *r); // include r->release()
 	int  (*emit_by_index)(AEventManager *em, int64_t index, void *p); // include lock(), unlock()
 	int  (*clear_sub_by_index)(AEventManager *em);                    // include lock(), unlock()
 };
@@ -83,6 +86,16 @@ struct AEventManager : public AEventManagerMethod {
 		assert(RB_EMPTY_ROOT(&_index_map));
 		APtrPool::_clear(_free_ptrslice);
 		pthread_mutex_destroy(&_mutex);
+	}
+	void sub(AReceiver *r, bool by_name) {
+		lock();
+		by_name ? _sub_by_name(this, r) : _sub_by_index(this, r);
+		unlock();
+	}
+	void unsub(AReceiver *r, bool by_name) {
+		lock();
+		by_name ? _unsub_by_name(this, r) : _unsub_by_index(this, r);
+		unlock();
 	}
 	int clear_sub() {
 		return clear_sub_by_name(this) + clear_sub_by_index(this);

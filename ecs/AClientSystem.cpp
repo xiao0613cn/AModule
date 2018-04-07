@@ -4,7 +4,7 @@
 #include "AClientSystem.h"
 
 
-static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
+static ASystem::Result* check_one(ASystemManager *sm, AClientComponent *c, DWORD cur_tick)
 {
 	int diff = int(cur_tick - c->_main_tick);
 	if (diff < 0)
@@ -64,16 +64,21 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		if (c->_busy_count != 0)
 			return NULL;
 		if (!c->_auto_reopen) {
-			return NULL;
+			c->_entity->addref();
+			sm->_all_entities->_pop(sm->_all_entities, c->_entity);
+
+			if (!c->_sys_node.empty()) {
+				c->_sys_node.leave();
+				c->_entity->release();
+			}
+			c->use(1);
+			c->_run_result.status = ASystem::Runnable;
+			return &c->_run_result;
 		}
 		c->_status = AClientComponent::Invalid;
 		c->_main_tick = cur_tick;
 		c->_main_abort = false;
 		return NULL;
-		//c->_object->_pop(c);
-		//if (!c->_sys_node.empty())
-		//	c->_sys_node.leave();
-		//break;
 
 	default: assert(0); return NULL;
 	}
@@ -83,32 +88,32 @@ static ASystem::Result* check_one(AClientComponent *c, DWORD cur_tick)
 		c->_main_abort = true;
 		if (c->abort == NULL)
 			return NULL;
-		c->_object->addref();
+		c->_entity->addref();
 		c->use(1);
 		c->_abort_result.status = ASystem::Aborting;
 		return &c->_abort_result;
 	}
 
-	c->_object->addref();
+	c->_entity->addref();
 	c->use(1);
-	c->_run_result.status= ASystem::Runnable;
+	c->_run_result.status = ASystem::Runnable;
 	return &c->_run_result;
 }
 
-static ASystem::Result* client_check(AEntity *e, DWORD cur_tick)
+static ASystem::Result* client_check(ASystemManager *sm, AEntity *e, DWORD cur_tick)
 {
 	AClientComponent *c;
 	if (e->get(&c) == NULL)
 		return NULL; //NotNeed;
-	return check_one(c, cur_tick);
+	return check_one(sm, c, cur_tick);
 }
 
 static int client_run_internal(ASystem::Result *r, int result)
 {
 	AClientComponent *c = container_of(r, AClientComponent, _run_result);
-	TRACE("%s(%p, %d): status = %d, busy_count = %d, result = %d.\n",
-		c->_object->_module->module_name, c->_object, c->_object->_refcount,
-		c->_status, c->_busy_count, result);
+	TRACE("%s(%p, %d): status = %s, busy_count = %d, result = %d.\n",
+		c->_entity->_module->module_name, c->_entity, c->_entity->_refcount,
+		c->status_name(), c->_busy_count, result);
 
 	switch (c->_status)
 	{
@@ -170,7 +175,7 @@ static int client_run_internal(ASystem::Result *r, int result)
 
 	r->status = ASystem::NotNeed;
 	c->use(-1);
-	c->_object->release();
+	c->_entity->release();
 	return result;
 }
 
@@ -201,10 +206,10 @@ static int client_abort(ASystem::Result *r)
 	int result = c->abort(c);
 	c->use(-1);
 
-	TRACE("%s(%p, %d): status = %d, busy_count = %d.\n",
-		c->_object->_module->module_name, c->_object, c->_object->_refcount,
-		c->_status, c->_busy_count);
-	c->_object->release();
+	TRACE("%s(%p, %d): status = %s, busy_count = %d.\n",
+		c->_entity->_module->module_name, c->_entity, c->_entity->_refcount,
+		c->status_name(), c->_busy_count);
+	c->_entity->release();
 	return result;
 }
 
@@ -216,7 +221,7 @@ static int reg_client(AEntity *e)
 	AClientComponent *c;
 	if ((e->get(&c) == NULL) || !c->_sys_node.empty())
 		return 0;
-	c->_object->addref();
+	c->_entity->addref();
 	g_com_list.push_back(&c->_sys_node);
 	return 1;
 }
@@ -227,7 +232,7 @@ static int unreg_client(AEntity *e)
 	if ((e->get(&c) == NULL) || c->_sys_node.empty())
 		return 0;
 	c->_sys_node.leave();
-	c->_object->release();
+	c->_entity->release();
 	return 1;
 }
 
@@ -237,17 +242,17 @@ static int clear_all(bool abort)
 	while (!g_com_list.empty()) {
 		AClientComponent *c = list_pop_front(&g_com_list, AClientComponent, _sys_node);
 		c->abort ? c->abort(c) : 0;
-		c->_object->release();
+		c->_entity->release();
 		count ++;
 	}
 	return count;
 }
 
-static int check_all(list_head *results, DWORD cur_tick)
+static int check_all(ASystemManager *sm, list_head *results, DWORD cur_tick)
 {
 	int count = 0;
 	list_for_each2(c, &g_com_list, AClientComponent, _sys_node) {
-		ASystem::Result *r = check_one(c, cur_tick);
+		ASystem::Result *r = check_one(sm, c, cur_tick);
 		if (r != NULL) {
 			extern ASystem AClientSystem;
 			r->system = &AClientSystem;
@@ -260,7 +265,7 @@ static int check_all(list_head *results, DWORD cur_tick)
 
 static int client_com_null(AClientComponent *c)
 {
-	AModule *m = c->_object->_module;
+	AModule *m = c->_entity->_module;
 	TRACE2("%s(%s): no implement.\n", m->module_name, m->class_name);
 	return -ENOSYS;
 }

@@ -31,8 +31,8 @@ struct ASystem {
 	int    (*_unregist)(AEntity *e);
 	int    (*_clear_all)(bool abort);
 
-	int    (*_check_all)(list_head *results, DWORD cur_tick);
-	Result* (*_check_one)(AEntity *e, DWORD cur_tick);
+	int    (*_check_all)(ASystemManager *sm, list_head *results, DWORD cur_tick);
+	Result* (*_check_one)(ASystemManager *sm, AEntity *e, DWORD cur_tick);
 
 	int    (*exec_run)(Result *r, int result);
 	int    (*exec_abort)(Result *r);

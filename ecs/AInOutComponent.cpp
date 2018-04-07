@@ -19,7 +19,7 @@ static void _do_post(AInOutComponent *c, AMessage *msg)
 		return;
 	//assert(c->_inmsg.done == &_inmsg_done);
 
-	c->_object->addref();
+	c->_entity->addref();
 	int result = c->do_input(c, msg);
 	if (result != 0)
 		c->_inmsg.done2(result);
@@ -52,7 +52,7 @@ static int _inmsg_done(AMessage *msg, int result)
 
 		msg->done2(result);
 		if (next == NULL) {
-			c->_object->release();
+			c->_entity->release();
 			return result;
 		}
 
@@ -78,7 +78,7 @@ static int _outmsg_done(AMessage *msg, int result)
 			if (result == 0)
 				return 0;
 			if ((result < 0) || (result >= AMsgType_Class)) {
-				c->_object->release();
+				c->_entity->release();
 				return result;
 			}
 		}

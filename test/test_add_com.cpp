@@ -35,13 +35,15 @@ static void test_com_release(AObject *object)
 
 static int test_com_open(AClientComponent *c)
 {
-	TestCom *e = (TestCom*)c->_object;
+	TestCom *e = (TestCom*)c->_entity;
 	return -1;
 }
 
 static int test_com_close(AClientComponent *c)
 {
-	TestCom *e = (TestCom*)c->_object;
+	TestCom *e = (TestCom*)c->_entity;
+	c->_auto_reopen = false;
+	c->_main_abort = true;
 	return -1;
 }
 
@@ -61,8 +63,8 @@ CU_TEST(test_add_com)
 	AObject::create2(&e, NULL, NULL, &test_com_module);
 
 	AEntityManager *em = AEntityManager::get();
-	AInOutComponent *c1 = em->add_com<AInOutComponent>(e);
-	AClientComponent *c2 = em->add_com<AClientComponent>(e);
+	AInOutComponent *c1 = em->add_com<AInOutComponent>(e, NULL);
+	AClientComponent *c2 = em->add_com<AClientComponent>(e, NULL);
 	c2->open = &test_com_open;
 	c2->close = &test_com_close;
 	c2->_owner_thread = true;
