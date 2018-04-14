@@ -57,9 +57,7 @@ AServicePreStartChains(AService *service, AOption *option, BOOL create_chains)
 		}
 
 		svc->_sysmng = service->_sysmng;
-		if (svc->_parent == NULL) {
-			svc->_parent = service; service->addref();
-		}
+		addref_s(svc->_parent, service);
 
 		int result = AServicePreStartChains(svc, svc_opt, create_chains);
 		if (result < 0)

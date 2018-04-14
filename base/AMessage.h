@@ -42,6 +42,21 @@ struct AMessage {
 #endif
 };
 
+template <typename AType, size_t offset_msg, size_t offset_from, int(run)(AType*,int)> int
+MsgProxyTC(AMessage *msg, int result) {
+	AType *p = (AType*)((char*)msg - offset_msg);
+	result = run(p, result);
+
+	if (result != 0) {
+		msg = *(AMessage**)((char*)p + offset_from);
+		result = msg->done(msg, result);
+	}
+	return result;
+}
+#define MsgProxyC(type, msg, from, run) \
+	MsgProxyTC<type, offsetof(type,msg), offsetof(type,from), run>
+
+#if 0
 template <typename AType, size_t offset, int(AType::*run)(int)> int
 MsgDoneTCpp(AMessage *msg, int result) {
 	AType *p = (AType*)((char*)msg - offset);
@@ -57,20 +72,7 @@ MsgDoneTC(AMessage *msg, int result) {
 }
 #define MsgDoneC(type, member, run) \
         MsgDoneTC<type, offsetof(type,member), &run>
-
-template <typename AType, size_t offset_msg, size_t offset_from, int(run)(AType*,int)> int
-MsgProxyTC(AMessage *msg, int result) {
-	AType *p = (AType*)((char*)msg - offset_msg);
-	result = run(p, result);
-
-	if (result != 0) {
-		msg = *(AMessage**)((char*)p + offset_from);
-		result = msg->done(msg, result);
-	}
-	return result;
-}
-#define MsgProxyC(type, msg, from, run) \
-        MsgProxyTC<type, offsetof(type,msg), offsetof(type,from), run>
+#endif
 
 #if 0
 // util function

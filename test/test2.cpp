@@ -95,9 +95,10 @@ CU_TEST(test_echo_client)
 #else
 CU_TEST(test_service)
 {
+	dlload(NULL, "service_http");
 	AOption *opt = NULL;
 	AOptionDecode(&opt, "tcp_server: { port: 4444, io: io_dump { io: tcp, }, "
-		"is_async: 0, services: { EchoService: {}, "
+		"is_async_io: 0, services: { EchoService: {}, "
 		"HttpService: { services: { HttpFileService } }, }, background: 1 }", -1);
 
 	AService *tcp_server = NULL;
@@ -242,9 +243,10 @@ CU_TEST(test_mqtt)
 {
 	dlload(NULL, "mqtt_client");
 	AOption *opt = NULL;
-	AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
+	/*AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
 		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
-		"}, }", -1);
+		"}, }", -1);*/
+	AOptionDecode(&opt, "MQTTClient: { io: async_tcp { address: 60.210.40.196, port: 25102 } }", -1);
 
 	AEntity *mqtt = NULL;
 	int result = AObject::create(&mqtt, NULL, opt, NULL);

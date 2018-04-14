@@ -24,18 +24,6 @@ addref_s(AType *&dest, AType *src) {
 	return dest;
 }
 
-template <typename AType, typename AMutex> AType*
-lockref_s(AMutex &mutex, AType *src) {
-	AType *dest = NULL;
-	mutex.lock();
-	if (src != NULL) {
-		src->addref();
-		dest = src;
-	}
-	mutex.unlock();
-	return dest;
-}
-
 template <typename AType> AType&
 memzero(AType &stru) {
 	memset(&stru, 0, sizeof(stru));

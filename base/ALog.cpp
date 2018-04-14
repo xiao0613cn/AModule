@@ -13,7 +13,7 @@ static struct {
 	int             _max_fsize;
 	int             _delay_first;
 	int             _delay_tick;
-	int             _delay_count;
+	unsigned int    _delay_count;
 	void lock() { pthread_mutex_lock(&_mutex); }
 	void unlock() { pthread_mutex_unlock(&_mutex); }
 } Log = { 0 };

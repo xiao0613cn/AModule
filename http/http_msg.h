@@ -55,8 +55,9 @@ struct HttpConnectionModule {
 	AMODULE_GET(HttpConnectionModule ,"AEntity", "HttpConnection")
 
 	const str_t *http_method_str; // end with str_t{ NULL, 0 }
-	int (*iocom_output)(struct AInOutComponent *c, int result);
-	int (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
+	int  (*iocom_output)(struct AInOutComponent *c, int result);
+	int  (*input_status)(struct HttpConnection *p, AMessage *msg, HttpMsg *hm, int result);
+	void (*parser_init)(http_parser *parser, enum http_parser_type type, void *data);
 
 	HttpMsg* (*hm_create)();
 	void     (*hm_release)(HttpMsg *hm);

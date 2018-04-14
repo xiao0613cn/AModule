@@ -413,9 +413,9 @@ AOptionSave(AOption *option, const char *path)
 	int result = ARefsBuf::reserve(buf, 512, 0);
 	if (result < 0)
 		return result;
-	godefer(ARefsBuf*, buf, buf->release());
 
 	result = AOptionEncode(option, &buf, write_buf);
+	godefer(ARefsBuf*, buf, buf->release());
 	if (result < 0)
 		return result;
 

@@ -1,8 +1,6 @@
 #include "../stdafx.h"
-#define _USE_HTTP_MSG_IMPL_ 1
-#include "AModule_HttpSession.h"
+#include "AModule_HttpClient.h"
 
-extern HttpConnectionModule HCM;
 
 static int on_m_begin(http_parser *parser) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
@@ -189,9 +187,11 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	if (hm->_parser.type == HTTP_REQUEST) {
 		buf->strfmt("%s %.*s HTTP/%d.%d\r\n", http_method_str(hm->_parser.method),
 			v.len, v.str, hm->_parser.http_major, hm->_parser.http_minor);
-	} else {
+	} else if (hm->_parser.type == HTTP_RESPONSE) {
 		buf->strfmt("HTTP/%d.%d %d %.*s\r\n", hm->_parser.http_major, hm->_parser.http_minor,
 			hm->_parser.status_code, v.len, v.str);
+	} else {
+		buf->strfmt("%.*s\r\n", v.len, v.str); // unknown|other protocol...
 	}
 	if (hm->body_len() > 0) {
 		buf->strfmt("Content-Length: %lld\r\n", hm->body_len());
@@ -493,112 +493,7 @@ static int HttpProbe(AObject *object, AObject *other, AMessage *msg)
 	return 0;
 }
 
-//////////////////////////////////////////////////////////////////////////
-static int HttpReqRecvDone(HttpParserCompenont *c, int result)
-{
-	HttpConnection *p = container_of(c, HttpConnection, _http);
-	int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int) =
-		(int(*)(HttpConnection*,HttpMsg*,HttpMsg*,int))p->raw_outmsg_done;
-
-	result = on_resp(p, p->_req, p->_resp, result);
-	if ((result < 0) || (result >= AMsgType_Class)) {
-		p->_req = NULL;
-		p->release();
-	}
-	return result;
-}
-static int HttpReqSendDone(AMessage *msg, int result)
-{
-	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
-	result = HCM.input_status(p, msg, p->_req, result);
-
-	if ((result > 0) && (p->_resp == NULL)) {
-		p->_resp = HCM.hm_create();
-		if (p->_resp == NULL)
-			result = -ENOMEM;
-	}
-	if (result > 0) {
-		if (p->_iocom._outbuf == NULL) {
-			addref_s(p->_iocom._outbuf, p->_inbuf);
-		}
-		result = p->_http.try_output(&HCM, &p->_iocom, p->_resp, &HttpReqRecvDone);
-	} else if (result < 0) {
-		result = HttpReqRecvDone(&p->_http, result);
-	}
-	return result;
-}
-static int HttpReqOpenDone(AMessage *msg, int result)
-{
-	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
-	assert(msg->type == AMsgType_AOption);
-	((AOption*)msg->data)->release();
-
-	msg->init();
-	msg->done = &HttpReqSendDone;
-	return msg->done2(result);
-}
-static int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int))
-{
-	if (p == NULL) {
-		int result = AObject::create2(&p, NULL, NULL, &HCM.module);
-		if (result < 0)
-			return result;
-	} else {
-		p->addref();
-	}
-
-	AMessage *msg = &p->_iocom._inmsg;
-	if (p->_iocom._io != NULL) {
-		p->_req = req;
-		p->raw_outmsg_done = (int(*)(AMessage*,int))on_resp;
-
-		msg->init();
-		msg->done = &HttpReqSendDone;
-		msg->done2(1);
-		return 0;
-	}
-
-	str_t host = req->header_get(str_t("Proxy", -1));
-	if (host.str == NULL)
-		host = req->header_get(str_t("Host", -1));
-	if (host.str == NULL)
-		return -EINVAL;
-
-	str_t port(strnchr(host.str, host.len, ':'), 0);
-	if (port.str == NULL) {
-		port.str = "80"; port.len = 2;
-	} else {
-		port.len = int(host.str + host.len - port.str - 1);
-		host.len = int(port.str - host.str);
-		port.str += 1;
-	}
-
-	char opt_str[256];
-	snprintf(opt_str, 256, "{address:'%.*s',port:%.*s}",
-		host.len, host.str, port.len, port.str);
-
-	AOption *io_opt = NULL;
-	int result = AOptionDecode(&io_opt, opt_str, -1);
-	if (result < 0) {
-		p->release();
-		return result;
-	}
-
-	msg->init(io_opt);
-	msg->done = &HttpReqOpenDone;
-	p->_req = req;
-	p->raw_outmsg_done = (int(*)(AMessage*,int))on_resp;
-
-	result = AObject::create(&p->_iocom._io, p, io_opt, "async_tcp");
-	if (result >= 0) {
-		result = p->_iocom._io->open(msg);
-	}
-	if (result != 0) {
-		msg->done2(result);
-		result = 0;
-	}
-	return result;
-}
+extern int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int));
 
 HttpConnectionModule HCM = { {
 	"AEntity",
@@ -612,6 +507,7 @@ HttpConnectionModule HCM = { {
 	HttpMethodStrs,
 	&iocom_output,
 	&HttpMsgInputStatus,
+	&http_parser_init,
 	&hm_create,
 	&hm_release,
 	&hm_encode,

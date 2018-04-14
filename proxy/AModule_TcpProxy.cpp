@@ -9,7 +9,6 @@
 #include "../io/AModule_io.h"
 #include "../ecs/AInOutComponent.h"
 
-struct TCPClient;
 
 struct TCPServer : public AService {
 	SOCKET     sock;
@@ -18,15 +17,15 @@ struct TCPServer : public AService {
 
 	u_short    port;
 	int        family;
-	BOOL       is_async;
+	BOOL       is_async_io;
 	int        min_probe_size;
 	int        max_probe_size;
 #ifdef _WIN32
 	LPFN_ACCEPTEX acceptex;
 	AOperator  sysio;
-	TCPClient *prepare;
+	struct TCPClient *prepare;
 #endif
-	IOModule* io() { return (IOModule*)_peer_module; }
+	IOModule* PM() { return (IOModule*)_peer_module; }
 };
 
 enum TCPStatus {
@@ -40,14 +39,14 @@ struct TCPClient {
 	AOperator  sysop;
 	AMessage   msg;
 	};
-	TCPServer *server;
+	TCPServer *tcpd;
 	TCPStatus  status;
 	SOCKET     sock;
 	IOObject  *io;
 
 	ARefsBuf*  tobuf() { return container_of(this, ARefsBuf, _data); }
 	void release() {
-		release_s(server);
+		release_s(tcpd);
 		closesocket_s(sock);
 		release_s(io);
 		tobuf()->release();
@@ -57,7 +56,7 @@ struct TCPClient {
 static int TCPClientInmsgDone(AMessage *msg, int result)
 {
 	TCPClient *client = container_of(msg, TCPClient, msg);
-	TCPServer *server = client->server;
+	TCPServer *tcpd = client->tcpd;
 	ARefsBuf  *buf = client->tobuf();
 
 	while (result > 0)
@@ -65,13 +64,13 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	switch (client->status)
 	{
 	case tcp_io_accept:
-		result = AObject::create2(&client->io, server->io_svc_data, server->io_option, server->_peer_module);
+		result = AObject::create2(&client->io, tcpd->io_svc_data, tcpd->io_option, tcpd->_peer_module);
 		if (result < 0)
 			break;
 
 		client->status = tcp_io_attach;
 		msg->init(AMsgType_Handle, (void*)client->sock, 0);
-		result = server->io()->svc_accept(client->io, msg, server->io_svc_data, server->io_option);
+		result = tcpd->PM()->svc_accept(client->io, msg, tcpd->io_svc_data, tcpd->io_option);
 		break;
 
 	case tcp_io_attach:
@@ -89,15 +88,15 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		*buf->next() = '\0';
 		msg->init(0, buf->ptr(), buf->len());
 	{
-		AService *service = AServiceProbe(server, client->io, msg);
+		AService *service = AServiceProbe(tcpd, client->io, msg);
 		if (service == NULL) {
-			if (msg->size < server->min_probe_size) {
+			if (msg->size < tcpd->min_probe_size) {
 				msg->init(0, buf->next(), buf->left()-1);
 				result = client->io->output(msg);
 				break;
 			}
-			TRACE("no found service: %d, %.*s.\n", msg->size,
-				msg->size, msg->data);
+			TRACE("TCPServer(%d): no found service: %d, %.*s.\n",
+				tcpd->port, msg->size, msg->size, msg->data);
 			result = -EINVAL;
 			break;
 		}
@@ -107,11 +106,12 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 		if (result < 0)
 			break;
 
+		// TCPClient detach()...
 		AInOutComponent *c; e->get(&c);
 		assert(c != NULL);
 		release_s(c->_io); c->_io = client->io; client->io = NULL;
 		release_s(c->_outbuf); c->_outbuf = buf;
-		release_s(client->server);
+		release_s(client->tcpd);
 
 		service->run(service, e);
 		e->release();
@@ -121,7 +121,7 @@ static int TCPClientInmsgDone(AMessage *msg, int result)
 	}
 	}
 	if (result < 0) {
-		TRACE("tcp error = %d.\n", result);
+		TRACE("TCPServer(%d): client(%d) error = %d.\n", tcpd->port, client->sock, result);
 		release_s(client);
 	}
 	return result;
@@ -141,9 +141,9 @@ static void* TCPClientThread(void *p)
 	return (void*)client->msg.done2(1);
 }
 
-static TCPClient* TCPClientCreate(TCPServer *server)
+static TCPClient* TCPClientCreate(TCPServer *tcpd)
 {
-	ARefsBuf *buf = ARefsBuf::create(sizeof(TCPClient) + server->max_probe_size);
+	ARefsBuf *buf = ARefsBuf::create(sizeof(TCPClient) + tcpd->max_probe_size);
 	if (buf == NULL)
 		return NULL;
 
@@ -152,7 +152,7 @@ static TCPClient* TCPClientCreate(TCPServer *server)
 	buf->pop(sizeof(TCPClient));
 
 	client->sysop.done = &TCPClientProcess;
-	client->server = server; server->addref();
+	client->tcpd = tcpd; tcpd->addref();
 	client->status = tcp_io_accept;
 	client->sock = INVALID_SOCKET;
 	client->io = NULL;
@@ -161,7 +161,7 @@ static TCPClient* TCPClientCreate(TCPServer *server)
 
 static void* TCPServerProcess(void *p)
 {
-	TCPServer *server = (TCPServer*)p;
+	TCPServer *tcpd = (TCPServer*)p;
 	struct sockaddr addr;
 	socklen_t addrlen;
 	SOCKET sock;
@@ -170,9 +170,9 @@ static void* TCPServerProcess(void *p)
 		memzero(addr);
 		addrlen = sizeof(addr);
 
-		sock = accept(server->sock, &addr, &addrlen);
+		sock = accept(tcpd->sock, &addr, &addrlen);
 		if (sock == INVALID_SOCKET) {
-			TRACE("accept(%d) failed, errno = %d.\n", server->port, errno);
+			TRACE("TCPServer(%d): accept() failed, errno = %d.\n", tcpd->port, errno);
 
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
@@ -183,46 +183,47 @@ static void* TCPServerProcess(void *p)
 			break;
 		}
 
-		TCPClient *client = TCPClientCreate(server);
+		TCPClient *client = TCPClientCreate(tcpd);
 		if (client == NULL) {
 			//ENOMEM
 			closesocket(sock);
-		} else if (server->is_async) {
+		} else if (tcpd->is_async_io) {
 			client->sock = sock;
 			client->sysop.post(NULL);
 		} else {
+			client->sock = sock;
 			pthread_post(client, &TCPClientThread);
 		}
 	}
-	TRACE("%p: quit.\n", server);
-	server->release();
+	TRACE("TCPServer(%d): quit.\n", tcpd->port);
+	tcpd->release();
 	return 0;
 }
 
 #ifdef _WIN32
-static int TCPServerDoAcceptEx(TCPServer *server)
+static int TCPServerDoAcceptEx(TCPServer *tcpd)
 {
-	server->prepare = TCPClientCreate(server);
-	if (server->prepare == NULL)
+	tcpd->prepare = TCPClientCreate(tcpd);
+	if (tcpd->prepare == NULL)
 		return -ENOMEM;
 
-	server->prepare->sock = socket(server->family, SOCK_STREAM, IPPROTO_TCP);
-	if (server->prepare->sock == INVALID_SOCKET)
+	tcpd->prepare->sock = socket(tcpd->family, SOCK_STREAM, IPPROTO_TCP);
+	if (tcpd->prepare->sock == INVALID_SOCKET)
 		return -EFAULT;
 
 	int result = sizeof(struct sockaddr_in)+16;
-	if (server->family == AF_INET6)
+	if (tcpd->family == AF_INET6)
 		result = sizeof(struct sockaddr_in6)+16;
 
 	DWORD tx = 0;
-	ARefsBuf *buf = server->prepare->tobuf();
-	result = server->acceptex(server->sock, server->prepare->sock,
+	ARefsBuf *buf = tcpd->prepare->tobuf();
+	result = tcpd->acceptex(tcpd->sock, tcpd->prepare->sock,
 		buf->next(), /*buf->left()-result*2*/0,
-		result, result, &tx, &server->sysio.ao_ovlp);
+		result, result, &tx, &tcpd->sysio.ao_ovlp);
 	if (!result) {
 		result = -WSAGetLastError();
 		if (result != -ERROR_IO_PENDING) {
-			TRACE("AcceptEx(%d) = %d.\n", server->port, result);
+			TRACE("TCPServer(%d): AcceptEx() = %d.\n", tcpd->port, result);
 			return -EIO;
 		}
 	}
@@ -231,29 +232,29 @@ static int TCPServerDoAcceptEx(TCPServer *server)
 
 static int TCPServerAcceptExDone(AOperator *sysop, int result)
 {
-	TCPServer *server = container_of(sysop, TCPServer, sysio);
+	TCPServer *tcpd = container_of(sysop, TCPServer, sysio);
 	if (result >= 0) {
-		server->prepare->tobuf()->push(result);
-		result = setsockopt(server->prepare->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
-		                    (const char *)&server->sock, sizeof(server->sock));
+		tcpd->prepare->tobuf()->push(result);
+		result = setsockopt(tcpd->prepare->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+		                    (const char *)&tcpd->sock, sizeof(tcpd->sock));
 	}
 	if (result >= 0) {
-		if (server->is_async) {
-			server->prepare->sysop.post(NULL);
+		if (tcpd->is_async_io) {
+			tcpd->prepare->sysop.post(NULL);
 		} else {
-			pthread_post(server->prepare, &TCPClientThread);
+			pthread_post(tcpd->prepare, &TCPClientThread);
 		}
-		server->prepare = NULL;
+		tcpd->prepare = NULL;
 	} else {
 		result = -WSAGetLastError();
-		TRACE("AcceptEx(%d) = %d.\n", server->port, result);
-		release_s(server->prepare);
+		TRACE("TCPServer(%d): AcceptExDone() = %d.\n", tcpd->port, result);
+		release_s(tcpd->prepare);
 	}
 
-	result = TCPServerDoAcceptEx(server);
+	result = TCPServerDoAcceptEx(tcpd);
 	if (result < 0) {
-		release_s(server->prepare);
-		server->release();
+		release_s(tcpd->prepare);
+		tcpd->release();
 	}
 	return result;
 }
@@ -261,90 +262,90 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 
 static int TCPServerStart(AService *service, AOption *option)
 {
-	TCPServer *server = (TCPServer*)service;
-	if (server->sock != INVALID_SOCKET) {
+	TCPServer *tcpd = (TCPServer*)service;
+	if (tcpd->sock != INVALID_SOCKET) {
 		assert(0);
-		return -EACCES;
+		return -EBUSY;
 	}
 
-	assert(server->_svc_option == option);
-	server->io_option = server->_svc_option->find("io");
-
-	server->_peer_module = AModuleFind("io", server->io_option
-	                     ? server->io_option->value : "async_tcp");
-	if ((server->_peer_module == NULL) || (server->io()->svc_accept == NULL)) {
-		TRACE("require option: \"io\", function: io->svc_accept()\n");
-		return -ENOENT;
-	}
-
-	server->port = (u_short)server->_svc_option->getI64("port", 0);
-	if (server->port == 0) {
-		TRACE("require option: \"port\"\n");
+	tcpd->port = (u_short)tcpd->_svc_option->getI64("port", 0);
+	if (tcpd->port == 0) {
+		TRACE("TCPServer(%d): require option: \"port\"\n", tcpd->port);
 		return -EINVAL;
 	}
 
-	if (server->io()->svc_module != NULL) {
-		int result = AObject::create2(&server->io_svc_data,
-			server, server->io_option, server->io()->svc_module);
+	assert(tcpd->_svc_option == option);
+	tcpd->io_option = tcpd->_svc_option->find("io");
+
+	tcpd->_peer_module = AModuleFind("io", tcpd->io_option
+	                     ? tcpd->io_option->value : "async_tcp");
+	if ((tcpd->_peer_module == NULL) || (tcpd->PM()->svc_accept == NULL)) {
+		TRACE("TCPServer(%d): require option: \"io\", function: io->svc_accept()\n", tcpd->port);
+		return -ENOENT;
+	}
+
+	if (tcpd->PM()->svc_module != NULL) {
+		int result = AObject::create2(&tcpd->io_svc_data,
+			tcpd, tcpd->io_option, tcpd->PM()->svc_module);
 		if (result < 0) {
-			TRACE("io(%s) create service data = %d.\n",
-				server->_peer_module->module_name, result);
+			TRACE("TCPServer(%d): io(%s) create service data = %d.\n",
+				tcpd->port, tcpd->_peer_module->module_name, result);
 			return result;
 		}
 	}
 
-	const char *af = server->_svc_option->getStr("family", NULL);
+	const char *af = tcpd->_svc_option->getStr("family", NULL);
 	if ((af != NULL) && (strcasecmp(af, "inet6") == 0))
-		server->family = AF_INET6;
+		tcpd->family = AF_INET6;
 	else
-		server->family = AF_INET;
+		tcpd->family = AF_INET;
 
-	server->sock = socket_bind(server->family, IPPROTO_TCP, server->port);
-	if (server->sock == INVALID_SOCKET) {
-		TRACE("socket_bind(%d, %d) failed, error = %d.\n",
-			server->family, server->port, errno);
+	tcpd->sock = socket_bind(tcpd->family, IPPROTO_TCP, tcpd->port);
+	if (tcpd->sock == INVALID_SOCKET) {
+		TRACE("TCPServer(%d): socket_bind(%d) failed, error = %d.\n",
+			tcpd->port, tcpd->family, errno);
 		return -EINVAL;
 	}
 
-	int backlog = server->_svc_option->getInt("backlog", 8);
-	int result = listen(server->sock, backlog);
+	int backlog = tcpd->_svc_option->getInt("backlog", 8);
+	int result = listen(tcpd->sock, backlog);
 	if (result != 0) {
-		TRACE("listen(%d, %d) failed, error = %d.\n",
-			server->sock, backlog, errno);
+		TRACE("TCPServer(%d): listen(%d) failed, error = %d.\n",
+			tcpd->port, backlog, errno);
 		return -EIO;
 	}
 
-	server->min_probe_size = server->_svc_option->getInt("min_probe_size", 128);
-	server->max_probe_size = server->_svc_option->getInt("max_probe_size", 1800);
-	server->is_async = server->_svc_option->getInt("is_async", TRUE);
+	tcpd->min_probe_size = tcpd->_svc_option->getInt("min_probe_size", 128);
+	tcpd->max_probe_size = tcpd->_svc_option->getInt("max_probe_size", 1800);
+	tcpd->is_async_io = tcpd->_svc_option->getInt("is_async_io", TRUE);
 
-	server->addref();
-	int background = server->_svc_option->getInt("background", TRUE);
+	tcpd->addref();
+	int background = tcpd->_svc_option->getInt("background", TRUE);
 	if (!background) {
-		TCPServerProcess(server);
+		TCPServerProcess(tcpd);
 		return 1;
 	}
 #ifndef _WIN32
-	pthread_post(server, &TCPServerProcess, server);
+	pthread_post(tcpd, &TCPServerProcess);
 	return 0;
 #else
 	GUID ax_guid = WSAID_ACCEPTEX;
 	DWORD tx = 0;
-	result = WSAIoctl(server->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &ax_guid, sizeof(ax_guid),
-	                  &server->acceptex, sizeof(server->acceptex), &tx, NULL, NULL);
+	result = WSAIoctl(tcpd->sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &ax_guid, sizeof(ax_guid),
+	                  &tcpd->acceptex, sizeof(tcpd->acceptex), &tx, NULL, NULL);
 	if (result != 0) {
-		TRACE("server(%d,%d) require AcceptEx() funciton.\n", server->sock, server->port);
-		server->release();
+		TRACE("TCPServer(%d): require AcceptEx() funciton.\n", tcpd->port);
+		tcpd->release();
 		return -EIO;
 	}
 
-	result = AThreadBind(NULL, (HANDLE)server->sock);
-	memzero(server->sysio).done = &TCPServerAcceptExDone;
+	result = AThreadBind(NULL, (HANDLE)tcpd->sock);
+	memzero(tcpd->sysio).done = &TCPServerAcceptExDone;
 
-	result = TCPServerDoAcceptEx(server);
+	result = TCPServerDoAcceptEx(tcpd);
 	if (result < 0) {
-		release_s(server->prepare);
-		server->release();
+		release_s(tcpd->prepare);
+		tcpd->release();
 	}
 	return result;
 #endif
@@ -352,57 +353,58 @@ static int TCPServerStart(AService *service, AOption *option)
 
 static void TCPServerStop(AService *service)
 {
-	TCPServer *server = (TCPServer*)service;
-	closesocket_s(server->sock);
+	TCPServer *tcpd = (TCPServer*)service;
+	closesocket_s(tcpd->sock);
 }
 
 static int TCPServerRun(AService *service, AObject *peer)
 {
-	TCPServer *server = (TCPServer*)service;
-	if (peer->_module != server->_peer_module) {
-		TRACE("invalid peer %s(%s), require %s(%s).\n",
-			peer->_module->class_name, peer->_module->module_name,
-			server->_peer_module->class_name, server->_peer_module->module_name);
+	TCPServer *tcpd = (TCPServer*)service;
+	if (peer->_module != tcpd->_peer_module) {
+		TRACE("TCPServer(%d): invalid peer %s(%s), require %s(%s).\n",
+			tcpd->port, peer->_module->class_name, peer->_module->module_name,
+			tcpd->_peer_module->class_name, tcpd->_peer_module->module_name);
 		//return -EINVAL;
 	}
 
-	TCPClient *client = TCPClientCreate(server);
+	TCPClient *client = TCPClientCreate(tcpd);
 	if (client == NULL)
 		return -ENOMEM;
 
 	client->status = tcp_io_attach;
 	client->io = (IOObject*)peer;
-	return TCPClientInmsgDone(&client->msg, 1);
+	client->msg.done = &TCPClientInmsgDone;
+	return client->msg.done2(1);
 }
 
 static int TCPServerCreate(AObject **object, AObject *parent, AOption *option)
 {
-	TCPServer *server = (TCPServer*)*object;
-	server->init();
-	server->_save_option = TRUE; server->_require_child = TRUE;
-	server->io_option = option->find("io");
-	server->_peer_module = AModuleFind("io", server->io_option ? server->io_option->value : "async_tcp");
-	server->start = &TCPServerStart;
-	server->stop = &TCPServerStop;
-	server->run = &TCPServerRun;
+	TCPServer *tcpd = (TCPServer*)*object;
+	tcpd->init();
+	tcpd->_save_option = TRUE; tcpd->_require_child = TRUE;
+	tcpd->io_option = option->find("io");
+	tcpd->_peer_module = AModuleFind("io", tcpd->io_option ? tcpd->io_option->value : "async_tcp");
+	tcpd->start = &TCPServerStart;
+	tcpd->stop = &TCPServerStop;
+	tcpd->run = &TCPServerRun;
 
-	server->sock = INVALID_SOCKET;
-	server->io_svc_data = NULL;
+	tcpd->sock = INVALID_SOCKET;
+	tcpd->io_svc_data = NULL;
 #ifdef _WIN32
-	server->prepare = NULL;
+	tcpd->prepare = NULL;
 #endif
 	return 1;
 }
 
 static void TCPServerRelease(AObject *object)
 {
-	TCPServer *server = (TCPServer*)object;
-	closesocket_s(server->sock);
-	release_s(server->io_svc_data);
+	TCPServer *tcpd = (TCPServer*)object;
+	closesocket_s(tcpd->sock);
+	release_s(tcpd->io_svc_data);
 #ifdef _WIN32
-	release_s(server->prepare);
+	release_s(tcpd->prepare);
 #endif
-	server->exit();
+	tcpd->exit();
 }
 
 AModule TCPServerModule = {
