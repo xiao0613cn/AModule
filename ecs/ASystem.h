@@ -9,7 +9,7 @@ struct AEntity;
 struct AEntityManager;
 struct AReceiver;
 struct AEventManager;
-struct AService;
+struct AServiceComponent;
 
 struct ASystem {
 	AModule module;
@@ -77,7 +77,7 @@ struct ASystemManager : public ASystemManagerMethod {
 	void   unlock() { pthread_mutex_unlock(&_mutex); }
 
 	AEntityManager  *_all_entities;
-	AService        *_all_services;
+	AServiceComponent *_all_services;
 	AEventManager   *_event_manager;
 
 	void init(ASystemManagerMethod *m) {

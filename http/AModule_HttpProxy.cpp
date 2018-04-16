@@ -20,7 +20,7 @@ static int HttpSvcHandle(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 	resp->_parser = p->_http._parser;
 	resp->_parser.type = HTTP_RESPONSE;
 
-	AService *svc = AServiceProbe(p->_svc, p, NULL);
+	AServiceComponent *svc = AServiceComponent::get()->probe(p->_svc, p, NULL);
 	if (svc != NULL) {
 		return svc->run(svc, p);
 	}
@@ -47,10 +47,13 @@ static int HttpSvcRecvMsg(HttpParserCompenont *c, int result)
 	return result;
 }
 
-static int HttpSvcRun(AService *svc, AObject *object)
+static int HttpSvcRun(AServiceComponent *svc, AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
-	addref_s(p->_svc, svc);
+	reset_nif(p->_svc, svc, {
+		if (p->_svc) p->_svc->_entity->release();
+		svc->_entity->addref();
+	});
 
 	AEntityManager *em = svc->_sysmng->_all_entities;
 	p->_iocom._mutex = &em->_mutex;
@@ -67,7 +70,7 @@ static int HttpSvcRun(AService *svc, AObject *object)
 	return p->_http.try_output(&p->_iocom, p->_req, &HttpSvcRecvMsg);
 }
 
-static void HttpSvcStop(AService *svc)
+static void HttpSvcStop(AServiceComponent *svc)
 {
 	AEntityManager *em = svc->_sysmng->_all_entities;
 	HttpConnection *p = NULL;
@@ -86,26 +89,32 @@ static void HttpSvcStop(AService *svc)
 	em->unlock();
 }
 
+struct HttpSvc : public AEntity {
+	AServiceComponent svc;
+};
+
 static int HttpSvcCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AService *svc = (AService*)*object;
-	svc->init();
-	svc->_peer_module = &HCM.module;
-	svc->stop = &HttpSvcStop;
-	svc->run = &HttpSvcRun;
+	HttpSvc *httpd = (HttpSvc*)*object;
+	httpd->init();
+	httpd->init_push(&httpd->svc);
+	httpd->svc._peer_module = &HCM.module;
+	httpd->svc.stop = &HttpSvcStop;
+	httpd->svc.run = &HttpSvcRun;
 	return 1;
 }
 
 static void HttpSvcRelease(AObject *object)
 {
-	AService *svc = (AService*)object;
-	svc->exit();
+	HttpSvc *httpd = (HttpSvc*)object;
+	httpd->pop_exit(&httpd->svc);
+	httpd->exit();
 }
 
 AModule HttpServiceModule = {
-	AService::class_name(),
+	AServiceComponent::name(),
 	"HttpService",
-	sizeof(AService),
+	sizeof(HttpSvc),
 	NULL, NULL,
 	&HttpSvcCreate,
 	&HttpSvcRelease,
@@ -116,7 +125,7 @@ static int reg_svc = AModuleRegister(&HttpServiceModule);
 
 //////////////////////////////////////////////////////////////////////////
 // Http File Service
-static int HttpFileSvcRun(AService *hfs, AObject *object)
+static int HttpFileSvcRun(AServiceComponent *hfs, AObject *object)
 {
 	HttpConnection *p = (HttpConnection*)object;
 	HttpMsg *req = p->_req;
@@ -157,15 +166,17 @@ static int HttpFileSvcRun(AService *hfs, AObject *object)
 
 static int HttpFileSvcCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AService *hfs = (AService*)*object;
+	HttpSvc *hfs = (HttpSvc*)*object;
 	hfs->init();
-	hfs->run = &HttpFileSvcRun;
+	hfs->init_push(&hfs->svc);
+	hfs->svc.run = &HttpFileSvcRun;
 	return 1;
 }
 
 static void HttpFileSvcRelease(AObject *object)
 {
-	AService *hfs = (AService*)object;
+	HttpSvc *hfs = (HttpSvc*)object;
+	hfs->pop_exit(&hfs->svc);
 	hfs->exit();
 }
 
@@ -173,17 +184,17 @@ static int HttpFileSvcProbe(AObject *object, AObject *other, AMessage *msg)
 {
 	if ((object == NULL) || (other == NULL) || (other->_module != &HCM.module))
 		return -1;
-	AService *hfs = (AService*)object;
+	HttpSvc *hfs = (HttpSvc*)object;
 	HttpConnection *p = (HttpConnection*)other;
-	if (hfs->_parent == p->_svc)
+	if (hfs->svc._parent == p->_svc)
 		return 40;
 	return -1;
 }
 
 AModule HttpFileServiceModule = {
-	AService::class_name(),
+	AServiceComponent::name(),
 	"HttpFileService",
-	sizeof(AService),
+	sizeof(HttpSvc),
 	NULL, NULL,
 	&HttpFileSvcCreate,
 	&HttpFileSvcRelease,

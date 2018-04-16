@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "../base/AModule_API.h"
-#include "../io/AModule_io.h"
 #include "../ecs/AInOutComponent.h"
+#include "../ecs/AServiceComponent.h"
 
 struct EchoProxy : public AEntity {
 	AInOutComponent _iocom;
@@ -56,7 +56,7 @@ static int EchoMsgRun(AMessage *msg, int result)
 	return result;
 }
 
-static int EchoRun(AService *service, AObject *object)
+static int EchoRun(AServiceComponent *service, AObject *object)
 {
 	EchoProxy *echo = (EchoProxy*)object;
 	echo->_iocom._inmsg.init();
@@ -80,25 +80,33 @@ AModule EchoModule = {
 static int reg_echo = AModuleRegister(&EchoModule);
 
 
+//////////////////////////////////////////////////////////////////////////
+
+struct EchoService : public AEntity {
+	AServiceComponent _service;
+};
+
 static int EchoServiceCreate(AObject **object, AObject *parent, AOption *option)
 {
-	AService *service = (AService*)*object;
-	service->init();
-	service->_peer_module = &EchoModule;
-	service->run = &EchoRun;
+	EchoService *echod = (EchoService*)*object;
+	echod->init();
+	echod->init_push(&echod->_service);
+	echod->_service._peer_module = &EchoModule;
+	echod->_service.run = &EchoRun;
 	return 1;
 }
 
 static void EchoServiceRelease(AObject *object)
 {
-	AService *service = (AService*)object;
-	service->exit();
+	EchoService *echod = (EchoService*)object;
+	echod->pop_exit(&echod->_service);
+	echod->exit();
 }
 
 AModule EchoServiceModule = {
-	AService::class_name(),
+	AServiceComponent::name(),
 	"EchoService",
-	sizeof(AService),
+	sizeof(EchoService),
 	NULL, NULL,
 	&EchoServiceCreate,
 	&EchoServiceRelease,

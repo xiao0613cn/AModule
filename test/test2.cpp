@@ -10,6 +10,7 @@
 #include "../ecs/AInOutComponent.h"
 #include "../ecs/AClientSystem.h"
 #include "../iot/MQTTComponent.h"
+#include "../ecs/AServiceComponent.h"
 #include "test.h"
 
 
@@ -101,14 +102,13 @@ CU_TEST(test_service)
 		"is_async_io: 0, services: { EchoService: {}, "
 		"HttpService: { services: { HttpFileService } }, }, background: 1 }", -1);
 
-	AService *tcp_server = NULL;
-	AObject::create(&tcp_server, NULL, opt, NULL);
+	AEntity *tcpd = NULL;
+	AObject::create(&tcpd, NULL, opt, NULL);
 
 	ASystemManager *sm = ASystemManager::get();
-	tcp_server->_sysmng = sm;
-	sm->_all_services = tcp_server;
+	tcpd->get(&sm->_all_services)->_sysmng = sm;
 
-	AServiceStart(tcp_server, opt, TRUE);
+	AServiceComponent::get()->start(sm->_all_services, opt, TRUE);
 	opt->release();
 }
 
@@ -300,8 +300,8 @@ int main()
 
 	reset_nif(sm->_all_services, NULL, {
 		TRACE("AServiceStop():..............................\n");
-		AServiceStop(sm->_all_services, TRUE);
-		sm->_all_services->release();
+		AServiceComponent::get()->stop(sm->_all_services, TRUE);
+		sm->_all_services->_entity->release();
 	});
 	sm->stop_checkall(sm);
 	sm->clear_allsys(true);

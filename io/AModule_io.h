@@ -77,59 +77,5 @@ struct IOObject2 : public AObject {
 };
 //>>>>>>>>>> C++ Style >>>>>>>>>>
 
-//////////////////////////////////////////////////////////////////////////
-struct AService : public AObject {
-	static const char* class_name() { return "AService"; }
-
-	struct ASystemManager *_sysmng; // set by user
-	struct AService *_parent;
-	struct list_head _children_list;
-	struct list_head _brother_entry;
-
-	unsigned int _save_option : 1;
-	unsigned int _require_child : 1;
-	unsigned int _post_start : 1;
-	unsigned int _running : 1;
-
-	AOption *_svc_option;
-	AModule *_peer_module;
-	int    (*start)(AService *service, AOption *option);
-	void   (*stop)(AService *service);
-	int    (*run)(AService *service, AObject *peer);
-	int    (*abort)(AService *service, AObject *peer);
-
-	void init() {
-		_sysmng = NULL; _parent = NULL;
-		_children_list.init(); _brother_entry.init();
-		_save_option = _require_child = _post_start = _running = 0;
-		_svc_option = NULL; _peer_module = NULL;
-		start = NULL; stop = NULL; run = NULL; abort = NULL;
-	}
-	void exit() {
-		release_s(_parent);
-		if (_save_option) release_s(_svc_option);
-	}
-#define list_for_AService(pos, service) \
-	list_for_each2(pos, &(service)->_children_list, AService, _brother_entry)
-
-	void _abort(AObject *peer) {
-		if (abort) abort(this, peer);
-		list_for_AService(svc, this) {
-			svc->_abort(peer);
-		}
-	}
-};
-
-AMODULE_API int
-AServiceStart(AService *service, AOption *option, BOOL create_chains);
-
-AMODULE_API void
-AServiceStop(AService *service, BOOL clean_chains);
-
-AMODULE_API AService*
-AServiceProbe(AService *server, AObject *object, AMessage *msg);
-
-AMODULE_API AService*
-AServiceFind(AService *server, const char *svc_name, BOOL find_in_chains);
 
 #endif

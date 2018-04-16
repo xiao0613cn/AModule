@@ -2,12 +2,13 @@
 #define _AMODULE_HTTPCLIENT_H_
 
 #include "AModule_HttpSession.h"
+#include "../ecs/AServiceComponent.h"
 
 
 struct HttpConnection : public AEntity {
-	AInOutComponent _iocom;
+	AInOutComponent     _iocom;
 	HttpParserCompenont _http;
-	AService     *_svc;
+	AServiceComponent  *_svc;
 
 	ARefsBuf     *_inbuf;
 	int (*raw_inmsg_done)(AMessage*,int);

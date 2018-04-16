@@ -466,7 +466,7 @@ static void HttpConnectionRelease(AObject *object)
 	HttpConnection *p = (HttpConnection*)object;
 	reset_s(p->_resp, NULL, hm_release);
 	reset_s(p->_req, NULL, hm_release);
-	release_s(p->_svc);
+	reset_nif(p->_svc, NULL, p->_svc->_entity->release());
 
 	release_s(p->_inbuf);
 	p->pop_exit(&p->_http);
