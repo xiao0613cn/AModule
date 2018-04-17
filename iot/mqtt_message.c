@@ -11,7 +11,7 @@
 MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength)
 {
     /* Codes_SRS_MQTTMESSAGE_07_001:[If the parameters topicName is NULL is zero then mqttmessage_create shall return NULL.] */
-    MQTT_MESSAGE* result;
+    PUBLISH_MSG* result;
     if (topicName == NULL)
     {
         result = NULL;
@@ -19,7 +19,7 @@ MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName,
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_002: [mqttmessage_create shall allocate and copy the topicName and appMsg parameters.] */
-        result = malloc(sizeof(MQTT_MESSAGE));
+        result = malloc(sizeof(PUBLISH_MSG));
         if (result != NULL)
         {
 		size_t len = strlen(topicName);
@@ -71,7 +71,7 @@ MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName,
 
 void mqttmessage_destroy(MQTT_MESSAGE_HANDLE handle)
 {
-    MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+    PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
     /* Codes_SRS_MQTTMESSAGE_07_005: [If the handle parameter is NULL then mqttmessage_destroyMessage shall do nothing] */
     if (msgInfo != NULL)
     {
@@ -96,7 +96,7 @@ MQTT_MESSAGE_HANDLE mqttmessage_clone(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_008: [mqttmessage_clone shall create a new MQTT_MESSAGE_HANDLE with data content identical of the handle value.] */
-        MQTT_MESSAGE* mqtt_message = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* mqtt_message = (PUBLISH_MSG*)handle;
         result = mqttmessage_create(mqtt_message->packetId, mqtt_message->topicName, mqtt_message->qosInfo, mqtt_message->appPayload.message, mqtt_message->appPayload.length);
         if (result != NULL)
         {
@@ -118,7 +118,7 @@ uint16_t mqttmessage_getPacketId(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_011: [mqttmessage_getPacketId shall return the packetId value contained in MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = msgInfo->packetId;
     }
     return result;
@@ -135,7 +135,7 @@ const char* mqttmessage_getTopicName(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_013: [mqttmessage_getTopicName shall return the topicName contained in MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = msgInfo->topicName;
     }
     return result;
@@ -152,7 +152,7 @@ QOS_VALUE mqttmessage_getQosType(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_015: [mqttmessage_getQosType shall return the QOS Type value contained in MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = msgInfo->qosInfo;
     }
     return result;
@@ -169,7 +169,7 @@ bool mqttmessage_getIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_017: [mqttmessage_getIsDuplicateMsg shall return the isDuplicate value contained in MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = msgInfo->isDuplicate;
     }
     return result;
@@ -186,7 +186,7 @@ bool mqttmessage_getIsRetained(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_019: [mqttmessage_getIsRetained shall return the isRetained value contained in MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = msgInfo->isRetained;
     }
     return result;
@@ -203,7 +203,7 @@ int mqttmessage_setIsDuplicateMsg(MQTT_MESSAGE_HANDLE handle, bool duplicateMsg)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_023: [mqttmessage_setIsDuplicateMsg shall store the duplicateMsg value in the MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         msgInfo->isDuplicate = duplicateMsg;
         result = 0;
     }
@@ -221,7 +221,7 @@ int mqttmessage_setIsRetained(MQTT_MESSAGE_HANDLE handle, bool retainMsg)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_025: [mqttmessage_setIsRetained shall store the retainMsg value in the MQTT_MESSAGE_HANDLE handle.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         msgInfo->isRetained = retainMsg;
         result = 0;
     }
@@ -239,7 +239,7 @@ const APP_PAYLOAD* mqttmessage_getApplicationMsg(MQTT_MESSAGE_HANDLE handle)
     else
     {
         /* Codes_SRS_MQTTMESSAGE_07_021: [mqttmessage_getApplicationMsg shall return the applicationMsg value contained in MQTT_MESSAGE_HANDLE handle and the length of the appMsg in the msgLen parameter.] */
-        MQTT_MESSAGE* msgInfo = (MQTT_MESSAGE*)handle;
+        PUBLISH_MSG* msgInfo = (PUBLISH_MSG*)handle;
         result = &msgInfo->appPayload;
     }
     return result;

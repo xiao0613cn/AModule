@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "../ecs/AServiceComponent.h"
 
+static AServiceComponent* AServiceFind(AServiceComponent *server, const char *svc_name, BOOL find_in_chains);
 
 static int
 AServiceCreateChains(AServiceComponent *server, AOption *option, BOOL create_chains)
@@ -21,6 +22,10 @@ AServiceCreateChains(AServiceComponent *server, AOption *option, BOOL create_cha
 	if (create_chains && (services_opt != NULL)) {
 		list_for_AOption(svc_opt, services_opt)
 	{
+		AServiceComponent *svc = AServiceFind(server, svc_opt->value[0]?svc_opt->value:svc_opt->name, FALSE);
+		if (svc != NULL) { // already exist
+			continue;
+		}
 		AEntity *e = NULL;
 		int result = AObject::create(&e, server->_entity, svc_opt, NULL);
 		if (result < 0) {
@@ -29,7 +34,6 @@ AServiceCreateChains(AServiceComponent *server, AOption *option, BOOL create_cha
 				svc_opt->name, svc_opt->value, result);
 			continue;
 		}
-		AServiceComponent *svc = NULL;
 		if (e->get(&svc) == NULL) {
 			TRACE("%s(%s): has not AServiceComponent..\n",
 				e->_module->class_name, e->_module->module_name);
@@ -72,6 +76,11 @@ AServicePreStartChains(AServiceComponent *server, AOption *option, BOOL create_c
 	if (create_chains && (services_opt != NULL)) {
 		list_for_AOption(svc_opt, services_opt)
 	{
+		AServiceComponent *svc = AServiceFind(server, svc_opt->value[0]?svc_opt->value:svc_opt->name, FALSE);
+		if (svc != NULL) { // already exist
+			continue;
+		}
+
 		AEntity *e = NULL;
 		int result = AObject::create(&e, server->_entity, svc_opt, NULL);
 		if (result < 0) {
@@ -80,7 +89,6 @@ AServicePreStartChains(AServiceComponent *server, AOption *option, BOOL create_c
 				svc_opt->name, svc_opt->value, result);
 			continue;
 		}
-		AServiceComponent *svc = NULL;
 		if (e->get(&svc) == NULL) {
 			TRACE("entity(%s): has not AServiceComponent..\n",
 				e->_module->module_name);
@@ -116,7 +124,7 @@ AServicePreStartChains(AServiceComponent *server, AOption *option, BOOL create_c
 	int result = 0;
 	server->_running = TRUE;
 	if (server->start != NULL)
-		result = server->start(server, option);
+		result = server->start(server, FALSE);
 	TRACE("server(%s): start() = %d.\n", server->_entity->_module->module_name, result);
 	return result;
 }
@@ -126,7 +134,7 @@ AServicePostStartChains(AServiceComponent *server)
 {
 	assert(server->_running);
 	if (server->_post_start) {
-		int result = server->start(server, NULL);
+		int result = server->start(server, TRUE);
 		if (result < 0) {
 			TRACE("server(%s): post start() = %d.\n", server->_entity->_module->module_name, result);
 			return result;

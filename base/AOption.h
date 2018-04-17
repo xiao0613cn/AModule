@@ -118,6 +118,9 @@ AOptionDecode(AOption **option, const char *name, int len);
 AMODULE_API int
 AOptionEncode(AOption *option, void *p, int(*write_cb)(void *p, const char *str, int len));
 
+AMODULE_API ARefsBuf*
+AOptionEncode2(AOption *option);
+
 AMODULE_API int
 AOptionLoad(AOption **option, const char *path);
 

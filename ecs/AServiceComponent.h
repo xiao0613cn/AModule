@@ -19,7 +19,7 @@ struct AServiceComponent : public AComponent {
 
 	AOption *_svc_option;
 	AModule *_peer_module;
-	int    (*start)(AServiceComponent *service, AOption *option);
+	int    (*start)(AServiceComponent *service, BOOL post_start);
 	void   (*stop)(AServiceComponent *service);
 	int    (*run)(AServiceComponent *service, AObject *peer);
 	int    (*abort)(AServiceComponent *service, AObject *peer);

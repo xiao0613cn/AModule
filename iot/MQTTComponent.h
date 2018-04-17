@@ -15,6 +15,7 @@ struct MqttModule {
 
 	MqttMsg*  (*msg_create)();
 	void      (*msg_release)(MqttMsg *msg);
+	void      (*msg_do_post)(AEntity *e, MqttMsg *msg);
 
 	int  (*buf_pre_build)(MQTT_BUFFER *handle, size_t size);
 	int  (*buf_build)(MQTT_BUFFER *handle, const unsigned char* source, size_t size);
@@ -29,7 +30,7 @@ struct MqttModule {
 
 	MQTT_BUFFER* (*codec_connect)(MQTT_BUFFER *result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions/*!=NULL*/);
 	MQTT_BUFFER* (*codec_disconnect)(MQTT_BUFFER *result/*!=NULL*/);
-	MQTT_BUFFER* (*codec_publish)(MQTT_BUFFER *result/*!=NULL*/, const MQTT_MESSAGE *msg/*!=NULL*/);
+	MQTT_BUFFER* (*codec_publish)(MQTT_BUFFER *result/*!=NULL*/, const PUBLISH_MSG *msg/*!=NULL*/);
 	MQTT_BUFFER* (*codec_publishAck)(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
 	MQTT_BUFFER* (*codec_publishReceived)(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
 	MQTT_BUFFER* (*codec_publishRelease)(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
@@ -48,7 +49,7 @@ struct MqttComponent : public AComponent {
 	static const char* name() { return "MqttComponent"; }
 	AMODULE_GET(MqttModule, "AEntity", "MQTTClient")
 
-	//void (*on_msg)(MqttComponent *c, MQTT_MESSAGE *msg);
+	//void (*on_msg)(MqttComponent *c, PUBLISH_MSG *msg);
 	ON_PACKET_COMPLETE_CALLBACK on_msg;
 	void  *on_msg_userdata;
 

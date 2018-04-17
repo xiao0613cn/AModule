@@ -171,6 +171,9 @@ AOptionDecode(AOption **option, const char *name, int len)
 				current->value[1] = '\0';
 				current->type = AOption_Array;
 			}
+			if ((*sep == '{') && (current->value[0] == '\0')) {
+				current->type = AOption_Object;
+			}
 
 			current = AOptionCreate(current);
 			if (current == NULL) {
@@ -289,8 +292,9 @@ AOptionEncode(AOption *option, void *p, int(*write_cb)(void*,const char*,int))
 		}
 
 		if (((current->value[0] == '\0' && current->type == AOption_Any)
-		  || (current->name_len >= _countof(current->name)))
-		 && current->children_list.empty()) {
+		  || current->name_len >= _countof(current->name))
+		 && current->children_list.empty()
+		 && (current->parent == NULL || current->parent->type != AOption_Object)) {
 			goto _next;
 		}
 		if (current->name[0] != '\0') {
@@ -406,28 +410,33 @@ static int write_buf(void *p, const char *str, int len)
 	return len;
 }
 
-AMODULE_API int
-AOptionSave(AOption *option, const char *path)
+AMODULE_API ARefsBuf*
+AOptionEncode2(AOption *option)
 {
 	ARefsBuf *buf = NULL;
 	int result = ARefsBuf::reserve(buf, 512, 0);
+	if (result >= 0)
+		result = AOptionEncode(option, &buf, write_buf);
 	if (result < 0)
-		return result;
+		release_s(buf);
+	return buf;
+}
 
-	result = AOptionEncode(option, &buf, write_buf);
+AMODULE_API int
+AOptionSave(AOption *option, const char *path)
+{
+	ARefsBuf *buf = AOptionEncode2(option);
+	if (buf == NULL)
+		return -ENOMEM;
 	godefer(ARefsBuf*, buf, buf->release());
-	if (result < 0)
-		return result;
 
 	FILE *fp = fopen(path, "wb");
 	if (fp == NULL)
 		return -errno;
 	godefer(FILE*, fp, fclose(fp));
 
-	result = buf->len();
-	fwrite(buf->ptr(), result, 1, fp);
-
-	return result;
+	fwrite(buf->ptr(), buf->len(), 1, fp);
+	return buf->len();
 }
 
 AMODULE_API AOption*

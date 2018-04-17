@@ -107,11 +107,13 @@ static uint16_t byteutil_read_uint16(uint8_t** buffer, size_t len)
 	return result;
 }
 
-static char* byteutil_readUTF(uint8_t** buffer, size_t* byteLen)
+static char* byteutil_readUTF(uint8_t** buffer, uint16_t* utfLen)
 {
 	char* result = NULL;
 	// Get the length of the string
-	uint16_t len = byteutil_read_uint16(buffer, byteLen ? *byteLen : 2);
+	uint16_t len = byteutil_read_uint16(buffer, 2);
+	if (utfLen != NULL)
+		*utfLen = len;
 	if (len > 0)
 	{
 		result = (char*)malloc(len + 1);
@@ -120,10 +122,6 @@ static char* byteutil_readUTF(uint8_t** buffer, size_t* byteLen)
 			(void)memcpy(result, *buffer, len);
 			result[len] = '\0';
 			*buffer += len;
-			if (byteLen != NULL)
-			{
-				*byteLen = len;
-			}
 		}
 	}
 	return result;
@@ -221,7 +219,7 @@ static int constructConnectVariableHeader(MQTT_BUFFER* ctrlPacket, const MQTT_CL
     return result;
 }
 
-static int constructPublishVariableHeader(MQTT_BUFFER* ctrlPacket, const MQTT_MESSAGE *msg/*!=NULL*/)
+static int constructPublishVariableHeader(MQTT_BUFFER* ctrlPacket, const PUBLISH_MSG *msg/*!=NULL*/)
 {
     int result = 0;
     size_t topicLen = strlen(msg->topicName);
@@ -496,12 +494,12 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 	case PUBLISH_TYPE:
 	{
 		uint8_t* initialPos = iterator;
-		MQTT_MESSAGE msg;
+		PUBLISH_MSG msg = { 0 };
 		msg.isDuplicate = (codecData->headerFlags & PUBLISH_DUP_FLAG) ? true : false;
 		msg.isRetained = (codecData->headerFlags & PUBLISH_QOS_RETAIN) ? true : false;
 		msg.qosInfo = (codecData->headerFlags == 0) ? DELIVER_AT_MOST_ONCE : (codecData->headerFlags & PUBLISH_QOS_AT_LEAST_ONCE) ? DELIVER_AT_LEAST_ONCE : DELIVER_EXACTLY_ONCE;
 
-		msg.topicName = byteutil_readUTF(&iterator, NULL);
+		msg.topicName = byteutil_readUTF(&iterator, &msg.topicLen);
 		if (msg.topicName == NULL)
 		{
 			codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, NULL);
@@ -517,31 +515,6 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 		msg.appPayload.length = len - (iterator - initialPos);
 
 		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &msg);
-		/*MQTT_BUFFER* pubRel = NULL;
-		if (qosValue == DELIVER_EXACTLY_ONCE)
-		{
-			pubRel = mqtt_codec_publishReceived(packetId);
-			if (pubRel == NULL)
-			{
-				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish receive message.");
-				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-			}
-		}
-		else if (qosValue == DELIVER_AT_LEAST_ONCE)
-		{
-			pubRel = mqtt_codec_publishAck(packetId);
-			if (pubRel == NULL)
-			{
-				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish ack message.");
-				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-			}
-		}
-		if (pubRel != NULL)
-		{
-			size_t size = BUFFER_length(pubRel);
-			(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
-			BUFFER_delete(pubRel);
-		}*/
 		free(msg.topicName);
 		break;
 	}
@@ -554,33 +527,6 @@ static void completePacketData(MQTTCODEC_INSTANCE* codecData)
 		PUBLISH_ACK publish_ack = { 0 };
 		publish_ack.packetId = byteutil_read_uint16(&iterator, len);
 		codecData->packetComplete(codecData->callContext, codecData->currPacket, codecData->headerFlags, &codecData->headerData, &publish_ack);
-
-		/*MQTT_BUFFER* pubRel = NULL;
-		mqtt_client->fnOperationCallback(mqtt_client, action, (void*)&publish_ack, mqtt_client->ctx);
-		if (packet == PUBREC_TYPE)
-		{
-			pubRel = mqtt_codec_publishRelease(publish_ack.packetId);
-			if (pubRel == NULL)
-			{
-				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish release message.");
-				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-			}
-		}
-		else if (packet == PUBREL_TYPE)
-		{
-			pubRel = mqtt_codec_publishComplete(publish_ack.packetId);
-			if (pubRel == NULL)
-			{
-				LOG(AZ_LOG_ERROR, LOG_LINE, "Failed to allocate publish complete message.");
-				set_error_callback(mqtt_client, MQTT_CLIENT_MEMORY_ERROR);
-			}
-		}
-		if (pubRel != NULL)
-		{
-			size_t size = BUFFER_length(pubRel);
-			(void)sendPacketItem(mqtt_client, BUFFER_u_char(pubRel), size);
-			BUFFER_delete(pubRel);
-		}*/
 		break;
 	}
 	case SUBACK_TYPE:
@@ -687,7 +633,7 @@ MQTT_BUFFER* mqtt_codec_disconnect(MQTT_BUFFER* result/*!=NULL*/)
     return result;
 }
 
-MQTT_BUFFER* mqtt_codec_publish(MQTT_BUFFER* result/*!=NULL*/, const MQTT_MESSAGE *msg/*!=NULL*/)
+MQTT_BUFFER* mqtt_codec_publish(MQTT_BUFFER* result/*!=NULL*/, const PUBLISH_MSG *msg/*!=NULL*/)
 {
 	uint8_t headerFlags;
 	size_t payloadOffset;

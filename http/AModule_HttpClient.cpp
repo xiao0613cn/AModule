@@ -83,10 +83,16 @@ extern int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 		host.len = int(port.str - host.str);
 		port.str += 1;
 	}
+	str_t schema = req->_kv_get(req, HttpMsg::KV_UriInfo, sz_t("Schema"));
+	if (schema.str == NULL) {
+		schema = sz_t("async_tcp");
+	} else if (strncasecmp(schema.str, "http", schema.len) == 0) {
+		schema = sz_t("async_tcp");
+	}
 
 	char opt_str[256];
-	snprintf(opt_str, 256, "{address:'%.*s',port:%.*s}",
-		host.len, host.str, port.len, port.str);
+	snprintf(opt_str, 256, "%.*s:{address:'%.*s',port:%.*s}",
+		schema.len, schema.str, host.len, host.str, port.len, port.str);
 
 	AOption *io_opt = NULL;
 	int result = AOptionDecode(&io_opt, opt_str, -1);

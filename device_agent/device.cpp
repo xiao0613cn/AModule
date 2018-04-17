@@ -8,26 +8,26 @@ static int devcom_cmp(const char *key, ADeviceComponent *data) {
 }
 rb_tree_define(ADeviceComponent, _devmap_node, const char*, devcom_cmp)
 
-extern ADeviceModule DM;
+extern ADeviceComponentModule DCM;
 
-static int DM_push(ADeviceComponent *dev, AEventManager *ev)
+static int DCM_push(ADeviceComponent *dev, AEventManager *ev)
 {
-	ADeviceComponent *old_dev = DM._find(dev->_dev_id);
+	ADeviceComponent *old_dev = DCM._find(dev->_dev_id);
 	if (old_dev != NULL)
-		DM._pop(old_dev, ev);
+		DCM._pop(old_dev, ev);
 
-	old_dev = rb_insert_ADeviceComponent(&DM.dev_map, dev, dev->_dev_id);
+	old_dev = rb_insert_ADeviceComponent(&DCM.dev_map, dev, dev->_dev_id);
 	assert(old_dev == NULL);
 	dev->_entity->addref();
 	return 1;
 }
 
-static int DM_pop(ADeviceComponent *dev, AEventManager *ev)
+static int DCM_pop(ADeviceComponent *dev, AEventManager *ev)
 {
 	if (RB_EMPTY_NODE(&dev->_devmap_node))
 		return -1;
 
-	rb_erase(&dev->_devmap_node, &DM.dev_map);
+	rb_erase(&dev->_devmap_node, &DCM.dev_map);
 	RB_CLEAR_NODE(&dev->_devmap_node);
 	if (ev != NULL)
 		ev->emit_by_name(ev, "on_dev_pop", dev);
@@ -35,21 +35,21 @@ static int DM_pop(ADeviceComponent *dev, AEventManager *ev)
 	return 1;
 }
 
-static ADeviceComponent* DM_find(const char *devid)
+static ADeviceComponent* DCM_find(const char *devid)
 {
-	return rb_find_ADeviceComponent(&DM.dev_map, devid);
+	return rb_find_ADeviceComponent(&DCM.dev_map, devid);
 }
 
-static ADeviceComponent* DM_upper(const char *devid)
+static ADeviceComponent* DCM_upper(const char *devid)
 {
-	if (RB_EMPTY_ROOT(&DM.dev_map))
+	if (RB_EMPTY_ROOT(&DCM.dev_map))
 		return NULL;
 	if (devid == NULL)
-		return rb_first_entry(&DM.dev_map, ADeviceComponent, _devmap_node);
-	return rb_upper_ADeviceComponent(&DM.dev_map, devid);
+		return rb_first_entry(&DCM.dev_map, ADeviceComponent, _devmap_node);
+	return rb_upper_ADeviceComponent(&DCM.dev_map, devid);
 }
 
-static ADeviceComponent* DM_next(ADeviceComponent *dev)
+static ADeviceComponent* DCM_next(ADeviceComponent *dev)
 {
 	rb_node *node = rb_next(&dev->_devmap_node);
 	if (node == NULL)
@@ -57,20 +57,20 @@ static ADeviceComponent* DM_next(ADeviceComponent *dev)
 	return rb_entry(node, ADeviceComponent, _devmap_node);
 }
 
-static int DM_init(AOption *global_option, AOption *module_option, BOOL first)
+static int DCM_init(AOption *global_option, AOption *module_option, BOOL first)
 {
 	if (first) {
-		INIT_RB_ROOT(&DM.dev_map);
-		DM.dev_count = 0;
-		pthread_mutex_init(&DM.dev_mutex, NULL);
+		INIT_RB_ROOT(&DCM.dev_map);
+		DCM.dev_count = 0;
+		pthread_mutex_init(&DCM.dev_mutex, NULL);
 	}
 	return 1;
 }
 
-static void DM_exit(int inited)
+static void DCM_exit(int inited)
 {
 	if (inited > 0) {
-		pthread_mutex_destroy(&DM.dev_mutex);
+		pthread_mutex_destroy(&DCM.dev_mutex);
 	}
 }
 
@@ -121,18 +121,18 @@ static ADeviceComponent* dev_com_find(AEntityManager *em, const char *devid)
 	return NULL;
 }
 
-ADeviceModule DM = { {
+ADeviceComponentModule DCM = { {
 	ADeviceComponent::name(),
 	ADeviceComponent::name(),
 	sizeof(ADeviceComponent),
-	&DM_init, &DM_exit,
+	&DCM_init, &DCM_exit,
 },
 	{ }, 0, { },
-	&DM_push,
-	&DM_pop,
-	&DM_find,
-	&DM_upper,
-	&DM_next,
+	&DCM_push,
+	&DCM_pop,
+	&DCM_find,
+	&DCM_upper,
+	&DCM_next,
 	&dev_com_find,
 };
-static int reg_dm = AModuleRegister(&DM.module);	
+static int reg_dm = AModuleRegister(&DCM.module);	

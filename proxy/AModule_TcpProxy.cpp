@@ -262,7 +262,7 @@ static int TCPServerAcceptExDone(AOperator *sysop, int result)
 }
 #endif
 
-static int TCPServerStart(AServiceComponent *service, AOption *option)
+static int TCPServerStart(AServiceComponent *service, BOOL post_start)
 {
 	TCPServer *tcpd = container_of(service, TCPServer, svc);
 	if (tcpd->sock != INVALID_SOCKET) {
@@ -276,7 +276,6 @@ static int TCPServerStart(AServiceComponent *service, AOption *option)
 		return -EINVAL;
 	}
 
-	assert(tcpd->svc._svc_option == option);
 	tcpd->io_option = tcpd->svc._svc_option->find("io");
 
 	tcpd->svc._peer_module = AModuleFind("io", tcpd->io_option

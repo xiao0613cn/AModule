@@ -203,6 +203,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\frame_queue.h"
+				>
+			</File>
+			<File
 				RelativePath=".\stream.h"
 				>
 			</File>

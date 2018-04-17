@@ -141,7 +141,7 @@ static int get_sinfo_from_context(AStreamInfo **pinfo, AVCodecContext *codec)
 	int result = 1;
 	if ((*pinfo)->extra_bufsiz < codec->extradata_size) {
 		// sinfo_realloc()
-		result = AStreamModule::get()->sinfo_clone(pinfo, NULL, codec->extradata_size);
+		result = AStreamComponentModule::get()->sinfo_clone(pinfo, NULL, codec->extradata_size);
 		if (result < 0)
 			return result;
 	}

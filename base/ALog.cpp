@@ -131,7 +131,7 @@ static int LogFileAsopDone(AOperator *asop, int result)
 	LogFileWrite(lf);
 
 	if (lf->_delay_close > Log._delay_count) {
-		reset_nif(lf->_fd, -1, close(lf->_fd));
+		reset_s(lf->_fd, -1, close);
 	}
 	if (result >= 0) {
 		asop->delay(NULL, Log._delay_tick, FALSE);
@@ -147,7 +147,7 @@ static int LogFileAsopDone(AOperator *asop, int result)
 static void LogFileRelease(AObject *object)
 {
 	LogFile *lf = (LogFile*)object;
-	reset_nif(lf->_fd, -1, close(lf->_fd));
+	reset_s(lf->_fd, -1, close);
 	lf->_buf.exit();
 	free(lf);
 }

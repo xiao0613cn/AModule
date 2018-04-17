@@ -39,7 +39,7 @@ struct AReceiver : public AObject {
 	}
 };
 
-typedef int (*ASelfEventFunc)(const char *name, bool preproc, void *self);
+typedef int (*ASelfEventFunc)(AReceiver *r, bool preproc, void *self);
 
 struct AEventManagerMethod {
 	// event by name

@@ -26,7 +26,7 @@ typedef enum CODEC_STATE_RESULT {
 } CODEC_STATE_RESULT;
 
 typedef void(*ON_PACKET_COMPLETE_CALLBACK)(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag);
-typedef struct MQTT_MESSAGE MQTT_MESSAGE;
+typedef struct PUBLISH_MSG PUBLISH_MSG;
 
 typedef struct MQTTCODEC_INSTANCE {
 	CONTROL_PACKET_TYPE currPacket;
@@ -56,7 +56,7 @@ void mqtt_codec_exit(MQTTCODEC_INSTANCE *handle);
 
 MQTT_BUFFER* mqtt_codec_connect(MQTT_BUFFER *result/*!=NULL*/, const MQTT_CLIENT_OPTIONS* mqttOptions/*!=NULL*/);
 MQTT_BUFFER* mqtt_codec_disconnect(MQTT_BUFFER *result/*!=NULL*/);
-MQTT_BUFFER* mqtt_codec_publish(MQTT_BUFFER *result/*!=NULL*/, const MQTT_MESSAGE *msg/*!=NULL*/);
+MQTT_BUFFER* mqtt_codec_publish(MQTT_BUFFER *result/*!=NULL*/, const PUBLISH_MSG *msg/*!=NULL*/);
 MQTT_BUFFER* mqtt_codec_publishAck(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
 MQTT_BUFFER* mqtt_codec_publishReceived(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);
 MQTT_BUFFER* mqtt_codec_publishRelease(MQTT_BUFFER *result/*!=NULL*/, uint16_t packetId);

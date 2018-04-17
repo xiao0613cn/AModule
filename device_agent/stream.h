@@ -24,11 +24,10 @@ extern "C" {
 struct AEventManager;
 struct AStreamInfo;
 struct AStreamPlugin;
-struct AStreamModule;
 
 struct AStreamComponent : public AComponent {
 	static const char *name() { return "AStreamComponent"; }
-	AMODULE_GET(AStreamModule, AStreamComponent::name(), AStreamComponent::name())
+	AMODULE_GET(struct AStreamComponentModule, AStreamComponent::name(), AStreamComponent::name())
 
 	char    _dev_id[48];
 	int     _chan_id;
@@ -56,7 +55,7 @@ struct AStreamComponent : public AComponent {
 	/* for playback | download */
 	struct tm _begin_tm;
 	struct tm _end_tm;
-	float     _cur_speed;
+	int       _cur_speed; // default 1000, unit: (1/1000) permillage
 	/* for playback | download */
 
 	//AEventManager *_plugin_manager;
@@ -73,21 +72,27 @@ struct AStreamInfo {
 };
 
 struct AStreamPlugin : public AComponent {
+	static const char *name() { return "AStreamPlugin"; }
+
 	AStreamComponent *_stream;
 	struct list_head  _plugin_entry;
-	unsigned int      _key_flags;   // 1 << pkt->stream_index
-	unsigned int      _media_flags; // 1 << pkt->stream_index
-	unsigned int      _enable_key_ctrl : 1;
-
 	int   (*on_recv)(AStreamPlugin *p, AVPacket *pkt);
 	void   *on_recv_userdata;
+
+	// all flags: 1 << pkt->stream_index
+	unsigned int      _enable_flags;
+	unsigned int      _media_flags;
+	unsigned int      _key_flags;
+	unsigned int      _enable_key_ctrls;
 
 	void init2() {
 		_stream = NULL; _plugin_entry.init();
 		on_recv = NULL; on_recv_userdata = NULL;
+
+		_enable_flags = -1u;                    // enable all media type
+		_media_flags = 0;
 		_key_flags = ~(1u<<AVMEDIA_TYPE_VIDEO); // no video key frame
-		_media_flags = -1u;                     // enable all media type
-		_enable_key_ctrl = 1;
+		_enable_key_ctrls = -1u;
 	}
 	static AStreamPlugin* first(list_head &list) {
 		return list_first_entry(&list, AStreamPlugin, _plugin_entry);
@@ -97,15 +102,19 @@ struct AStreamPlugin : public AComponent {
 	}
 };
 
-struct AStreamModule {
+struct AStreamComponentModule {
 	AModule module;
-	AMODULE_GET(AStreamModule, AStreamComponent::name(), AStreamComponent::name())
+	AMODULE_GET(AStreamComponentModule, AStreamComponent::name(), AStreamComponent::name())
 
 	AStreamComponent* (*find)(AEntityManager *em, const char *stream_key);
-	int   (*dispatch_avpkt)(AStreamComponent *c, AVPacket *pkt);
+	int   (*dispatch_avpkt)(AStreamComponent *s, AVPacket *pkt);
+	int   (*dispatch_mediainfo)(AStreamComponent *s, AVPacket *pkt, AStreamPlugin *p);
 	int   (*sinfo_clone)(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz);
 	void  (*sinfo_free)(AStreamInfo *info);
 	void  (*avpkt_init)(AVPacket *pkt);
+	void  (*avpkt_exit)(AVPacket *pkt);
+	void  (*avpkt_dup)(AVPacket *pkt);
+	int   (*frame_queue_on_recv)(AStreamPlugin *p, AVPacket *pkt);
 };
 
 struct AStreamImplement {

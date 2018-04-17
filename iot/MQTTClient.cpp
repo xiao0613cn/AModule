@@ -198,7 +198,7 @@ void MQTTClient::on_packet(CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER* h
 	}
 
 	if (packet == PUBLISH_TYPE) {
-		MQTT_MESSAGE *msg = (MQTT_MESSAGE*)packetTag;
+		PUBLISH_MSG *msg = (PUBLISH_MSG*)packetTag;
 		// TODO: dispath msg...
 		_mqtt.on_msg(_mqtt.on_msg_userdata, packet, flags, headerData, packetTag);
 
@@ -345,6 +345,16 @@ static void MQTTPost(MqttComponent *c, AMessage *msg)
 	p->_iocom.post(msg);
 }
 
+static void MQTTPost2(AEntity *e, MqttMsg *msg)
+{
+	extern MqttModule MCM;
+	assert(e->_module == &MCM.module);
+	MQTTClient *p = (MQTTClient*)e;
+	if (msg->data == NULL)
+		msg->init(ioMsgType_Block, msg->buf.buffer, msg->buf.size);
+	p->_iocom.post(msg);
+}
+
 static void on_msg_null(void* context, CONTROL_PACKET_TYPE packet, int flags, MQTT_BUFFER *headerData, void *packetTag)
 {
 }
@@ -388,7 +398,7 @@ MqttModule MCM = { {
 	&MQTTCreate,
 	&MQTTRelease,
 },
-	&mm_create, (void(*)(MqttMsg*))&free,
+	&mm_create, (void(*)(MqttMsg*))&free, &MQTTPost2,
 
 	&BUFFER_pre_build, &BUFFER_build,
 	&BUFFER_unbuild,

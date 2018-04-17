@@ -184,11 +184,11 @@ CU_TEST(test_client)
 	opt->delref();
 }
 
-static int on_event(const char *name, bool preproc, void *p)
+static int on_event(AReceiver *r, bool preproc, void *p)
 {
 	AClientComponent *c = (AClientComponent*)p;
 	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
-		name, c->_entity->_module->module_name, c->_entity, c, preproc);
+		r->_name, c->_entity->_module->module_name, c->_entity, c, preproc);
 
 	MqttComponent *mqtt;
 	if (c->other(&mqtt) != NULL) {

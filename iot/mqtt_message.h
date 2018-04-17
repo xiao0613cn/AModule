@@ -25,7 +25,7 @@ typedef struct APP_PAYLOAD_TAG
 	size_t length;
 } APP_PAYLOAD;
 
-typedef struct MQTT_MESSAGE
+typedef struct PUBLISH_MSG
 {
 	uint16_t    packetId;
 	uint16_t    topicLen;
@@ -34,7 +34,7 @@ typedef struct MQTT_MESSAGE
 	APP_PAYLOAD appPayload;
 	bool        isDuplicate;
 	bool        isRetained;
-} MQTT_MESSAGE, * MQTT_MESSAGE_HANDLE;
+} PUBLISH_MSG, * MQTT_MESSAGE_HANDLE;
 
 
 MQTT_MESSAGE_HANDLE mqttmessage_create(uint16_t packetId, const char* topicName, QOS_VALUE qosValue, const uint8_t* appMsg, size_t appMsgLength);

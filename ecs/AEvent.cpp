@@ -217,7 +217,7 @@ static int on_self_event(AReceiver *r, void *p, bool preproc)
 	AReceiver2 *r2 = (AReceiver2*)r;
 	if (r2->_self != p)
 		return -1;
-	return r2->_func(r2->_name, preproc, p);
+	return r2->_func(r2, preproc, p);
 }
 
 static AReceiver* EM_sub_self(AEventManager *em, const char *name, void *self, ASelfEventFunc f)

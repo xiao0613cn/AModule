@@ -2,7 +2,7 @@
 #include "AModule_HttpClient.h"
 
 
-static int on_m_begin(http_parser *parser) {
+static int on_msg_begin(http_parser *parser) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
 
 	p->_httpmsg->reset();
@@ -25,7 +25,7 @@ static int on_url_or_status(http_parser *parser, const char *at, size_t length) 
 	p->_value_len += length;
 	return 0;
 }
-static int on_h_field(http_parser *parser, const char *at, size_t length) {
+static int on_head_field(http_parser *parser, const char *at, size_t length) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
 	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
@@ -44,7 +44,7 @@ static int on_h_field(http_parser *parser, const char *at, size_t length) {
 	p->_field_len += length;
 	return 0;
 }
-static int on_h_value(http_parser *parser, const char *at, size_t length) {
+static int on_head_value(http_parser *parser, const char *at, size_t length) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
 	assert((at >= p->p_next()) && (at < p->p_next()+p->p_left()));
 
@@ -54,7 +54,7 @@ static int on_h_value(http_parser *parser, const char *at, size_t length) {
 	p->_value_len += length;
 	return 0;
 }
-static int on_h_done(http_parser *parser) {
+static int on_head_done(http_parser *parser) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
 	if (p->_value_len != 0) {
 		p->_header_count++;
@@ -73,7 +73,7 @@ static int on_body(http_parser *parser, const char *at, size_t length) {
 	p->_body_len += length;
 	return 0;
 }
-static int on_m_done(http_parser *parser) {
+static int on_msg_done(http_parser *parser) {
 	HttpParserCompenont *p = container_of(parser, HttpParserCompenont, _parser);
 	http_parser_pause(parser, TRUE);
 	return 0;
@@ -92,14 +92,14 @@ static int on_chunk_complete(http_parser *parser) {
 	return 0;
 }
 static const struct http_parser_settings cb_sets = {
-	&on_m_begin,
+	&on_msg_begin,
 	&on_url_or_status,
 	&on_url_or_status,
-	&on_h_field,
-	&on_h_value,
-	&on_h_done,
+	&on_head_field,
+	&on_head_value,
+	&on_head_done,
 	&on_body,
-	&on_m_done,
+	&on_msg_done,
 	&on_chunk_header,
 	&on_chunk_complete
 };

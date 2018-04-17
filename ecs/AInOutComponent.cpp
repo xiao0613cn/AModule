@@ -73,10 +73,12 @@ static int _outmsg_done(AMessage *msg, int result)
 	for (;;) {
 		if (result >= 0)
 			c->_outbuf->push(c->_outmsg.size);
+
 		if ((result < 0) || (c->_outbuf->len() != 0)) {
 			result = c->on_output(c, result);
 			if (result == 0)
 				return 0;
+
 			if ((result < 0) || (result >= AMsgType_Class)) {
 				c->_entity->release();
 				return result;

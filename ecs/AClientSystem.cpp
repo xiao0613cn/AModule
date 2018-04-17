@@ -64,6 +64,9 @@ static ASystem::Result* check_one(ASystemManager *sm, AClientComponent *c, DWORD
 		if (c->_busy_count != 0)
 			return NULL;
 		if (!c->_auto_reopen) {
+			if (!c->_auto_remove)
+				return NULL;
+
 			c->_entity->addref();
 			sm->_all_entities->_pop(sm->_all_entities, c->_entity);
 

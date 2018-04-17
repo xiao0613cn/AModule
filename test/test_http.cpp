@@ -30,6 +30,7 @@ CU_TEST(test_http)
 	msg->_parser.http_major = 1;
 	msg->_parser.http_minor = 1;
 	msg->uri_set(sz_t("/"), 1);
+	msg->_kv_set(msg, HttpMsg::KV_UriInfo, sz_t("Schema"), sz_t("tcp"));
 	msg->header_set(sz_t("Host"), sz_t("www.sina.com.cn"));
 	msg->header_set(sz_t("Accept"), sz_t("*/*"));
 
