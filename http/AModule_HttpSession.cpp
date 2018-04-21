@@ -152,7 +152,9 @@ static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
 	p->_parsed_len = 0;
 
 	assert(hm->header_num()+1 == p->_header_count);
+	void *userdata = hm->_parser.data;
 	hm->_parser = p->_parser;
+	hm->_parser.data = userdata;
 	hm->body_set(_outbuf, p->_body_pos, p->_body_len);
 	p->_body_len = 0;
 	return 1;

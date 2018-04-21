@@ -43,13 +43,12 @@ AOptionInit(AOption *option, AOption *parent)
 }
 
 AMODULE_API AOption*
-AOptionCreate(AOption *parent, const char *name, const char *value)
+AOptionCreate(AOption *parent, const char *name)
 {
 	AOption *option = gomake(AOption);
 	if (option != NULL) {
 		AOptionInit(option, parent);
 		strcpy_sz(option->name, name);
-		strcpy_sz(option->value, value);
 	}
 	return option;
 }
@@ -113,7 +112,7 @@ AOptionDecodeSlash(AOption *current, char sep, char keysep)
 AMODULE_API int
 AOptionDecode(AOption **option, const char *name, int len)
 {
-	AOption *current = AOptionCreate(NULL);
+	AOption *current = AOptionCreate(NULL, NULL);
 	*option = current;
 	if (current == NULL)
 		return -ENOMEM;
@@ -175,7 +174,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 				current->type = AOption_Object;
 			}
 
-			current = AOptionCreate(current);
+			current = AOptionCreate(current, NULL);
 			if (current == NULL) {
 				result = -ENOMEM;
 				goto _return;
@@ -221,7 +220,7 @@ AOptionDecode(AOption **option, const char *name, int len)
 				goto _return;
 			}
 
-			current = AOptionCreate(current->parent);
+			current = AOptionCreate(current->parent, NULL);
 			if (current == NULL) {
 				result = -ENOMEM;
 				goto _return;
@@ -445,7 +444,7 @@ AOptionClone(AOption *option, AOption *parent)
 	if (option == NULL)
 		return NULL;
 
-	AOption *current = AOptionCreate(parent, NULL, NULL);
+	AOption *current = AOptionCreate(parent, NULL);
 	if (current == NULL)
 		return NULL;
 

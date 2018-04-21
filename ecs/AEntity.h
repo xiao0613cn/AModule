@@ -123,8 +123,8 @@ inline void AEntity::init() {
 inline void AEntity::exit() {
 	while (!_com_list.empty()) {
 		AComponent *c = list_pop_front(&_com_list, AComponent, _entry);
-		assert(c->_dynmng);
-		_manager->_del_com(_manager, this, c);
+		if (c->_dynmng) _manager->_del_com(_manager, this, c);
+		else            assert(0);
 	}
 	assert(RB_EMPTY_NODE(&_map_node));
 }

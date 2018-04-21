@@ -310,6 +310,10 @@
 				RelativePath=".\test_http.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\test_pvdclient.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Í·ÎÄ¼þ"

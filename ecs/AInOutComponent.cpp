@@ -95,8 +95,11 @@ static int _outmsg_done(AMessage *msg, int result)
 
 static int iocom_create(AObject **object, AObject *parent, AOption *option)
 {
-	AInOutComponent *c = (AInOutComponent*)*object;
+	AInOutComponent *c = (AInOutComponent*)object;
+	c->init(c->name());
 	c->init2();
+	if (parent != NULL)
+		((AEntity*)parent)->push(c);
 	return 1;
 }
 

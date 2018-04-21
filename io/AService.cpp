@@ -224,7 +224,7 @@ static int svc_com_run_null(AServiceComponent *svc, AObject *peer) {
 
 static int svc_com_create(AObject **object, AObject *parent, AOption *options)
 {
-	AServiceComponent *svc = (AServiceComponent*)*object;
+	AServiceComponent *svc = (AServiceComponent*)object;
 	svc->init2();
 	svc->run   = &svc_com_run_null;
 	return 1;

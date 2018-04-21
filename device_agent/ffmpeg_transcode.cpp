@@ -198,7 +198,7 @@ static int get_sinfo_from_context(AStreamInfo **pinfo, AVCodecContext *codec)
 
 static int ffmpeg_tx_create(AObject **object, AObject *parent, AOption *options)
 {
-	FFmpegAudioTranscode *tx = (FFmpegAudioTranscode*)*object;
+	FFmpegAudioTranscode *tx = (FFmpegAudioTranscode*)object;
 	tx->_araw_ctx            = tx->_aac_ctx = NULL;
 	memzero(tx->_araw_frame);
 	memzero(tx->_araw_buf);    tx->_aac_buf = NULL;
@@ -251,11 +251,15 @@ static int ffmpeg_tx_transcode(AComponent *c, AVPacket *dest, AVPacket *src)
 	reset_nif(dest->buf, NULL, ((ARefsBuf*)dest->buf)->release());
 	ARefsBuf *src_buf = (ARefsBuf*)src->buf; src->buf = NULL;
 
-	int got = 0;
-	int result = avcodec_decode_audio4(tx->_araw_ctx, &tx->_araw_frame, &got, src);
+	//int got = 0;
+	//int result = avcodec_decode_audio4(tx->_araw_ctx, &tx->_araw_frame, &got, src);
+	int result = avcodec_send_packet(tx->_araw_ctx, src);
+	if (result >= 0) {
+		result = avcodec_receive_frame(tx->_araw_ctx, &tx->_araw_frame);
+	}
 	src->buf = (AVBufferRef*)src_buf;
 
-	if ((result < 0) || !got) {
+	if ((result < 0) /*|| !got*/) {
 		TRACE("avcodec_decode_audio4(%s, %d) = %d.\n",
 			tx->_araw_ctx->codec->name, src->size, result);
 		av_frame_unref(&tx->_araw_frame);
@@ -309,21 +313,24 @@ static int ffmpeg_tx_transcode(AComponent *c, AVPacket *dest, AVPacket *src)
 
 		dest->data = (uint8_t*)tx->_aac_buf->next();
 		dest->size = tx->_aac_buf->left();
-		got = 0;
-		result = avcodec_encode_audio2(tx->_aac_ctx, dest, &tx->_araw_frame, &got);
+		//got = 0;
+		//result = avcodec_encode_audio2(tx->_aac_ctx, dest, &tx->_araw_frame, &got);
+		result = avcodec_send_frame(tx->_aac_ctx, &tx->_araw_frame);
 		for (int ix = 0; ix < tx->_araw_planar_count; ++ix)
 			tx->_araw_buf[ix]->pop(tx->_araw_linesize);
 
+		if (result >= 0)
+			result = avcodec_receive_packet(tx->_aac_ctx, dest);
 		if (result < 0) {
 			TRACE("avcodec_encode_audio2(%s, %d) = %d.\n",
 				tx->_aac_ctx->codec->name, tx->_araw_frame.linesize[0], result);
-		} else if (got) {
+		} else /*if (got)*/ {
+			tx->_aac_buf->push(dest->size);
+			++got_count;
 			// TODO ??
 			//pkt.data = NULL;
 			//pkt.size = 0;
 			av_packet_unref(dest);
-			tx->_aac_buf->push(dest->size);
-			++got_count;
 		}
 	}
 	if (result < 0) {

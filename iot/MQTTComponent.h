@@ -4,7 +4,6 @@
 #include "mqtt_message.h"
 #include "mqtt_codec.h"
 #include "../ecs/AEntity.h"
-#include "../io/AModule_io.h"
 
 
 typedef struct MqttMsg MqttMsg;
@@ -47,29 +46,20 @@ struct MqttMsg : public AMessage {
 
 struct MqttComponent : public AComponent {
 	static const char* name() { return "MqttComponent"; }
-	AMODULE_GET(MqttModule, "AEntity", "MQTTClient")
 
-	//void (*on_msg)(MqttComponent *c, PUBLISH_MSG *msg);
-	ON_PACKET_COMPLETE_CALLBACK on_msg;
+	ON_PACKET_COMPLETE_CALLBACK on_msg; // void *context = MqttComponent*
 	void  *on_msg_userdata;
-
-	void post(MqttMsg *msg) {
-		if (msg->data == NULL)
-			msg->init(ioMsgType_Block, msg->buf.buffer, msg->buf.size);
-		do_post(this, msg);
-	}
-	void  (*do_post)(MqttComponent *c, AMessage *msg); // => AInOutComponent.do_post()
 
 	MQTTCODEC_INSTANCE _codec;
 	MQTT_CLIENT_OPTIONS _login;
 
 	void init2() {
-		on_msg = NULL; on_msg_userdata = NULL; do_post = NULL;
-		get()->codec_init(&_codec, NULL, NULL);
+		on_msg = NULL; on_msg_userdata = NULL;
+		MqttModule::get()->codec_init(&_codec, NULL, NULL);
 		memzero(_login);
 	}
 	void exit2() {
-		get()->codec_exit(&_codec);
+		MqttModule::get()->codec_exit(&_codec);
 	}
 };
 

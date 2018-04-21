@@ -39,15 +39,13 @@ struct AReceiver : public AObject {
 	}
 };
 
-typedef int (*ASelfEventFunc)(AReceiver *r, bool preproc, void *self);
-
 struct AEventManagerMethod {
 	// event by name
 	bool (*_sub_by_name)(AEventManager *em, AReceiver *r);   // include r->addref()
 	bool (*_unsub_by_name)(AEventManager *em, AReceiver *r); // include r->release()
 	int  (*emit_by_name)(AEventManager *em, const char *name, void *p); // include lock(), unlock()
 	int  (*clear_sub_by_name)(AEventManager *em);                       // include lock(), unlock()
-	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, ASelfEventFunc f); // include r->addref()
+	AReceiver* (*_sub_self)(AEventManager *em, const char *name, void *self, AEventFunc f); // include r->addref()
 
 	// event by index
 	bool (*_sub_by_index)(AEventManager *em, AReceiver *r);   // include r->addref()

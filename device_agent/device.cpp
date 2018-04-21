@@ -97,7 +97,11 @@ static int dev_com_exctrl(ADeviceComponent *dev, const char *cmd, AOption *req, 
 
 static int dev_com_create(AObject **object, AObject *parent, AOption *options)
 {
-	ADeviceComponent *dev = (ADeviceComponent*)*object;
+	ADeviceComponent *dev = (ADeviceComponent*)object;
+	dev->init(dev->name());
+	if (parent != NULL)
+		((AEntity*)parent)->push(dev);
+	RB_CLEAR_NODE(&dev->_devmap_node);
 
 	strcpy_sz(dev->_dev_id,     options->getStr("devid", NULL));
 	strcpy_sz(dev->_net_addr,   options->getStr("net_addr", NULL));
@@ -126,6 +130,7 @@ ADeviceComponentModule DCM = { {
 	ADeviceComponent::name(),
 	sizeof(ADeviceComponent),
 	&DCM_init, &DCM_exit,
+	&dev_com_create,
 },
 	{ }, 0, { },
 	&DCM_push,

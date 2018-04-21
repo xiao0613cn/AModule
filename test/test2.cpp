@@ -184,7 +184,7 @@ CU_TEST(test_client)
 	opt->delref();
 }
 
-static int on_event(AReceiver *r, bool preproc, void *p)
+extern int on_event(AReceiver *r, void *p, bool preproc)
 {
 	AClientComponent *c = (AClientComponent*)p;
 	TRACE("%s: user = %s(%p, %p), preproc = %d.\n",
@@ -197,48 +197,6 @@ static int on_event(AReceiver *r, bool preproc, void *p)
 	return 1;
 }
 #if 1
-CU_TEST(test_pvd)
-{
-	//return;
-	const char *opt_str =
-		"PVDClient: {"
-			"io: async_tcp {"
-				"address: 192.168.40.86,"
-				"port: 8101,"
-				"timeout: 5,"
-			"},"
-			"username: admin,"
-			"password: 888888,"
-		"}";
-	AOption *opt = NULL;
-	int result = AOptionDecode(&opt, opt_str, -1);
-
-	AEntity *e = NULL;
-	result = AObject::create(&e, NULL, opt, NULL);
-	opt->release();
-	if (e == NULL)
-		return;
-	AClientComponent *c; e->get(&c);
-
-	ASystemManager *sm = ASystemManager::get();
-	AEventManager *em = sm->_event_manager;
-	AReceiver *r;
-	em->lock();
-	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = true; r->release();
-	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = false; r->release();
-	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = true; r->release();
-	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = false; r->release();
-	em->unlock();
-
-	AEntityManager *etm = sm->_all_entities;
-	etm->lock();
-	etm->_push(etm, e);
-	etm->unlock();
-
-	sm->lock();
-	sm->_regist(e); e->release();
-	sm->unlock();
-}
 CU_TEST(test_mqtt)
 {
 	dlload(NULL, "mqtt_client");

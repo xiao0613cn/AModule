@@ -17,7 +17,7 @@ extern "C" {
 
 // remark: struct AVPacket {
 //   AVBufferRef *buf           => ARefsBuf *buf
-//   int          stream_index  => enum AVMediaType stream_index
+//   int          stream_index  => enum AVMediaType stream_index, +AVMEDIA_TYPE_NB: data = AStreamInfo*
 //   int64_t pts, dts, duration => AV_TIME_BASE per second(1/1000000)
 // };
 
@@ -89,10 +89,10 @@ struct AStreamPlugin : public AComponent {
 		_stream = NULL; _plugin_entry.init();
 		on_recv = NULL; on_recv_userdata = NULL;
 
-		_enable_flags = -1u;                    // enable all media type
+		_enable_flags = unsigned(-1);                    // enable all media type
 		_media_flags = 0;
 		_key_flags = ~(1u<<AVMEDIA_TYPE_VIDEO); // no video key frame
-		_enable_key_ctrls = -1u;
+		_enable_key_ctrls = unsigned(-1);
 	}
 	static AStreamPlugin* first(list_head &list) {
 		return list_first_entry(&list, AStreamPlugin, _plugin_entry);

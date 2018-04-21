@@ -19,7 +19,7 @@ enum AOption_Types {
 };
 
 AMODULE_API AOption*
-AOptionCreate(AOption *parent, const char *name = NULL, const char *value = NULL);
+AOptionCreate(AOption *parent, const char *name);
 
 AMODULE_API void
 AOptionRelease(AOption *option);
@@ -67,11 +67,20 @@ struct AOption {
 	AOption* next()  { return list_entry(brother_entry.next, AOption, brother_entry); }
 
 	// child
+	AOption* verify(const char *child_name) {
+		AOption *child = find(child_name);
+		if (child == NULL)
+			child = AOptionCreate(this, child_name);
+		return child;
+	}
 	AOption* set(const char *child_name, const char *child_value) {
-		return AOptionCreate(this, child_name, child_value);
+		AOption *child = verify(child_name);
+		if (child != NULL)
+			strcpy_sz(child->value, child_value);
+		return child;
 	}
 	AOption* fmt(const char *child_name, const char *fmt, ...) {
-		AOption *child = set(child_name, NULL);
+		AOption *child = verify(child_name);
 		if (child != NULL) {
 			va_list ap; va_start(ap, fmt);
 			child->value_len = vsnprintf(child->value, sizeof(child->value), fmt, ap);

@@ -209,7 +209,7 @@ static int EM_clear_sub_map(AEventManager *em)
 
 struct AReceiver2 : public AReceiver {
 	void     *_self;
-	ASelfEventFunc _func;
+	AEventFunc _func;
 };
 
 static int on_self_event(AReceiver *r, void *p, bool preproc)
@@ -217,10 +217,10 @@ static int on_self_event(AReceiver *r, void *p, bool preproc)
 	AReceiver2 *r2 = (AReceiver2*)r;
 	if (r2->_self != p)
 		return -1;
-	return r2->_func(r2, preproc, p);
+	return r2->_func(r2, p, preproc);
 }
 
-static AReceiver* EM_sub_self(AEventManager *em, const char *name, void *self, ASelfEventFunc f)
+static AReceiver* EM_sub_self(AEventManager *em, const char *name, void *self, AEventFunc f)
 {
 	AReceiver2 *r2 = gomake(AReceiver2);
 	r2->AReceiver::init(NULL, &free);

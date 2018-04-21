@@ -244,7 +244,7 @@ static int clear_all(bool abort)
 	int count = 0;
 	while (!g_com_list.empty()) {
 		AClientComponent *c = list_pop_front(&g_com_list, AClientComponent, _sys_node);
-		c->abort ? c->abort(c) : 0;
+		if (abort && c->abort) c->abort(c);
 		c->_entity->release();
 		count ++;
 	}
@@ -275,19 +275,22 @@ static int client_com_null(AClientComponent *c)
 
 static int client_com_create(AObject **object, AObject *parent, AOption *option)
 {
-	AClientComponent *c = (AClientComponent*)*object;
+	AClientComponent *c = (AClientComponent*)object;
+	c->init(c->name());
 	c->init2();
+	if (parent != NULL)
+		((AEntity*)parent)->push(c);
 	if (option != NULL) {
-		c->_tick_reopen = option->getInt("tick_reopen", c->_tick_reopen);
-		c->_tick_heart = option->getInt("tick_heart", c->_tick_heart);
-		c->_tick_abort = option->getInt("tick_abort", c->_tick_abort);
+		c->_tick_reopen = option->getInt("tick_reopen", c->_tick_reopen/1000)*1000;
+		c->_tick_heart  = option->getInt("tick_heart",  c->_tick_heart/1000)*1000;
+		c->_tick_abort  = option->getInt("tick_abort",  c->_tick_abort/1000)*1000;
 		c->_owner_thread = !!option->getInt("owner_thread", c->_owner_thread);
-		c->_open_heart = !!option->getInt("open_heart", c->_open_heart);
-		c->_auto_reopen = !!option->getInt("auto_reopen", c->_auto_reopen);
+		c->_open_heart   = !!option->getInt("open_heart",   c->_open_heart);
+		c->_auto_reopen  = !!option->getInt("auto_reopen",  c->_auto_reopen);
+		c->_auto_remove  = !!option->getInt("auto_remove",  c->_auto_remove);
 	}
+	// set by implement module
 	c->open = &client_com_null;
-	c->heart = &client_com_null;
-	c->abort = &client_com_null;
 	c->close = &client_com_null;
 	return 1;
 }

@@ -59,16 +59,12 @@ static void SCM_exit(int inited)
 
 static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 {
-	AStreamComponent *s = (AStreamComponent*)*object;
-	ADeviceComponent *dev = NULL;
-	if (parent != NULL) {
-		((AEntity*)parent)->get(&dev);
-	}
-	if (dev != NULL) {
-		strcpy_sz(s->_dev_id, dev->_dev_id);
-	} else {
-		s->_dev_id[0] = '\0';
-	}
+	AStreamComponent *s = (AStreamComponent*)object;
+	s->init(s->name());
+	if (parent != NULL)
+		((AEntity*)parent)->push(s);
+
+	strcpy_sz(s->_dev_id, options->getStr("devid", NULL));
 	s->_chan_id = options->getInt("chan_id", 0);
 	s->_stream_id = options->getInt("stream_id", 1);
 	s->_stream_key[0] = '\0';
@@ -102,7 +98,7 @@ static int strm_com_dispatch_mediainfo(AStreamComponent *s, AVPacket *pkt, AStre
 	SCM.avpkt_init(&inf_pkt);
 
 	inf_pkt.pts = pkt->pts;
-	inf_pkt.stream_index = AVMEDIA_TYPE_NB;
+	inf_pkt.stream_index = AVMEDIA_TYPE_NB + pkt->stream_index;
 	inf_pkt.data = (uint8_t*)s->_infos[pkt->stream_index];
 
 	int result = p->on_recv(p, &inf_pkt);
@@ -238,7 +234,7 @@ static void avpkt_exit(AVPacket *pkt)
 {
 	reset_nif(pkt->buf, NULL, ((ARefsBuf*)pkt->buf)->release());
 
-	if (pkt->stream_index == AVMEDIA_TYPE_NB) {
+	if (pkt->stream_index >= AVMEDIA_TYPE_NB) {
 		reset_nif(pkt->data, NULL, SCM.sinfo_free((AStreamInfo*)pkt->data));
 		pkt->stream_index = AVMEDIA_TYPE_UNKNOWN;
 	}
@@ -249,7 +245,7 @@ static void avpkt_dup(AVPacket *pkt)
 	if (pkt->buf != NULL) {
 		((ARefsBuf*)pkt->buf)->addref();
 	}
-	if (pkt->stream_index == AVMEDIA_TYPE_NB) {
+	if (pkt->stream_index >= AVMEDIA_TYPE_NB) {
 		AStreamInfo *si = (AStreamInfo*)pkt->data;
 
 		if (SCM.sinfo_clone((AStreamInfo**)&pkt->data, si, 128) < 0) {
@@ -319,8 +315,12 @@ static int reg_scm = AModuleRegister(&SCM.module);
 
 static int frame_queue_create(AObject **object, AObject *parent, AOption *option)
 {
-	FrameQueueComponent *fq = (FrameQueueComponent*)*object;
+	FrameQueueComponent *fq = (FrameQueueComponent*)object;
+	fq->init(fq->name());
 	fq->init2();
+	if (parent != NULL)
+		((AEntity*)parent)->push(fq);
+
 	fq->_max_delay = option->getI64("max_delay", fq->_max_delay/AV_TIME_BASE)*AV_TIME_BASE;
 	fq->_drop_ifnot_key = option->getInt("drop_ifnot_key", fq->_drop_ifnot_key);
 
