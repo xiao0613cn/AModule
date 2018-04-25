@@ -127,13 +127,13 @@ static int client_run_internal(ASystem::Result *r, int result)
 			return 0;
 
 	case AClientComponent::Opening:
-		if (result > 0) {
+		if (result >= 0) {
 			c->_main_tick = GetTickCount();
 			c->_status = AClientComponent::Opened;
 			r->manager->emit_by_name("on_client_opened", c);
 
 			c->_last_opened = true;
-			if (c->_open_heart) {
+			if (c->_open_heart && (c->heart != NULL)) {
 				c->_check_heart = AClientComponent::HeartChecking;
 			} else {
 				c->_check_heart = AClientComponent::HeartNone;

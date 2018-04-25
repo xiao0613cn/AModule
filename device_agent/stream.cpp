@@ -2,6 +2,7 @@
 #include "stream.h"
 #include "device.h"
 #include "frame_queue.h"
+#include "../media/h264_decode_sps.h"
 
 #ifdef _WIN32
 #pragma comment(lib, "../win32/ffmpeg/lib/avcodec.lib")
@@ -57,6 +58,10 @@ static void SCM_exit(int inited)
 	}
 }
 
+static int do_recv_null(AStreamComponent *s) {
+	return -ENOSYS;
+}
+
 static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 {
 	AStreamComponent *s = (AStreamComponent*)object;
@@ -67,12 +72,12 @@ static int strm_com_create(AObject **object, AObject *parent, AOption *options)
 	strcpy_sz(s->_dev_id, options->getStr("devid", NULL));
 	s->_chan_id = options->getInt("chan_id", 0);
 	s->_stream_id = options->getInt("stream_id", 1);
-	s->_stream_key[0] = '\0';
 	memzero(s->_infos);
 
 	s->_plugin_mutex = NULL;
 	s->_plugin_list.init();
 	s->_plugin_count = 0;
+	s->do_recv = do_recv_null;
 	s->on_recv = SCM.dispatch_avpkt;
 	s->on_recv_userdata = NULL;
 
@@ -94,6 +99,8 @@ static void strm_com_release(AObject *object)
 
 static int strm_com_dispatch_mediainfo(AStreamComponent *s, AVPacket *pkt, AStreamPlugin *p)
 {
+	p->_media_flags &= ~(1 << pkt->stream_index);
+
 	AVPacket inf_pkt;
 	SCM.avpkt_init(&inf_pkt);
 
@@ -109,10 +116,15 @@ static int strm_com_dispatch_mediainfo(AStreamComponent *s, AVPacket *pkt, AStre
 	return result;
 }
 
-static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
+static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt, int result)
 {
+	if (result < 0) return result;
 	int count = 0;
 	int mask = 1 << pkt->stream_index;
+
+	s->_infos[pkt->stream_index]->last_pts = pkt->pts;
+	if (pkt->flags & AV_PKT_FLAG_KEY)
+		s->_infos[pkt->stream_index]->has_key = 1;
 
 	AStreamPlugin *p = AStreamPlugin::first(s->_plugin_list);
 	while (&p->_plugin_entry != &s->_plugin_list)
@@ -122,7 +134,7 @@ static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 			p = next;
 			continue;
 		}
-		if (!(p->_media_flags & mask)) {
+		if ((pkt->flags & AV_PKT_FLAG_CODECPAR) || !(p->_media_flags & mask)) {
 			int result = strm_com_dispatch_mediainfo(s, pkt, p);
 			if (result <= 0) {
 				p = next;
@@ -154,17 +166,6 @@ static int strm_com_dispatch_avpkt(AStreamComponent *s, AVPacket *pkt)
 	return count;
 }
 
-static AStreamComponent* strm_com_find(AEntityManager *em, const char *stream_key)
-{
-	AStreamComponent *s; em->upper_com(&s, NULL);
-	while (s != NULL) {
-		if (strcmp(s->_stream_key, stream_key) == 0)
-			return s;
-		s = em->next_com(s);
-	}
-	return NULL;
-}
-
 static int sinfo_clone(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz)
 {
 	AStreamInfo *p = *dest;
@@ -182,7 +183,7 @@ static int sinfo_clone(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz)
 		if ((src != NULL) && (extra_bufsiz < src->param.extradata_size + AV_INPUT_BUFFER_PADDING_SIZE)) {
 			extra_bufsiz = src->param.extradata_size + AV_INPUT_BUFFER_PADDING_SIZE;
 		}
-		p = (AStreamInfo*)malloc(sizeof(*src) + extra_bufsiz);
+		p = (AStreamInfo*)malloc(sizeof(*p) + extra_bufsiz);
 		if (p == NULL) {
 			*dest = NULL;
 			return -ENOMEM;
@@ -292,6 +293,35 @@ static int frame_queue_on_recv(AStreamPlugin *p, AVPacket *pkt)
 	return 1;
 }
 
+static int peek_h264_spspps(AStreamComponent *s, AVPacket *pkt)
+{
+	if (!is_es4_header(pkt->data) || !(get_es_type(pkt->data, 4) == H264_NAL_SPS))
+		return 0;
+
+	int sps_len = next_es_header(pkt->data, min(pkt->size, 128), H264_NAL_PPS);
+	if (sps_len == -1)
+		return -EINVAL;
+
+	int pps_len = next_es_header(pkt->data+sps_len, min(pkt->size-sps_len, 128), -1);
+	if (pps_len == -1)
+		pps_len = pkt->size - sps_len;
+
+	AStreamInfo *si = s->_infos[pkt->stream_index];
+	if ((sps_len+pps_len == si->param.extradata_size) 
+	 || (memcmp(pkt->data, si->param.extradata, sps_len+pps_len) == 0))
+		return 0;
+
+	pkt->flags |= AV_PKT_FLAG_CODECPAR;
+	AStreamComponent::get()->sinfo_clone(&si, NULL, sps_len+pps_len);
+	s->_infos[pkt->stream_index] = si;
+
+	si->param.extradata_size = sps_len + pps_len;
+	memcpy(si->param.extradata, pkt->data, sps_len+pps_len);
+	pkt->data += sps_len+pps_len;
+	pkt->size -= sps_len+pps_len;
+	return 1;
+}
+
 AStreamComponentModule SCM = { {
 	AStreamComponent::name(),
 	AStreamComponent::name(),
@@ -300,9 +330,9 @@ AStreamComponentModule SCM = { {
 	&strm_com_create,
 	&strm_com_release,
 },
-	&strm_com_find,
 	&strm_com_dispatch_avpkt,
 	&strm_com_dispatch_mediainfo,
+	&peek_h264_spspps,
 	&sinfo_clone,
 	(void (*)(AStreamInfo*))&free,
 	&avpkt_init,

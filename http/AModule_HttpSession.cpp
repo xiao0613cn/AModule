@@ -174,7 +174,7 @@ static int iocom_output(AInOutComponent *c, int result) {
 
 static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	str_t f, v;
-	int result = 20;
+	int result = 20 + hm->uri_get(1).len;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		result += f.len + v.len + 6;
 	}
@@ -195,15 +195,20 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	} else {
 		buf->strfmt("%.*s\r\n", v.len, v.str); // unknown|other protocol...
 	}
-	if (hm->body_len() > 0) {
-		buf->strfmt("Content-Length: %lld\r\n", hm->body_len());
-	}
 
 	f.str = NULL;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		buf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
 	}
-	buf->strfmt("\r\n");
+	if (hm->_parser.flags & F_CHUNKED) {
+		buf->strfmt("\r\n%x\r\n", (uint32_t)hm->body_len());
+	} else {
+		if (hm->body_len() > 0) {
+			buf->strfmt("Content-Length: %lld\r\n\r\n", hm->body_len());
+		} else {
+			buf->strfmt("\r\n");
+		}
+	}
 	return buf->len();
 }
 

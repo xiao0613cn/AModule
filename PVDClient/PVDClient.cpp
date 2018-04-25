@@ -291,6 +291,7 @@ static int PVDAbort(AClientComponent *c)
 static int PVDCloseMsgDone(AMessage *msg, int result)
 {
 	PVDClient *pvd = container_of(msg, PVDClient, _heart_msg);
+	pvd->_hbnet._userid = 0;
 	pvd->_client.exec_done(result);
 	return result;
 }
@@ -356,13 +357,14 @@ static void PVDRelease(AObject *object)
 	pvd->exit();
 }
 
-AModule PVDClientModule = {
+ADeviceImplement PVDClientModule = { {
 	"device",
 	"PVDClient",
 	sizeof(PVDClient),
 	NULL, NULL,
 	&PVDCreate,
 	&PVDRelease,
+},
 };
 
-static int reg_pvd = AModuleRegister(&PVDClientModule);
+static int reg_pvd = AModuleRegister(&PVDClientModule.module);

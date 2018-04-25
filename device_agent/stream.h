@@ -10,6 +10,8 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
+
+#define AV_PKT_FLAG_CODECPAR   0x0008 // AVCodecParameters has changed
 #ifdef _WIN32
 #pragma warning(default: 4244)
 #endif
@@ -32,9 +34,6 @@ struct AStreamComponent : public AComponent {
 	char    _dev_id[48];
 	int     _chan_id;
 	int     _stream_id;
-	char    _stream_key[64]; // live: <devid>_<chanid>_<stream_id>
-	                         // playback: <devid>_<chanid>_<begin_time>_<random>
-	                         // download: <devid>_<chanid>_<begin_time>_<end_time>
 	AStreamInfo *_infos[AVMEDIA_TYPE_NB]; // AVMEDIA_TYPE_DATA => transcode aac...
 
 	pthread_mutex_t  *_plugin_mutex;
@@ -46,11 +45,14 @@ struct AStreamComponent : public AComponent {
 	void    plugin_del(AStreamPlugin *p);
 	void    plugin_clear();
 
-	int   (*on_recv)(AStreamComponent *s, AVPacket *pkt);
+	int   (*do_recv)(AStreamComponent *s);
+	int   (*on_recv)(AStreamComponent *s, AVPacket *pkt, int result);
 	void   *on_recv_userdata;
+	// on_recv() >= AMsgType_Class: pending recv cycle, must call do_recv() for next time
+	// on_recv() >= 0: continue recv cycle, will callback on_recv() when new packet
+	// on_recv() < 0:  end recv cycle
 	// for live/playback/download, dispatch <pkt> to _plugin_list
 	// for talk write to user object
-	// pkt->stream_index: AVMEDIA_TYPE_XXX
 
 	/* for playback | download */
 	struct tm _begin_tm;
@@ -106,9 +108,9 @@ struct AStreamComponentModule {
 	AModule module;
 	AMODULE_GET(AStreamComponentModule, AStreamComponent::name(), AStreamComponent::name())
 
-	AStreamComponent* (*find)(AEntityManager *em, const char *stream_key);
-	int   (*dispatch_avpkt)(AStreamComponent *s, AVPacket *pkt);
+	int   (*dispatch_avpkt)(AStreamComponent *s, AVPacket *pkt, int result);
 	int   (*dispatch_mediainfo)(AStreamComponent *s, AVPacket *pkt, AStreamPlugin *p);
+	int   (*peek_h264_spspps)(AStreamComponent *s, AVPacket *pkt);
 	int   (*sinfo_clone)(AStreamInfo **dest, AStreamInfo *src, int extra_bufsiz);
 	void  (*sinfo_free)(AStreamInfo *info);
 	void  (*avpkt_init)(AVPacket *pkt);

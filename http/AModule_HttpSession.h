@@ -44,10 +44,10 @@ struct HttpParserCompenont : public AComponent {
 	int try_output(AInOutComponent *c, HttpMsg *hm, int (*done)(HttpParserCompenont*,int)) {
 		_httpmsg = hm; on_httpmsg = done;
 
-		HttpConnectionModule *m = HttpConnectionModule::get();
-		assert((c->on_output == NULL) || (c->on_output == m->iocom_output));
+		HttpConnectionModule *HCM = HttpConnectionModule::get();
+		assert((c->on_output == NULL) || (c->on_output == HCM->iocom_output));
 
-		c->on_output = m->iocom_output;
+		c->on_output = HCM->iocom_output;
 		c->on_output_userdata = this;
 		return c->_output_cycle(512, send_bufsiz);
 	}

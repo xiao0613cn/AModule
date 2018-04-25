@@ -11,7 +11,7 @@ rb_tree_define(AEntity, _map_node, void*, AEntityCmp)
 
 static int EM_push(AEntityManager *em, AEntity *e)
 {
-	bool valid = ((e->_manager == NULL) && RB_EMPTY_NODE(&e->_map_node));
+	bool valid = ((e->_manager == NULL || e->_manager == em) && RB_EMPTY_NODE(&e->_map_node));
 	if (valid)
 		valid = (rb_insert_AEntity(&em->_entity_map, e, e) == NULL);
 	if (valid) {
