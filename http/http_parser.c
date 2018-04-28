@@ -2483,6 +2483,8 @@ http_next_chunk_is_incoming(const http_parser *parser) {
 	case s_start_req:
 		return 1;
 
+	case s_chunk_data_almost_done:
+	case s_chunk_data_done:
 	case s_chunk_next_size:
 		return 2;
 

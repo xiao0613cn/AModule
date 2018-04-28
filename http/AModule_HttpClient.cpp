@@ -19,8 +19,19 @@ static int HttpReqRecvDone(HttpParserCompenont *c, int result)
 static int HttpReqSendDone(AMessage *msg, int result)
 {
 	HttpConnection *p = container_of(msg, HttpConnection, _iocom._inmsg);
-	result = p->M()->input_status(p, msg, p->_req, result);
+	HttpMsg *req = p->_req;
+	result = p->M()->input_status(p, msg, req, result);
 
+	if ((result > 0) && (req->_parser.flags & F_CHUNKED)
+	 && ((req->body_len() != 0) || !(req->_parser.flags & F_TRAILING)))
+	{
+		int(*on_resp)(HttpConnection*,HttpMsg*,HttpMsg*,int) =
+			(int(*)(HttpConnection*,HttpMsg*,HttpMsg*,int))p->raw_outmsg_done;
+		p->_req = NULL;
+		result = on_resp(p, req, NULL, result);
+		p->release();
+		return result;
+	}
 	if ((result > 0) && (p->_resp == NULL)) {
 		p->_resp = p->M()->hm_create();
 		if (p->_resp == NULL)
@@ -57,6 +68,10 @@ extern int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 	} else {
 		p->addref();
 	}
+	if (req->_parser.type == HTTP_BOTH) {
+		TRACE2("please setting [HttpMsg._parser.type]...\n");
+		req->_parser.type = HTTP_REQUEST;
+	}
 
 	AMessage *msg = &p->_iocom._inmsg;
 	if (p->_iocom._io != NULL) {
@@ -72,17 +87,18 @@ extern int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 	str_t host = req->header_get(sz_t("Proxy"));
 	if (host.str == NULL)
 		host = req->header_get(sz_t("Host"));
-	if (host.str == NULL)
+	if (host.str == NULL) {
+		p->release();
 		return -EINVAL;
+	}
 
 	str_t port(strnchr(host.str, host.len, ':'), 0);
-	if (port.str == NULL) {
-		port.str = "80"; port.len = 2;
-	} else {
+	if (port.str != NULL) {
 		port.len = int(host.str + host.len - port.str - 1);
 		host.len = int(port.str - host.str);
 		port.str += 1;
 	}
+
 	str_t schema = req->_kv_get(req, HttpMsg::KV_UriInfo, sz_t("Schema"));
 	if (schema.str == NULL) {
 		schema = sz_t("async_tcp");
@@ -91,9 +107,19 @@ extern int HttpRequest(HttpConnection *p, HttpMsg *req, int(*on_resp)(HttpConnec
 	}
 
 	char opt_str[256];
-	snprintf(opt_str, 256, "%.*s:{address:'%.*s',port:%.*s}",
-		schema.len, schema.str, host.len, host.str, port.len, port.str);
-
+	if (strncasecmp(schema.str, "https", schema.len) == 0) {
+		if (port.str == NULL) {
+			port = sz_t("443");
+		}
+		snprintf(opt_str, 256, "io_openssl: { io:async_tcp {address:'%.*s',port:%.*s} }",
+			host.len, host.str, port.len, port.str);
+	} else {
+		if (port.str == NULL) {
+			port = sz_t("80");
+		}
+		snprintf(opt_str, 256, "%.*s:{address:'%.*s',port:%.*s}",
+			schema.len, schema.str, host.len, host.str, port.len, port.str);
+	}
 	AOption *io_opt = NULL;
 	int result = AOptionDecode(&io_opt, opt_str, -1);
 	if (result < 0) {

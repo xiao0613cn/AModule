@@ -196,43 +196,6 @@ extern int on_event(AReceiver *r, void *p, bool preproc)
 	}
 	return 1;
 }
-#if 1
-CU_TEST(test_mqtt)
-{
-	dlload(NULL, "mqtt_client");
-	AOption *opt = NULL;
-	/*AOptionDecode(&opt, "MQTTClient: { io: io_openssl { "
-		"io: async_tcp { address: test.mosquitto.org, port: 8883, },"
-		"}, }", -1);*/
-	AOptionDecode(&opt, "MQTTClient: { io: async_tcp { address: 60.210.40.196, port: 25102 } }", -1);
-
-	AEntity *mqtt = NULL;
-	int result = AObject::create(&mqtt, NULL, opt, NULL);
-	opt->release();
-	if (mqtt == NULL)
-		return;
-
-	AClientComponent *c; mqtt->get(&c);
-	ASystemManager *sm = ASystemManager::get();
-	AEventManager *em = sm->_event_manager;
-	AReceiver *r;
-	em->lock();
-	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = true; r->release();
-	r = em->_sub_self(em, "on_client_opened", c, &on_event); r->_oneshot = false; r->release();
-	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = true; r->release();
-	r = em->_sub_self(em, "on_client_closed", c, &on_event); r->_oneshot = false; r->release();
-	em->unlock();
-
-	AEntityManager *etm = sm->_all_entities;
-	etm->lock();
-	etm->_push(etm, mqtt);
-	etm->unlock();
-
-	sm->lock();
-	sm->_regist(mqtt); mqtt->release();
-	sm->unlock();
-}
-#endif
 #endif
 
 int main()

@@ -10,6 +10,11 @@
 
 extern HttpConnectionModule HCM;
 
+struct HttpSvc : public AEntity {
+	AServiceComponent svc;
+	str_t    Server;
+};
+
 static int HttpSvcHandle(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 {
 	if (req->_parser.type != HTTP_REQUEST) {
@@ -19,6 +24,9 @@ static int HttpSvcHandle(HttpConnection *p, HttpMsg *req, HttpMsg *resp)
 	resp->reset();
 	resp->_parser = p->_http._parser;
 	resp->_parser.type = HTTP_RESPONSE;
+
+	HttpSvc *httpd = (HttpSvc*)p->_svc->_entity;
+	resp->header_set(sz_t("Server"), httpd->Server);
 
 	AServiceComponent *svc = AServiceComponent::get()->probe(p->_svc, p, NULL);
 	if (svc != NULL) {
@@ -89,18 +97,18 @@ static void HttpSvcStop(AServiceComponent *svc)
 	em->unlock();
 }
 
-struct HttpSvc : public AEntity {
-	AServiceComponent svc;
-};
-
 static int HttpSvcCreate(AObject **object, AObject *parent, AOption *option)
 {
 	HttpSvc *httpd = (HttpSvc*)*object;
 	httpd->init();
+
 	httpd->init_push(&httpd->svc);
 	httpd->svc._peer_module = &HCM.module;
 	httpd->svc.stop = &HttpSvcStop;
 	httpd->svc.run = &HttpSvcRun;
+
+	httpd->Server.str = option->getStr("Server", "AModule_HttpD");
+	httpd->Server.len = strlen(httpd->Server.str);
 	return 1;
 }
 

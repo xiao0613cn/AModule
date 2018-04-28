@@ -188,7 +188,9 @@ AServiceProbe(AServiceComponent *server, AObject *object, AMessage *msg)
 	list_for_AService(svc, server)
 	{
 		int result = svc->_entity->_module->probe(svc->_entity, object, msg);
-		if ((result < 0) && (svc->_peer_module != NULL)) {
+		if ((result < 0) && (svc->_peer_module != NULL)
+		 && (svc->_peer_module->probe != NULL)
+		 && (svc->_peer_module->probe != svc->_entity->_module->probe)) {
 			result = svc->_peer_module->probe(NULL, object, msg);
 		}
 		if (result > score) {

@@ -40,33 +40,83 @@ struct SSL_IO : public AObject {
 	char      inbuf[3096];
 	char      outdata[3096];
 #endif
+	BOOL enable_self_signed_certi;
+	BOOL verify_none;
 };
 
-template <BOOL enable_self_signed_certi>
+static int SSL_exdata_SSL_IO_index = 0;
+
 static int verify_peer(int ok, X509_STORE_CTX* ctx)
 {
 	if (!ok) {
+		SSL *ssl = (SSL*)X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
+		SSL_IO *sc = (SSL_IO*)SSL_get_ex_data(ssl, SSL_exdata_SSL_IO_index);
+
 		int depth = X509_STORE_CTX_get_error_depth(ctx);
 		int err = X509_STORE_CTX_get_error(ctx);
+
 		TRACE("depth = %d, error = %d, string = %s.\n",
 			depth, err, X509_verify_cert_error_string(err));
-		if (enable_self_signed_certi)
+
+		if (sc->enable_self_signed_certi)
 			ok = (err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
+		if (!ok && sc->verify_none)
+			ok = 1;
 	}
 	return ok;
 }
 
-template <BOOL is_client>
 static void info_callback(const SSL* ssl, int where, int ret)
 {
-	TRACE("ssl info, where = %x, ret = %d, name = %s.\n", where, ret,
-		is_client ? "client" : "server");
+	TRACE("where = %x, ret = %d.\n", where, ret);
 }
 
 static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 {
 	assert(ctx == NULL);
-	ctx = SSL_CTX_new(is_client ? TLS_client_method() : TLS_server_method());
+	static struct {
+		const char *ver;
+		const SSL_METHOD *c_m;
+		const SSL_METHOD *s_m;
+	} ssl_m[] = {
+# ifndef OPENSSL_NO_SSL3_METHOD
+		{ "SSLv3", SSLv3_client_method(), SSLv3_server_method() },
+#endif
+		{ "SSLv23", SSLv23_client_method(), SSLv23_server_method() },
+		{ "TLS",     TLS_client_method(), TLS_server_method() },
+# ifndef OPENSSL_NO_TLS1_METHOD
+		{ "TLSv1.0", TLSv1_client_method(), TLSv1_server_method() },
+#endif
+# ifndef OPENSSL_NO_TLS1_1_METHOD
+		{ "TLSv1.1", TLSv1_1_client_method(), TLSv1_1_server_method() },
+#endif
+# ifndef OPENSSL_NO_TLS1_2_METHOD
+		{ "TLSv1.2", TLSv1_2_client_method(), TLSv1_2_server_method() },
+#endif
+		{ "DTLS",     DTLS_client_method(), DTLS_server_method() },
+# ifndef OPENSSL_NO_DTLS1_METHOD
+		{ "DTLSv1.0", DTLSv1_client_method(), DTLSv1_server_method() },
+#endif
+# ifndef OPENSSL_NO_DTLS1_2_METHOD
+		{ "DTLSv1.2", DTLSv1_2_client_method(), DTLSv1_2_server_method() },
+#endif
+		{ NULL, NULL, NULL }
+	};
+	const SSL_METHOD *m = NULL;
+
+	const char *ssl_ver = opt->getStr("ssl_ver", NULL);
+	if (ssl_ver != NULL) {
+	for (int ix = 0; ssl_m[ix].ver != NULL; ++ix) {
+		if (strcmp(ssl_ver, ssl_m[ix].ver) == 0) {
+			m = is_client ? ssl_m[ix].c_m : ssl_m[ix].s_m;
+			break;
+		}
+	} }
+	if (m == NULL) {
+		m = is_client ? TLS_client_method() : TLS_server_method();
+	}
+	
+	ctx = SSL_CTX_new(m);
 	if (ctx == NULL)
 		return -ENOMEM;
 
@@ -76,14 +126,9 @@ static int SSL_CTX_create(SSL_CTX *&ctx, AOption *opt, BOOL is_client)
 		return -ENOENT;
 	}
 
-	if (opt->getInt("enable_self_signed_certi", TRUE))
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &verify_peer<TRUE>);
-	else
-		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, &verify_peer<FALSE>);
-
-	SSL_CTX_set_verify_depth(ctx, 9);
-	SSL_CTX_set_mode(ctx, SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/);
-	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+	SSL_CTX_set_verify_depth(ctx, opt->getInt("verify_depth", 9));
+	SSL_CTX_set_mode(ctx, opt->getInt("ctx_mode", SSL_MODE_ASYNC/*|SSL_MODE_AUTO_RETRY*/));
+	SSL_CTX_set_session_cache_mode(ctx, opt->getInt("cache_mode", SSL_SESS_CACHE_OFF));
 
 	const char *ca_file = opt->getStr("ca_file", NULL);
 	const char *ca_path = opt->getStr("ca_path", NULL);
@@ -146,21 +191,27 @@ static int SSL_io_init(SSL_IO *sc, SSL_CTX *ctx, AOption *opt, BOOL is_client)
 	}
 	BUF_MEM_grow(sc->outbuf, 0);
 	BIO_set_mem_buf(sc->output.bio, sc->outbuf, FALSE);
-
 	SSL_set_bio(sc->ssl, sc->output.bio, sc->input.bio);
 
-	/* either use the server or client part of the protocol */
-	if (opt->getInt("debug", FALSE)) {
-		if (is_client)
-			SSL_set_info_callback(sc->ssl, &info_callback<TRUE>);
-		else
-			SSL_set_info_callback(sc->ssl, &info_callback<FALSE>);
+#ifdef _DEBUG
+	BOOL info_debug = TRUE;
+#else
+	BOOL info_debug = FALSE;
+#endif
+	if (opt->getInt("debug", info_debug)) {
+		SSL_set_info_callback(sc->ssl, &info_callback);
 	}
+	/* either use the server or client part of the protocol */
 	if (is_client) {
 		SSL_set_connect_state(sc->ssl);
 	} else {
 		SSL_set_accept_state(sc->ssl);
 	}
+
+	sc->enable_self_signed_certi = opt->getInt("enable_self_signed_certi", TRUE);
+	sc->verify_none = opt->getInt("verify_none", is_client);
+	SSL_set_ex_data(sc->ssl, SSL_exdata_SSL_IO_index, sc);
+	SSL_set_verify(sc->ssl, SSL_VERIFY_PEER, &verify_peer);
 
 	if (sc->io == NULL) {
 		int result = AObject::from(&sc->io, sc, opt, "async_tcp");
@@ -418,7 +469,10 @@ static int SSLInit(AOption *global_option, AOption *module_option, BOOL first)
 		SSL_library_init();
 		SSL_load_error_strings();
 		OpenSSL_add_all_algorithms();
+		//ERR_load_crypto_strings();
 		//ERR_load_BIO_strings();
+
+		SSL_exdata_SSL_IO_index = SSL_get_ex_new_index(0, "AModule_openssl_index", NULL, NULL, NULL);
 	}
 	return 0;
 }
@@ -427,9 +481,10 @@ static void SSLExit(BOOL inited)
 {
 	if (inited) {
 		//ERR_remove_state(0);
+		//ERR_free_strings();
 		//ENGINE_cleanup();
 		//CONF_modules_unload(1);
-		//ERR_free_strings();
+		CRYPTO_free_ex_index(CRYPTO_EX_INDEX_SSL, SSL_exdata_SSL_IO_index);
 		EVP_cleanup();
 		//sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
 		CRYPTO_cleanup_all_ex_data();

@@ -155,6 +155,9 @@ static int hm_decode(HttpParserCompenont *p, HttpMsg *hm, ARefsBuf *&_outbuf) {
 	void *userdata = hm->_parser.data;
 	hm->_parser = p->_parser;
 	hm->_parser.data = userdata;
+	if (p->_parser.content_length > 0)
+		hm->_parser.flags |= F_TRAILING;
+
 	hm->body_set(_outbuf, p->_body_pos, p->_body_len);
 	p->_body_len = 0;
 	return 1;
@@ -172,9 +175,22 @@ static int iocom_output(AInOutComponent *c, int result) {
 	return result;
 }
 
-static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
+static int hm_encode(HttpMsg *hm, ARefsBuf *&buf)
+{
+	if (hm->_parser.flags & (F_CHUNKED|F_TRAILING)) {
+		int result = ARefsBuf::reserve(buf, 32, send_bufsiz);
+		if (result >= 0) {
+			if (hm->body_len() != 0) {
+				result = buf->strfmt("\r\n%x\r\n", (uint32_t)hm->body_len());
+			} else {
+				result = buf->strfmt("\r\n0\r\n\r\n");
+			}
+		}
+		return result;
+	}
+
 	str_t f, v;
-	int result = 20 + hm->uri_get(1).len;
+	int result = 50 + hm->uri_get(1).len;
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		result += f.len + v.len + 6;
 	}
@@ -200,14 +216,22 @@ static int hm_encode(HttpMsg *hm, ARefsBuf *&buf) {
 	while ((f = hm->_kv_next(hm, HttpMsg::KV_Header, f, &v)).str != NULL) {
 		buf->strfmt("%.*s: %.*s\r\n", f.len, f.str, v.len, v.str);
 	}
+	if (hm->_parser.flags & F_CONNECTION_KEEP_ALIVE) {
+		buf->strfmt("Connection: Keep-Alive\r\n");
+	} else if (hm->_parser.flags & F_CONNECTION_CLOSE) {
+		buf->strfmt("Connection: Close\r\n");
+	}
+
 	if (hm->_parser.flags & F_CHUNKED) {
-		buf->strfmt("\r\n%x\r\n", (uint32_t)hm->body_len());
-	} else {
-		if (hm->body_len() > 0) {
-			buf->strfmt("Content-Length: %lld\r\n\r\n", hm->body_len());
-		} else {
-			buf->strfmt("\r\n");
-		}
+		buf->strfmt("Transfer-Encoding: chunked\r\n");
+		if (hm->body_len() != 0)
+			buf->strfmt("\r\n%x\r\n", (uint32_t)hm->body_len());
+	}
+	else if ((hm->body_len() == 0) && !(hm->_parser.flags & F_CONTENTLENGTH)) {
+		buf->strfmt("\r\n");
+	}
+	else {
+		buf->strfmt("Content-Length: %lld\r\n\r\n", hm->body_len());
 	}
 	return buf->len();
 }

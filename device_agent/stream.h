@@ -46,10 +46,13 @@ struct AStreamComponent : public AComponent {
 	void    plugin_clear();
 
 	int   (*do_recv)(AStreamComponent *s);
+	// do_recv == NULL: auto start for on_recv() cycle callback
+
 	int   (*on_recv)(AStreamComponent *s, AVPacket *pkt, int result);
 	void   *on_recv_userdata;
 	// on_recv() >= AMsgType_Class: pending recv cycle, must call do_recv() for next time
-	// on_recv() >= 0: continue recv cycle, will callback on_recv() when new packet
+	// on_recv() > 0: continue recv cycle, will callback on_recv() when new packet
+	// on_recv() == 0: panding internal io operation
 	// on_recv() < 0:  end recv cycle
 	// for live/playback/download, dispatch <pkt> to _plugin_list
 	// for talk write to user object

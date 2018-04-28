@@ -311,6 +311,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\test_mqtt.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\test_pvdclient.cpp"
 				>
 			</File>

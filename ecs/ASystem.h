@@ -27,8 +27,8 @@ struct ASystem {
 		ASystemManager *manager;
 	};
 
-	int    (*_regist)(AEntity *e);
-	int    (*_unregist)(AEntity *e);
+	int    (*_regist)(AEntity *e);   // include e->addref()
+	int    (*_unregist)(AEntity *e); // include e->release()
 	int    (*_clear_all)(bool abort);
 
 	int    (*_check_all)(ASystemManager *sm, list_head *results, DWORD cur_tick);
@@ -98,13 +98,13 @@ struct ASystemManager : public ASystemManagerMethod {
 	void exit() {
 		pthread_mutex_destroy(&_mutex);
 	}
-	void _regist(AEntity *e) {
+	void _regist(AEntity *e) { // include e->addref()
 		_all_systems->_regist ? _all_systems->_regist(e) : 0;
 		list_for_allsys(s, _all_systems) {
 			s->_regist ? s->_regist(e) : 0;
 		}
 	}
-	void _unregist(AEntity *e) {
+	void _unregist(AEntity *e) { // include e->release()
 		_all_systems->_unregist ? _all_systems->_unregist(e) : 0;
 		list_for_allsys(s, _all_systems) {
 			s->_unregist ? s->_unregist(e) : 0;

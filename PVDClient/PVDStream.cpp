@@ -67,8 +67,10 @@ static int PVDTryPeekFrame(uint32_t userid, ARefsBuf *outbuf, AMessage &outmsg)
 	else {
 		TRACE2("unsupport format: 0x%X, size = %d.\n", tag, result);
 		outbuf->pop(1);
-		return 0;
+		return -EAGAIN;
 	}
+
+	outmsg.init(tag, outbuf->ptr(), result);
 	if (result > outbuf->len()) {
 		//if (ioMsgType_isBlock(outmsg.type)) {
 		//	TRACE("reset buffer(%d), drop data(%X).\n", outmsg.size, tag);
@@ -76,10 +78,8 @@ static int PVDTryPeekFrame(uint32_t userid, ARefsBuf *outbuf, AMessage &outmsg)
 		//}
 		return 0;
 	}
-
-	outmsg.init(tag, outbuf->ptr(), result);
 	outbuf->pop(result);
-	return result;
+	return 1;
 }
 
 static int msh_pkt(PVDStream *s, AVPacket &pkt)
@@ -92,8 +92,6 @@ static int msh_pkt(PVDStream *s, AVPacket &pkt)
 	pkt.stream_index = ISVIDEOFRAME(msh) ? AVMEDIA_TYPE_VIDEO : AVMEDIA_TYPE_AUDIO;
 	if (ISKEYFRAME(msh))
 		pkt.flags |= AV_PKT_FLAG_KEY;
-
-	pkt.buf = (AVBufferRef*)s->_buffer;
 	return 1;
 }
 static void si_codec(AStreamInfo *si, AVPacket &pkt, enum AVCodecID codec_id)
@@ -178,7 +176,6 @@ static int shv3_pkt(PVDStream *s, AVPacket &pkt)
 		STREAM_VIDEO_HEADER *vh = (STREAM_VIDEO_HEADER*)(sh + 1);
 		pkt.pts = vh->nTimeStampLow*AV_TIME_BASE + vh->nTimeStampMillisecond*AV_TIME_BASE/1000;
 	}
-	pkt.buf = (AVBufferRef*)s->_buffer;
 	return 1;
 }
 static int shv3_info(PVDStream *s, AVPacket &pkt)
@@ -256,6 +253,7 @@ static int PVDStreamDispatch(PVDStream *s)
 		if (s->_heart_msg.type == FrameOps[ix].type_tag)
 		{
 			int result = FrameOps[ix].avpkt_set(s, pkt);
+			pkt.buf = (AVBufferRef*)s->_buffer;
 			if (result >= 0) {
 				if (s->_stream._infos[pkt.stream_index] == NULL)
 					SCM->sinfo_clone(&s->_stream._infos[pkt.stream_index], NULL, 128);
@@ -283,6 +281,11 @@ static int PVDStreamOutputDone(AMessage *msg, int result)
 				result = s->_io->output(msg, s->_buffer);
 				if (result == 0) return 0;
 				if (result > 0) continue;
+			}
+			if (result == -EAGAIN) {
+				msg->init();
+				result = 0;
+				continue;
 			}
 		}
 		if (result > 0) {
@@ -382,6 +385,7 @@ int PVDStream::open(int result)
 		result = ARefsBuf::reserve(_buffer, 32*1024, 32*1024);
 		if (result < 0)
 			return result;
+		_buffer->pop(_buffer->len());
 
 		_heart_msg.type = ioMsgType_Block;
 		_heart_msg.data = _buffer->next();
